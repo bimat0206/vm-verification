@@ -1,0 +1,32 @@
+{
+  "name": "vending-machine-layout-generator",
+  "version": "1.0.0",
+  "description": "Node.js application that generates vending machine layouts from JSON data",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "clean": "node cleanup.js",
+    "install-deps": "node install.js"
+  },
+  "dependencies": {
+    "canvas": "^3.1.0",
+    "fs": "0.0.1-security",
+    "path": "^0.12.7"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [
+    "vending-machine",
+    "layout",
+    "generator",
+    "canvas",
+    "node"
+  ]
+}
