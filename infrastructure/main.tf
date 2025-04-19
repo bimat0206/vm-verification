@@ -1,10 +1,176 @@
-# infrastructure/main.tf (updated with multi_ecr module)
 
-# After the vpc, s3, dynamodb, and secrets modules, add:
 
-# ECR Repositories for Lambda functions
+# Merge default and additional tags with environment-specific overrides
+locals {
+  common_tags = merge(
+    var.additional_tags,
+    {
+      Environment = var.environment
+    }
+  )
+}
+
+# VPC Module
+module "vpc" {
+  source = "./modules/vpc"
+
+  environment         = var.environment
+  vpc_cidr           = var.vpc_cidr
+  availability_zones = var.availability_zones
+  public_subnet_cidrs = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
+  enable_nat_gateway = var.enable_nat_gateway
+  single_nat_gateway = var.single_nat_gateway
+  tags               = local.common_tags
+}
+
+# S3 bucket for storing images
+module "images_bucket" {
+  source = "./modules/s3"
+
+  bucket_name     = var.s3_bucket_name
+  environment     = var.environment
+  enable_versioning = true
+  encryption_algorithm = "AES256"
+  tags            = local.common_tags
+}
+
+# DynamoDB table for verification results
+module "verification_results" {
+  source = "./modules/dynamodb"
+
+  table_name     = var.dynamodb_table_name
+  environment    = var.environment
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "comparisonId"
+  range_key      = "timestamp"
+  enable_streams = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
+  attributes = [
+    {
+      name = "comparisonId"
+      type = "S"
+    },
+    {
+      name = "timestamp"
+      type = "S"
+    },
+    {
+      name = "vendingMachineId"
+      type = "S"
+    }
+  ]
+  global_secondary_indexes = [
+    {
+      name               = "VendingMachineIndex"
+      hash_key           = "vendingMachineId"
+      range_key          = "timestamp"
+      projection_type    = "ALL"
+      read_capacity      = null
+      write_capacity     = null
+    }
+  ]
+  tags            = local.common_tags
+}
+
+# Secrets Manager for storing API keys and credentials
+module "secrets" {
+  source = "./modules/secrets_manager"
+
+  secret_name     = "vending-verification-bedrock-api-key"
+  environment     = var.environment
+  description     = "API key for Bedrock Claude model"
+  create_bedrock_policy = true
+  aws_region      = var.aws_region
+  create_secret_version = true
+  secret_string_map = {
+    "api_key"     = var.bedrock_api_key
+    "model_id"    = "anthropic.claude-3-sonnet-20240229-v1:0"
+  }
+  tags            = local.common_tags
+}
+
+# ECR Repository for Docker images
+
+
+# Lambda functions for the workflow
+
+
+# Step Functions state machine
+module "step_functions" {
+  source = "./modules/step_functions"
+
+  state_machine_name = "vending-verification-workflow"
+  environment        = var.environment
+  
+  initialize_function_arn      = module.lambda_functions.initialize_function_arn
+  fetch_images_function_arn    = module.lambda_functions.fetch_images_function_arn
+  prepare_prompt_function_arn  = module.lambda_functions.prepare_prompt_function_arn
+  invoke_bedrock_function_arn  = module.lambda_functions.invoke_bedrock_function_arn
+  process_results_function_arn = module.lambda_functions.process_results_function_arn
+  store_results_function_arn   = module.lambda_functions.store_results_function_arn
+  notify_function_arn          = module.lambda_functions.notify_function_arn
+  
+  tags            = local.common_tags
+}
+
+# API Gateway
+module "api_gateway" {
+  source = "./modules/api_gateway"
+
+  api_name        = "vending-verification-api"
+  environment     = var.environment
+  stage_name      = "v1"
+  
+  step_functions_state_machine_arn = module.step_functions.state_machine_arn
+  step_functions_invoke_arn        = "arn:aws:apigateway:${var.aws_region}:states:action/StartExecution"
+  
+  get_comparison_lambda_function_name = module.lambda_functions.get_comparison_function_name
+  get_comparison_lambda_invoke_arn    = module.lambda_functions.get_comparison_invoke_arn
+  
+  get_images_lambda_function_name     = module.lambda_functions.get_images_function_name
+  get_images_lambda_invoke_arn        = module.lambda_functions.get_images_invoke_arn
+  
+  tags            = local.common_tags
+}
+
+# CloudWatch monitoring
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  dashboard_name       = "vending-verification-dashboard"
+  environment          = var.environment
+  aws_region           = var.aws_region
+  
+  lambda_functions     = [
+    module.lambda_functions.initialize_function_name,
+    module.lambda_functions.fetch_images_function_name,
+    module.lambda_functions.prepare_prompt_function_name,
+    module.lambda_functions.invoke_bedrock_function_name,
+    module.lambda_functions.process_results_function_name,
+    module.lambda_functions.store_results_function_name,
+    module.lambda_functions.notify_function_name,
+    module.lambda_functions.get_comparison_function_name,
+    module.lambda_functions.get_images_function_name
+  ]
+  
+  state_machine_arn     = module.step_functions.state_machine_arn
+  state_machine_name    = module.step_functions.state_machine_name
+  dynamodb_table        = module.verification_results.table_name
+  api_gateway_api_name  = "vending-verification-api"
+  api_gateway_stage_name = "v1"
+  s3_bucket_name        = module.images_bucket.bucket_id
+  
+  lambda_error_threshold = 1
+  api_gateway_error_threshold = 1
+  step_functions_failure_threshold = 1
+  
+  log_retention_days = var.cloudwatch_logs_retention_days
+  
+  tags               = local.common_tags
+}
 module "lambda_ecr_repos" {
-  source = "./modules/multi_ecr"
+  source = "./modules/ecr"
 
   repository_prefix  = var.ecr_repository_name
   environment        = var.environment
