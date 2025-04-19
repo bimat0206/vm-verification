@@ -93,3 +93,10 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+# Add this variable to modules/monitoring/variables.tf
+
+variable "create_state_machine_log_group" {
+  description = "Whether to create the CloudWatch Log Group for the Step Functions state machine"
+  type        = bool
+  default     = false
+}

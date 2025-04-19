@@ -80,11 +80,16 @@ resource "aws_api_gateway_method_response" "post_comparisons_response_200" {
 # The integration response resource should depend on the integration resource
 # Add this to your modules/api_gateway/main.tf file
 
+# Fix for the API Gateway Integration Response in modules/api_gateway/main.tf
+# Replace the current post_comparisons_integration_response resource with this corrected version:
+
 resource "aws_api_gateway_integration_response" "post_comparisons_integration_response" {
-  rest_api_id         = aws_api_gateway_rest_api.api.id
+  count = var.skip_api_gateway_integration_response ? 0 : 1
+  
+  rest_api_id         = aws_api_gateway_rest_api.verification_api.id
   resource_id         = aws_api_gateway_resource.comparisons.id
   http_method         = aws_api_gateway_method.post_comparisons.http_method
-  status_code         = aws_api_gateway_method_response.post_comparisons_method_response.status_code
+  status_code         = aws_api_gateway_method_response.post_comparisons_response_200.status_code
   selection_pattern   = "200"
   
   response_templates = {

@@ -131,7 +131,12 @@ resource "aws_cloudwatch_log_group" "api_gateway_logs" {
   )
 }
 
+# Fix for the monitoring module's state machine log group
+# Modify the log group definition to handle existing log groups gracefully
+
 resource "aws_cloudwatch_log_group" "state_machine_logs" {
+  # Add a count parameter to conditionally create this resource
+  count             = var.create_state_machine_log_group ? 1 : 0
   name              = "/aws/states/${var.state_machine_name}"
   retention_in_days = var.log_retention_days
   
@@ -142,4 +147,9 @@ resource "aws_cloudwatch_log_group" "state_machine_logs" {
     },
     var.tags
   )
+  
+  # Prevent errors when the log group already exists
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }

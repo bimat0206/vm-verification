@@ -71,9 +71,3 @@ variable "skip_api_gateway_integration_response" {
 #   count = var.skip_api_gateway_integration_response ? 0 : 1
 #   rest_api_id = ... (rest of your configuration)
 
-# Also add this to your modules/api_gateway/variables.tf file:
-variable "skip_api_gateway_integration_response" {
-  description = "Whether to skip creating the API Gateway integration response resource"
-  type        = bool
-  default     = true
-}

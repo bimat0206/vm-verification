@@ -143,6 +143,7 @@ module "api_gateway" {
 }
 
 # CloudWatch monitoring
+# Updated CloudWatch monitoring module
 module "monitoring" {
   source = "./modules/monitoring"
 
@@ -174,6 +175,9 @@ module "monitoring" {
   step_functions_failure_threshold = 1
   
   log_retention_days = var.cloudwatch_logs_retention_days
+  
+  # Set to false since the Step Functions module already creates this log group
+  create_state_machine_log_group = false
   
   tags               = local.common_tags
 }

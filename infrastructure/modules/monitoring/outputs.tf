@@ -38,7 +38,11 @@ output "api_gateway_log_group_arn" {
   value       = aws_cloudwatch_log_group.api_gateway_logs.arn
 }
 
+# Update this output in modules/monitoring/outputs.tf
+
 output "state_machine_log_group_arn" {
   description = "ARN of the Step Functions state machine log group"
-  value       = aws_cloudwatch_log_group.state_machine_logs.arn
+  value       = var.create_state_machine_log_group ? aws_cloudwatch_log_group.state_machine_logs[0].arn : null
 }
+# Update this output in modules/monitoring/outputs.tf
+
