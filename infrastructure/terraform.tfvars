@@ -74,5 +74,11 @@ additional_tags = {
 # Bedrock Configuration
 # Do not set bedrock_api_key here for security reasons
 # Use environment variables or AWS Secrets Manager
-skip_lambda_functions = false
-push_placeholder_images = false
+
+# Set to true for infrastructure-only deployment (no Lambda)
+# Set to false when you want to actually deploy Lambda functions
+skip_lambda_functions = false 
+
+# Set to true to push placeholder nginx images to ECR repositories
+# This ensures we have valid images for Lambda functions to use
+push_placeholder_images = true

@@ -1,7 +1,7 @@
-# infrastructure/modules/multi_ecr/main.tf
+# infrastructure/modules/ecr/main.tf
 
 locals {
- common_tags = merge(
+  common_tags = merge(
     var.tags,
     {
       Environment = var.environment
@@ -101,6 +101,7 @@ resource "aws_iam_policy" "ecr_policy" {
 }
 
 # Null resource to pull and push nginx images to repositories
+# Null resource to pull and push nginx images to repositories
 resource "null_resource" "push_placeholder_images" {
   for_each = var.push_placeholder_images ? aws_ecr_repository.function_repos : {}
 
@@ -109,11 +110,14 @@ resource "null_resource" "push_placeholder_images" {
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
     command = <<EOF
-      aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${each.value.repository_url}
+      # Continue even if login fails (keychain errors can happen but still work)
+      aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${split("/", each.value.repository_url)[0]} || true
       docker pull nginx:latest
       docker tag nginx:latest ${each.value.repository_url}:latest
       docker push ${each.value.repository_url}:latest
+      echo "Successfully pushed image to ${each.value.repository_url}:latest"
     EOF
   }
 

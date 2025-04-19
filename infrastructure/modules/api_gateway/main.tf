@@ -76,15 +76,27 @@ resource "aws_api_gateway_method_response" "post_comparisons_response_200" {
   }
 }
 
+# API Gateway Integration Response fixes
+# The integration response resource should depend on the integration resource
+# Add this to your modules/api_gateway/main.tf file
+
 resource "aws_api_gateway_integration_response" "post_comparisons_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.verification_api.id
-  resource_id = aws_api_gateway_resource.comparisons.id
-  http_method = aws_api_gateway_method.post_comparisons.http_method
-  status_code = aws_api_gateway_method_response.post_comparisons_response_200.status_code
+  rest_api_id         = aws_api_gateway_rest_api.api.id
+  resource_id         = aws_api_gateway_resource.comparisons.id
+  http_method         = aws_api_gateway_method.post_comparisons.http_method
+  status_code         = aws_api_gateway_method_response.post_comparisons_method_response.status_code
+  selection_pattern   = "200"
   
   response_templates = {
-    "application/json" = ""
+    "application/json" = jsonencode({
+      executionArn = "$input.path('$.executionArn')"
+      startDate    = "$input.path('$.startDate')"
+    })
   }
+  
+  depends_on = [
+    aws_api_gateway_integration.post_comparisons_integration
+  ]
 }
 
 # GET /comparisons/{id}

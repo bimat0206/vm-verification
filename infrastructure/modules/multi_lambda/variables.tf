@@ -17,11 +17,6 @@ variable "filename" {
   default     = null
 }
 
-#variable "runtime" {
-#  description = "Lambda function runtime"
-#  type        = string
-#}
-
 variable "architectures" {
   description = "Lambda function architectures"
   type        = list(string)

@@ -51,3 +51,29 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+# Create a temporary fix for the API Gateway module
+# Add this to your infrastructure/variables.tf file
+
+variable "skip_api_gateway_integration_response" {
+  description = "Whether to skip creating the API Gateway integration response resource (useful for troubleshooting)"
+  type        = bool
+  default     = true
+}
+
+# Then modify your modules/api_gateway/main.tf file to add a count parameter to 
+# the aws_api_gateway_integration_response.post_comparisons_integration_response resource like this:
+
+# Find the line that looks like this:
+# resource "aws_api_gateway_integration_response" "post_comparisons_integration_response" {
+
+# And replace it with:
+# resource "aws_api_gateway_integration_response" "post_comparisons_integration_response" {
+#   count = var.skip_api_gateway_integration_response ? 0 : 1
+#   rest_api_id = ... (rest of your configuration)
+
+# Also add this to your modules/api_gateway/variables.tf file:
+variable "skip_api_gateway_integration_response" {
+  description = "Whether to skip creating the API Gateway integration response resource"
+  type        = bool
+  default     = true
+}

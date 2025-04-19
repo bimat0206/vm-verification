@@ -97,6 +97,7 @@ module "secrets" {
 
 
 # Step Functions state machine
+# Step Functions state machine
 module "step_functions" {
   source = "./modules/step_functions"
 
@@ -111,9 +112,13 @@ module "step_functions" {
   store_results_function_arn   = module.lambda_functions.store_results_function_arn
   notify_function_arn          = module.lambda_functions.notify_function_arn
   
+  # Add log retention days
+  log_retention_days = var.cloudwatch_logs_retention_days
+  
   tags            = local.common_tags
 }
 
+# API Gateway
 # API Gateway
 module "api_gateway" {
   source = "./modules/api_gateway"
@@ -130,6 +135,9 @@ module "api_gateway" {
   
   get_images_lambda_function_name     = module.lambda_functions.get_images_function_name
   get_images_lambda_invoke_arn        = module.lambda_functions.get_images_invoke_arn
+  
+  # Add this line to skip the integration response
+  skip_api_gateway_integration_response = true
   
   tags            = local.common_tags
 }
@@ -191,6 +199,7 @@ module "ecr" {
 
 # Lambda functions for the workflow
 # Lambda functions for the workflow
+# Lambda functions for the workflow
 module "lambda_functions" {
   source = "./modules/multi_lambda"
 
@@ -215,19 +224,16 @@ module "lambda_functions" {
   
   # Pass ECR repository URLs to the Lambda module
   ecr_repository_urls = {
-    "initialize"      = module.ecr.repository_urls["initialize"]
-    "fetch-images"    = module.ecr.repository_urls["fetch-images"]
-    "prepare-prompt"  = module.ecr.repository_urls["prepare-prompt"]
-    "invoke-bedrock"  = module.ecr.repository_urls["invoke-bedrock"]
-    "process-results" = module.ecr.repository_urls["process-results"]
-    "store-results"   = module.ecr.repository_urls["store-results"]
-    "notify"          = module.ecr.repository_urls["notify"]
-    "get-comparison"  = module.ecr.repository_urls["get-comparison"]
-    "get-images"      = module.ecr.repository_urls["get-images"]
+    initialize      = module.ecr.initialize_repository_url
+    "fetch-images"  = module.ecr.fetch_images_repository_url
+    "prepare-prompt" = module.ecr.prepare_prompt_repository_url
+    "invoke-bedrock" = module.ecr.invoke_bedrock_repository_url
+    "process-results" = module.ecr.process_results_repository_url
+    "store-results" = module.ecr.store_results_repository_url
+    notify          = module.ecr.notify_repository_url
+    "get-comparison" = module.ecr.get_comparison_repository_url
+    "get-images"    = module.ecr.get_images_repository_url
   }
-  
-  # Only needed for zip deployment, but keep for backwards compatibility 
-  #filename = var.skip_lambda_functions ? "dummy.zip" : null
   
   environment_variables = {
     SECRETS_ARN    = module.secrets.secret_arn
@@ -235,4 +241,8 @@ module "lambda_functions" {
   }
   
   tags            = local.common_tags
+  
+  depends_on = [
+    module.ecr.repository_urls
+  ]
 }

@@ -17,7 +17,6 @@ locals {
       memory_size  = 256
       timeout      = 30
       handler      = "initialize.handler"
-      image_uri    = var.ecr_repository_urls["initialize"]
     }
     fetch_images = {
       name         = "${var.name_prefix}-fetch-images"
@@ -25,7 +24,6 @@ locals {
       memory_size  = 512
       timeout      = 60
       handler      = "fetchImages.handler"
-      image_uri    = var.ecr_repository_urls["fetch-images"]
     }
     prepare_prompt = {
       name         = "${var.name_prefix}-prepare-prompt"
@@ -33,7 +31,6 @@ locals {
       memory_size  = 256
       timeout      = 30
       handler      = "preparePrompt.handler"
-      image_uri    = var.ecr_repository_urls["prepare-prompt"]
     }
     invoke_bedrock = {
       name         = "${var.name_prefix}-invoke-bedrock"
@@ -41,7 +38,6 @@ locals {
       memory_size  = 1024
       timeout      = 120
       handler      = "invokeBedrock.handler"
-      image_uri    = var.ecr_repository_urls["invoke-bedrock"]
     }
     process_results = {
       name         = "${var.name_prefix}-process-results"
@@ -49,7 +45,6 @@ locals {
       memory_size  = 512
       timeout      = 60
       handler      = "processResults.handler"
-      image_uri    = var.ecr_repository_urls["process-results"]
     }
     store_results = {
       name         = "${var.name_prefix}-store-results"
@@ -57,7 +52,6 @@ locals {
       memory_size  = 256
       timeout      = 30
       handler      = "storeResults.handler"
-      image_uri    = var.ecr_repository_urls["store-results"]
     }
     notify = {
       name         = "${var.name_prefix}-notify"
@@ -65,7 +59,6 @@ locals {
       memory_size  = 128
       timeout      = 30
       handler      = "notify.handler"
-      image_uri    = var.ecr_repository_urls["notify"]
     }
     get_comparison = {
       name         = "${var.name_prefix}-get-comparison"
@@ -73,7 +66,6 @@ locals {
       memory_size  = 256
       timeout      = 30
       handler      = "getComparison.handler"
-      image_uri    = var.ecr_repository_urls["get-comparison"]
     }
     get_images = {
       name         = "${var.name_prefix}-get-images"
@@ -81,7 +73,6 @@ locals {
       memory_size  = 256
       timeout      = 30
       handler      = "getImages.handler"
-      image_uri    = var.ecr_repository_urls["get-images"]
     }
   }
   
@@ -254,20 +245,15 @@ resource "aws_lambda_function" "function" {
   timeout          = each.value.timeout
   memory_size      = each.value.memory_size
   
-  # Determine package type based on whether we have an image_uri
-  package_type     = each.value.image_uri != null ? "Image" : "Zip"
+  # Set package type to Image for container-based deployment
+  package_type     = "Image"
   
-  # Set only one of image_uri OR filename, not both
-  image_uri        = each.value.image_uri != null ? each.value.image_uri : null
+  # Use the ECR image URL with the :latest tag explicitly
+  image_uri        = "${lookup(var.ecr_repository_urls, replace(each.key, "_", "-"), "")}:latest"
   
-  # Only include these if we're not using a container image
-  #filename         = each.value.image_uri == null ? var.filename : null
-  handler          = each.value.image_uri == null ? each.value.handler : null
-  #runtime          = each.value.image_uri == null ? var.runtime : null
-  
-  # Optional image configuration
+  # Add image config if commands are specified
   dynamic "image_config" {
-    for_each = each.value.image_uri != null && var.image_command != null ? [1] : []
+    for_each = var.image_command != null ? [1] : []
     content {
       command = var.image_command
     }

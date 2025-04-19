@@ -50,3 +50,11 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+# modules/step_functions/variables.tf
+# Add this variable to your variables.tf file in the step_functions module
+
+variable "log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 30
+}
