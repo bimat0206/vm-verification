@@ -1,3 +1,4 @@
+# infrastructure/variables.tf
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -20,12 +21,6 @@ variable "dynamodb_table_name" {
   description = "Name of the DynamoDB table for verification results"
   type        = string
   default     = "VerificationResults"
-}
-
-variable "lambda_zip_path" {
-  description = "Path to the Lambda function deployment package"
-  type        = string
-  default     = "backend/dist/vending-verification.zip"
 }
 
 variable "lambda_timeout" {
@@ -113,20 +108,91 @@ variable "single_nat_gateway" {
   default     = true
 }
 
-variable "ami_id" {
-  description = "AMI ID for the EC2 instance"
-  type        = string
-  default     = "ami-0c7217cdde317cfec" # Amazon Linux 2023 AMI
-}
-
-variable "instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t2.micro"
-}
-
 variable "ecr_image_uri" {
   description = "ECR image URI for Lambda container deployment"
   type        = string
   default     = null
 }
+
+# New variables for the updated architecture
+variable "bedrock_api_key" {
+  description = "API key for Bedrock service"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "step_functions_execution_timeout" {
+  description = "Timeout for Step Functions execution in seconds"
+  type        = number
+  default     = 300
+}
+
+variable "enable_api_gateway_logging" {
+  description = "Whether to enable logging for API Gateway"
+  type        = bool
+  default     = true
+}
+
+variable "api_gateway_throttling_rate_limit" {
+  description = "Rate limit for API Gateway throttling"
+  type        = number
+  default     = 100
+}
+
+variable "api_gateway_throttling_burst_limit" {
+  description = "Burst limit for API Gateway throttling"
+  type        = number
+  default     = 50
+}
+
+variable "cloudwatch_logs_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 90
+}
+
+variable "enable_alarm_notifications" {
+  description = "Whether to enable alarm notifications"
+  type        = bool
+  default     = false
+}
+
+variable "alarm_email" {
+  description = "Email address for alarm notifications"
+  type        = string
+  default     = ""
+}
+# Centralized Tags
+variable "default_tags" {
+  description = "Map of default tags to apply to all resources"
+  type        = map(string)
+  default     = {
+    Project     = "vending-verification"
+    ManagedBy   = "terraform"
+  }
+}
+
+variable "additional_tags" {
+  description = "Map of additional tags to apply to resources (will be merged with default_tags)"
+  type        = map(string)
+  default     = {}
+}
+# infrastructure/variables.tf (add these variables)
+
+# Variables for Lambda/ECR deployment
+variable "skip_lambda_functions" {
+  description = "Whether to skip Lambda function creation (for infrastructure-only deployments)"
+  type        = bool
+  default     = true
+}
+
+variable "push_placeholder_images" {
+  description = "Whether to push placeholder nginx images to the ECR repositories"
+  type        = bool
+  default     = true
+}
+
+# Add to terraform.tfvars
+# skip_lambda_functions = true
+# push_placeholder_images = true

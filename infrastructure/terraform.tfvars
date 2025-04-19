@@ -1,3 +1,4 @@
+# infrastructure/terraform.tfvars
 # AWS Region
 aws_region = "us-east-1"
 
@@ -12,7 +13,7 @@ dynamodb_table_name = "VerificationResults"
 
 # Lambda Configuration
 lambda_timeout = 30
-lambda_memory_size = 256
+lambda_memory_size = 512
 
 # ECR Configuration
 ecr_repository_name = "vending-verification"
@@ -43,11 +44,33 @@ single_nat_gateway = true
 # ALB Configuration
 alb_certificate_arn = null  # Set this to your SSL certificate ARN if you have one
 
-# Optional: KMS key ARN for ECR encryption
-# ecr_kms_key_arn = "arn:aws:kms:us-east-1:123456789012:key/your-key-id"
+# Step Functions Configuration
+step_functions_execution_timeout = 300
 
-# ECR Image URI for Lambda container deployment
-# Uncomment and set this to your ECR image URI (e.g., "123456789012.dkr.ecr.us-east-1.amazonaws.com/vending-verification:latest")
-# ecr_image_uri = "YOUR_ECR_IMAGE_URI"
+# API Gateway Configuration
+enable_api_gateway_logging = true
+api_gateway_throttling_rate_limit = 100
+api_gateway_throttling_burst_limit = 50
 
-# VPC and Subnet IDs for ALB will be referenced from VPC module outputs
+# CloudWatch Configuration
+cloudwatch_logs_retention_days = 90
+enable_alarm_notifications = false
+alarm_email = ""  # Set this to your email address if enable_alarm_notifications is true
+
+# Centralized Tags
+default_tags = {
+  Project     = "vending-verification"
+  Application = "kootoro-vending-verification"
+  CostCenter  = "engineering"
+  Environment = "dev"  # This will be overridden by the environment variable if different
+}
+
+additional_tags = {
+  Owner       = "Kootoro"
+  Team        = "AI Platform"
+  Compliance  = "internal"
+}
+
+# Bedrock Configuration
+# Do not set bedrock_api_key here for security reasons
+# Use environment variables or AWS Secrets Manager
