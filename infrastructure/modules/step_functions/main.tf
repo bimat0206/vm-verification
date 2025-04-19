@@ -2,14 +2,158 @@
 resource "aws_sfn_state_machine" "verification_workflow" {
   name     = var.state_machine_name
   role_arn = aws_iam_role.step_functions_role.arn
-  definition = templatefile("${path.module}/state_machine_definition.json.tftpl", {
-    initialize_function_arn         = var.initialize_function_arn
-    fetch_images_function_arn       = var.fetch_images_function_arn
-    prepare_prompt_function_arn     = var.prepare_prompt_function_arn
-    invoke_bedrock_function_arn     = var.invoke_bedrock_function_arn
-    process_results_function_arn    = var.process_results_function_arn
-    store_results_function_arn      = var.store_results_function_arn
-    notify_function_arn             = var.notify_function_arn
+  
+  # Use the definition directly instead of reading from a file with comments
+  definition = jsonencode({
+    Comment = "Vending Machine Image Verification Workflow",
+    StartAt = "Initialize",
+    States = {
+      Initialize = {
+        Type = "Task",
+        Resource = var.initialize_function_arn,
+        Next = "FetchImages",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      FetchImages = {
+        Type = "Task",
+        Resource = var.fetch_images_function_arn,
+        Next = "PreparePrompt",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      PreparePrompt = {
+        Type = "Task",
+        Resource = var.prepare_prompt_function_arn,
+        Next = "InvokeBedrock",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      InvokeBedrock = {
+        Type = "Task",
+        Resource = var.invoke_bedrock_function_arn,
+        Next = "ProcessResults",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      ProcessResults = {
+        Type = "Task",
+        Resource = var.process_results_function_arn,
+        Next = "StoreResults",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      StoreResults = {
+        Type = "Task",
+        Resource = var.store_results_function_arn,
+        Next = "Notify",
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      Notify = {
+        Type = "Task",
+        Resource = var.notify_function_arn,
+        End = true,
+        Retry = [
+          {
+            ErrorEquals = ["States.ALL"],
+            IntervalSeconds = 2,
+            MaxAttempts = 3,
+            BackoffRate = 2
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.error",
+            Next = "WorkflowFailed"
+          }
+        ]
+      },
+      WorkflowFailed = {
+        Type = "Fail",
+        Error = "WorkflowFailedError",
+        Cause = "One of the workflow steps failed. Check the error details."
+      }
+    }
   })
 
   logging_configuration {

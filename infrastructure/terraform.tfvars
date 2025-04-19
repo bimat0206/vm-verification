@@ -74,5 +74,5 @@ additional_tags = {
 # Bedrock Configuration
 # Do not set bedrock_api_key here for security reasons
 # Use environment variables or AWS Secrets Manager
-skip_lambda_functions = true 
-push_placeholder_images = true
+skip_lambda_functions = false
+push_placeholder_images = false

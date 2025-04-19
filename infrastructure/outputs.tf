@@ -49,14 +49,26 @@ output "api_gateway_endpoint" {
   value       = module.api_gateway.api_endpoint
 }
 
-output "ecr_repository_url" {
-  description = "URL of the ECR repository"
-  value       = module.ecr.repository_url
+# Updated ECR outputs to match the actual output attributes from the module
+output "ecr_repository_urls" {
+  description = "Map of function names to their ECR repository URLs"
+  value       = module.ecr.repository_urls
 }
 
-output "ecr_repository_arn" {
-  description = "ARN of the ECR repository"
-  value       = module.ecr.repository_arn
+output "ecr_repository_arns" {
+  description = "Map of function names to their ECR repository ARNs"
+  value       = module.ecr.repository_arns
+}
+
+output "ecr_policy_arn" {
+  description = "The ARN of the ECR IAM policy"
+  value       = module.ecr.ecr_policy_arn
+}
+
+# Individual repository outputs
+output "initialize_repository_url" {
+  description = "URL of the Initialize function ECR repository"
+  value       = module.ecr.initialize_repository_url
 }
 
 output "cloudwatch_dashboard_name" {

@@ -17,11 +17,10 @@ variable "filename" {
   default     = null
 }
 
-variable "runtime" {
-  description = "Lambda function runtime"
-  type        = string
-  default     = "nodejs18.x"
-}
+#variable "runtime" {
+#  description = "Lambda function runtime"
+#  type        = string
+#}
 
 variable "architectures" {
   description = "Lambda function architectures"
@@ -58,7 +57,6 @@ variable "dynamodb_table_name" {
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
 }
 
 variable "secrets_arn" {
@@ -79,9 +77,15 @@ variable "bedrock_model_id" {
 }
 
 variable "ecr_image_uri" {
-  description = "ECR repository URI for Lambda container image"
+  description = "ECR repository URI for Lambda container image (used for backwards compatibility)"
   type        = string
   default     = null
+}
+
+variable "ecr_repository_urls" {
+  description = "Map of function names to ECR repository URLs"
+  type        = map(string)
+  default     = {}
 }
 
 variable "image_command" {

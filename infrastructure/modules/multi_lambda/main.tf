@@ -16,63 +16,72 @@ locals {
       description  = "Validates inputs and prepares for processing"
       memory_size  = 256
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "initialize.handler"
+      handler      = "initialize.handler"
+      image_uri    = var.ecr_repository_urls["initialize"]
     }
     fetch_images = {
       name         = "${var.name_prefix}-fetch-images"
       description  = "Retrieves reference and checking images from S3"
       memory_size  = 512
       timeout      = 60
-      handler      = var.ecr_image_uri != null ? null : "fetchImages.handler"
+      handler      = "fetchImages.handler"
+      image_uri    = var.ecr_repository_urls["fetch-images"]
     }
     prepare_prompt = {
       name         = "${var.name_prefix}-prepare-prompt"
       description  = "Formats data for Bedrock model"
       memory_size  = 256
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "preparePrompt.handler"
+      handler      = "preparePrompt.handler"
+      image_uri    = var.ecr_repository_urls["prepare-prompt"]
     }
     invoke_bedrock = {
       name         = "${var.name_prefix}-invoke-bedrock"
       description  = "Calls Bedrock API for image analysis"
       memory_size  = 1024
       timeout      = 120
-      handler      = var.ecr_image_uri != null ? null : "invokeBedrock.handler"
+      handler      = "invokeBedrock.handler"
+      image_uri    = var.ecr_repository_urls["invoke-bedrock"]
     }
     process_results = {
       name         = "${var.name_prefix}-process-results"
       description  = "Processes and parses results from Bedrock"
       memory_size  = 512
       timeout      = 60
-      handler      = var.ecr_image_uri != null ? null : "processResults.handler"
+      handler      = "processResults.handler"
+      image_uri    = var.ecr_repository_urls["process-results"]
     }
     store_results = {
       name         = "${var.name_prefix}-store-results"
       description  = "Saves results to DynamoDB"
       memory_size  = 256
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "storeResults.handler"
+      handler      = "storeResults.handler"
+      image_uri    = var.ecr_repository_urls["store-results"]
     }
     notify = {
       name         = "${var.name_prefix}-notify"
       description  = "Sends notifications upon completion"
       memory_size  = 128
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "notify.handler"
+      handler      = "notify.handler"
+      image_uri    = var.ecr_repository_urls["notify"]
     }
     get_comparison = {
       name         = "${var.name_prefix}-get-comparison"
       description  = "Retrieves comparison results from DynamoDB"
       memory_size  = 256
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "getComparison.handler"
+      handler      = "getComparison.handler"
+      image_uri    = var.ecr_repository_urls["get-comparison"]
     }
     get_images = {
       name         = "${var.name_prefix}-get-images"
       description  = "Lists available images for comparison"
       memory_size  = 256
       timeout      = 30
-      handler      = var.ecr_image_uri != null ? null : "getImages.handler"
+      handler      = "getImages.handler"
+      image_uri    = var.ecr_repository_urls["get-images"]
     }
   }
   
@@ -245,24 +254,24 @@ resource "aws_lambda_function" "function" {
   timeout          = each.value.timeout
   memory_size      = each.value.memory_size
   
-  # Explicitly set package_type based on deployment method
-  package_type     = var.ecr_image_uri != null ? "Image" : "Zip"
+  # Determine package type based on whether we have an image_uri
+  package_type     = each.value.image_uri != null ? "Image" : "Zip"
   
-  # Use either image_uri or filename based on deployment type
+  # Set only one of image_uri OR filename, not both
+  image_uri        = each.value.image_uri != null ? each.value.image_uri : null
+  
+  # Only include these if we're not using a container image
+  #filename         = each.value.image_uri == null ? var.filename : null
+  handler          = each.value.image_uri == null ? each.value.handler : null
+  #runtime          = each.value.image_uri == null ? var.runtime : null
+  
+  # Optional image configuration
   dynamic "image_config" {
-    for_each = var.ecr_image_uri != null ? [1] : []
+    for_each = each.value.image_uri != null && var.image_command != null ? [1] : []
     content {
       command = var.image_command
     }
   }
-  
-  # Only set image_uri when using container image
-  image_uri = var.ecr_image_uri
-  
-  # Only use these if not using container image
-  filename = var.ecr_image_uri == null ? var.filename : null
-  handler = var.ecr_image_uri == null ? each.value.handler : null
-  runtime = var.ecr_image_uri == null ? var.runtime : null
   
   environment {
     variables = merge(

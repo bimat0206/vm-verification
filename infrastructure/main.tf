@@ -190,12 +190,12 @@ module "ecr" {
 # Update to main.tf (lambda_functions module section)
 
 # Lambda functions for the workflow
+# Lambda functions for the workflow
 module "lambda_functions" {
   source = "./modules/multi_lambda"
 
   name_prefix      = "vending-verification"
   environment      = var.environment
-  runtime          = "nodejs18.x"
   architectures    = ["arm64"]
   
   s3_bucket_name   = module.images_bucket.bucket_id
@@ -213,13 +213,21 @@ module "lambda_functions" {
   # Use the correct variable name
   skip_lambda_function_creation = var.skip_lambda_functions
   
-  # Use either a container image from the ECR module or a zip file
-  # If using for specific functions, you can uncomment and specify:
-  # ecr_image_uri    = module.lambda_ecr_repos.initialize_repository_url
+  # Pass ECR repository URLs to the Lambda module
+  ecr_repository_urls = {
+    "initialize"      = module.ecr.repository_urls["initialize"]
+    "fetch-images"    = module.ecr.repository_urls["fetch-images"]
+    "prepare-prompt"  = module.ecr.repository_urls["prepare-prompt"]
+    "invoke-bedrock"  = module.ecr.repository_urls["invoke-bedrock"]
+    "process-results" = module.ecr.repository_urls["process-results"]
+    "store-results"   = module.ecr.repository_urls["store-results"]
+    "notify"          = module.ecr.repository_urls["notify"]
+    "get-comparison"  = module.ecr.repository_urls["get-comparison"]
+    "get-images"      = module.ecr.repository_urls["get-images"]
+  }
   
-  # Or use a map to specify different images for each function
-  # Placeholder for now
-  filename         = "dummy.zip"
+  # Only needed for zip deployment, but keep for backwards compatibility 
+  #filename = var.skip_lambda_functions ? "dummy.zip" : null
   
   environment_variables = {
     SECRETS_ARN    = module.secrets.secret_arn
