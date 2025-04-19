@@ -18,9 +18,13 @@
       "height": 6,
       "properties": {
         "metrics": [
-          %{ for lambda_function in lambda_functions ~}
-          [ "AWS/Lambda", "Invocations", "FunctionName", "${lambda_function}" ],
-          %{ endfor ~}
+          %{ if length(lambda_functions) > 0 ~}
+            %{ for i, lambda_function in lambda_functions ~}
+              [ "AWS/Lambda", "Invocations", "FunctionName", "${lambda_function}" ]%{ if i < length(lambda_functions) - 1 ~},%{ endif ~}
+            %{ endfor ~}
+          %{ else ~}
+            [ "AWS/Lambda", "Invocations", "FunctionName", "placeholder" ]
+          %{ endif ~}
         ],
         "view": "timeSeries",
         "stacked": false,
@@ -38,9 +42,13 @@
       "height": 6,
       "properties": {
         "metrics": [
-          %{ for lambda_function in lambda_functions ~}
-          [ "AWS/Lambda", "Errors", "FunctionName", "${lambda_function}" ],
-          %{ endfor ~}
+          %{ if length(lambda_functions) > 0 ~}
+            %{ for i, lambda_function in lambda_functions ~}
+              [ "AWS/Lambda", "Errors", "FunctionName", "${lambda_function}" ]%{ if i < length(lambda_functions) - 1 ~},%{ endif ~}
+            %{ endfor ~}
+          %{ else ~}
+            [ "AWS/Lambda", "Errors", "FunctionName", "placeholder" ]
+          %{ endif ~}
         ],
         "view": "timeSeries",
         "stacked": false,
@@ -58,9 +66,13 @@
       "height": 6,
       "properties": {
         "metrics": [
-          %{ for lambda_function in lambda_functions ~}
-          [ "AWS/Lambda", "Duration", "FunctionName", "${lambda_function}" ],
-          %{ endfor ~}
+          %{ if length(lambda_functions) > 0 ~}
+            %{ for i, lambda_function in lambda_functions ~}
+              [ "AWS/Lambda", "Duration", "FunctionName", "${lambda_function}" ]%{ if i < length(lambda_functions) - 1 ~},%{ endif ~}
+            %{ endfor ~}
+          %{ else ~}
+            [ "AWS/Lambda", "Duration", "FunctionName", "placeholder" ]
+          %{ endif ~}
         ],
         "view": "timeSeries",
         "stacked": false,
