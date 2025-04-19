@@ -1,4 +1,4 @@
-# infrastructure/modules/streamlit_frontend_ecs/variables.tf
+# Complete infrastructure/modules/streamlit_frontend/variables.tf
 
 variable "name_prefix" {
   description = "Prefix for resource names"
@@ -21,6 +21,17 @@ variable "aws_region" {
 variable "vpc_id" {
   description = "ID of the VPC"
   type        = string
+}
+
+# Add direct subnet variables
+variable "public_subnet_ids" {
+  description = "List of public subnet IDs for the ALB"
+  type        = list(string)
+}
+
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs for the ECS tasks"
+  type        = list(string)
 }
 
 # ECR configuration

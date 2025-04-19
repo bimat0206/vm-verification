@@ -1,4 +1,4 @@
-# infrastructure/modules/streamlit_frontend_ecs/main.tf
+# Complete infrastructure/modules/streamlit_frontend/main.tf
 
 # Create ECR repository for Streamlit container
 resource "aws_ecr_repository" "streamlit_app" {
@@ -72,35 +72,6 @@ resource "aws_secretsmanager_secret_version" "streamlit_config_version" {
     step_functions_arn    = var.step_functions_arn,
     additional_config     = var.additional_config
   })
-}
-
-# Fetch VPC and subnet information
-data "aws_vpc" "selected" {
-  id = var.vpc_id
-}
-
-data "aws_subnets" "public" {
-  filter {
-    name   = "vpc-id"
-    values = [var.vpc_id]
-  }
-
-  filter {
-    name   = "tag:Type"
-    values = ["Public"]
-  }
-}
-
-data "aws_subnets" "private" {
-  filter {
-    name   = "vpc-id"
-    values = [var.vpc_id]
-  }
-
-  filter {
-    name   = "tag:Type"
-    values = ["Private"]
-  }
 }
 
 # Security Groups
@@ -314,7 +285,7 @@ resource "aws_lb" "streamlit_alb" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = data.aws_subnets.public.ids
+  subnets            = var.public_subnet_ids  # Use the public subnet IDs directly
 
   enable_deletion_protection = false
 
@@ -568,7 +539,7 @@ resource "aws_ecs_service" "streamlit_service" {
   deployment_maximum_percent         = 200
 
   network_configuration {
-    subnets          = data.aws_subnets.private.ids
+    subnets          = var.private_subnet_ids  # Use the private subnet IDs directly
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = false
   }

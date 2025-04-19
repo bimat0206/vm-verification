@@ -257,6 +257,9 @@ module "lambda_functions" {
 # Update this section in your infrastructure/main.tf file
 
 # Streamlit Frontend with ECS Fargate
+# Update this section in your infrastructure/main.tf file
+
+# Streamlit Frontend with ECS Fargate
 module "streamlit_frontend" {
   source = "./modules/streamlit_frontend"
 
@@ -264,8 +267,10 @@ module "streamlit_frontend" {
   environment      = var.environment
   aws_region       = var.aws_region
   
-  # VPC Configuration
-  vpc_id           = module.vpc.vpc_id
+  # VPC Configuration - Pass outputs directly from VPC module
+  vpc_id             = module.vpc.vpc_id
+  public_subnet_ids  = module.vpc.public_subnet_ids
+  private_subnet_ids = module.vpc.private_subnet_ids
   
   # ECR Configuration
   image_tag_mutability = var.ecr_image_tag_mutability
