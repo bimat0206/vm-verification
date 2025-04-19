@@ -214,8 +214,9 @@ resource "aws_apprunner_service" "streamlit_service" {
 }
 
 # App Runner auto scaling configuration
+# App Runner auto scaling configuration
 resource "aws_apprunner_auto_scaling_configuration_version" "app_scaling" {
-  auto_scaling_configuration_name = "${var.name_prefix}-apprunner-scaling"
+  auto_scaling_configuration_name = "${substr(var.name_prefix, 0, 20)}-scaling"
   
   max_concurrency = var.max_concurrency
   max_size        = var.max_size
