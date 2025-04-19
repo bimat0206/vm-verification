@@ -250,3 +250,49 @@ module "lambda_functions" {
     module.ecr.repository_urls
   ]
 }
+
+# Add this to your infrastructure/main.tf file
+
+# Streamlit Frontend
+module "streamlit_frontend" {
+  source = "./modules/streamlit_frontend"
+
+  name_prefix      = "vending-verification"
+  environment      = var.environment
+  aws_region       = var.aws_region
+  
+  # ECR Configuration
+  image_tag_mutability = var.ecr_image_tag_mutability
+  enable_scan_on_push  = var.ecr_enable_scan_on_push
+  kms_key_arn          = var.ecr_kms_key_arn
+  max_image_count      = var.ecr_max_image_count
+  
+  # API Configuration
+  api_endpoint        = module.api_gateway.invoke_url # Replace with module.api_gateway.invoke_url
+  dynamodb_table_name = module.verification_results.table_name
+  s3_bucket_name      = module.images_bucket.bucket_id
+  step_functions_arn  = module.step_functions.state_machine_arn
+  
+  # App Runner Configuration
+  container_port          = 8501
+  image_tag               = "latest"
+  auto_deployments_enabled = true
+  cpu                     = "1024"  # 1 vCPU
+  memory                  = "2048"  # 2 GB
+  max_concurrency         = 50
+  max_size                = 2
+  min_size                = 1
+  
+  # Docker Build Configuration (optional)
+  build_and_push_image   = false  # Set to true to build and push during terraform apply
+  app_source_path        = "${path.module}/../frontend"
+  
+  # Additional configuration (optional)
+  additional_config = {
+    APP_TITLE          = "Vending Machine Verification"
+    ENABLE_ANALYTICS   = "false"
+    LOG_LEVEL          = "INFO"
+  }
+  
+  tags = local.common_tags
+}

@@ -80,3 +80,21 @@ output "secret_arn" {
   description = "ARN of the Secrets Manager secret"
   value       = module.secrets.secret_arn
 }
+
+# Add these outputs to your infrastructure/outputs.tf file
+
+# Streamlit Frontend Outputs
+output "streamlit_app_url" {
+  description = "URL of the Streamlit application"
+  value       = module.streamlit_frontend.app_runner_service_url
+}
+
+output "streamlit_ecr_repository_url" {
+  description = "URL of the ECR repository for the Streamlit application"
+  value       = module.streamlit_frontend.ecr_repository_url
+}
+
+output "streamlit_config_secret_arn" {
+  description = "ARN of the secret containing Streamlit configuration"
+  value       = module.streamlit_frontend.secret_arn
+}
