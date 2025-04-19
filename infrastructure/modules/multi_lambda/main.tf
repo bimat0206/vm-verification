@@ -2,14 +2,13 @@
 # This module creates multiple Lambda functions for the Vending Machine Verification workflow
 
 locals {
- common_tags = merge(
+  common_tags = merge(
     var.tags,
     {
       Environment = var.environment
       Name        = "${var.name_prefix}-lambda"
     }
   )
-
   
   lambda_functions = {
     initialize = {
@@ -237,7 +236,7 @@ resource "aws_iam_role_policy_attachment" "secrets_access_attachment" {
 
 # Create the Lambda functions
 resource "aws_lambda_function" "function" {
-  for_each = local.lambda_functions
+  for_each = var.skip_lambda_function_creation ? {} : local.lambda_functions
   
   function_name    = each.value.name
   description      = each.value.description

@@ -76,7 +76,6 @@ variable "enable_secrets_access" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID for Claude"
   type        = string
-  default     = "anthropic.claude-3-sonnet-20240229-v1:0"
 }
 
 variable "ecr_image_uri" {
@@ -95,4 +94,10 @@ variable "tags" {
   description = "Additional tags to apply to the Lambda functions"
   type        = map(string)
   default     = {}
+}
+
+variable "skip_lambda_function_creation" {
+  description = "Whether to skip Lambda function creation (for infrastructure-only deployments)"
+  type        = bool
+  default     = false
 }

@@ -169,7 +169,7 @@ module "monitoring" {
   
   tags               = local.common_tags
 }
-module "lambda_ecr_repos" {
+module "ecr" {
   source = "./modules/ecr"
 
   repository_prefix  = var.ecr_repository_name
@@ -185,6 +185,9 @@ module "lambda_ecr_repos" {
   
   tags               = local.common_tags
 }
+
+# Lambda functions for the workflow
+# Update to main.tf (lambda_functions module section)
 
 # Lambda functions for the workflow
 module "lambda_functions" {
@@ -207,7 +210,7 @@ module "lambda_functions" {
   
   bedrock_model_id = "anthropic.claude-3-7-sonnet-20250219-v1:0"
   
-  # Comment out or set to false if you want to create Lambda functions
+  # Use the correct variable name
   skip_lambda_function_creation = var.skip_lambda_functions
   
   # Use either a container image from the ECR module or a zip file
