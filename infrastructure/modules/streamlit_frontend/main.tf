@@ -192,14 +192,14 @@ resource "aws_apprunner_service" "streamlit_service" {
     instance_role_arn = aws_iam_role.app_runner_role.arn
   }
   
-  health_check_configuration {
-    protocol = "HTTP"
-    path     = "/"
-    interval = 10
-    timeout  = 5
-    healthy_threshold = 1
-    unhealthy_threshold = 5
-  }
+health_check_configuration {
+  protocol = "HTTP"
+  path     = "/"
+  interval = 20
+  timeout  = 10
+  healthy_threshold = 1
+  unhealthy_threshold = 5
+}
   
   tags = merge(
     {
@@ -251,4 +251,29 @@ resource "null_resource" "docker_build_push" {
   }
   
   depends_on = [aws_ecr_repository.streamlit_app]
+}
+# Additional policy for App Runner
+resource "aws_iam_policy" "app_runner_additional_policy" {
+  name        = "${var.name_prefix}-apprunner-additional-policy"
+  description = "Additional permissions for App Runner"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "app_runner_additional_attachment" {
+  role       = aws_iam_role.app_runner_role.name
+  policy_arn = aws_iam_policy.app_runner_additional_policy.arn
 }

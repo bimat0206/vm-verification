@@ -284,7 +284,7 @@ module "streamlit_frontend" {
   min_size                = 1
   
   # Docker Build Configuration (optional)
-  build_and_push_image   = true  # Set to true to build and push during terraform apply
+  build_and_push_image   = false  # Set to true to build and push during terraform apply
   app_source_path        = "${path.module}/../frontend"
   
   # Additional configuration (optional)
