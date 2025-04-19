@@ -84,9 +84,12 @@ output "secret_arn" {
 # Add these outputs to your infrastructure/outputs.tf file
 
 # Streamlit Frontend Outputs
-output "streamlit_app_url" {
-  description = "URL of the Streamlit application"
-  value       = module.streamlit_frontend.app_runner_service_url
+# Update these outputs in your infrastructure/outputs.tf file
+
+# Streamlit Frontend ECS Outputs
+output "streamlit_alb_dns_name" {
+  description = "DNS name of the Streamlit ALB"
+  value       = module.streamlit_frontend.alb_dns_name
 }
 
 output "streamlit_ecr_repository_url" {
@@ -97,4 +100,19 @@ output "streamlit_ecr_repository_url" {
 output "streamlit_config_secret_arn" {
   description = "ARN of the secret containing Streamlit configuration"
   value       = module.streamlit_frontend.secret_arn
+}
+
+output "streamlit_ecs_cluster_name" {
+  description = "Name of the ECS cluster for Streamlit"
+  value       = module.streamlit_frontend.ecs_cluster_id
+}
+
+output "streamlit_ecs_service_name" {
+  description = "Name of the ECS service for Streamlit"
+  value       = module.streamlit_frontend.ecs_service_name
+}
+
+output "streamlit_cloudwatch_log_group" {
+  description = "Name of the CloudWatch log group for Streamlit"
+  value       = module.streamlit_frontend.cloudwatch_log_group_name
 }

@@ -1,4 +1,4 @@
-# infrastructure/modules/streamlit_frontend/outputs.tf
+# infrastructure/modules/streamlit_frontend_ecs/outputs.tf
 
 output "ecr_repository_url" {
   description = "URL of the ECR repository for Streamlit app"
@@ -20,32 +20,67 @@ output "secret_name" {
   value       = aws_secretsmanager_secret.streamlit_config.name
 }
 
-output "app_runner_service_id" {
-  description = "ID of the App Runner service"
-  value       = aws_apprunner_service.streamlit_service.id
+output "ecs_cluster_id" {
+  description = "ID of the ECS cluster"
+  value       = aws_ecs_cluster.streamlit_cluster.id
 }
 
-output "app_runner_service_arn" {
-  description = "ARN of the App Runner service"
-  value       = aws_apprunner_service.streamlit_service.arn
+output "ecs_cluster_arn" {
+  description = "ARN of the ECS cluster"
+  value       = aws_ecs_cluster.streamlit_cluster.arn
 }
 
-output "app_runner_service_url" {
-  description = "URL of the App Runner service"
-  value       = aws_apprunner_service.streamlit_service.service_url
+output "ecs_service_id" {
+  description = "ID of the ECS service"
+  value       = aws_ecs_service.streamlit_service.id
 }
 
-output "app_runner_service_status" {
-  description = "Status of the App Runner service"
-  value       = aws_apprunner_service.streamlit_service.status
+output "ecs_service_name" {
+  description = "Name of the ECS service"
+  value       = aws_ecs_service.streamlit_service.name
 }
 
-output "app_runner_role_arn" {
-  description = "ARN of the IAM role for App Runner"
-  value       = aws_iam_role.app_runner_role.arn
+output "ecs_task_definition_arn" {
+  description = "ARN of the ECS task definition"
+  value       = aws_ecs_task_definition.streamlit_task.arn
 }
 
-output "app_runner_role_name" {
-  description = "Name of the IAM role for App Runner"
-  value       = aws_iam_role.app_runner_role.name
+output "alb_dns_name" {
+  description = "DNS name of the ALB"
+  value       = aws_lb.streamlit_alb.dns_name
+}
+
+output "alb_zone_id" {
+  description = "Zone ID of the ALB"
+  value       = aws_lb.streamlit_alb.zone_id
+}
+
+output "alb_arn" {
+  description = "ARN of the ALB"
+  value       = aws_lb.streamlit_alb.arn
+}
+
+output "security_group_alb_id" {
+  description = "ID of the ALB security group"
+  value       = aws_security_group.alb_sg.id
+}
+
+output "security_group_ecs_id" {
+  description = "ID of the ECS security group"
+  value       = aws_security_group.ecs_sg.id
+}
+
+output "cloudwatch_log_group_name" {
+  description = "Name of the CloudWatch log group"
+  value       = aws_cloudwatch_log_group.streamlit_logs.name
+}
+
+output "iam_role_ecs_task_execution_arn" {
+  description = "ARN of the ECS task execution role"
+  value       = aws_iam_role.ecs_task_execution_role.arn
+}
+
+output "iam_role_ecs_task_arn" {
+  description = "ARN of the ECS task role"
+  value       = aws_iam_role.ecs_task_role.arn
 }

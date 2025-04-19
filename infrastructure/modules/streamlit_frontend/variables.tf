@@ -1,4 +1,4 @@
-# infrastructure/modules/streamlit_frontend/variables.tf
+# infrastructure/modules/streamlit_frontend_ecs/variables.tf
 
 variable "name_prefix" {
   description = "Prefix for resource names"
@@ -17,6 +17,13 @@ variable "aws_region" {
   type        = string
 }
 
+# VPC configuration
+variable "vpc_id" {
+  description = "ID of the VPC"
+  type        = string
+}
+
+# ECR configuration
 variable "image_tag_mutability" {
   description = "Image tag mutability setting for the ECR repository"
   type        = string
@@ -45,6 +52,7 @@ variable "max_image_count" {
   default     = 5
 }
 
+# Application configuration
 variable "api_endpoint" {
   description = "API Gateway endpoint URL"
   type        = string
@@ -71,6 +79,7 @@ variable "additional_config" {
   default     = {}
 }
 
+# Container configuration
 variable "container_port" {
   description = "Port exposed by the Streamlit container"
   type        = number
@@ -83,50 +92,46 @@ variable "image_tag" {
   default     = "latest"
 }
 
-variable "auto_deployments_enabled" {
-  description = "Whether to enable automatic deployments"
-  type        = bool
-  default     = true
-}
-
+# ECS configuration
 variable "cpu" {
-  description = "CPU units for App Runner service (1024 units = 1 vCPU)"
+  description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = string
   default     = "1024"
-  validation {
-    condition     = contains(["1024", "2048", "4096"], var.cpu)
-    error_message = "CPU value must be 1024 (1 vCPU), 2048 (2 vCPU), or 4096 (4 vCPU)."
-  }
 }
 
 variable "memory" {
-  description = "Memory for App Runner service in MB"
+  description = "Memory for ECS task in MB"
   type        = string
   default     = "2048"
-  validation {
-    condition     = contains(["2048", "3072", "4096", "6144", "8192", "10240", "12288"], var.memory)
-    error_message = "Memory value must be one of: 2048, 3072, 4096, 6144, 8192, 10240, or 12288 MB."
-  }
 }
 
-variable "max_concurrency" {
-  description = "Maximum requests that can be processed concurrently"
-  type        = number
-  default     = 100
-}
-
-variable "max_size" {
-  description = "Maximum number of instances"
-  type        = number
-  default     = 5
-}
-
-variable "min_size" {
-  description = "Minimum number of instances"
+variable "min_capacity" {
+  description = "Minimum number of ECS tasks"
   type        = number
   default     = 1
 }
 
+variable "max_capacity" {
+  description = "Maximum number of ECS tasks"
+  type        = number
+  default     = 5
+}
+
+# ALB configuration
+variable "certificate_arn" {
+  description = "ARN of the SSL certificate for HTTPS"
+  type        = string
+  default     = null
+}
+
+# CloudWatch configuration
+variable "log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 30
+}
+
+# Docker build configuration
 variable "build_and_push_image" {
   description = "Whether to build and push Docker image during Terraform apply"
   type        = bool

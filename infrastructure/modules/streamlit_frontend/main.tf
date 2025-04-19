@@ -1,4 +1,4 @@
-# infrastructure/modules/streamlit_frontend/main.tf
+# infrastructure/modules/streamlit_frontend_ecs/main.tf
 
 # Create ECR repository for Streamlit container
 resource "aws_ecr_repository" "streamlit_app" {
@@ -74,10 +74,103 @@ resource "aws_secretsmanager_secret_version" "streamlit_config_version" {
   })
 }
 
-# IAM role for the App Runner service
-resource "aws_iam_role" "app_runner_role" {
-  name = "${var.name_prefix}-apprunner-role"
-  
+# Fetch VPC and subnet information
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
+
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+
+  filter {
+    name   = "tag:Type"
+    values = ["Public"]
+  }
+}
+
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+
+  filter {
+    name   = "tag:Type"
+    values = ["Private"]
+  }
+}
+
+# Security Groups
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.name_prefix}-alb-sg"
+  description = "Security group for ALB"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-alb-sg"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+resource "aws_security_group" "ecs_sg" {
+  name        = "${var.name_prefix}-ecs-sg"
+  description = "Security group for ECS tasks"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = var.container_port
+    to_port         = var.container_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-ecs-sg"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# IAM Role for ECS Task Execution
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "${var.name_prefix}-ecs-task-execution-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -85,59 +178,68 @@ resource "aws_iam_role" "app_runner_role" {
         Action = "sts:AssumeRole",
         Effect = "Allow",
         Principal = {
-          Service = "build.apprunner.amazonaws.com"
-        }
-      },
-      {
-        Action = "sts:AssumeRole",
-        Effect = "Allow",
-        Principal = {
-          Service = "tasks.apprunner.amazonaws.com"
+          Service = "ecs-tasks.amazonaws.com"
         }
       }
     ]
   })
-  
+
   tags = merge(
     {
-      Name        = "${var.name_prefix}-apprunner-role"
+      Name        = "${var.name_prefix}-ecs-task-execution-role"
       Environment = var.environment
     },
     var.tags
   )
 }
 
-# Policy for App Runner to access ECR
-resource "aws_iam_policy" "app_runner_ecr_policy" {
-  name        = "${var.name_prefix}-apprunner-ecr-policy"
-  description = "Allow App Runner to pull images from ECR"
-  
+# IAM Role for ECS Task
+resource "aws_iam_role" "ecs_task_role" {
+  name = "${var.name_prefix}-ecs-task-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-ecs-task-role"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Policy for ECS Task Execution Role
+resource "aws_iam_policy" "ecs_task_execution_policy" {
+  name        = "${var.name_prefix}-ecs-task-execution-policy"
+  description = "Policy for ECS task execution"
+
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
         Effect = "Allow",
         Action = [
-          "ecr:GetDownloadUrlForLayer",
+          "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
           "ecr:BatchGetImage",
-          "ecr:DescribeImages",
-          "ecr:GetAuthorizationToken"
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
         ],
         Resource = "*"
-      }
-    ]
-  })
-}
-
-# Policy for App Runner to access Secrets Manager
-resource "aws_iam_policy" "app_runner_secrets_policy" {
-  name        = "${var.name_prefix}-apprunner-secrets-policy"
-  description = "Allow App Runner to read secrets from Secrets Manager"
-  
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
+      },
       {
         Effect = "Allow",
         Action = [
@@ -151,80 +253,437 @@ resource "aws_iam_policy" "app_runner_secrets_policy" {
   })
 }
 
-# Attach policies to IAM role
-resource "aws_iam_role_policy_attachment" "app_runner_ecr_attachment" {
-  role       = aws_iam_role.app_runner_role.name
-  policy_arn = aws_iam_policy.app_runner_ecr_policy.arn
-}
+# Policy for ECS Task Role
+resource "aws_iam_policy" "ecs_task_policy" {
+  name        = "${var.name_prefix}-ecs-task-policy"
+  description = "Policy for ECS task"
 
-resource "aws_iam_role_policy_attachment" "app_runner_secrets_attachment" {
-  role       = aws_iam_role.app_runner_role.name
-  policy_arn = aws_iam_policy.app_runner_secrets_policy.arn
-}
-
-# Create App Runner service using the ECR repository
-resource "aws_apprunner_service" "streamlit_service" {
-  service_name = "${var.name_prefix}-streamlit"
-  
-  source_configuration {
-    authentication_configuration {
-      access_role_arn = aws_iam_role.app_runner_role.arn
-    }
-    
-    image_repository {
-      image_configuration {
-        port = var.container_port
-        runtime_environment_variables = {
-          SECRET_ARN = aws_secretsmanager_secret.streamlit_config.arn
-          REGION     = var.aws_region
-        }
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}",
+          "arn:aws:s3:::${var.s3_bucket_name}/*",
+          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}",
+          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "states:StartExecution",
+          "states:DescribeExecution"
+        ],
+        Resource = [
+          var.step_functions_arn
+        ]
       }
-      image_identifier      = "${aws_ecr_repository.streamlit_app.repository_url}:${var.image_tag}"
-      image_repository_type = "ECR"
-    }
-    
-    auto_deployments_enabled = var.auto_deployments_enabled
-  }
-  
-  instance_configuration {
-    cpu               = var.cpu
-    memory            = var.memory
-    instance_role_arn = aws_iam_role.app_runner_role.arn
-  }
-  
-health_check_configuration {
-  protocol = "HTTP"
-  path     = "/"
-  interval = 20
-  timeout  = 10
-  healthy_threshold = 1
-  unhealthy_threshold = 5
+    ]
+  })
 }
-  
+
+# Attach policies to roles
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy_attachment" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = aws_iam_policy.ecs_task_execution_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_policy_attachment" {
+  role       = aws_iam_role.ecs_task_role.name
+  policy_arn = aws_iam_policy.ecs_task_policy.arn
+}
+
+# Attach AWS managed policy for ECR and CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_managed_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# Create ALB
+resource "aws_lb" "streamlit_alb" {
+  name               = "${var.name_prefix}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = data.aws_subnets.public.ids
+
+  enable_deletion_protection = false
+
   tags = merge(
     {
-      Name        = "${var.name_prefix}-streamlit"
+      Name        = "${var.name_prefix}-alb"
       Environment = var.environment
     },
     var.tags
   )
-  
-  # Wait for initial deployment to complete
-  auto_scaling_configuration_arn = aws_apprunner_auto_scaling_configuration_version.app_scaling.arn
 }
 
-# App Runner auto scaling configuration
-# App Runner auto scaling configuration
-resource "aws_apprunner_auto_scaling_configuration_version" "app_scaling" {
-  auto_scaling_configuration_name = "${substr(var.name_prefix, 0, 20)}-scaling"
-  
-  max_concurrency = var.max_concurrency
-  max_size        = var.max_size
-  min_size        = var.min_size
-  
+# Create ALB Target Group
+resource "aws_lb_target_group" "streamlit_tg" {
+  name        = "${var.name_prefix}-tg"
+  port        = var.container_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    interval            = 30
+    path                = "/"
+    port                = "traffic-port"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    matcher             = "200-499"  # Accept a wider range of status codes as healthy
+  }
+
   tags = merge(
     {
-      Name        = "${var.name_prefix}-apprunner-scaling"
+      Name        = "${var.name_prefix}-tg"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create ALB Listener (HTTP)
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.streamlit_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.streamlit_tg.arn
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-http-listener"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create HTTPS listener if certificate ARN is provided
+resource "aws_lb_listener" "https" {
+  count             = var.certificate_arn != null ? 1 : 0
+  load_balancer_arn = aws_lb.streamlit_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.streamlit_tg.arn
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-https-listener"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Add HTTP to HTTPS redirect if certificate ARN is provided
+resource "aws_lb_listener" "http_redirect" {
+  count             = var.certificate_arn != null ? 1 : 0
+  load_balancer_arn = aws_lb.streamlit_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-http-redirect"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create CloudWatch Log Group
+resource "aws_cloudwatch_log_group" "streamlit_logs" {
+  name              = "/ecs/${var.name_prefix}-streamlit"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-logs"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create ECS Cluster
+resource "aws_ecs_cluster" "streamlit_cluster" {
+  name = "${var.name_prefix}-cluster"
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-cluster"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create ECS Task Definition
+resource "aws_ecs_task_definition" "streamlit_task" {
+  family                   = "${var.name_prefix}-task"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.cpu
+  memory                   = var.memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "${var.name_prefix}-container"
+      image     = "${aws_ecr_repository.streamlit_app.repository_url}:${var.image_tag}"
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = var.container_port
+          hostPort      = var.container_port
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "SECRET_ARN"
+          value = aws_secretsmanager_secret.streamlit_config.arn
+        },
+        {
+          name  = "REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "API_ENDPOINT"
+          value = var.api_endpoint
+        },
+        {
+          name  = "DYNAMODB_TABLE"
+          value = var.dynamodb_table_name
+        },
+        {
+          name  = "S3_BUCKET"
+          value = var.s3_bucket_name
+        },
+        {
+          name  = "PYTHONUNBUFFERED"
+          value = "1"
+        },
+        {
+          name  = "STREAMLIT_SERVER_PORT" 
+          value = tostring(var.container_port)
+        },
+        {
+          name  = "STREAMLIT_SERVER_ADDRESS"
+          value = "0.0.0.0"
+        },
+        {
+          name  = "STREAMLIT_SERVER_HEADLESS"
+          value = "true"
+        },
+        {
+          name  = "STREAMLIT_SERVER_ENABLE_CORS"
+          value = "false"
+        },
+        {
+          name  = "STREAMLIT_SERVER_FILE_WATCHER_TYPE"
+          value = "none"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.streamlit_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:${var.container_port}/ || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
+      }
+    }
+  ])
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-task"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create ECS Service
+resource "aws_ecs_service" "streamlit_service" {
+  name                               = "${var.name_prefix}-service"
+  cluster                            = aws_ecs_cluster.streamlit_cluster.id
+  task_definition                    = aws_ecs_task_definition.streamlit_task.arn
+  desired_count                      = var.min_capacity
+  launch_type                        = "FARGATE"
+  scheduling_strategy                = "REPLICA"
+  health_check_grace_period_seconds  = 120
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 200
+
+  network_configuration {
+    subnets          = data.aws_subnets.private.ids
+    security_groups  = [aws_security_group.ecs_sg.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.streamlit_tg.arn
+    container_name   = "${var.name_prefix}-container"
+    container_port   = var.container_port
+  }
+
+  depends_on = [
+    aws_lb_listener.http,
+    aws_iam_role_policy_attachment.ecs_task_execution_policy_attachment,
+    aws_iam_role_policy_attachment.ecs_task_policy_attachment
+  ]
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-service"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+# Create Auto Scaling for ECS Service
+resource "aws_appautoscaling_target" "ecs_target" {
+  max_capacity       = var.max_capacity
+  min_capacity       = var.min_capacity
+  resource_id        = "service/${aws_ecs_cluster.streamlit_cluster.name}/${aws_ecs_service.streamlit_service.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "ecs_policy_cpu" {
+  name               = "${var.name_prefix}-cpu-autoscaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+resource "aws_appautoscaling_policy" "ecs_policy_memory" {
+  name               = "${var.name_prefix}-memory-autoscaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+# Create CloudWatch Alarms for ECS Service
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
+  alarm_name          = "${var.name_prefix}-cpu-high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  alarm_description   = "This metric monitors ECS CPU utilization"
+  alarm_actions       = []
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.streamlit_cluster.name
+    ServiceName = aws_ecs_service.streamlit_service.name
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-cpu-high"
+      Environment = var.environment
+    },
+    var.tags
+  )
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
+  alarm_name          = "${var.name_prefix}-memory-high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  alarm_description   = "This metric monitors ECS memory utilization"
+  alarm_actions       = []
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.streamlit_cluster.name
+    ServiceName = aws_ecs_service.streamlit_service.name
+  }
+
+  tags = merge(
+    {
+      Name        = "${var.name_prefix}-memory-high"
       Environment = var.environment
     },
     var.tags
@@ -232,7 +691,6 @@ resource "aws_apprunner_auto_scaling_configuration_version" "app_scaling" {
 }
 
 # Null resource to build and push initial Docker image to ECR
-# Note: This is a local-exec that requires Docker and AWS CLI to be installed
 resource "null_resource" "docker_build_push" {
   count = var.build_and_push_image ? 1 : 0
   
@@ -251,29 +709,4 @@ resource "null_resource" "docker_build_push" {
   }
   
   depends_on = [aws_ecr_repository.streamlit_app]
-}
-# Additional policy for App Runner
-resource "aws_iam_policy" "app_runner_additional_policy" {
-  name        = "${var.name_prefix}-apprunner-additional-policy"
-  description = "Additional permissions for App Runner"
-  
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "app_runner_additional_attachment" {
-  role       = aws_iam_role.app_runner_role.name
-  policy_arn = aws_iam_policy.app_runner_additional_policy.arn
 }
