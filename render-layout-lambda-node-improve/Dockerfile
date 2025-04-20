@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 node:18-slim
+FROM --platform=linux/arm64 node:18-slim
 
 # Set working directory
 WORKDIR /app
@@ -22,9 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with canvas binary settings
+# Install dependencies for ARM64
 ENV CANVAS_PREBUILT_PATH=/tmp/canvas-prebuilt
-RUN npm install --build-from-source --production
+RUN npm install --build-from-source --target_arch=arm64 --production
 
 # Copy application code
 COPY index.js services.js renderer.js utils.js config.js common.js ./

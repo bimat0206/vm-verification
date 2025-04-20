@@ -7,11 +7,12 @@
         "start": "node index.js",
         "test": "jest",
         "lint": "eslint .",
-        "debug": "node --inspect index.js"
+        "debug": "node --inspect index.js",
+        "install-arm": "npm install --build-from-source --target_arch=arm64"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.445.0",
-        "canvas": "^2.11.2",
+        "canvas": "^3.1.0",
         "fs": "0.0.1-security",
         "node-fetch": "^2.6.9",
         "path": "^0.12.7",
