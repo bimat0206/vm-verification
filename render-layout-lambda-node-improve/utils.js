@@ -1,11 +1,10 @@
 /**
  * utils.js - Utility functions for the vending machine layout generator
  * 
- * Contains event parsing, error handling, and text processing utilities.
+ * Contains event parsing and text processing utilities.
  */
 
-const { ENV } = require('./config');
-const { uploadToS3, capturedLogs, log } = require('./services');
+const { log } = require('./common');
 
 /**
  * Parse the Lambda event to extract S3 bucket and key information
@@ -60,36 +59,6 @@ function parseEvent(event) {
 }
 
 /**
- * Handle errors, upload logs to S3, and return formatted error response
- * 
- * @param {Error} err - Error object
- * @returns {Object} - Formatted error response
- */
-async function handleError(err) {
-  log('Error in Lambda handler:', err.message, err.stack);
-  
-  try {
-    const targetBucket = ENV.LOG_BUCKET;
-    const fallbackKey = `logs/error_${Date.now()}.log`;
-    
-    if (targetBucket) {
-      await uploadToS3(targetBucket, fallbackKey, capturedLogs.join('\n') + `\n${err.stack}`, 'text/plain');
-    } else {
-      log('No S3 bucket specified for error log upload, skipping');
-    }
-  } catch (uploadErr) {
-    log('Failed to upload error log:', uploadErr.message);
-  }
-  
-  // Return formatted error
-  return {
-    status: 'error',
-    message: err.message,
-    timestamp: new Date().toISOString()
-  };
-}
-
-/**
  * Split text into multiple lines to fit within a maximum width
  * 
  * @param {CanvasRenderingContext2D} ctx - Canvas context for text measurement
@@ -132,6 +101,5 @@ function splitTextToLines(ctx, text, maxWidth) {
 
 module.exports = {
   parseEvent,
-  handleError,
   splitTextToLines
 };

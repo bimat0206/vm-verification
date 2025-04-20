@@ -6,8 +6,9 @@
  */
 
 const crypto = require('crypto');
-const { log, capturedLogs, downloadJsonFromS3, uploadToS3, setupFonts } = require('./services');
-const { parseEvent, handleError } = require('./utils');
+const { log, capturedLogs } = require('./common');
+const { downloadJsonFromS3, uploadToS3, setupFonts, handleError } = require('./services');
+const { parseEvent } = require('./utils');
 const { renderLayout } = require('./renderer');
 const { KOOTORO } = require('./config');
 
@@ -24,8 +25,9 @@ exports.handler = async (event) => {
   log('Lambda handler started');
   
   try {
-    // Initialize fonts
+    // Initialize fonts early to catch font issues before processing
     await setupFonts();
+    log('Font setup completed');
 
     // Parse event to get bucket and key
     const parseResult = parseEvent(event);

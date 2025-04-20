@@ -5,7 +5,8 @@
  */
 
 const { CANVAS } = require('./config');
-const { log, fetchImage, isValidImageUrl } = require('./services');
+const { log } = require('./common');
+const { fetchImage, isValidImageUrl } = require('./services');
 const { splitTextToLines } = require('./utils');
 
 // Lazy-load canvas module
@@ -14,6 +15,7 @@ function getCanvasModule() {
   if (!canvasModule) {
     try {
       canvasModule = require('canvas');
+      log('Canvas module loaded successfully');
     } catch (err) {
       log('Failed to load canvas module:', err.message, err.stack);
       throw new Error('Canvas module initialization failed');
@@ -62,18 +64,21 @@ async function renderLayout(layout) {
 
     // Calculate canvas dimensions
     const numColumns = 7; // Fixed at 7 columns based on Kootoro vending machine spec
-    const numRows = Math.max(trays.length, 1);
+    const numRows = Math.ceil(trays.length / numColumns) || 1;
     const { cell, row, header, footer, padding, titlePadding, metadataHeight } = CANVAS;
     
-    const canvasWidth = padding * 2 + numColumns * cell.width + (numColumns - 1) * cell.spacing;
-    const canvasHeight =
+    // Reduce canvas size to avoid memory issues
+    const canvasWidth = Math.min(padding * 2 + numColumns * cell.width + (numColumns - 1) * cell.spacing, 3000);
+    const canvasHeight = Math.min(
       padding * 2 +
       titlePadding +
       header.height +
       numRows * (cell.height + footer.height) +
       (numRows - 1) * row.spacing +
       footer.height +
-      metadataHeight;
+      metadataHeight, 
+      3000
+    );
 
     // Create canvas with scaling
     const canvas = createSafeCanvas(canvasWidth * CANVAS.scale, canvasHeight * CANVAS.scale);
@@ -164,16 +169,26 @@ async function drawRows(ctx, trays, numColumns, padding, titlePadding, headerHei
     // Get slots for this tray and sort by slot number
     const slots = tray.slotList ? tray.slotList.sort((a, b) => a.slotNo - b.slotNo) : [];
 
-    // Fetch all images in parallel
-    const imagePromises = slots.map(slot => {
+    // Fetch all images in parallel with a limit to avoid memory issues
+    const imagePromises = [];
+    for (const slot of slots) {
       if (slot.productTemplateImage && isValidImageUrl(slot.productTemplateImage)) {
-        return fetchImage(slot.productTemplateImage);
+        imagePromises.push(fetchImage(slot.productTemplateImage));
+      } else {
+        log(`Invalid or missing image URL for product ${slot.productTemplateName}`, { position: slot.position });
+        imagePromises.push(Promise.resolve(null));
       }
-      log(`Invalid or missing image URL for product ${slot.productTemplateName}`, { position: slot.position });
-      return Promise.resolve(null);
-    });
+    }
     
-    const imageBuffers = await Promise.all(imagePromises);
+    // Process images in smaller batches to reduce memory usage
+    const batchSize = 5;
+    const imageBuffers = [];
+    
+    for (let i = 0; i < imagePromises.length; i += batchSize) {
+      const batchPromises = imagePromises.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batchPromises);
+      imageBuffers.push(...batchResults);
+    }
 
     // Draw each cell in the row
     for (let col = 0; col < numColumns; col++) {
@@ -291,25 +306,31 @@ async function drawFooter(ctx, layout, canvasWidth, canvasHeight, padding, metad
  * Create an error canvas when rendering fails
  */
 function createErrorCanvas(error, layout) {
-  const { createCanvas } = getCanvasModule();
-  const errorCanvas = createCanvas(800, 400);
-  const errorCtx = errorCanvas.getContext('2d');
-  
-  errorCtx.fillStyle = 'white';
-  errorCtx.fillRect(0, 0, 800, 400);
-  
-  errorCtx.font = 'bold 20px Arial';
-  errorCtx.fillStyle = 'red';
-  errorCtx.textAlign = 'center';
-  errorCtx.fillText('Error rendering layout', 400, 100);
-  
-  errorCtx.font = '16px Arial';
-  errorCtx.fillStyle = 'black';
-  errorCtx.fillText(`Layout ID: ${layout.layoutId || 'Unknown'}`, 400, 150);
-  errorCtx.fillText(`Error: ${error.message}`, 400, 200);
-  errorCtx.fillText(`Time: ${new Date().toISOString()}`, 400, 250);
-  
-  return errorCanvas.toBuffer('image/png');
+  try {
+    const { createCanvas } = getCanvasModule();
+    const errorCanvas = createCanvas(800, 400);
+    const errorCtx = errorCanvas.getContext('2d');
+    
+    errorCtx.fillStyle = 'white';
+    errorCtx.fillRect(0, 0, 800, 400);
+    
+    errorCtx.font = 'bold 20px Arial';
+    errorCtx.fillStyle = 'red';
+    errorCtx.textAlign = 'center';
+    errorCtx.fillText('Error rendering layout', 400, 100);
+    
+    errorCtx.font = '16px Arial';
+    errorCtx.fillStyle = 'black';
+    errorCtx.fillText(`Layout ID: ${layout.layoutId || 'Unknown'}`, 400, 150);
+    errorCtx.fillText(`Error: ${error.message}`, 400, 200);
+    errorCtx.fillText(`Time: ${new Date().toISOString()}`, 400, 250);
+    
+    return errorCanvas.toBuffer('image/png');
+  } catch (canvasErr) {
+    log('Failed to create error canvas:', canvasErr.message);
+    // Return an empty buffer if even the error canvas fails
+    return Buffer.from('');
+  }
 }
 
 module.exports = {

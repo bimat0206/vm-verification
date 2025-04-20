@@ -46,8 +46,8 @@ const ENV = {
   // Font configuration
   const FONTS = {
     paths: [
-      '/app/fonts/dejavu-sans.ttf',
-      '/app/fonts/arial.ttf',
+      '/tmp/fonts/dejavu-sans.ttf',
+      '/tmp/fonts/arial.ttf',
       '/var/task/fonts/arial.ttf',
       `${process.env.LAMBDA_TASK_ROOT}/fonts/arial.ttf`,
       `${__dirname}/fonts/arial.ttf`,
@@ -58,7 +58,7 @@ const ENV = {
     configContent: `<?xml version="1.0"?>
   <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
   <fontconfig>
-    <dir>/app/fonts</dir>
+    <dir>/tmp/fonts</dir>
     <cachedir>/tmp/fontconfig</cachedir>
   </fontconfig>`
   };
@@ -86,7 +86,6 @@ const ENV = {
     maxProducts: 200
   };
   
-  // Changed from "export {}" to CommonJS syntax to fix the error
   module.exports = {
     ENV,
     CANVAS,

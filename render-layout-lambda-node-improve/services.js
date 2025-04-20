@@ -7,6 +7,7 @@
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const { ENV, FONTS, NETWORK } = require('./config');
+const { log, capturedLogs } = require('./common');
 
 // Use Node.js 18 built-in fetch if available, otherwise require node-fetch
 let fetch;
@@ -14,42 +15,14 @@ let AbortController;
 
 // Setup fetch safely
 try {
-  // Node.js 18+ has global fetch
-  if (typeof global.fetch === 'function') {
-    fetch = global.fetch;
-    AbortController = global.AbortController;
-    console.log('Using built-in fetch API');
-  } else {
-    // For older Node.js versions, require node-fetch (CommonJS version)
-    const nodeFetch = require('node-fetch');
-    fetch = nodeFetch.default || nodeFetch;
-    AbortController = nodeFetch.AbortController;
-    console.log('Using node-fetch module');
-  }
+  // For older Node.js versions or when global fetch isn't available
+  const nodeFetch = require('node-fetch');
+  fetch = nodeFetch.default || nodeFetch;
+  AbortController = nodeFetch.AbortController || global.AbortController;
+  console.log('Using node-fetch module');
 } catch (err) {
   console.error('Warning: fetch not available:', err.message);
   // We'll handle this later in the fetchImage function
-}
-
-// Logging service
-const capturedLogs = [];
-
-/**
- * Log a message to console and capture it for later upload
- * 
- * @param {...any} args - Log message and parameters
- */
-function log(...args) {
-  try {
-    const msg = args
-      .map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 2)))
-      .join(' ');
-    const entry = `${new Date().toISOString()} ${msg}`;
-    console.log(entry);
-    capturedLogs.push(entry);
-  } catch (err) {
-    console.error('Error in log function:', err);
-  }
 }
 
 // Initialize S3 client
@@ -113,6 +86,36 @@ async function uploadToS3(bucket, key, body, contentType) {
     log('Failed to upload to S3:', err.message, err.stack);
     throw err;
   }
+}
+
+/**
+ * Handle errors, upload logs to S3, and return formatted error response
+ * 
+ * @param {Error} err - Error object
+ * @returns {Object} - Formatted error response
+ */
+async function handleError(err) {
+  log('Error in Lambda handler:', err.message, err.stack);
+  
+  try {
+    const targetBucket = ENV.LOG_BUCKET;
+    const fallbackKey = `logs/error_${Date.now()}.log`;
+    
+    if (targetBucket) {
+      await uploadToS3(targetBucket, fallbackKey, capturedLogs.join('\n') + `\n${err.stack}`, 'text/plain');
+    } else {
+      log('No S3 bucket specified for error log upload, skipping');
+    }
+  } catch (uploadErr) {
+    log('Failed to upload error log:', uploadErr.message);
+  }
+  
+  // Return formatted error
+  return {
+    status: 'error',
+    message: err.message,
+    timestamp: new Date().toISOString()
+  };
 }
 
 /**
@@ -278,11 +281,11 @@ function isValidImageUrl(url) {
 }
 
 module.exports = {
-  log,
-  capturedLogs,
   downloadJsonFromS3,
   uploadToS3,
   setupFonts,
   fetchImage,
-  isValidImageUrl
+  isValidImageUrl,
+  handleError,
+  capturedLogs
 };

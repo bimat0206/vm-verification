@@ -25,9 +25,9 @@ RUN npm install --production
 # Copy application code
 COPY index.js services.js renderer.js utils.js config.js ./
 
-# Create fonts directory and copy fonts
-RUN mkdir -p /app/fonts && \
-    cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/fonts/dejavu-sans.ttf
+# Create fonts directories in tmp and copy fonts
+RUN mkdir -p /tmp/fonts /tmp/fontconfig && \
+    cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /tmp/fonts/dejavu-sans.ttf
 
 # Set environment variables
 ENV NODE_ENV=production
