@@ -23,17 +23,14 @@ FROM alpine:3.19
 # Add necessary runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
 
-# Create fonts directory
-RUN mkdir -p /app/fonts
+# Create app directory
+WORKDIR /app
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/lambda /app/
 
-# Copy the fonts directory
+# Copy the fonts directory from your local project
 COPY fonts/ /app/fonts/
-
-# Set the working directory
-WORKDIR /app
 
 # Define the entrypoint
 ENTRYPOINT ["/app/lambda"]

@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 	"time"
-
+	"io"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -152,7 +152,13 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	const titlePadding = 40.0
 	const textPadding = 5.0
 	const metadataHeight = 20.0
-	const scale = 6.0
+	// Reduce scale to prevent memory issues
+	scale := 5.0 // Changed from 6.0 to 2.0
+
+	// Check if there are any trays to render
+	if len(layout.SubLayoutList) == 0 || len(layout.SubLayoutList[0].TrayList) == 0 {
+		return nil, fmt.Errorf("no trays found in layout")
+	}
 
 	trays := layout.SubLayoutList[0].TrayList
 	numRows := len(trays)
@@ -162,6 +168,16 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 		float64(numRows)*(cellHeight+footerHeight) +
 		float64(numRows-1)*rowSpacing +
 		footerHeight + metadataHeight
+
+	// Check if canvas size is too large
+	maxDimension := 4000.0 // Set a reasonable max dimension
+	if canvasWidth*scale > maxDimension || canvasHeight*scale > maxDimension {
+		log.Printf("Warning: Canvas size too large (%fx%f), capping dimensions", canvasWidth*scale, canvasHeight*scale)
+		// Adjust scale to keep within max dimension
+		scaleW := maxDimension / canvasWidth
+		scaleH := maxDimension / canvasHeight
+		scale = min(scale, min(scaleW, scaleH))
+	}
 
 	dc := gg.NewContext(int(canvasWidth*scale), int(canvasHeight*scale))
 	dc.Scale(scale, scale)
@@ -174,10 +190,38 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	fontPath := "/app/fonts/DejaVuSans.ttf"
 	boldFontPath := "/app/fonts/DejaVuSans-Bold.ttf"
 
-	// Try to load fonts
-	titleFont, err := gg.LoadFontFace(boldFontPath, 18*scale/4)
+	// Check if fonts exist, use fallback if not
+	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
+		fontPath = filepath.Join("fonts", "DejaVuSans.ttf")
+	}
+	if _, err := os.Stat(boldFontPath); os.IsNotExist(err) {
+		boldFontPath = filepath.Join("fonts", "DejaVuSans-Bold.ttf")
+		// If bold still doesn't exist, use regular font as fallback
+		if _, err := os.Stat(boldFontPath); os.IsNotExist(err) {
+			boldFontPath = fontPath
+		}
+	}
+
+	// Check current directory for fonts
+	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
+		cwd, _ := os.Getwd()
+		log.Printf("Looking for fonts in CWD: %s", cwd)
+		files, _ := os.ReadDir(cwd)
+		for _, file := range files {
+			log.Printf("Found file: %s", file.Name())
+		}
+	}
+
+	// Try to load fonts with smaller size to reduce memory usage
+	titleFontSize := 18.0 * scale / 4
+	if titleFontSize > 10 {
+		titleFontSize = 10
+	}
+	
+	titleFont, err := gg.LoadFontFace(boldFontPath, titleFontSize)
 	if err != nil {
 		log.Printf("Warning: Failed to load title font: %v", err)
+		// Continue without custom font
 	} else {
 		dc.SetFontFace(titleFont)
 	}
@@ -201,7 +245,7 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	}
 
 	// Load row font
-	rowFont, err := gg.LoadFontFace(fontPath, 16)
+	rowFont, err := gg.LoadFontFace(fontPath, 14)
 	if err == nil {
 		dc.SetFontFace(rowFont)
 	}
@@ -259,8 +303,11 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 				imgX := cellX + (cellWidth-imageSize)/2
 				imgY := rowY + (cellHeight-imageSize)/2 - 10
 				
-				// Try to load the image
-				img, err := loadImageFromURL(slot.ProductTemplateImage)
+				// Try to load the image with timeout and error handling
+				loadImageCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				img, err := loadImageFromURL(loadImageCtx, slot.ProductTemplateImage)
+				cancel()
+				
 				if err != nil {
 					log.Printf("Failed to load image for %s: %v", slot.Position, err)
 					// Draw placeholder
@@ -273,7 +320,7 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 					dc.Stroke()
 					
 					// Load placeholder font
-					placeholderFont, err := gg.LoadFontFace(fontPath, 10)
+					placeholderFont, err := gg.LoadFontFace(fontPath, 14)
 					if err == nil {
 						dc.SetFontFace(placeholderFont)
 					}
@@ -292,7 +339,7 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 				}
 
 				// Load product font
-				productFont, err := gg.LoadFontFace(fontPath, 12)
+				productFont, err := gg.LoadFontFace(fontPath, 14)
 				if err == nil {
 					dc.SetFontFace(productFont)
 				}
@@ -315,7 +362,7 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	}
 
 	// Load metadata font
-	metadataFont, err := gg.LoadFontFace(fontPath, 12)
+	metadataFont, err := gg.LoadFontFace(fontPath, 14)
 	if err == nil {
 		dc.SetFontFace(metadataFont)
 	}
@@ -333,9 +380,9 @@ func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	dc.SetRGB(0.392, 0.392, 0.392) // rgb(100,100,100)
 	dc.DrawStringAnchored(metadataText, canvasWidth/2, canvasHeight-10, 0.5, 0.5)
 
-	// Encode the image to PNG
+	// Encode the image to PNG with better compression
 	var buf bytes.Buffer
-	encoder := png.Encoder{CompressionLevel: png.NoCompression} // Best quality, larger size
+	encoder := png.Encoder{CompressionLevel: png.BestCompression} // Changed from NoCompression to DefaultCompression
 	err = encoder.Encode(&buf, dc.Image())
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode PNG: %v", err)
@@ -380,7 +427,7 @@ func splitTextToLines(dc *gg.Context, text string, maxWidth float64) []string {
 	return lines
 }
 
-func loadImageFromURL(url string) (image.Image, error) {
+func loadImageFromURL(ctx context.Context, url string) (image.Image, error) {
 	if url == "" {
 		return nil, fmt.Errorf("empty image URL")
 	}
@@ -409,8 +456,6 @@ func loadImageFromURL(url string) (image.Image, error) {
 	}
 
 	// Download the image with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -423,7 +468,9 @@ func loadImageFromURL(url string) (image.Image, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
-	data, err := ioutil.ReadAll(resp.Body)
+	
+	// Limit read to 5MB to prevent memory issues
+	data, err := ioutil.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
 	if err != nil {
 		return nil, err
 	}
@@ -438,6 +485,14 @@ func loadImageFromURL(url string) (image.Image, error) {
 	// Decode the image
 	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
+}
+
+// Helper function for Go 1.24
+func min(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func main() {
