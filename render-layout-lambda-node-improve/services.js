@@ -32,13 +32,28 @@ try {
 
 // Mock S3 for local testing with fixed path structure
 function getMockS3Client() {
-  const tempDir = process.env.TEMP_DIR || '/tmp/s3-mock';
+  // When running in SAM or Lambda, use /tmp for writable storage
+  const tempDir = process.env.AWS_SAM_LOCAL === 'true' 
+    ? '/tmp/s3-mock' 
+    : (process.env.TEMP_DIR || '/tmp/s3-mock');
+  
+  log(`Using mock S3 with directory: ${tempDir}`);
   
   // Ensure temp directory exists
   try {
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
+      log(`Created directory: ${tempDir}`);
     }
+    
+    // Create subdirectories
+    ['raw', 'rendered-layout', 'logs'].forEach(subdir => {
+      const dirPath = `${tempDir}/${subdir}`;
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+        log(`Created subdirectory: ${dirPath}`);
+      }
+    });
   } catch (err) {
     log('Warning: Failed to create temp directory:', err.message);
   }
@@ -81,6 +96,7 @@ function getMockS3Client() {
             }]
           };
           fs.writeFileSync(filePath, JSON.stringify(mockData));
+          log(`Created mock file: ${filePath}`);
         }
         
         const content = fs.readFileSync(filePath);
@@ -101,9 +117,20 @@ function getMockS3Client() {
         
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
+          log(`Created directory: ${dir}`);
         }
         
         fs.writeFileSync(filePath, Body);
+        log(`Wrote file to: ${filePath} (${Buffer.isBuffer(Body) ? Body.length : 'unknown'} bytes)`);
+        
+        // For debugging, list directory contents
+        try {
+          const files = fs.readdirSync(dir);
+          log(`Files in ${dir}: ${files.join(', ')}`);
+        } catch (err) {
+          log(`Error listing directory ${dir}: ${err.message}`);
+        }
+        
         return { ETag: '"mock-etag"' };
       }
       
