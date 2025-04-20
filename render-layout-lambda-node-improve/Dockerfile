@@ -22,8 +22,8 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install --production
 
-# Copy application code
-COPY index.js services.js renderer.js utils.js config.js ./
+# Copy application code - FIXED: Added common.js to the copy list
+COPY index.js services.js renderer.js utils.js config.js common.js ./
 
 # Create fonts directories in tmp and copy fonts
 RUN mkdir -p /tmp/fonts /tmp/fontconfig && \

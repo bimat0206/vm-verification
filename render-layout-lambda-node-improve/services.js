@@ -9,24 +9,28 @@ const fs = require('fs');
 const { ENV, FONTS, NETWORK } = require('./config');
 const { log, capturedLogs } = require('./common');
 
-// Use Node.js 18 built-in fetch if available, otherwise require node-fetch
+// Initialize variables
 let fetch;
 let AbortController;
+let s3Client;
 
 // Setup fetch safely
 try {
-  // For older Node.js versions or when global fetch isn't available
+  // For Node.js versions with node-fetch v2 compatibility
   const nodeFetch = require('node-fetch');
-  fetch = nodeFetch.default || nodeFetch;
+  fetch = nodeFetch;
   AbortController = nodeFetch.AbortController || global.AbortController;
   console.log('Using node-fetch module');
 } catch (err) {
   console.error('Warning: fetch not available:', err.message);
-  // We'll handle this later in the fetchImage function
 }
 
-// Initialize S3 client
-const s3Client = new S3Client({ region: ENV.AWS_REGION });
+// Initialize S3 client safely
+try {
+  s3Client = new S3Client({ region: ENV.AWS_REGION });
+} catch (err) {
+  console.error('Error initializing S3 client:', err.message);
+}
 
 /**
  * Download and parse JSON from S3
@@ -37,6 +41,11 @@ const s3Client = new S3Client({ region: ENV.AWS_REGION });
  */
 async function downloadJsonFromS3(bucket, key) {
   try {
+    if (!s3Client) {
+      log('S3 client not initialized');
+      throw new Error('S3 client not initialized');
+    }
+    
     log('Downloading JSON from S3', { bucket, key });
     const response = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     log('Received S3 object response');
@@ -72,6 +81,11 @@ async function downloadJsonFromS3(bucket, key) {
  */
 async function uploadToS3(bucket, key, body, contentType) {
   try {
+    if (!s3Client) {
+      log('S3 client not initialized');
+      throw new Error('S3 client not initialized');
+    }
+    
     log('Uploading to S3', { bucket, key });
     await s3Client.send(
       new PutObjectCommand({
@@ -101,10 +115,10 @@ async function handleError(err) {
     const targetBucket = ENV.LOG_BUCKET;
     const fallbackKey = `logs/error_${Date.now()}.log`;
     
-    if (targetBucket) {
+    if (targetBucket && s3Client) {
       await uploadToS3(targetBucket, fallbackKey, capturedLogs.join('\n') + `\n${err.stack}`, 'text/plain');
     } else {
-      log('No S3 bucket specified for error log upload, skipping');
+      log('No S3 bucket specified for error log upload or S3 client not initialized, skipping');
     }
   } catch (uploadErr) {
     log('Failed to upload error log:', uploadErr.message);
@@ -127,51 +141,76 @@ async function setupFonts() {
     process.env.FONTCONFIG_PATH = FONTS.tempDir;
     process.env.FONTCONFIG_FILE = FONTS.configFile;
 
+    log(`Font directories: ${FONTS.tempDir}, ${FONTS.configFile}`);
+    
     // Create font config directory if it doesn't exist
-    if (!fs.existsSync(FONTS.tempDir)) {
-      fs.mkdirSync(FONTS.tempDir, { recursive: true });
-      fs.chmodSync(FONTS.tempDir, '777');
+    try {
+      if (!fs.existsSync(FONTS.tempDir)) {
+        log(`Creating font directory: ${FONTS.tempDir}`);
+        fs.mkdirSync(FONTS.tempDir, { recursive: true });
+        fs.chmodSync(FONTS.tempDir, '777');
+      }
+    } catch (dirErr) {
+      log(`Error creating font directory: ${dirErr.message}`);
+      // Continue even if directory creation fails - Lambda might already have this set up
     }
 
     // Create font config file if it doesn't exist
-    if (!fs.existsSync(FONTS.configFile)) {
-      fs.writeFileSync(FONTS.configFile, FONTS.configContent.trim());
+    try {
+      if (!fs.existsSync(FONTS.configFile)) {
+        log(`Creating font config file: ${FONTS.configFile}`);
+        fs.writeFileSync(FONTS.configFile, FONTS.configContent.trim());
+      }
+    } catch (fileErr) {
+      log(`Error creating font config file: ${fileErr.message}`);
+      // Continue even if file creation fails
     }
 
-    // Lazy-load canvas and register fonts
+    // Check for canvas module without registering fonts yet
     let canvasModule;
     try {
+      log('Attempting to load canvas module');
+      // Just require it but don't use it yet
       canvasModule = require('canvas');
+      log('Canvas module loaded successfully');
     } catch (err) {
       log('Failed to load canvas module:', err.message, err.stack);
-      throw new Error('Canvas module initialization failed');
+      throw new Error(`Canvas module initialization failed: ${err.message}`);
     }
     
-    const { registerFont } = canvasModule;
-    
-    let fontRegistered = false;
-    for (const fontPath of FONTS.paths) {
-      try {
-        log(`Attempting to register font from path: ${fontPath}`);
-        if (fs.existsSync(fontPath)) {
-          registerFont(fontPath, { family: 'Arial' });
-          log(`Successfully registered font from ${fontPath}`);
-          fontRegistered = true;
-          break;
-        } else {
-          log(`Font file not found at ${fontPath}`);
+    // Only attempt font registration if canvas loaded successfully
+    if (canvasModule) {
+      const { registerFont } = canvasModule;
+      
+      let fontRegistered = false;
+      for (const fontPath of FONTS.paths) {
+        try {
+          log(`Checking font path: ${fontPath}`);
+          if (fs.existsSync(fontPath)) {
+            log(`Registering font from path: ${fontPath}`);
+            registerFont(fontPath, { family: 'Arial' });
+            log(`Successfully registered font from ${fontPath}`);
+            fontRegistered = true;
+            break;
+          } else {
+            log(`Font file not found at ${fontPath}`);
+          }
+        } catch (fontErr) {
+          log(`Failed to register font from ${fontPath}: ${fontErr.message}`);
+          // Continue to next font path
         }
-      } catch (fontErr) {
-        log(`Failed to register font from ${fontPath}: ${fontErr.message}`);
+      }
+
+      if (!fontRegistered) {
+        log('Warning: Could not register Arial font, will use default system fonts');
       }
     }
-
-    if (!fontRegistered) {
-      log('Warning: Could not register Arial font, will use default system fonts');
-    }
+    
+    log('Font setup completed successfully');
   } catch (err) {
     log('Font setup failed:', err.message, err.stack);
-    throw err;
+    // Don't throw, try to continue without custom fonts
+    log('Continuing without custom fonts');
   }
 }
 
@@ -205,33 +244,32 @@ async function fetchImage(url) {
       log(`Fetching image from ${url} (attempt ${attempt + 1}/${maxRetries + 1})`);
       
       // Create a controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), NETWORK.fetchTimeout);
+      const controller = new AbortController ? new AbortController() : null;
+      let timeoutId = null;
       
       try {
-        const response = await fetch(url, {
-          signal: controller.signal,
+        const options = {
           headers: NETWORK.headers
-        });
+        };
         
-        clearTimeout(timeoutId);
+        // Add signal if AbortController is available
+        if (controller) {
+          options.signal = controller.signal;
+          timeoutId = setTimeout(() => controller.abort(), NETWORK.fetchTimeout);
+        }
+        
+        const response = await fetch(url, options);
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         
         if (!response.ok) {
           throw new Error(`HTTP status ${response.status}`);
         }
 
-        // Convert response to buffer - handle different node-fetch versions
-        let buffer;
-        if (typeof response.buffer === 'function') {
-          // node-fetch v2
-          buffer = await response.buffer();
-        } else if (typeof response.arrayBuffer === 'function') {
-          // node-fetch v3 or native fetch
-          const arrayBuffer = await response.arrayBuffer();
-          buffer = Buffer.from(arrayBuffer);
-        } else {
-          throw new Error('Cannot convert response to buffer');
-        }
+        // Convert response to buffer - handle node-fetch v2
+        const buffer = await response.buffer();
         
         // Check if the buffer is valid (non-empty)
         if (!buffer || buffer.length === 0) {
@@ -241,7 +279,9 @@ async function fetchImage(url) {
         log(`Successfully fetched image (${buffer.length} bytes)`);
         return buffer;
       } catch (fetchErr) {
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         throw fetchErr;
       }
     } catch (err) {
