@@ -86,8 +86,8 @@ const ENV = {
     maxProducts: 200
   };
   
-  // Export all configuration settings
-  export {
+  // Changed from "export {}" to CommonJS syntax to fix the error
+  module.exports = {
     ENV,
     CANVAS,
     FONTS,
