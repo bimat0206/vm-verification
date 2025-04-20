@@ -15,7 +15,8 @@ RUN go mod download
 COPY . .
 
 # Build the application with CGO disabled for static linking
-RUN CGO_ENABLED=0 GOOS=linux go build -o lambda -ldflags="-s -w" .
+# Use 'main' as the binary name to match previous build commands
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main -ldflags="-s -w" ./main.go
 
 # Runtime stage
 FROM alpine:3.19
@@ -27,10 +28,10 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/lambda /app/
+COPY --from=builder /app/main /app/main
 
-# Copy the fonts directory from your local project
-COPY fonts/ /app/fonts/
+# Copy the fonts directory from the builder stage
+COPY --from=builder /app/fonts/ /app/fonts/
 
 # Define the entrypoint
-ENTRYPOINT ["/app/lambda"]
+ENTRYPOINT ["/app/main"]
