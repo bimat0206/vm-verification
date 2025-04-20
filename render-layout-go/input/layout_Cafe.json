@@ -1,0 +1,285 @@
+{
+  "layoutId": 41927,
+  "layoutType": 1,
+  "machineModelId": 2,
+  "subLayoutList": [
+    {
+      "trayList": [
+        {
+          "layoutTrayId": 268702,
+          "trayCode": "A",
+          "trayNo": 1,
+          "slotList": [
+            {
+              "vmLayoutSlotId": 2422010,
+              "productId": 3513,
+              "productTemplateId": 3513,
+              "maxQuantity": 0,
+              "slotNo": 1,
+              "status": 1,
+              "position": "A1",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "TRÀ ĐÀO - Peach Tea",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/trà đào.png"
+            },
+            {
+              "vmLayoutSlotId": 2422011,
+              "productId": 3519,
+              "productTemplateId": 3519,
+              "maxQuantity": 0,
+              "slotNo": 2,
+              "status": 1,
+              "position": "A2",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "TRÀ SỮA TRUYỀN THỐNG - Milk tea",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/trà sữa truyền thống.png"
+            },
+            {
+              "vmLayoutSlotId": 2422016,
+              "productId": 3515,
+              "productTemplateId": 3515,
+              "maxQuantity": 0,
+              "slotNo": 3,
+              "status": 1,
+              "position": "A3",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "CAFE ĐEN NÓNG - Hot Black Coffee",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/cafe đen nóng.png"
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "A4",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 2422013,
+              "productId": 3517,
+              "productTemplateId": 3517,
+              "maxQuantity": 0,
+              "slotNo": 5,
+              "status": 1,
+              "position": "A5",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "CAPPUCCINO NÓNG - Hot Cappuccino",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/capu nóng.png"
+            },
+            {
+              "vmLayoutSlotId": 2422014,
+              "productId": 3518,
+              "productTemplateId": 3518,
+              "maxQuantity": 0,
+              "slotNo": 6,
+              "status": 1,
+              "position": "A6",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "LATTE NÓNG - Hot Latte",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/latte nóng.png"
+            },
+            {
+              "vmLayoutSlotId": 2422015,
+              "productId": 3653,
+              "productTemplateId": 3653,
+              "maxQuantity": 0,
+              "slotNo": 7,
+              "status": 1,
+              "position": "A7",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "ESPRESSO",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/Espresso-964ababd-8137-413d-bfad-55a7bc4b8d6c-10261985-21e3-4940-8dae-1d61a34f6183.png"
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "A8",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "A9",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "A10",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            }
+          ]
+        },
+        {
+          "layoutTrayId": 268703,
+          "trayCode": "B",
+          "trayNo": 2,
+          "slotList": [
+            {
+              "vmLayoutSlotId": 2422020,
+              "productId": 3520,
+              "productTemplateId": 3520,
+              "maxQuantity": 0,
+              "slotNo": 1,
+              "status": 1,
+              "position": "B1",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "TRÀ SỮA VỊ CAFE - Milk Tea Coffee",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/trà sữa cafe.png"
+            },
+            {
+              "vmLayoutSlotId": 2422021,
+              "productId": 3521,
+              "productTemplateId": 3521,
+              "maxQuantity": 0,
+              "slotNo": 2,
+              "status": 1,
+              "position": "B2",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "TRÀ SỮA VỊ TRÀ XANH - Matcha Milk Tea",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/trà sữa trà xanh.png"
+            },
+            {
+              "vmLayoutSlotId": 2422025,
+              "productId": 3522,
+              "productTemplateId": 3522,
+              "maxQuantity": 0,
+              "slotNo": 3,
+              "status": 1,
+              "position": "B3",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "CAFE ĐEN ĐÁ - Black Ice Coffee",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/cafe đen đá.png"
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "B4",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 2422023,
+              "productId": 3524,
+              "productTemplateId": 3524,
+              "maxQuantity": 0,
+              "slotNo": 5,
+              "status": 1,
+              "position": "B5",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "CAPPUCCINO ĐÁ - Ice Cappuccino",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/capu đá.png"
+            },
+            {
+              "vmLayoutSlotId": 2422024,
+              "productId": 3525,
+              "productTemplateId": 3525,
+              "maxQuantity": 0,
+              "slotNo": 6,
+              "status": 1,
+              "position": "B6",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": "LATTE ĐÁ - Ice Latte",
+              "productTemplateImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/latte đá.png"
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "B7",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "B8",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "B9",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            },
+            {
+              "vmLayoutSlotId": 0,
+              "productId": null,
+              "productTemplateId": null,
+              "maxQuantity": 0,
+              "slotNo": null,
+              "status": null,
+              "position": "B10",
+              "slotIndexCode": null,
+              "cellNumber": null,
+              "productTemplateName": null,
+              "productTemplateImage": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
