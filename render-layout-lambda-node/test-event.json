@@ -1,0 +1,12 @@
+
+{
+    "Records": [
+      {
+        "s3": {
+          "bucket": { "name": "vending-machine-verification-image-reference-a11" },
+          "object": { "key": "raw/DataInput.json" }
+        }
+      }
+    ]
+  }
+  
