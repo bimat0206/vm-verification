@@ -8,16 +8,27 @@ const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/clien
 const fs = require('fs');
 const { ENV, FONTS, NETWORK } = require('./config');
 
-// Import node-fetch (CommonJS compatible way)
+// Use Node.js 18 built-in fetch if available, otherwise require node-fetch
 let fetch;
+let AbortController;
 
-// We'll initialize fetch in a function to allow for async import
-async function initFetch() {
-  if (!fetch) {
-    const module = await import('node-fetch');
-    fetch = module.default;
+// Setup fetch safely
+try {
+  // Node.js 18+ has global fetch
+  if (typeof global.fetch === 'function') {
+    fetch = global.fetch;
+    AbortController = global.AbortController;
+    console.log('Using built-in fetch API');
+  } else {
+    // For older Node.js versions, require node-fetch (CommonJS version)
+    const nodeFetch = require('node-fetch');
+    fetch = nodeFetch.default || nodeFetch;
+    AbortController = nodeFetch.AbortController;
+    console.log('Using node-fetch module');
   }
-  return fetch;
+} catch (err) {
+  console.error('Warning: fetch not available:', err.message);
+  // We'll handle this later in the fetchImage function
 }
 
 // Logging service
@@ -29,12 +40,16 @@ const capturedLogs = [];
  * @param {...any} args - Log message and parameters
  */
 function log(...args) {
-  const msg = args
-    .map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 2)))
-    .join(' ');
-  const entry = `${new Date().toISOString()} ${msg}`;
-  console.log(entry);
-  capturedLogs.push(entry);
+  try {
+    const msg = args
+      .map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 2)))
+      .join(' ');
+    const entry = `${new Date().toISOString()} ${msg}`;
+    console.log(entry);
+    capturedLogs.push(entry);
+  } catch (err) {
+    console.error('Error in log function:', err);
+  }
 }
 
 // Initialize S3 client
@@ -164,8 +179,11 @@ async function setupFonts() {
  * @returns {Promise<Buffer>} - Image buffer or null if failed
  */
 async function fetchImage(url) {
-  // Initialize fetch if needed
-  await initFetch();
+  // Check if fetch is available
+  if (!fetch) {
+    log('Fetch API not available, cannot download images');
+    return null;
+  }
   
   // Maximum number of retry attempts
   const maxRetries = NETWORK.retryAttempts;
@@ -180,27 +198,49 @@ async function fetchImage(url) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      // Attempt to fetch the image
+      // Attempt to fetch the image with timeout
       log(`Fetching image from ${url} (attempt ${attempt + 1}/${maxRetries + 1})`);
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(NETWORK.fetchTimeout),
-        headers: NETWORK.headers
-      });
       
-      if (!response.ok) {
-        throw new Error(`HTTP status ${response.status}`);
-      }
+      // Create a controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), NETWORK.fetchTimeout);
+      
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: NETWORK.headers
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP status ${response.status}`);
+        }
 
-      // Convert response to buffer
-      const buffer = await response.buffer();
-      
-      // Check if the buffer is valid (non-empty)
-      if (!buffer || buffer.length === 0) {
-        throw new Error('Empty image buffer received');
+        // Convert response to buffer - handle different node-fetch versions
+        let buffer;
+        if (typeof response.buffer === 'function') {
+          // node-fetch v2
+          buffer = await response.buffer();
+        } else if (typeof response.arrayBuffer === 'function') {
+          // node-fetch v3 or native fetch
+          const arrayBuffer = await response.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+        } else {
+          throw new Error('Cannot convert response to buffer');
+        }
+        
+        // Check if the buffer is valid (non-empty)
+        if (!buffer || buffer.length === 0) {
+          throw new Error('Empty image buffer received');
+        }
+        
+        log(`Successfully fetched image (${buffer.length} bytes)`);
+        return buffer;
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        throw fetchErr;
       }
-      
-      log(`Successfully fetched image (${buffer.length} bytes)`);
-      return buffer;
     } catch (err) {
       lastError = err;
       log(`Attempt ${attempt + 1} failed to fetch image:`, { url, error: err.message });
