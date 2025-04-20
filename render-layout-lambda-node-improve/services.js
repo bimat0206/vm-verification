@@ -1,7 +1,5 @@
 /**
- * services.js - Core services for the vending machine layout generator
- * 
- * Contains S3 operations, logging service, font setup, and image fetching.
+ * services.js - Core services with improved ARM64 compatibility
  */
 
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -14,22 +12,132 @@ let fetch;
 let AbortController;
 let s3Client;
 
-// Setup fetch safely
+// Setup fetch safely with graceful fallbacks
 try {
   // For Node.js versions with node-fetch v2 compatibility
   const nodeFetch = require('node-fetch');
-  fetch = nodeFetch;
+  fetch = typeof nodeFetch === 'function' ? nodeFetch : nodeFetch.default;
   AbortController = nodeFetch.AbortController || global.AbortController;
-  console.log('Using node-fetch module');
+  log('Using node-fetch module');
 } catch (err) {
-  console.error('Warning: fetch not available:', err.message);
+  // Fallback to global fetch if available (Node 18+)
+  if (typeof global.fetch === 'function') {
+    fetch = global.fetch;
+    AbortController = global.AbortController;
+    log('Using built-in fetch API');
+  } else {
+    log('Warning: fetch not available:', err.message);
+  }
 }
 
-// Initialize S3 client safely
+// Mock S3 for local testing with fixed path structure
+function getMockS3Client() {
+  const tempDir = process.env.TEMP_DIR || '/tmp/s3-mock';
+  
+  // Ensure temp directory exists
+  try {
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+  } catch (err) {
+    log('Warning: Failed to create temp directory:', err.message);
+  }
+  
+  return {
+    send: async (command) => {
+      log(`Mock S3: ${command.constructor.name}`);
+      
+      if (command.constructor.name === 'GetObjectCommand') {
+        const { Bucket, Key } = command.input;
+        log(`Mock S3 GetObject: ${Bucket}/${Key}`);
+        
+        // Generate mock file path - don't include bucket name
+        const filePath = `${tempDir}/${Key}`;
+        const dir = require('path').dirname(filePath);
+        
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        // Create mock file if it doesn't exist
+        if (!fs.existsSync(filePath)) {
+          const mockData = {
+            layoutId: "test123",
+            subLayoutList: [{
+              trayList: [
+                {
+                  trayCode: "A",
+                  trayNo: 1,
+                  slotList: [
+                    {
+                      slotNo: 1,
+                      productTemplateName: "Test Product",
+                      productTemplateImage: null
+                    }
+                  ]
+                }
+              ]
+            }]
+          };
+          fs.writeFileSync(filePath, JSON.stringify(mockData));
+        }
+        
+        const content = fs.readFileSync(filePath);
+        return {
+          Body: {
+            async *[Symbol.asyncIterator]() {
+              yield content;
+            }
+          }
+        };
+      } else if (command.constructor.name === 'PutObjectCommand') {
+        const { Bucket, Key, Body } = command.input;
+        log(`Mock S3 PutObject: ${Bucket}/${Key}`);
+        
+        // Create output file - don't include bucket name in path
+        const filePath = `${tempDir}/${Key}`;
+        const dir = require('path').dirname(filePath);
+        
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        fs.writeFileSync(filePath, Body);
+        return { ETag: '"mock-etag"' };
+      }
+      
+      return {};
+    }
+  };
+}
+
+// Initialize S3 client safely with regional endpoint support
 try {
-  s3Client = new S3Client({ region: ENV.AWS_REGION });
+  // Check if we should use mock S3
+  if (process.env.USE_MOCK_S3 === 'true' || process.env.AWS_SAM_LOCAL === 'true') {
+    log('Using mock S3 client for local testing');
+    s3Client = getMockS3Client();
+  } else {
+    const clientOptions = { 
+      region: ENV.AWS_REGION,
+      maxAttempts: 3,
+      // Handle regional bucket endpoints
+      useArnRegion: true,
+      followRegionRedirects: true
+    };
+    
+    // Add endpoint URL if specified (for LocalStack or testing)
+    if (process.env.AWS_ENDPOINT_URL) {
+      clientOptions.endpoint = process.env.AWS_ENDPOINT_URL;
+      clientOptions.forcePathStyle = true;
+    }
+    
+    s3Client = new S3Client(clientOptions);
+    log('S3 client initialized');
+  }
 } catch (err) {
-  console.error('Error initializing S3 client:', err.message);
+  log('Error initializing S3 client:', err.message);
 }
 
 /**
@@ -62,11 +170,17 @@ async function downloadJsonFromS3(bucket, key) {
     };
 
     const contentBuffer = await streamToBuffer(response.Body);
-    const layout = JSON.parse(contentBuffer.toString('utf-8'));
-    log('Parsed layout JSON', { layoutId: layout.layoutId });
-    return layout;
+    
+    try {
+      const layout = JSON.parse(contentBuffer.toString('utf-8'));
+      log('Parsed layout JSON', { layoutId: layout.layoutId });
+      return layout;
+    } catch (parseErr) {
+      log('Error parsing JSON:', parseErr.message);
+      throw new Error(`Invalid JSON format: ${parseErr.message}`);
+    }
   } catch (err) {
-    log('Failed to download or parse JSON from S3:', err.message, err.stack);
+    log('Failed to download or parse JSON from S3:', err.message);
     throw err;
   }
 }
@@ -86,7 +200,7 @@ async function uploadToS3(bucket, key, body, contentType) {
       throw new Error('S3 client not initialized');
     }
     
-    log('Uploading to S3', { bucket, key });
+    log('Uploading to S3', { bucket, key, contentType });
     await s3Client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -97,34 +211,33 @@ async function uploadToS3(bucket, key, body, contentType) {
     );
     log(`Uploaded to ${key}`);
   } catch (err) {
-    log('Failed to upload to S3:', err.message, err.stack);
+    log('Failed to upload to S3:', err.message);
     throw err;
   }
 }
 
 /**
- * Handle errors, upload logs to S3, and return formatted error response
- * 
- * @param {Error} err - Error object
- * @returns {Object} - Formatted error response
+ * Handle errors with improved logging
  */
 async function handleError(err) {
-  log('Error in Lambda handler:', err.message, err.stack);
+  log('Error in Lambda handler:', err.message);
+  log('Error stack:', err.stack || 'No stack trace available');
   
   try {
     const targetBucket = ENV.LOG_BUCKET;
     const fallbackKey = `logs/error_${Date.now()}.log`;
     
     if (targetBucket && s3Client) {
-      await uploadToS3(targetBucket, fallbackKey, capturedLogs.join('\n') + `\n${err.stack}`, 'text/plain');
+      const logContent = capturedLogs.join('\n') + `\n${err.stack || err.message}`;
+      await uploadToS3(targetBucket, fallbackKey, logContent, 'text/plain');
+      log('Error logs uploaded to S3');
     } else {
-      log('No S3 bucket specified for error log upload or S3 client not initialized, skipping');
+      log('No S3 bucket specified or S3 client not initialized, skipping log upload');
     }
   } catch (uploadErr) {
     log('Failed to upload error log:', uploadErr.message);
   }
   
-  // Return formatted error
   return {
     status: 'error',
     message: err.message,
@@ -133,54 +246,54 @@ async function handleError(err) {
 }
 
 /**
- * Set up font configuration for canvas
+ * Set up font configuration with ARM64 compatibility
  */
 async function setupFonts() {
+  log('Starting font setup');
+  
   try {
     // Set environment variables
     process.env.FONTCONFIG_PATH = FONTS.tempDir;
     process.env.FONTCONFIG_FILE = FONTS.configFile;
-
-    log(`Font directories: ${FONTS.tempDir}, ${FONTS.configFile}`);
     
-    // Create font config directory if it doesn't exist
+    log(`Setting font paths: ${FONTS.tempDir}, ${FONTS.configFile}`);
+
+    // Create font config directory safely
     try {
       if (!fs.existsSync(FONTS.tempDir)) {
         log(`Creating font directory: ${FONTS.tempDir}`);
         fs.mkdirSync(FONTS.tempDir, { recursive: true });
-        fs.chmodSync(FONTS.tempDir, '777');
+        try {
+          fs.chmodSync(FONTS.tempDir, '777');
+        } catch (chmodErr) {
+          log(`Warning: Could not set permissions on font directory: ${chmodErr.message}`);
+        }
       }
     } catch (dirErr) {
-      log(`Error creating font directory: ${dirErr.message}`);
-      // Continue even if directory creation fails - Lambda might already have this set up
+      log(`Warning: Failed to create font directory: ${dirErr.message}`);
     }
 
-    // Create font config file if it doesn't exist
+    // Create font config file safely
     try {
       if (!fs.existsSync(FONTS.configFile)) {
         log(`Creating font config file: ${FONTS.configFile}`);
         fs.writeFileSync(FONTS.configFile, FONTS.configContent.trim());
       }
     } catch (fileErr) {
-      log(`Error creating font config file: ${fileErr.message}`);
-      // Continue even if file creation fails
+      log(`Warning: Failed to create font config file: ${fileErr.message}`);
     }
 
     // Check for canvas module without registering fonts yet
-    let canvasModule;
     try {
-      log('Attempting to load canvas module');
-      // Just require it but don't use it yet
-      canvasModule = require('canvas');
-      log('Canvas module loaded successfully');
-    } catch (err) {
-      log('Failed to load canvas module:', err.message, err.stack);
-      throw new Error(`Canvas module initialization failed: ${err.message}`);
-    }
-    
-    // Only attempt font registration if canvas loaded successfully
-    if (canvasModule) {
-      const { registerFont } = canvasModule;
+      log('Checking for canvas module availability');
+      
+      // Test-require canvas - don't store it yet
+      require('canvas');
+      
+      log('Canvas module is available');
+      
+      // Now try registering fonts
+      const { registerFont } = require('canvas');
       
       let fontRegistered = false;
       for (const fontPath of FONTS.paths) {
@@ -192,86 +305,78 @@ async function setupFonts() {
             log(`Successfully registered font from ${fontPath}`);
             fontRegistered = true;
             break;
-          } else {
-            log(`Font file not found at ${fontPath}`);
           }
         } catch (fontErr) {
           log(`Failed to register font from ${fontPath}: ${fontErr.message}`);
-          // Continue to next font path
         }
       }
 
       if (!fontRegistered) {
-        log('Warning: Could not register Arial font, will use default system fonts');
+        log('Warning: Could not register custom fonts, will use system defaults');
       }
+    } catch (canvasErr) {
+      log('Canvas module unavailable:', canvasErr.message);
+      log('Will use fallback rendering method');
     }
     
-    log('Font setup completed successfully');
+    log('Font setup completed');
   } catch (err) {
-    log('Font setup failed:', err.message, err.stack);
-    // Don't throw, try to continue without custom fonts
+    log('Font setup encountered issues:', err.message);
     log('Continuing without custom fonts');
   }
 }
 
 /**
- * Fetch an image from a URL with timeout and retries
- * 
- * @param {string} url - Image URL
- * @returns {Promise<Buffer>} - Image buffer or null if failed
+ * Fetch an image with improved error handling
  */
 async function fetchImage(url) {
-  // Check if fetch is available
   if (!fetch) {
     log('Fetch API not available, cannot download images');
     return null;
   }
   
-  // Maximum number of retry attempts
   const maxRetries = NETWORK.retryAttempts;
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // If not the first attempt, add a small delay with exponential backoff
       if (attempt > 0) {
         const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
         log(`Retry attempt ${attempt} for ${url}, waiting ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      // Attempt to fetch the image with timeout
       log(`Fetching image from ${url} (attempt ${attempt + 1}/${maxRetries + 1})`);
       
-      // Create a controller for timeout
-      const controller = new AbortController ? new AbortController() : null;
+      let options = { headers: NETWORK.headers };
       let timeoutId = null;
       
+      if (AbortController) {
+        const controller = new AbortController();
+        options.signal = controller.signal;
+        timeoutId = setTimeout(() => controller.abort(), NETWORK.fetchTimeout);
+      }
+      
       try {
-        const options = {
-          headers: NETWORK.headers
-        };
-        
-        // Add signal if AbortController is available
-        if (controller) {
-          options.signal = controller.signal;
-          timeoutId = setTimeout(() => controller.abort(), NETWORK.fetchTimeout);
-        }
-        
         const response = await fetch(url, options);
         
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
+        if (timeoutId) clearTimeout(timeoutId);
         
         if (!response.ok) {
           throw new Error(`HTTP status ${response.status}`);
         }
 
-        // Convert response to buffer - handle node-fetch v2
-        const buffer = await response.buffer();
+        // Handle different node-fetch versions
+        let buffer;
+        if (typeof response.buffer === 'function') {
+          buffer = await response.buffer();
+        } else if (typeof response.arrayBuffer === 'function') {
+          const arrayBuffer = await response.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+        } else {
+          throw new Error('Cannot convert response to buffer');
+        }
         
-        // Check if the buffer is valid (non-empty)
         if (!buffer || buffer.length === 0) {
           throw new Error('Empty image buffer received');
         }
@@ -279,17 +384,13 @@ async function fetchImage(url) {
         log(`Successfully fetched image (${buffer.length} bytes)`);
         return buffer;
       } catch (fetchErr) {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
+        if (timeoutId) clearTimeout(timeoutId);
         throw fetchErr;
       }
     } catch (err) {
       lastError = err;
       log(`Attempt ${attempt + 1} failed to fetch image:`, { url, error: err.message });
       
-      // If this is a network error that might be temporary, continue to retry
-      // Otherwise, for permanent errors like 404, stop retrying
       if (err.message.includes('404') || err.message.includes('403')) {
         log('Permanent error detected, stopping retry attempts');
         break;
@@ -297,21 +398,16 @@ async function fetchImage(url) {
     }
   }
 
-  // All attempts failed
-  log(`All ${maxRetries + 1} attempts to fetch image failed:`, { url, error: lastError?.message });
+  log(`All attempts to fetch image failed:`, { url, error: lastError?.message });
   return null;
 }
 
 /**
- * Check if image URL is valid (basic validation)
- * 
- * @param {string} url - URL to validate
- * @returns {boolean} - Whether URL appears valid
+ * Validate image URL
  */
 function isValidImageUrl(url) {
   if (!url) return false;
   
-  // Very basic URL validation
   try {
     const parsedUrl = new URL(url);
     return ['http:', 'https:'].includes(parsedUrl.protocol);
