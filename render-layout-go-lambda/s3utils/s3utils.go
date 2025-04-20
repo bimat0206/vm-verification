@@ -5,22 +5,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"time"
-	"io/ioutil"
+
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"vending-machine-layout-generator/config"
 	"vending-machine-layout-generator/renderer"
 )
 
 func NewS3Client(ctx context.Context) (*s3.Client, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+	// Get config to use region setting
+	cfg := config.GetConfig()
+	
+	// Load configuration with region from config
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, 
+		awsconfig.WithRegion(cfg.S3Region),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %v", err)
 	}
-	return s3.NewFromConfig(cfg), nil
+	return s3.NewFromConfig(awsCfg), nil
 }
 
 func ParseEvent(event events.EventBridgeEvent) (string, string, error) {

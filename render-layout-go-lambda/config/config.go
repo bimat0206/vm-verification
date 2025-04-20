@@ -1,7 +1,8 @@
 package config
 
 type Config struct {
-	BucketName       string
+	BucketName       string // Optional - will be overridden by S3 event
+	S3Region         string
 	FontPath         string
 	BoldFontPath     string
 	ImageLoadTimeout int // in seconds
@@ -24,8 +25,10 @@ type Config struct {
 }
 
 var config = Config{
-	FontPath:         "fonts/DejaVuSans.ttf",
-	BoldFontPath:     "fonts/DejaVuSans-Bold.ttf",
+	BucketName:       "", // Empty by default, will be set from S3 event
+	S3Region:         "us-east-1",
+	FontPath:         "fonts/arial.ttf",
+	BoldFontPath:     "fonts/arialbd.ttf",
 	ImageLoadTimeout: 20,
 	CanvasScale:      4.0,
 	NumColumns:       7,
@@ -47,4 +50,9 @@ var config = Config{
 
 func GetConfig() Config {
 	return config
+}
+
+// UpdateBucketName allows setting the bucket name dynamically
+func UpdateBucketName(bucketName string) {
+	config.BucketName = bucketName
 }
