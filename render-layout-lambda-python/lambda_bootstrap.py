@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import logging
+import requests
+import traceback
 
 # Configure logging
 logging.basicConfig(
@@ -14,60 +16,68 @@ logger = logging.getLogger(__name__)
 # Import our lambda handler
 from lambda_handler import lambda_handler
 
-# Import AWS Lambda Runtime Interface Client if available
-try:
-    import awslambdaric
-    HAS_LAMBDA_RIC = True
-except ImportError:
-    HAS_LAMBDA_RIC = False
-    logger.warning("AWS Lambda Runtime Interface Client not found - assuming local execution")
-
 def main():
-    logger.info("Starting Lambda bootstrap")
+    logger.info("Starting Lambda bootstrap in direct mode")
     
-    # Check environment to determine execution mode
+    # Check if we're running in Lambda
     if os.environ.get('AWS_LAMBDA_RUNTIME_API'):
-        logger.info("Running in AWS Lambda environment")
+        runtime_api = os.environ['AWS_LAMBDA_RUNTIME_API']
+        logger.info(f"Using Lambda Runtime API at: {runtime_api}")
         
-        # If awslambdaric is available, use it
-        if HAS_LAMBDA_RIC:
-            logger.info("Using AWS Lambda Runtime Interface Client")
-            from awslambdaric import bootstrap
-            bootstrap.run(lambda_handler)
-        else:
-            # Manual implementation of Lambda Runtime API
-            logger.info("Using manual Lambda Runtime API implementation")
-            runtime_api = os.environ['AWS_LAMBDA_RUNTIME_API']
-            while True:
-                # Get next invocation
-                import requests
-                resp = requests.get(f"http://{runtime_api}/2018-06-01/runtime/invocation/next")
-                request_id = resp.headers.get('Lambda-Runtime-Aws-Request-Id')
+        # Main processing loop
+        while True:
+            # Get the next event
+            logger.info("Waiting for next event...")
+            event_url = f"http://{runtime_api}/2018-06-01/runtime/invocation/next"
+            try:
+                response = requests.get(event_url)
+                request_id = response.headers.get('Lambda-Runtime-Aws-Request-Id')
+                logger.info(f"Received event with request ID: {request_id}")
+                
+                # Mock Lambda context object
+                class LambdaContext:
+                    def __init__(self, request_id):
+                        self.aws_request_id = request_id
+                        self.function_name = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'unknown')
+                        self.memory_limit_in_mb = os.environ.get('AWS_LAMBDA_FUNCTION_MEMORY_SIZE', '128')
+                        self.log_group_name = os.environ.get('AWS_LAMBDA_LOG_GROUP_NAME', 'unknown')
+                        self.log_stream_name = os.environ.get('AWS_LAMBDA_LOG_STREAM_NAME', 'unknown')
+                
+                # Create context and parse event
+                context = LambdaContext(request_id)
+                event = json.loads(response.content)
                 
                 # Process the event
-                try:
-                    event = json.loads(resp.content)
-                    result = lambda_handler(event, None)
-                    
-                    # Send the response
-                    requests.post(
-                        f"http://{runtime_api}/2018-06-01/runtime/invocation/{request_id}/response",
-                        json=result
-                    )
-                except Exception as e:
-                    logger.error(f"Error processing request: {e}")
+                logger.info(f"Processing event: {json.dumps(event)}")
+                result = lambda_handler(event, context)
+                
+                # Send the response
+                response_url = f"http://{runtime_api}/2018-06-01/runtime/invocation/{request_id}/response"
+                logger.info(f"Sending response for request ID: {request_id}")
+                requests.post(response_url, json=result)
+                
+            except Exception as e:
+                logger.error(f"Error processing request: {str(e)}")
+                error_traceback = traceback.format_exc()
+                logger.error(f"Traceback: {error_traceback}")
+                
+                # Try to send error response if we have a request_id
+                if 'request_id' in locals():
+                    error_url = f"http://{runtime_api}/2018-06-01/runtime/invocation/{request_id}/error"
                     error_payload = {
                         "errorMessage": str(e),
-                        "errorType": type(e).__name__
+                        "errorType": type(e).__name__,
+                        "stackTrace": error_traceback.split("\n")
                     }
-                    requests.post(
-                        f"http://{runtime_api}/2018-06-01/runtime/invocation/{request_id}/error",
-                        json=error_payload
-                    )
+                    try:
+                        requests.post(error_url, json=error_payload)
+                    except Exception as e2:
+                        logger.error(f"Failed to send error response: {str(e2)}")
     else:
-        # Not in Lambda environment, process test event if provided
+        # Not in Lambda environment
         logger.info("Not running in AWS Lambda environment")
         
+        # Process a test event if provided
         test_event_path = os.environ.get('TEST_EVENT_PATH')
         if test_event_path and os.path.exists(test_event_path):
             logger.info(f"Processing test event from {test_event_path}")
