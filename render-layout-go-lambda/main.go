@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/png"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -52,9 +55,32 @@ type Slot struct {
 }
 
 func handler(ctx context.Context, event events.EventBridgeEvent) error {
-	// Extract bucket and object key from the event
-	bucket := event.Detail["bucket"].(map[string]interface{})["name"].(string)
-	objectKey := event.Detail["object"].(map[string]interface{})["key"].(string)
+	// Extract detail as a map
+	detail := make(map[string]interface{})
+	if err := json.Unmarshal(event.Detail, &detail); err != nil {
+		return fmt.Errorf("failed to parse event detail: %v", err)
+	}
+	
+	// Access bucket and object information
+	bucketInfo, ok := detail["bucket"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("bucket info not found in event")
+	}
+	
+	objectInfo, ok := detail["object"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("object info not found in event")
+	}
+	
+	bucket, ok := bucketInfo["name"].(string)
+	if !ok {
+		return fmt.Errorf("bucket name not found in event")
+	}
+	
+	objectKey, ok := objectInfo["key"].(string)
+	if !ok {
+		return fmt.Errorf("object key not found in event")
+	}
 
 	// Check if the object is in the "raw" folder and is a JSON file
 	if !strings.HasPrefix(objectKey, "raw/") || filepath.Ext(objectKey) != ".json" {
@@ -92,7 +118,7 @@ func handler(ctx context.Context, event events.EventBridgeEvent) error {
 	}
 
 	// Render the layout to an image
-	img, err := renderLayout(layout)
+	img, err := renderLayoutToBytes(layout)
 	if err != nil {
 		return fmt.Errorf("failed to render layout: %v", err)
 	}
@@ -113,7 +139,7 @@ func handler(ctx context.Context, event events.EventBridgeEvent) error {
 	return nil
 }
 
-func renderLayout(layout Layout) ([]byte, error) {
+func renderLayoutToBytes(layout Layout) ([]byte, error) {
 	const numColumns = 7
 	const cellWidth = 150.0
 	const cellHeight = 180.0
@@ -126,7 +152,7 @@ func renderLayout(layout Layout) ([]byte, error) {
 	const titlePadding = 40.0
 	const textPadding = 5.0
 	const metadataHeight = 20.0
-	const scale = 4.0
+	const scale = 6.0
 
 	trays := layout.SubLayoutList[0].TrayList
 	numRows := len(trays)
@@ -144,48 +170,40 @@ func renderLayout(layout Layout) ([]byte, error) {
 	dc.SetRGB(1, 1, 1) // white
 	dc.Clear()
 
-	// Load fonts
-	titleFont, err := gg.LoadFontFace("arialbd.ttf", 18)
+	// Get font paths
+	fontPath := "/app/fonts/DejaVuSans.ttf"
+	boldFontPath := "/app/fonts/DejaVuSans-Bold.ttf"
+
+	// Try to load fonts
+	titleFont, err := gg.LoadFontFace(boldFontPath, 18*scale/4)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load title font: %v", err)
-	}
-	columnFont, err := gg.LoadFontFace("arial.ttf", 14)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load column font: %v", err)
-	}
-	rowFont, err := gg.LoadFontFace("arial.ttf", 16)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load row font: %v", err)
-	}
-	positionFont, err := gg.LoadFontFace("arialbd.ttf", 14)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load position font: %v", err)
-	}
-	productFont, err := gg.LoadFontFace("arial.ttf", 12)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load product font: %v", err)
-	}
-	placeholderFont, err := gg.LoadFontFace("arial.ttf", 10)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load placeholder font: %v", err)
-	}
-	metadataFont, err := gg.LoadFontFace("arial.ttf", 12)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load metadata font: %v", err)
+		log.Printf("Warning: Failed to load title font: %v", err)
+	} else {
+		dc.SetFontFace(titleFont)
 	}
 
 	// Draw title
 	title := fmt.Sprintf("Kootoro Vending Machine Layout (ID: %d)", layout.LayoutID)
-	dc.SetFontFace(titleFont)
 	dc.SetRGB(0, 0, 0) // black
 	dc.DrawStringAnchored(title, canvasWidth/2, padding, 0.5, 0.5)
 
+	// Load column font
+	columnFont, err := gg.LoadFontFace(fontPath, 14)
+	if err == nil {
+		dc.SetFontFace(columnFont)
+	}
+
 	// Draw column numbers
-	dc.SetFontFace(columnFont)
 	for col := 0; col < numColumns; col++ {
 		x := padding + float64(col)*(cellWidth+cellSpacing) + cellWidth/2
 		y := padding + titlePadding + headerHeight/2
 		dc.DrawStringAnchored(fmt.Sprintf("%d", col+1), x, y, 0.5, 0.5)
+	}
+
+	// Load row font
+	rowFont, err := gg.LoadFontFace(fontPath, 16)
+	if err == nil {
+		dc.SetFontFace(rowFont)
 	}
 
 	// Draw rows
@@ -202,7 +220,6 @@ func renderLayout(layout Layout) ([]byte, error) {
 		}
 
 		// Draw row letter
-		dc.SetFontFace(rowFont)
 		dc.SetRGB(0, 0, 0)
 		dc.DrawStringAnchored(rowLetter, padding-textPadding, rowY+cellHeight/2, 1.0, 0.5) // right-aligned
 
@@ -210,6 +227,12 @@ func renderLayout(layout Layout) ([]byte, error) {
 		sort.Slice(tray.SlotList, func(i, j int) bool {
 			return tray.SlotList[i].SlotNo < tray.SlotList[j].SlotNo
 		})
+
+		// Load position font
+		positionFont, err := gg.LoadFontFace(boldFontPath, 14)
+		if err == nil {
+			dc.SetFontFace(positionFont)
+		}
 
 		for col := 0; col < numColumns; col++ {
 			slot := findSlotByNo(tray.SlotList, col+1)
@@ -219,6 +242,7 @@ func renderLayout(layout Layout) ([]byte, error) {
 			dc.SetRGB(0.98, 0.98, 0.98) // rgb(250,250,250)
 			dc.DrawRectangle(cellX, rowY, cellWidth, cellHeight)
 			dc.Fill()
+			
 			// Draw cell border
 			dc.SetRGB(0.706, 0.706, 0.706) // rgb(180,180,180)
 			dc.SetLineWidth(1.0 / scale)
@@ -228,13 +252,14 @@ func renderLayout(layout Layout) ([]byte, error) {
 			if slot != nil {
 				// Draw position code
 				positionCode := fmt.Sprintf("%s%d", rowLetter, col+1)
-				dc.SetFontFace(positionFont)
 				dc.SetRGB(0, 0, 0.588) // rgb(0,0,150)
 				dc.DrawString(positionCode, cellX+8, rowY+16)
 
-				// Draw image
+				// Draw image placeholder
 				imgX := cellX + (cellWidth-imageSize)/2
 				imgY := rowY + (cellHeight-imageSize)/2 - 10
+				
+				// Try to load the image
 				img, err := loadImageFromURL(slot.ProductTemplateImage)
 				if err != nil {
 					log.Printf("Failed to load image for %s: %v", slot.Position, err)
@@ -246,9 +271,15 @@ func renderLayout(layout Layout) ([]byte, error) {
 					dc.SetLineWidth(0.5 / scale)
 					dc.DrawRectangle(imgX, imgY, imageSize, imageSize)
 					dc.Stroke()
-					dc.SetFontFace(placeholderFont)
+					
+					// Load placeholder font
+					placeholderFont, err := gg.LoadFontFace(fontPath, 10)
+					if err == nil {
+						dc.SetFontFace(placeholderFont)
+					}
+					
 					dc.SetRGB(0.588, 0.588, 0.588) // rgb(150,150,150)
-					dc.DrawStringAnchored("Image Unavailable", cellX+cellWidth/2, imgY+imageSize/2, 0.5, 0.5)
+					dc.DrawStringAnchored("Sản phẩm", cellX+cellWidth/2, imgY+imageSize/2, 0.5, 0.5)
 				} else {
 					// Scale and draw image
 					dc.Push()
@@ -260,9 +291,14 @@ func renderLayout(layout Layout) ([]byte, error) {
 					dc.Pop()
 				}
 
+				// Load product font
+				productFont, err := gg.LoadFontFace(fontPath, 12)
+				if err == nil {
+					dc.SetFontFace(productFont)
+				}
+
 				// Draw product name
 				nameY := imgY + imageSize + 15
-				dc.SetFontFace(productFont)
 				dc.SetRGB(0, 0, 0)
 				productName := strings.TrimSpace(slot.ProductTemplateName)
 				if productName == "" {
@@ -278,10 +314,15 @@ func renderLayout(layout Layout) ([]byte, error) {
 		}
 	}
 
+	// Load metadata font
+	metadataFont, err := gg.LoadFontFace(fontPath, 12)
+	if err == nil {
+		dc.SetFontFace(metadataFont)
+	}
+
 	// Draw footer
 	footerText := fmt.Sprintf("Kootoro Vending Machine Layout (ID: %d)", layout.LayoutID)
 	footerY := canvasHeight - padding/2 - metadataHeight
-	dc.SetFontFace(titleFont)
 	dc.SetRGB(0, 0, 0)
 	dc.DrawStringAnchored(footerText, canvasWidth/2, footerY, 0.5, 0.5)
 
@@ -289,13 +330,13 @@ func renderLayout(layout Layout) ([]byte, error) {
 	now := time.Now()
 	formattedDate := now.Format("Jan 02, 2006 15:04:05")
 	metadataText := fmt.Sprintf("Generated at: %s", formattedDate)
-	dc.SetFontFace(metadataFont)
 	dc.SetRGB(0.392, 0.392, 0.392) // rgb(100,100,100)
 	dc.DrawStringAnchored(metadataText, canvasWidth/2, canvasHeight-10, 0.5, 0.5)
 
 	// Encode the image to PNG
 	var buf bytes.Buffer
-	err = dc.EncodePNG(&buf)
+	encoder := png.Encoder{CompressionLevel: png.NoCompression} // Best quality, larger size
+	err = encoder.Encode(&buf, dc.Image())
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode PNG: %v", err)
 	}
@@ -344,16 +385,39 @@ func loadImageFromURL(url string) (image.Image, error) {
 		return nil, fmt.Errorf("empty image URL")
 	}
 
+	// Create a temp directory for caching
+	tempDir := "/tmp/image_cache"
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a cache key based on the URL
+	hash := md5.Sum([]byte(url))
+	cachedFile := filepath.Join(tempDir, fmt.Sprintf("%x.png", hash))
+
+	// Check if the image is already in the cache
+	if _, err := os.Stat(cachedFile); err == nil {
+		// Load from cache
+		f, err := os.Open(cachedFile)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		img, _, err := image.Decode(f)
+		return img, err
+	}
+
 	// Download the image with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, err
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download image: %v", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -361,15 +425,19 @@ func loadImageFromURL(url string) (image.Image, error) {
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read image data: %v", err)
+		return nil, err
+	}
+
+	// Save to cache
+	err = ioutil.WriteFile(cachedFile, data, 0644)
+	if err != nil {
+		log.Printf("Warning: Failed to write image to cache: %v", err)
+		// Continue anyway, just won't be cached
 	}
 
 	// Decode the image
 	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode image: %v", err)
-	}
-	return img, nil
+	return img, err
 }
 
 func main() {
