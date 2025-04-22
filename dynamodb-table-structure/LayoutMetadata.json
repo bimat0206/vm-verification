@@ -1,0 +1,40 @@
+{
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+    "vendingMachineId": "VM-3245",
+    "location": "Office Building A, Floor 3",
+    "createdAt": "2025-04-20T14:25:10Z",
+    "updatedAt": "2025-04-20T14:25:15Z",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+    "sourceJsonUrl": "s3://kootoro-reference-bucket/raw/2025-04-20/layout_23591.json",
+    "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "columnOrder" : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+        "rowOrder": ["A", "B", "C", "D", "E", "F"]
+    },
+"rowProductMapping": {
+  "A": {
+    "1": "Mi Hảo Hảo",
+    "2": "Mi Hảo Hảo",
+    "3": "Mi Hảo Hảo"
+  },
+  "B": {
+    "1": "Mì Cung Đình",
+    "2": "Mi Hảo Hảo",
+    "3": "Mi Hảo Hảo"
+  }
+},
+    "productPositionMap": {
+      "A01": {
+        "productId": 3486,
+        "productName": "Mì Hảo Hảo",
+        "productImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+      },
+      "A02": {
+        "productId": 3486,
+        "productName": "Mì Hảo Hảo",
+        "productImage": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+      }
+    }
+  }
