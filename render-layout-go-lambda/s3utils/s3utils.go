@@ -60,6 +60,27 @@ func ParseEvent(event events.EventBridgeEvent) (string, string, error) {
 	return bucket, objectKey, nil
 }
 
+// GetObjectSize returns the size of an S3 object in bytes
+func GetObjectSize(ctx context.Context, bucket, key string) (int64, error) {
+	s3Client, err := NewS3Client(ctx)
+	if err != nil {
+		return 0, err
+	}
+	
+	headOutput, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get head object for %s: %v", key, err)
+	}
+	
+	if headOutput.ContentLength == nil {
+		return 0, fmt.Errorf("content length is nil for object %s", key)
+	}
+	return *headOutput.ContentLength, nil
+}
+
 func IsValidRawFile(objectKey string) bool {
 	return strings.HasPrefix(objectKey, "raw/") && filepath.Ext(objectKey) == ".json"
 }
@@ -88,11 +109,12 @@ func DownloadAndParseLayout(ctx context.Context, s3Client *s3.Client, bucket, ob
 	return &layout, nil
 }
 
-func GenerateProcessedKey(objectKey string, layoutID int64) string {
+// GenerateProcessedKey creates a processed key with date, time, layoutID, and layoutPrefix
+func GenerateProcessedKey(objectKey string, layoutID int64, layoutPrefix string) string {
 	now := time.Now()
 	dateDir := now.Format("2006-01-02")
 	timeDir := now.Format("15-04-05")
-	return fmt.Sprintf("processed/%s/%s/%d/image.png", dateDir, timeDir, layoutID)
+	return fmt.Sprintf("processed/%s/%s/%d_%s/image.png", dateDir, timeDir, layoutID, layoutPrefix)
 }
 
 func UploadImage(ctx context.Context, s3Client *s3.Client, bucket, key string, imgBytes []byte) error {
