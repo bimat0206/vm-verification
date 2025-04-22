@@ -62,9 +62,16 @@ func (l *Logger) addLog(ctx context.Context, level string, layoutID int64, messa
 		return
 	}
 
-	dateDir := l.startTime.Format("2006-01-02")
-	timeDir := l.startTime.Format("15-04-05")
-	logKey := fmt.Sprintf("logs/%s/%s/%d/log.json", dateDir, timeDir, layoutID)
+	// Use the same structure as the image path
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	date := now.Format("02")
+	
+	// Create log key in the same format as the processed image
+	// Format: logs/{year}/{month}/{date}/{layoutId}_log.json
+	logKey := fmt.Sprintf("logs/%s/%s/%s/%d_log.json", year, month, date, layoutID)
+	
 	err = s3utils.UploadLog(ctx, l.s3Client, l.bucket, logKey, logData)
 	if err != nil {
 		fmt.Printf("Failed to upload logs: %v\n", err)

@@ -109,12 +109,16 @@ func DownloadAndParseLayout(ctx context.Context, s3Client *s3.Client, bucket, ob
 	return &layout, nil
 }
 
-// GenerateProcessedKey creates a processed key with date, time, layoutID, and layoutPrefix
+// GenerateProcessedKey creates a processed key with the correct path structure
+// Format: processed/{year}/{month}/{date}/{layoutId}_{layoutPrefix}_reference_image.png
 func GenerateProcessedKey(objectKey string, layoutID int64, layoutPrefix string) string {
 	now := time.Now()
-	dateDir := now.Format("2006-01-02")
-	timeDir := now.Format("15-04-05")
-	return fmt.Sprintf("processed/%s/%s/%d_%s/image.png", dateDir, timeDir, layoutID, layoutPrefix)
+	year := now.Format("2006")
+	month := now.Format("01")
+	date := now.Format("02")
+	
+	return fmt.Sprintf("processed/%s/%s/%s/%d_%s_reference_image.png", 
+		year, month, date, layoutID, layoutPrefix)
 }
 
 func UploadImage(ctx context.Context, s3Client *s3.Client, bucket, key string, imgBytes []byte) error {
