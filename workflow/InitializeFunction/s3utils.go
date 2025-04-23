@@ -57,8 +57,8 @@ func (u *S3Utils) ValidateImageExists(ctx context.Context, s3Url string) error {
 
 	// Check if image size is within limits (e.g., < 10MB)
 	maxSize := int64(10 * 1024 * 1024) // 10MB
-	if headOutput.ContentLength > maxSize {
-		return fmt.Errorf("image too large: %d bytes, maximum allowed: %d bytes", headOutput.ContentLength, maxSize)
+	if headOutput.ContentLength != nil && *headOutput.ContentLength > maxSize {
+		return fmt.Errorf("image too large: %d bytes, maximum allowed: %d bytes", *headOutput.ContentLength, maxSize)
 	}
 
 	return nil
@@ -190,7 +190,6 @@ func (u *S3Utils) IsImageContentType(contentType string) bool {
 	validTypes := []string{
 		"image/jpeg",
 		"image/png",
-		"image/jpg",
 	}
 	
 	for _, t := range validTypes {
@@ -205,7 +204,6 @@ func (u *S3Utils) IsImageContentType(contentType string) bool {
 // IsValidImageExtension checks if a file has a valid image extension
 func (u *S3Utils) IsValidImageExtension(key string) bool {
 	lower := strings.ToLower(key)
-	return strings.HasSuffix(lower, ".jpg") || 
-	       strings.HasSuffix(lower, ".jpeg") || 
-	       strings.HasSuffix(lower, ".png")
+	return strings.HasSuffix(lower, ".png") || 
+	       strings.HasSuffix(lower, ".jpeg") 
 }
