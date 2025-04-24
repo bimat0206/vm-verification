@@ -22,16 +22,17 @@ type VerificationRepository interface {
 	ListVerifications(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]*models.VerificationResult, int, error)
 }
 
-// ImageService defines the interface for image operations
-type ImageService interface {
+// ImageServiceInterface defines the interface for image operations
+type ImageServiceInterface interface {
 	FetchReferenceImage(ctx context.Context, url string) ([]byte, map[string]interface{}, error)
 	FetchCheckingImage(ctx context.Context, url string) ([]byte, error)
 	GetImageMetadata(ctx context.Context, imageBytes []byte) (map[string]interface{}, error)
 	ImageToBase64(imageBytes []byte) string
+	StoreResultImage(ctx context.Context, verificationID string, imageBytes []byte) (string, error)
 }
 
-// VisualizationService defines the interface for generating result visualizations
-type VisualizationService interface {
+// VisualizationServiceInterface defines the interface for generating result visualizations
+type VisualizationServiceInterface interface {
 	GenerateVisualization(
 		ctx context.Context,
 		verificationContext *models.VerificationContext,
@@ -41,8 +42,8 @@ type VisualizationService interface {
 	) (string, error) // Returns S3 URL
 }
 
-// NotificationService defines the interface for sending notifications
-type NotificationService interface {
+// NotificationServiceInterface defines the interface for sending notifications
+type NotificationServiceInterface interface {
 	SendNotifications(
 		ctx context.Context,
 		verificationContext *models.VerificationContext,
@@ -65,25 +66,25 @@ type AIProvider interface {
 // VerificationService handles the verification workflow
 type VerificationService struct {
 	repository         VerificationRepository
-	imageService       ImageService
+	imageService       ImageServiceInterface
 	verificationEngine domainServices.VerificationEngine
 	promptGenerator    domainServices.PromptGenerator
 	responseAnalyzer   domainServices.ResponseAnalyzer
 	aiProvider         AIProvider
-	visualizationService VisualizationService
-	notificationService NotificationService
+	visualizationService VisualizationServiceInterface
+	notificationService NotificationServiceInterface
 }
 
 // NewVerificationService creates a new verification service
 func NewVerificationService(
 	repository VerificationRepository,
-	imageService ImageService,
+	imageService ImageServiceInterface,
 	verificationEngine domainServices.VerificationEngine,
 	promptGenerator domainServices.PromptGenerator,
 	responseAnalyzer domainServices.ResponseAnalyzer,
 	aiProvider AIProvider,
-	visualizationService VisualizationService,
-	notificationService NotificationService,
+	visualizationService VisualizationServiceInterface,
+	notificationService NotificationServiceInterface,
 ) *VerificationService {
 	return &VerificationService{
 		repository:         repository,
@@ -223,7 +224,7 @@ func (s *VerificationService) runVerificationProcess(ctx context.Context, verifi
 	}
 
 	// Invoke model for Turn 1
-	turn1Response, turn1Metadata, err := s.aiProvider.InvokeModel(ctx, systemPrompt, turn1Prompt, []string{referenceImageB64}, nil)
+	turn1Response, _, err := s.aiProvider.InvokeModel(ctx, systemPrompt, turn1Prompt, []string{referenceImageB64}, nil)
 	if err != nil {
 		s.handleError(ctx, verificationContext, err, "Failed to invoke model for Turn 1")
 		return
@@ -272,7 +273,7 @@ func (s *VerificationService) runVerificationProcess(ctx context.Context, verifi
 	}
 
 	// Invoke model for Turn 2
-	turn2Response, turn2Metadata, err := s.aiProvider.InvokeModel(ctx, systemPrompt, turn2Prompt, []string{checkingImageB64}, conversationContext)
+	turn2Response, _, err := s.aiProvider.InvokeModel(ctx, systemPrompt, turn2Prompt, []string{checkingImageB64}, conversationContext)
 	if err != nil {
 		s.handleError(ctx, verificationContext, err, "Failed to invoke model for Turn 2")
 		return

@@ -40,7 +40,7 @@ func (s *NotificationService) SendNotifications(
 	// Prepare notification message
 	message := fmt.Sprintf("Verification completed for vending machine %s.\n", results.VendingMachineID)
 	
-	if results.VerificationStatus == models.StatusIncorrect {
+	if results.Status == models.StatusIncorrect {
 		message += fmt.Sprintf("ALERT: %d discrepancies found!\n", results.VerificationSummary.DiscrepantPositions)
 		message += fmt.Sprintf("Summary: %s\n", results.VerificationSummary.VerificationOutcome)
 	} else {

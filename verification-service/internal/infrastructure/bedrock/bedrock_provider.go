@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	//"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 )
 
 // BedrockProvider provides access to Amazon Bedrock
@@ -155,7 +155,6 @@ func (p *BedrockProvider) InvokeModel(
 		}
 
 		// Decide whether to retry
-		var throttleErr *types.ThrottlingException
 		if retryCount >= p.maxRetries {
 			return "", nil, fmt.Errorf("failed to invoke model after %d retries: %w", p.maxRetries, invocationErr)
 		}

@@ -8,18 +8,13 @@ import (
 	"verification-service/internal/domain/models"
 )
 
-// ImageService interface for the VisualizationService
-type ImageService interface {
-	StoreResultImage(ctx context.Context, verificationID string, imageBytes []byte) (string, error)
-}
-
 // VisualizationService generates visualizations of verification results
 type VisualizationService struct {
-	imageService ImageService
+	imageService ImageServiceInterface
 }
 
 // NewVisualizationService creates a new visualization service
-func NewVisualizationService(imageService ImageService) *VisualizationService {
+func NewVisualizationService(imageService ImageServiceInterface) *VisualizationService {
 	return &VisualizationService{
 		imageService: imageService,
 	}
