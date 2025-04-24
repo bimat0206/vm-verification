@@ -1,0 +1,54 @@
+        {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "PROMPT_PREPARED",
+    “promptId": "prompt-20250421",
+    "vendingMachineId": "VM-3245",
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "bedrockRequest": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 16000
+    },
+      "system": "You are an AI assistant specialized in analyzing vending machine product placement...",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "TASK: Compare the reference layout image with the checking image for vending machine ID: VM-3245 at location: Office Building A, Floor 3...\n\nPRODUCT DETAILS:\n- Position A01: \"Mì Hảo Hảo\", Expected Quantity: 5\n..."
+            },
+            {
+              "type": "image",
+              "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": "base64_encoded_reference_image"
+              }
+            },
+            {
+              "type": "image",
+              "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": "base64_encoded_checking_image"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "estimatedTokens": {
+      "text": 1250,
+      "images": 3000,
+      "total": 4250
+    }
+  }
+   
+  

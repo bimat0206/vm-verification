@@ -174,10 +174,10 @@ create_role() {
         --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess \
         --region ${AWS_REGION} 2>/dev/null || true
     
-    # S3 read
+    # S3 full access (replacing read-only access since we need HeadObject permissions)
     aws iam attach-role-policy \
         --role-name lambda-${FUNCTION_NAME}-role \
-        --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+        --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess \
         --region ${AWS_REGION} 2>/dev/null || true
     
     # Custom policy for DynamoDB write
@@ -188,11 +188,37 @@ create_role() {
         --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:BatchWriteItem"],"Resource":"arn:aws:dynamodb:'${AWS_REGION}':'$(aws sts get-caller-identity --query "Account" --output text)':table/'${DYNAMODB_VERIFICATION_TABLE}'"}]}' \
         --region ${AWS_REGION} || true
     
+    # Custom policy for specific S3 bucket access (more restrictive than full access)
+    print_message "${YELLOW}" "Creating custom policy for specific S3 bucket access..."
+    aws iam put-role-policy \
+        --role-name lambda-${FUNCTION_NAME}-role \
+        --policy-name ${FUNCTION_NAME}-s3-specific-access \
+        --policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:GetObject",
+                        "s3:HeadObject",
+                        "s3:ListBucket"
+                    ],
+                    "Resource": [
+                        "arn:aws:s3:::'${REFERENCE_BUCKET}'",
+                        "arn:aws:s3:::'${REFERENCE_BUCKET}'/*",
+                        "arn:aws:s3:::'${CHECKING_BUCKET}'",
+                        "arn:aws:s3:::'${CHECKING_BUCKET}'/*"
+                    ]
+                }
+            ]
+        }' \
+        --region ${AWS_REGION} || true
+    
     print_message "${GREEN}" "IAM role setup completed"
     
     # Additional delay to ensure role permissions have propagated
     print_message "${YELLOW}" "Giving IAM permissions time to propagate..."
-    sleep 5
+    sleep 10
 }
 
 # Deploy or update Lambda function
@@ -216,7 +242,7 @@ deploy_lambda() {
         
         # Wait for code update to finish
         print_message "${YELLOW}" "Waiting for code update to complete..."
-        sleep 5
+        sleep 10
         
         # Update function configuration
         print_message "${YELLOW}" "Updating function configuration..."
@@ -352,13 +378,18 @@ delete_resources() {
     
     aws iam detach-role-policy \
         --role-name lambda-${FUNCTION_NAME}-role \
-        --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+        --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess \
         --region ${AWS_REGION} 2>/dev/null || true
     
-    # Delete custom policy
+    # Delete custom policies
     aws iam delete-role-policy \
         --role-name lambda-${FUNCTION_NAME}-role \
         --policy-name ${FUNCTION_NAME}-dynamodb-write \
+        --region ${AWS_REGION} 2>/dev/null || true
+    
+    aws iam delete-role-policy \
+        --role-name lambda-${FUNCTION_NAME}-role \
+        --policy-name ${FUNCTION_NAME}-s3-specific-access \
         --region ${AWS_REGION} 2>/dev/null || true
     
     # Delete role
