@@ -10,6 +10,7 @@ import random
 
 from storage_resources import StorageResources
 from compute_resources import ComputeResources
+from streamlit_frontend_resources import StreamlitFrontendResources
 
 class VerificationServiceStack(Stack):
     def __init__(
@@ -58,6 +59,20 @@ class VerificationServiceStack(Stack):
         self.task_definition = compute.task_definition
         self.service = compute.service
         self.load_balancer = compute.load_balancer
+
+        # Create Streamlit frontend resources
+        backend_service_url = f"http://{self.load_balancer.load_balancer_dns_name}"
+        streamlit = StreamlitFrontendResources(
+            self,
+            self.resource_prefix,
+            self.random_suffix,
+            self.vpc,
+            self.ecs_cluster,
+            self.load_balancer,
+            backend_service_url
+        )
+        self.streamlit_ecr_repository = streamlit.ecr_repository
+        self.streamlit_service = streamlit.service
 
         # Output the resource names and ARNs
         self._create_outputs()
@@ -122,4 +137,16 @@ class VerificationServiceStack(Stack):
             self, "LoadBalancerDnsName",
             value=self.load_balancer.load_balancer_dns_name,
             description="ALB DNS name"
+        )
+        
+        CfnOutput(
+            self, "StreamlitECRRepositoryUri",
+            value=self.streamlit_ecr_repository.repository_uri,
+            description="ECR repository for Streamlit frontend images"
+        )
+        
+        CfnOutput(
+            self, "StreamlitUrl",
+            value=f"http://{self.load_balancer.load_balancer_dns_name}/ui",
+            description="URL for accessing the Streamlit frontend"
         )
