@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"sync"
 
 	"github.com/google/uuid"
 )
@@ -129,12 +130,14 @@ func (s *InitService) validateRequest(request InitRequest) error {
 
 // verifyResources checks if all resources (images, layout) exist
 func (s *InitService) verifyResources(ctx context.Context, request InitRequest) error {
-	// Create error channels for concurrent verification
+	// Create error channel and wait group for concurrent verification
 	errChan := make(chan error, 3)
-	defer close(errChan)
+	var wg sync.WaitGroup
+	wg.Add(3)
 
 	// Verify reference image existence in parallel
 	go func() {
+		defer wg.Done()
 		err := s.s3Utils.ValidateImageExists(ctx, request.ReferenceImageUrl)
 		if err != nil {
 			errChan <- fmt.Errorf("reference image verification failed: %w", err)
@@ -145,6 +148,7 @@ func (s *InitService) verifyResources(ctx context.Context, request InitRequest) 
 
 	// Verify checking image existence in parallel
 	go func() {
+		defer wg.Done()
 		err := s.s3Utils.ValidateImageExists(ctx, request.CheckingImageUrl)
 		if err != nil {
 			errChan <- fmt.Errorf("checking image verification failed: %w", err)
@@ -155,6 +159,7 @@ func (s *InitService) verifyResources(ctx context.Context, request InitRequest) 
 
 	// Verify layout exists in DynamoDB
 	go func() {
+		defer wg.Done()
 		exists, err := s.dbUtils.VerifyLayoutExists(ctx, request.LayoutId, request.LayoutPrefix)
 		if err != nil {
 			errChan <- fmt.Errorf("error checking layout: %w", err)
@@ -168,9 +173,15 @@ func (s *InitService) verifyResources(ctx context.Context, request InitRequest) 
 		errChan <- nil
 	}()
 
+	// Use a separate goroutine to close the channel after all workers are done
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
 	// Collect errors from all goroutines
-	for i := 0; i < 3; i++ {
-		if err := <-errChan; err != nil {
+	for err := range errChan {
+		if err != nil {
 			return err
 		}
 	}
