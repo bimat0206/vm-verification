@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  verification-service:
+    build:
+      context: ./verification-service
+    ports:
+      - "3000:3000"
+    environment:
+      - AWS_REGION=us-east-1
+      - DYNAMODB_VERIFICATION_TABLE=dynamodb-verification-verification-results-hwmjt8j0
+      - DYNAMODB_LAYOUT_TABLE=dynamodb-verification-layout-metadata-hwmjt8j0
+      - S3_REFERENCE_BUCKET=s3-verification-reference-hwmjt8j0
+      - S3_CHECKING_BUCKET=s3-verification-checking-hwmjt8j0
+      - S3_RESULTS_BUCKET=s3-verification-results-hwmjt8j0
+      - BEDROCK_MODEL_ID=anthropic.claude-3-7-sonnet-20250219
+    networks:
+      - verification-network
+
+  streamlit-frontend:
+    build:
+      context: ./streamlit-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://verification-service:3000
+    volumes:
+      - ./streamlit-frontend:/app
+    depends_on:
+      - verification-service
+    networks:
+      - verification-network
+
+networks:
+  verification-network:
+    driver: bridge
