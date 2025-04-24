@@ -1,35 +1,30 @@
-# Build stage
-FROM golang:1.20-alpine AS builder
+# syntax=docker/dockerfile:1.4
+FROM golang:1.24-alpine AS builder
 
-# Set working directory
-WORKDIR /app
+WORKDIR /src
 
-# Copy go mod and sum files
+# Copy go.mod and go.sum files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Cache Go modules
+RUN --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
-# Copy source code
+# Copy the entire application source
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o verification-service ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -o /verification-service ./cmd/server
 
-# Final stage
 FROM alpine:3.17
 
-# Add CA certificates
 RUN apk --no-cache add ca-certificates
 
-# Set working directory
 WORKDIR /app
 
-# Copy binary from build stage
-COPY --from=builder /app/verification-service .
+COPY --from=builder /verification-service .
 
-# Expose port
 EXPOSE 3000
 
-# Run the application
 CMD ["./verification-service"]

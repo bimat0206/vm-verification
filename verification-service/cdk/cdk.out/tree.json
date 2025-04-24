@@ -1,0 +1,2031 @@
+{
+  "version": "tree-0.1",
+  "tree": {
+    "id": "App",
+    "path": "",
+    "children": {
+      "verification-service-stack-hwmjt8j0": {
+        "id": "verification-service-stack-hwmjt8j0",
+        "path": "verification-service-stack-hwmjt8j0",
+        "children": {
+          "verification-reference-bucket": {
+            "id": "verification-reference-bucket",
+            "path": "verification-service-stack-hwmjt8j0/verification-reference-bucket",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-reference-bucket/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::S3::Bucket",
+                  "aws:cdk:cloudformation:props": {
+                    "bucketEncryption": {
+                      "serverSideEncryptionConfiguration": [
+                        {
+                          "serverSideEncryptionByDefault": {
+                            "sseAlgorithm": "AES256"
+                          }
+                        }
+                      ]
+                    },
+                    "bucketName": "s3-verification-reference-hwmjt8j0",
+                    "lifecycleConfiguration": {
+                      "rules": [
+                        {
+                          "expirationInDays": 365,
+                          "status": "Enabled",
+                          "transitions": [
+                            {
+                              "storageClass": "STANDARD_IA",
+                              "transitionInDays": 30
+                            },
+                            {
+                              "storageClass": "GLACIER",
+                              "transitionInDays": 90
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "publicAccessBlockConfiguration": {
+                      "blockPublicAcls": true,
+                      "blockPublicPolicy": true,
+                      "ignorePublicAcls": true,
+                      "restrictPublicBuckets": true
+                    },
+                    "versioningConfiguration": {
+                      "status": "Enabled"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_s3.CfnBucket",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_s3.Bucket",
+              "version": "2.80.0"
+            }
+          },
+          "verification-checking-bucket": {
+            "id": "verification-checking-bucket",
+            "path": "verification-service-stack-hwmjt8j0/verification-checking-bucket",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-checking-bucket/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::S3::Bucket",
+                  "aws:cdk:cloudformation:props": {
+                    "bucketEncryption": {
+                      "serverSideEncryptionConfiguration": [
+                        {
+                          "serverSideEncryptionByDefault": {
+                            "sseAlgorithm": "AES256"
+                          }
+                        }
+                      ]
+                    },
+                    "bucketName": "s3-verification-checking-hwmjt8j0",
+                    "lifecycleConfiguration": {
+                      "rules": [
+                        {
+                          "expirationInDays": 365,
+                          "status": "Enabled",
+                          "transitions": [
+                            {
+                              "storageClass": "STANDARD_IA",
+                              "transitionInDays": 30
+                            },
+                            {
+                              "storageClass": "GLACIER",
+                              "transitionInDays": 90
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "publicAccessBlockConfiguration": {
+                      "blockPublicAcls": true,
+                      "blockPublicPolicy": true,
+                      "ignorePublicAcls": true,
+                      "restrictPublicBuckets": true
+                    },
+                    "versioningConfiguration": {
+                      "status": "Enabled"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_s3.CfnBucket",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_s3.Bucket",
+              "version": "2.80.0"
+            }
+          },
+          "verification-results-bucket": {
+            "id": "verification-results-bucket",
+            "path": "verification-service-stack-hwmjt8j0/verification-results-bucket",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-results-bucket/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::S3::Bucket",
+                  "aws:cdk:cloudformation:props": {
+                    "bucketEncryption": {
+                      "serverSideEncryptionConfiguration": [
+                        {
+                          "serverSideEncryptionByDefault": {
+                            "sseAlgorithm": "AES256"
+                          }
+                        }
+                      ]
+                    },
+                    "bucketName": "s3-verification-results-hwmjt8j0",
+                    "lifecycleConfiguration": {
+                      "rules": [
+                        {
+                          "expirationInDays": 365,
+                          "status": "Enabled",
+                          "transitions": [
+                            {
+                              "storageClass": "STANDARD_IA",
+                              "transitionInDays": 30
+                            },
+                            {
+                              "storageClass": "GLACIER",
+                              "transitionInDays": 90
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "publicAccessBlockConfiguration": {
+                      "blockPublicAcls": true,
+                      "blockPublicPolicy": true,
+                      "ignorePublicAcls": true,
+                      "restrictPublicBuckets": true
+                    },
+                    "versioningConfiguration": {
+                      "status": "Enabled"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_s3.CfnBucket",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_s3.Bucket",
+              "version": "2.80.0"
+            }
+          },
+          "verification-verification-results-table": {
+            "id": "verification-verification-results-table",
+            "path": "verification-service-stack-hwmjt8j0/verification-verification-results-table",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-verification-results-table/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::DynamoDB::Table",
+                  "aws:cdk:cloudformation:props": {
+                    "keySchema": [
+                      {
+                        "attributeName": "verificationId",
+                        "keyType": "HASH"
+                      },
+                      {
+                        "attributeName": "verificationAt",
+                        "keyType": "RANGE"
+                      }
+                    ],
+                    "attributeDefinitions": [
+                      {
+                        "attributeName": "verificationId",
+                        "attributeType": "S"
+                      },
+                      {
+                        "attributeName": "verificationAt",
+                        "attributeType": "S"
+                      },
+                      {
+                        "attributeName": "layoutId",
+                        "attributeType": "N"
+                      },
+                      {
+                        "attributeName": "status",
+                        "attributeType": "S"
+                      }
+                    ],
+                    "billingMode": "PAY_PER_REQUEST",
+                    "globalSecondaryIndexes": [
+                      {
+                        "indexName": "GSI1",
+                        "keySchema": [
+                          {
+                            "attributeName": "layoutId",
+                            "keyType": "HASH"
+                          },
+                          {
+                            "attributeName": "verificationAt",
+                            "keyType": "RANGE"
+                          }
+                        ],
+                        "projection": {
+                          "projectionType": "ALL"
+                        }
+                      },
+                      {
+                        "indexName": "GSI2",
+                        "keySchema": [
+                          {
+                            "attributeName": "status",
+                            "keyType": "HASH"
+                          },
+                          {
+                            "attributeName": "verificationAt",
+                            "keyType": "RANGE"
+                          }
+                        ],
+                        "projection": {
+                          "projectionType": "INCLUDE",
+                          "nonKeyAttributes": [
+                            "vendingMachineId",
+                            "layoutId",
+                            "resultImageUrl",
+                            "discrepancies"
+                          ]
+                        }
+                      }
+                    ],
+                    "pointInTimeRecoverySpecification": {
+                      "pointInTimeRecoveryEnabled": true
+                    },
+                    "tableName": "dynamodb-verification-verification-results-hwmjt8j0",
+                    "timeToLiveSpecification": {
+                      "attributeName": "expirationTime",
+                      "enabled": true
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_dynamodb.CfnTable",
+                  "version": "2.80.0"
+                }
+              },
+              "ScalingRole": {
+                "id": "ScalingRole",
+                "path": "verification-service-stack-hwmjt8j0/verification-verification-results-table/ScalingRole",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_dynamodb.Table",
+              "version": "2.80.0"
+            }
+          },
+          "verification-layout-metadata-table": {
+            "id": "verification-layout-metadata-table",
+            "path": "verification-service-stack-hwmjt8j0/verification-layout-metadata-table",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-layout-metadata-table/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::DynamoDB::Table",
+                  "aws:cdk:cloudformation:props": {
+                    "keySchema": [
+                      {
+                        "attributeName": "layoutId",
+                        "keyType": "HASH"
+                      },
+                      {
+                        "attributeName": "layoutPrefix",
+                        "keyType": "RANGE"
+                      }
+                    ],
+                    "attributeDefinitions": [
+                      {
+                        "attributeName": "layoutId",
+                        "attributeType": "N"
+                      },
+                      {
+                        "attributeName": "layoutPrefix",
+                        "attributeType": "S"
+                      },
+                      {
+                        "attributeName": "createdAt",
+                        "attributeType": "S"
+                      },
+                      {
+                        "attributeName": "vendingMachineId",
+                        "attributeType": "S"
+                      }
+                    ],
+                    "billingMode": "PAY_PER_REQUEST",
+                    "globalSecondaryIndexes": [
+                      {
+                        "indexName": "GSI1",
+                        "keySchema": [
+                          {
+                            "attributeName": "createdAt",
+                            "keyType": "HASH"
+                          },
+                          {
+                            "attributeName": "layoutId",
+                            "keyType": "RANGE"
+                          }
+                        ],
+                        "projection": {
+                          "projectionType": "KEYS_ONLY"
+                        }
+                      },
+                      {
+                        "indexName": "GSI2",
+                        "keySchema": [
+                          {
+                            "attributeName": "vendingMachineId",
+                            "keyType": "HASH"
+                          },
+                          {
+                            "attributeName": "createdAt",
+                            "keyType": "RANGE"
+                          }
+                        ],
+                        "projection": {
+                          "projectionType": "ALL"
+                        }
+                      }
+                    ],
+                    "pointInTimeRecoverySpecification": {
+                      "pointInTimeRecoveryEnabled": true
+                    },
+                    "tableName": "dynamodb-verification-layout-metadata-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_dynamodb.CfnTable",
+                  "version": "2.80.0"
+                }
+              },
+              "ScalingRole": {
+                "id": "ScalingRole",
+                "path": "verification-service-stack-hwmjt8j0/verification-layout-metadata-table/ScalingRole",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_dynamodb.Table",
+              "version": "2.80.0"
+            }
+          },
+          "verification-notifications-topic": {
+            "id": "verification-notifications-topic",
+            "path": "verification-service-stack-hwmjt8j0/verification-notifications-topic",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-notifications-topic/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::SNS::Topic",
+                  "aws:cdk:cloudformation:props": {
+                    "displayName": "Verification Service Notifications",
+                    "topicName": "sns-verification-notifications-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_sns.CfnTopic",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_sns.Topic",
+              "version": "2.80.0"
+            }
+          },
+          "verification-vpc": {
+            "id": "verification-vpc",
+            "path": "verification-service-stack-hwmjt8j0/verification-vpc",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::VPC",
+                  "aws:cdk:cloudformation:props": {
+                    "cidrBlock": "10.0.0.0/16",
+                    "enableDnsHostnames": true,
+                    "enableDnsSupport": true,
+                    "instanceTenancy": "default",
+                    "tags": [
+                      {
+                        "key": "Name",
+                        "value": "verification-service-stack-hwmjt8j0/verification-vpc"
+                      }
+                    ]
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnVPC",
+                  "version": "2.80.0"
+                }
+              },
+              "public-verification-hwmjt8j0Subnet1": {
+                "id": "public-verification-hwmjt8j0Subnet1",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1",
+                "children": {
+                  "Subnet": {
+                    "id": "Subnet",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/Subnet",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "availabilityZone": "us-east-1a",
+                        "cidrBlock": "10.0.0.0/24",
+                        "mapPublicIpOnLaunch": true,
+                        "tags": [
+                          {
+                            "key": "aws-cdk:subnet-name",
+                            "value": "public-verification-hwmjt8j0"
+                          },
+                          {
+                            "key": "aws-cdk:subnet-type",
+                            "value": "Public"
+                          },
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnet",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "Acl": {
+                    "id": "Acl",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/Acl",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTable": {
+                    "id": "RouteTable",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/RouteTable",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::RouteTable",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRouteTable",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTableAssociation": {
+                    "id": "RouteTableAssociation",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/RouteTableAssociation",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::SubnetRouteTableAssociation",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1RouteTable8DFB9886"
+                        },
+                        "subnetId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1SubnetEAC6EC2B"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnetRouteTableAssociation",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "DefaultRoute": {
+                    "id": "DefaultRoute",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/DefaultRoute",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Route",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1RouteTable8DFB9886"
+                        },
+                        "destinationCidrBlock": "0.0.0.0/0",
+                        "gatewayId": {
+                          "Ref": "verificationvpcIGW9B4D79CE"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRoute",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "EIP": {
+                    "id": "EIP",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/EIP",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::EIP",
+                      "aws:cdk:cloudformation:props": {
+                        "domain": "vpc",
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnEIP",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "NATGateway": {
+                    "id": "NATGateway",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1/NATGateway",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::NatGateway",
+                      "aws:cdk:cloudformation:props": {
+                        "subnetId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1SubnetEAC6EC2B"
+                        },
+                        "allocationId": {
+                          "Fn::GetAtt": [
+                            "verificationvpcpublicverificationhwmjt8j0Subnet1EIP72B602CB",
+                            "AllocationId"
+                          ]
+                        },
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnNatGateway",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.PublicSubnet",
+                  "version": "2.80.0"
+                }
+              },
+              "public-verification-hwmjt8j0Subnet2": {
+                "id": "public-verification-hwmjt8j0Subnet2",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2",
+                "children": {
+                  "Subnet": {
+                    "id": "Subnet",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2/Subnet",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "availabilityZone": "us-east-1b",
+                        "cidrBlock": "10.0.1.0/24",
+                        "mapPublicIpOnLaunch": true,
+                        "tags": [
+                          {
+                            "key": "aws-cdk:subnet-name",
+                            "value": "public-verification-hwmjt8j0"
+                          },
+                          {
+                            "key": "aws-cdk:subnet-type",
+                            "value": "Public"
+                          },
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnet",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "Acl": {
+                    "id": "Acl",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2/Acl",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTable": {
+                    "id": "RouteTable",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2/RouteTable",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::RouteTable",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRouteTable",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTableAssociation": {
+                    "id": "RouteTableAssociation",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2/RouteTableAssociation",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::SubnetRouteTableAssociation",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet2RouteTableE89C28CD"
+                        },
+                        "subnetId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet2Subnet38251022"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnetRouteTableAssociation",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "DefaultRoute": {
+                    "id": "DefaultRoute",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/public-verification-hwmjt8j0Subnet2/DefaultRoute",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Route",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet2RouteTableE89C28CD"
+                        },
+                        "destinationCidrBlock": "0.0.0.0/0",
+                        "gatewayId": {
+                          "Ref": "verificationvpcIGW9B4D79CE"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRoute",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.PublicSubnet",
+                  "version": "2.80.0"
+                }
+              },
+              "private-verification-hwmjt8j0Subnet1": {
+                "id": "private-verification-hwmjt8j0Subnet1",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1",
+                "children": {
+                  "Subnet": {
+                    "id": "Subnet",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1/Subnet",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "availabilityZone": "us-east-1a",
+                        "cidrBlock": "10.0.2.0/24",
+                        "mapPublicIpOnLaunch": false,
+                        "tags": [
+                          {
+                            "key": "aws-cdk:subnet-name",
+                            "value": "private-verification-hwmjt8j0"
+                          },
+                          {
+                            "key": "aws-cdk:subnet-type",
+                            "value": "Private"
+                          },
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnet",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "Acl": {
+                    "id": "Acl",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1/Acl",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTable": {
+                    "id": "RouteTable",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1/RouteTable",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::RouteTable",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRouteTable",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTableAssociation": {
+                    "id": "RouteTableAssociation",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1/RouteTableAssociation",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::SubnetRouteTableAssociation",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet1RouteTableAAD68D4C"
+                        },
+                        "subnetId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet1SubnetA0754D85"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnetRouteTableAssociation",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "DefaultRoute": {
+                    "id": "DefaultRoute",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet1/DefaultRoute",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Route",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet1RouteTableAAD68D4C"
+                        },
+                        "destinationCidrBlock": "0.0.0.0/0",
+                        "natGatewayId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1NATGateway7C297961"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRoute",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.PrivateSubnet",
+                  "version": "2.80.0"
+                }
+              },
+              "private-verification-hwmjt8j0Subnet2": {
+                "id": "private-verification-hwmjt8j0Subnet2",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2",
+                "children": {
+                  "Subnet": {
+                    "id": "Subnet",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2/Subnet",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "availabilityZone": "us-east-1b",
+                        "cidrBlock": "10.0.3.0/24",
+                        "mapPublicIpOnLaunch": false,
+                        "tags": [
+                          {
+                            "key": "aws-cdk:subnet-name",
+                            "value": "private-verification-hwmjt8j0"
+                          },
+                          {
+                            "key": "aws-cdk:subnet-type",
+                            "value": "Private"
+                          },
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnet",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "Acl": {
+                    "id": "Acl",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2/Acl",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTable": {
+                    "id": "RouteTable",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2/RouteTable",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::RouteTable",
+                      "aws:cdk:cloudformation:props": {
+                        "vpcId": {
+                          "Ref": "verificationvpc192E4DF3"
+                        },
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRouteTable",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "RouteTableAssociation": {
+                    "id": "RouteTableAssociation",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2/RouteTableAssociation",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::SubnetRouteTableAssociation",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet2RouteTableC3C5E0E8"
+                        },
+                        "subnetId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet2Subnet25C2BCEC"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnSubnetRouteTableAssociation",
+                      "version": "2.80.0"
+                    }
+                  },
+                  "DefaultRoute": {
+                    "id": "DefaultRoute",
+                    "path": "verification-service-stack-hwmjt8j0/verification-vpc/private-verification-hwmjt8j0Subnet2/DefaultRoute",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::EC2::Route",
+                      "aws:cdk:cloudformation:props": {
+                        "routeTableId": {
+                          "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet2RouteTableC3C5E0E8"
+                        },
+                        "destinationCidrBlock": "0.0.0.0/0",
+                        "natGatewayId": {
+                          "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1NATGateway7C297961"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_ec2.CfnRoute",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.PrivateSubnet",
+                  "version": "2.80.0"
+                }
+              },
+              "IGW": {
+                "id": "IGW",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/IGW",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::InternetGateway",
+                  "aws:cdk:cloudformation:props": {
+                    "tags": [
+                      {
+                        "key": "Name",
+                        "value": "verification-service-stack-hwmjt8j0/verification-vpc"
+                      }
+                    ]
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnInternetGateway",
+                  "version": "2.80.0"
+                }
+              },
+              "VPCGW": {
+                "id": "VPCGW",
+                "path": "verification-service-stack-hwmjt8j0/verification-vpc/VPCGW",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::VPCGatewayAttachment",
+                  "aws:cdk:cloudformation:props": {
+                    "vpcId": {
+                      "Ref": "verificationvpc192E4DF3"
+                    },
+                    "internetGatewayId": {
+                      "Ref": "verificationvpcIGW9B4D79CE"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnVPCGatewayAttachment",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ec2.Vpc",
+              "version": "2.80.0"
+            }
+          },
+          "verification-cluster": {
+            "id": "verification-cluster",
+            "path": "verification-service-stack-hwmjt8j0/verification-cluster",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-cluster/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ECS::Cluster",
+                  "aws:cdk:cloudformation:props": {
+                    "clusterName": "ecs-verification-cluster-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ecs.CfnCluster",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ecs.Cluster",
+              "version": "2.80.0"
+            }
+          },
+          "verification-execution-role": {
+            "id": "verification-execution-role",
+            "path": "verification-service-stack-hwmjt8j0/verification-execution-role",
+            "children": {
+              "Importverification-execution-role": {
+                "id": "Importverification-execution-role",
+                "path": "verification-service-stack-hwmjt8j0/verification-execution-role/Importverification-execution-role",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.80.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-execution-role/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::IAM::Role",
+                  "aws:cdk:cloudformation:props": {
+                    "assumeRolePolicyDocument": {
+                      "Statement": [
+                        {
+                          "Action": "sts:AssumeRole",
+                          "Effect": "Allow",
+                          "Principal": {
+                            "Service": "ecs-tasks.amazonaws.com"
+                          }
+                        }
+                      ],
+                      "Version": "2012-10-17"
+                    },
+                    "managedPolicyArns": [
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+                          ]
+                        ]
+                      }
+                    ],
+                    "roleName": "iam-verification-execution-role-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.CfnRole",
+                  "version": "2.80.0"
+                }
+              },
+              "DefaultPolicy": {
+                "id": "DefaultPolicy",
+                "path": "verification-service-stack-hwmjt8j0/verification-execution-role/DefaultPolicy",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "verification-service-stack-hwmjt8j0/verification-execution-role/DefaultPolicy/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::IAM::Policy",
+                      "aws:cdk:cloudformation:props": {
+                        "policyDocument": {
+                          "Statement": [
+                            {
+                              "Action": [
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer"
+                              ],
+                              "Effect": "Allow",
+                              "Resource": {
+                                "Fn::GetAtt": [
+                                  "verificationrepository2DC44251",
+                                  "Arn"
+                                ]
+                              }
+                            },
+                            {
+                              "Action": "ecr:GetAuthorizationToken",
+                              "Effect": "Allow",
+                              "Resource": "*"
+                            },
+                            {
+                              "Action": [
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                              ],
+                              "Effect": "Allow",
+                              "Resource": {
+                                "Fn::GetAtt": [
+                                  "verificationlogs85E5C620",
+                                  "Arn"
+                                ]
+                              }
+                            }
+                          ],
+                          "Version": "2012-10-17"
+                        },
+                        "policyName": "verificationexecutionroleDefaultPolicyEE3E85BF",
+                        "roles": [
+                          {
+                            "Ref": "verificationexecutionrole1FBA4289"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.CfnPolicy",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.Policy",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_iam.Role",
+              "version": "2.80.0"
+            }
+          },
+          "verification-task-role": {
+            "id": "verification-task-role",
+            "path": "verification-service-stack-hwmjt8j0/verification-task-role",
+            "children": {
+              "Importverification-task-role": {
+                "id": "Importverification-task-role",
+                "path": "verification-service-stack-hwmjt8j0/verification-task-role/Importverification-task-role",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.80.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-task-role/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::IAM::Role",
+                  "aws:cdk:cloudformation:props": {
+                    "assumeRolePolicyDocument": {
+                      "Statement": [
+                        {
+                          "Action": "sts:AssumeRole",
+                          "Effect": "Allow",
+                          "Principal": {
+                            "Service": "ecs-tasks.amazonaws.com"
+                          }
+                        }
+                      ],
+                      "Version": "2012-10-17"
+                    },
+                    "roleName": "iam-verification-task-role-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.CfnRole",
+                  "version": "2.80.0"
+                }
+              },
+              "DefaultPolicy": {
+                "id": "DefaultPolicy",
+                "path": "verification-service-stack-hwmjt8j0/verification-task-role/DefaultPolicy",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "verification-service-stack-hwmjt8j0/verification-task-role/DefaultPolicy/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::IAM::Policy",
+                      "aws:cdk:cloudformation:props": {
+                        "policyDocument": {
+                          "Statement": [
+                            {
+                              "Action": [
+                                "s3:GetObject",
+                                "s3:ListBucket",
+                                "s3:PutObject"
+                              ],
+                              "Effect": "Allow",
+                              "Resource": [
+                                {
+                                  "Fn::GetAtt": [
+                                    "verificationcheckingbucket3EDCD0E8",
+                                    "Arn"
+                                  ]
+                                },
+                                {
+                                  "Fn::GetAtt": [
+                                    "verificationreferencebucket986F4840",
+                                    "Arn"
+                                  ]
+                                },
+                                {
+                                  "Fn::GetAtt": [
+                                    "verificationresultsbucketD00CC3A7",
+                                    "Arn"
+                                  ]
+                                },
+                                {
+                                  "Fn::Join": [
+                                    "",
+                                    [
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationcheckingbucket3EDCD0E8",
+                                          "Arn"
+                                        ]
+                                      },
+                                      "/*"
+                                    ]
+                                  ]
+                                },
+                                {
+                                  "Fn::Join": [
+                                    "",
+                                    [
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationreferencebucket986F4840",
+                                          "Arn"
+                                        ]
+                                      },
+                                      "/*"
+                                    ]
+                                  ]
+                                },
+                                {
+                                  "Fn::Join": [
+                                    "",
+                                    [
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationresultsbucketD00CC3A7",
+                                          "Arn"
+                                        ]
+                                      },
+                                      "/*"
+                                    ]
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "Action": [
+                                "dynamodb:DeleteItem",
+                                "dynamodb:GetItem",
+                                "dynamodb:PutItem",
+                                "dynamodb:Query",
+                                "dynamodb:Scan",
+                                "dynamodb:UpdateItem"
+                              ],
+                              "Effect": "Allow",
+                              "Resource": [
+                                {
+                                  "Fn::GetAtt": [
+                                    "verificationlayoutmetadatatableED788ADB",
+                                    "Arn"
+                                  ]
+                                },
+                                {
+                                  "Fn::GetAtt": [
+                                    "verificationverificationresultstable15CDC71E",
+                                    "Arn"
+                                  ]
+                                },
+                                {
+                                  "Fn::Join": [
+                                    "",
+                                    [
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationlayoutmetadatatableED788ADB",
+                                          "Arn"
+                                        ]
+                                      },
+                                      "/index/*"
+                                    ]
+                                  ]
+                                },
+                                {
+                                  "Fn::Join": [
+                                    "",
+                                    [
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationverificationresultstable15CDC71E",
+                                          "Arn"
+                                        ]
+                                      },
+                                      "/index/*"
+                                    ]
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "Action": [
+                                "bedrock:InvokeModel",
+                                "bedrock:InvokeModelWithResponseStream"
+                              ],
+                              "Effect": "Allow",
+                              "Resource": "*"
+                            },
+                            {
+                              "Action": "sns:Publish",
+                              "Effect": "Allow",
+                              "Resource": {
+                                "Ref": "verificationnotificationstopic9D1A54DA"
+                              }
+                            }
+                          ],
+                          "Version": "2012-10-17"
+                        },
+                        "policyName": "verificationtaskroleDefaultPolicy184884B5",
+                        "roles": [
+                          {
+                            "Ref": "verificationtaskrole1D6B0482"
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.CfnPolicy",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.Policy",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_iam.Role",
+              "version": "2.80.0"
+            }
+          },
+          "verification-repository": {
+            "id": "verification-repository",
+            "path": "verification-service-stack-hwmjt8j0/verification-repository",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-repository/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ECR::Repository",
+                  "aws:cdk:cloudformation:props": {
+                    "lifecyclePolicy": {
+                      "lifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Keep only the last 5 images\",\"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":5},\"action\":{\"type\":\"expire\"}}]}"
+                    },
+                    "repositoryName": "ecr-verification-service-hwmjt8j0"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ecr.CfnRepository",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ecr.Repository",
+              "version": "2.80.0"
+            }
+          },
+          "verification-logs": {
+            "id": "verification-logs",
+            "path": "verification-service-stack-hwmjt8j0/verification-logs",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-logs/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::Logs::LogGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "logGroupName": "/ecs/logs-verification-service-hwmjt8j0",
+                    "retentionInDays": 30
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_logs.CfnLogGroup",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_logs.LogGroup",
+              "version": "2.80.0"
+            }
+          },
+          "verification-task-definition": {
+            "id": "verification-task-definition",
+            "path": "verification-service-stack-hwmjt8j0/verification-task-definition",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-task-definition/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ECS::TaskDefinition",
+                  "aws:cdk:cloudformation:props": {
+                    "containerDefinitions": [
+                      {
+                        "essential": true,
+                        "image": {
+                          "Fn::Join": [
+                            "",
+                            [
+                              {
+                                "Fn::Select": [
+                                  4,
+                                  {
+                                    "Fn::Split": [
+                                      ":",
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationrepository2DC44251",
+                                          "Arn"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              ".dkr.ecr.",
+                              {
+                                "Fn::Select": [
+                                  3,
+                                  {
+                                    "Fn::Split": [
+                                      ":",
+                                      {
+                                        "Fn::GetAtt": [
+                                          "verificationrepository2DC44251",
+                                          "Arn"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              ".",
+                              {
+                                "Ref": "AWS::URLSuffix"
+                              },
+                              "/",
+                              {
+                                "Ref": "verificationrepository2DC44251"
+                              },
+                              ":latest"
+                            ]
+                          ]
+                        },
+                        "name": "container-verification-hwmjt8j0",
+                        "portMappings": [
+                          {
+                            "containerPort": 3000,
+                            "protocol": "tcp"
+                          }
+                        ],
+                        "logConfiguration": {
+                          "logDriver": "awslogs",
+                          "options": {
+                            "awslogs-group": {
+                              "Ref": "verificationlogs85E5C620"
+                            },
+                            "awslogs-stream-prefix": "verification",
+                            "awslogs-region": "us-east-1"
+                          }
+                        },
+                        "environment": [
+                          {
+                            "name": "SERVER_PORT",
+                            "value": "3000"
+                          },
+                          {
+                            "name": "SERVER_READ_TIMEOUT_SECS",
+                            "value": "30"
+                          },
+                          {
+                            "name": "SERVER_WRITE_TIMEOUT_SECS",
+                            "value": "30"
+                          },
+                          {
+                            "name": "SERVER_IDLE_TIMEOUT_SECS",
+                            "value": "60"
+                          },
+                          {
+                            "name": "AWS_REGION",
+                            "value": "us-east-1"
+                          },
+                          {
+                            "name": "DYNAMODB_VERIFICATION_TABLE",
+                            "value": {
+                              "Ref": "verificationverificationresultstable15CDC71E"
+                            }
+                          },
+                          {
+                            "name": "DYNAMODB_LAYOUT_TABLE",
+                            "value": {
+                              "Ref": "verificationlayoutmetadatatableED788ADB"
+                            }
+                          },
+                          {
+                            "name": "S3_REFERENCE_BUCKET",
+                            "value": {
+                              "Ref": "verificationreferencebucket986F4840"
+                            }
+                          },
+                          {
+                            "name": "S3_CHECKING_BUCKET",
+                            "value": {
+                              "Ref": "verificationcheckingbucket3EDCD0E8"
+                            }
+                          },
+                          {
+                            "name": "S3_RESULTS_BUCKET",
+                            "value": {
+                              "Ref": "verificationresultsbucketD00CC3A7"
+                            }
+                          },
+                          {
+                            "name": "BEDROCK_MODEL_ID",
+                            "value": "anthropic.claude-3-7-sonnet-20250219"
+                          },
+                          {
+                            "name": "BEDROCK_MAX_RETRIES",
+                            "value": "3"
+                          },
+                          {
+                            "name": "NOTIFICATION_SNS_TOPIC_ARN",
+                            "value": {
+                              "Ref": "verificationnotificationstopic9D1A54DA"
+                            }
+                          },
+                          {
+                            "name": "LOG_LEVEL",
+                            "value": "INFO"
+                          }
+                        ]
+                      }
+                    ],
+                    "cpu": "1024",
+                    "executionRoleArn": {
+                      "Fn::GetAtt": [
+                        "verificationexecutionrole1FBA4289",
+                        "Arn"
+                      ]
+                    },
+                    "family": "task-verification-service-hwmjt8j0",
+                    "memory": "2048",
+                    "networkMode": "awsvpc",
+                    "requiresCompatibilities": [
+                      "FARGATE"
+                    ],
+                    "taskRoleArn": {
+                      "Fn::GetAtt": [
+                        "verificationtaskrole1D6B0482",
+                        "Arn"
+                      ]
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ecs.CfnTaskDefinition",
+                  "version": "2.80.0"
+                }
+              },
+              "container-verification-hwmjt8j0": {
+                "id": "container-verification-hwmjt8j0",
+                "path": "verification-service-stack-hwmjt8j0/verification-task-definition/container-verification-hwmjt8j0",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ecs.ContainerDefinition",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ecs.FargateTaskDefinition",
+              "version": "2.80.0"
+            }
+          },
+          "verification-lb-sg": {
+            "id": "verification-lb-sg",
+            "path": "verification-service-stack-hwmjt8j0/verification-lb-sg",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-lb-sg/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::SecurityGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "groupDescription": "Security group for verification service load balancer",
+                    "groupName": "secgrp-verification-lb-hwmjt8j0",
+                    "securityGroupEgress": [
+                      {
+                        "cidrIp": "0.0.0.0/0",
+                        "description": "Allow all outbound traffic by default",
+                        "ipProtocol": "-1"
+                      }
+                    ],
+                    "securityGroupIngress": [
+                      {
+                        "cidrIp": "0.0.0.0/0",
+                        "ipProtocol": "tcp",
+                        "fromPort": 80,
+                        "toPort": 80,
+                        "description": "Allow HTTP traffic"
+                      },
+                      {
+                        "cidrIp": "0.0.0.0/0",
+                        "ipProtocol": "tcp",
+                        "fromPort": 443,
+                        "toPort": 443,
+                        "description": "Allow HTTPS traffic"
+                      }
+                    ],
+                    "vpcId": {
+                      "Ref": "verificationvpc192E4DF3"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnSecurityGroup",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ec2.SecurityGroup",
+              "version": "2.80.0"
+            }
+          },
+          "verification-service-sg": {
+            "id": "verification-service-sg",
+            "path": "verification-service-stack-hwmjt8j0/verification-service-sg",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-service-sg/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::SecurityGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "groupDescription": "Security group for verification service",
+                    "groupName": "secgrp-verification-service-hwmjt8j0",
+                    "securityGroupEgress": [
+                      {
+                        "cidrIp": "0.0.0.0/0",
+                        "description": "Allow all outbound traffic by default",
+                        "ipProtocol": "-1"
+                      }
+                    ],
+                    "vpcId": {
+                      "Ref": "verificationvpc192E4DF3"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnSecurityGroup",
+                  "version": "2.80.0"
+                }
+              },
+              "from verificationservicestackhwmjt8j0verificationlbsg550D1040:3000": {
+                "id": "from verificationservicestackhwmjt8j0verificationlbsg550D1040:3000",
+                "path": "verification-service-stack-hwmjt8j0/verification-service-sg/from verificationservicestackhwmjt8j0verificationlbsg550D1040:3000",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::SecurityGroupIngress",
+                  "aws:cdk:cloudformation:props": {
+                    "ipProtocol": "tcp",
+                    "description": "Allow traffic from ALB",
+                    "fromPort": 3000,
+                    "groupId": {
+                      "Fn::GetAtt": [
+                        "verificationservicesg84C595FA",
+                        "GroupId"
+                      ]
+                    },
+                    "sourceSecurityGroupId": {
+                      "Fn::GetAtt": [
+                        "verificationlbsg5077C890",
+                        "GroupId"
+                      ]
+                    },
+                    "toPort": 3000
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnSecurityGroupIngress",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ec2.SecurityGroup",
+              "version": "2.80.0"
+            }
+          },
+          "verification-alb": {
+            "id": "verification-alb",
+            "path": "verification-service-stack-hwmjt8j0/verification-alb",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-alb/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+                  "aws:cdk:cloudformation:props": {
+                    "loadBalancerAttributes": [
+                      {
+                        "key": "deletion_protection.enabled",
+                        "value": "false"
+                      }
+                    ],
+                    "name": "alb-verification-hwmjt8j0",
+                    "scheme": "internet-facing",
+                    "securityGroups": [
+                      {
+                        "Fn::GetAtt": [
+                          "verificationlbsg5077C890",
+                          "GroupId"
+                        ]
+                      }
+                    ],
+                    "subnets": [
+                      {
+                        "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet1SubnetEAC6EC2B"
+                      },
+                      {
+                        "Ref": "verificationvpcpublicverificationhwmjt8j0Subnet2Subnet38251022"
+                      }
+                    ],
+                    "type": "application"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnLoadBalancer",
+                  "version": "2.80.0"
+                }
+              },
+              "verification-http-listener": {
+                "id": "verification-http-listener",
+                "path": "verification-service-stack-hwmjt8j0/verification-alb/verification-http-listener",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "verification-service-stack-hwmjt8j0/verification-alb/verification-http-listener/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::Listener",
+                      "aws:cdk:cloudformation:props": {
+                        "defaultActions": [
+                          {
+                            "type": "forward",
+                            "targetGroupArn": {
+                              "Ref": "verificationtargetgroupCAEB198D"
+                            }
+                          }
+                        ],
+                        "loadBalancerArn": {
+                          "Ref": "verificationalb2F01495C"
+                        },
+                        "port": 80,
+                        "protocol": "HTTP"
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnListener",
+                      "version": "2.80.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.ApplicationListener",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.ApplicationLoadBalancer",
+              "version": "2.80.0"
+            }
+          },
+          "verification-target-group": {
+            "id": "verification-target-group",
+            "path": "verification-service-stack-hwmjt8j0/verification-target-group",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "verification-service-stack-hwmjt8j0/verification-target-group/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "healthCheckIntervalSeconds": 30,
+                    "healthCheckPath": "/health",
+                    "healthCheckTimeoutSeconds": 5,
+                    "matcher": {
+                      "httpCode": "200"
+                    },
+                    "name": "tg-verification-hwmjt8j0",
+                    "port": 3000,
+                    "protocol": "HTTP",
+                    "targetGroupAttributes": [
+                      {
+                        "key": "stickiness.enabled",
+                        "value": "false"
+                      }
+                    ],
+                    "targetType": "ip",
+                    "vpcId": {
+                      "Ref": "verificationvpc192E4DF3"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnTargetGroup",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.ApplicationTargetGroup",
+              "version": "2.80.0"
+            }
+          },
+          "verification-service": {
+            "id": "verification-service",
+            "path": "verification-service-stack-hwmjt8j0/verification-service",
+            "children": {
+              "Service": {
+                "id": "Service",
+                "path": "verification-service-stack-hwmjt8j0/verification-service/Service",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ECS::Service",
+                  "aws:cdk:cloudformation:props": {
+                    "cluster": {
+                      "Ref": "verificationcluster4434DF89"
+                    },
+                    "deploymentConfiguration": {
+                      "maximumPercent": 200,
+                      "minimumHealthyPercent": 50
+                    },
+                    "desiredCount": 0,
+                    "enableEcsManagedTags": false,
+                    "healthCheckGracePeriodSeconds": 60,
+                    "launchType": "FARGATE",
+                    "loadBalancers": [
+                      {
+                        "targetGroupArn": {
+                          "Ref": "verificationtargetgroupCAEB198D"
+                        },
+                        "containerName": "container-verification-hwmjt8j0",
+                        "containerPort": 3000
+                      }
+                    ],
+                    "networkConfiguration": {
+                      "awsvpcConfiguration": {
+                        "assignPublicIp": "DISABLED",
+                        "subnets": [
+                          {
+                            "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet1SubnetA0754D85"
+                          },
+                          {
+                            "Ref": "verificationvpcprivateverificationhwmjt8j0Subnet2Subnet25C2BCEC"
+                          }
+                        ],
+                        "securityGroups": [
+                          {
+                            "Fn::GetAtt": [
+                              "verificationservicesg84C595FA",
+                              "GroupId"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "serviceName": "svc-verification-hwmjt8j0",
+                    "taskDefinition": {
+                      "Ref": "verificationtaskdefinition616A492B"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ecs.CfnService",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ecs.FargateService",
+              "version": "2.80.0"
+            }
+          },
+          "RandomSuffix": {
+            "id": "RandomSuffix",
+            "path": "verification-service-stack-hwmjt8j0/RandomSuffix",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "VerificationTableName": {
+            "id": "VerificationTableName",
+            "path": "verification-service-stack-hwmjt8j0/VerificationTableName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "LayoutTableName": {
+            "id": "LayoutTableName",
+            "path": "verification-service-stack-hwmjt8j0/LayoutTableName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "ReferenceBucketName": {
+            "id": "ReferenceBucketName",
+            "path": "verification-service-stack-hwmjt8j0/ReferenceBucketName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "CheckingBucketName": {
+            "id": "CheckingBucketName",
+            "path": "verification-service-stack-hwmjt8j0/CheckingBucketName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "ResultsBucketName": {
+            "id": "ResultsBucketName",
+            "path": "verification-service-stack-hwmjt8j0/ResultsBucketName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "NotificationTopicArn": {
+            "id": "NotificationTopicArn",
+            "path": "verification-service-stack-hwmjt8j0/NotificationTopicArn",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "ECRRepositoryUri": {
+            "id": "ECRRepositoryUri",
+            "path": "verification-service-stack-hwmjt8j0/ECRRepositoryUri",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "LoadBalancerDnsName": {
+            "id": "LoadBalancerDnsName",
+            "path": "verification-service-stack-hwmjt8j0/LoadBalancerDnsName",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.80.0"
+            }
+          },
+          "CDKMetadata": {
+            "id": "CDKMetadata",
+            "path": "verification-service-stack-hwmjt8j0/CDKMetadata",
+            "children": {
+              "Default": {
+                "id": "Default",
+                "path": "verification-service-stack-hwmjt8j0/CDKMetadata/Default",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.CfnResource",
+                  "version": "2.80.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "constructs.Construct",
+              "version": "10.4.2"
+            }
+          },
+          "BootstrapVersion": {
+            "id": "BootstrapVersion",
+            "path": "verification-service-stack-hwmjt8j0/BootstrapVersion",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnParameter",
+              "version": "2.80.0"
+            }
+          },
+          "CheckBootstrapVersion": {
+            "id": "CheckBootstrapVersion",
+            "path": "verification-service-stack-hwmjt8j0/CheckBootstrapVersion",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnRule",
+              "version": "2.80.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.80.0"
+        }
+      },
+      "Tree": {
+        "id": "Tree",
+        "path": "Tree",
+        "constructInfo": {
+          "fqn": "constructs.Construct",
+          "version": "10.4.2"
+        }
+      }
+    },
+    "constructInfo": {
+      "fqn": "aws-cdk-lib.App",
+      "version": "2.80.0"
+    }
+  }
+}
