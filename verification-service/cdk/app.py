@@ -4,7 +4,7 @@ import string
 import random
 from aws_cdk import App, Environment
 
-from verification_service_stack import VerificationServiceStack
+from base_stack import VerificationServiceStack
 
 # Function to generate a random suffix (same as in VerificationServiceStack)
 def generate_random_suffix(length=8):
