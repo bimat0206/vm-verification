@@ -1,0 +1,325 @@
+{
+  "Comment": "Vending Machine Verification - Enhanced Two-Turn Workflow",
+  "StartAt": "Initialize",
+  "States": {
+    "Initialize": {
+      "Type": "Task",
+      "Resource": "${function_arns["initialize"]}",
+      "ResultPath": "$.verificationContext",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleInitializationError"
+        }
+      ],
+      "Next": "CheckVerificationType"
+    },
+    "CheckVerificationType": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verificationContext.verificationType",
+          "StringEquals": "previous_vs_current",
+          "Next": "FetchHistoricalVerification"
+        }
+      ],
+      "Default": "FetchImages"
+    },
+    "FetchHistoricalVerification": {
+      "Type": "Task",
+      "Resource": "${function_arns["fetch_historical_verification"]}",
+      "InputPath": "$",
+      "ResultPath": "$.historicalContext",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleHistoricalFetchError"
+        }
+      ],
+      "Next": "FetchImages"
+    },
+    "HandleHistoricalFetchError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to retrieve historical verification data"
+      },
+      "End": true
+    },
+    "HandleInitializationError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to initialize verification process"
+      },
+      "End": true
+    },
+    "FetchImages": {
+      "Type": "Task",
+      "Resource": "${function_arns["fetch_images"]}",
+      "InputPath": "$",
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFetchImagesError"
+        }
+      ],
+      "Next": "PrepareSystemPrompt"
+    },
+    "HandleFetchImagesError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to fetch images or metadata"
+      },
+      "End": true
+    },
+    "PrepareSystemPrompt": {
+      "Type": "Task",
+      "Resource": "${function_arns["prepare_system_prompt"]}",
+      "InputPath": "$",
+      "ResultPath": "$.systemPrompt",
+      "Next": "InitializeConversationState"
+    },
+    "InitializeConversationState": {
+      "Type": "Pass",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "historicalContext.$": "$.historicalContext",
+        "conversationState": {
+          "currentTurn": 0,
+          "maxTurns": 2,
+          "history": [],
+          "referenceAnalysis": {},
+          "checkingAnalysis": {}
+        }
+      },
+      "Next": "PrepareTurn1Prompt"
+    },
+    "PrepareTurn1Prompt": {
+      "Type": "Task",
+      "Resource": "${function_arns["prepare_turn_prompt"]}",
+      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "historicalContext.$": "$.historicalContext",
+        "conversationState.$": "$.conversationState",
+        "turnNumber": 1,
+        "includeImage": "reference"
+      },
+      "ResultPath": "$.currentPrompt",
+      "Next": "ExecuteTurn1"
+    },
+    "ExecuteTurn1": {
+      "Type": "Task",
+      "Resource": "${function_arns["invoke_bedrock"]}",
+      "InputPath": "$",
+      "ResultPath": "$.turn1Response",
+      "Retry": [
+        {
+          "ErrorEquals": ["ServiceException", "ThrottlingException"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleBedrockError"
+        }
+      ],
+      "Next": "ProcessTurn1Response"
+    },
+    "ProcessTurn1Response": {
+      "Type": "Task",
+      "Resource": "${function_arns["process_turn1_response"]}",
+      "InputPath": "$",
+      "ResultPath": "$.referenceAnalysis",
+      "Next": "UpdateConversationStateAfterTurn1"
+    },
+    "UpdateConversationStateAfterTurn1": {
+      "Type": "Pass",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "historicalContext.$": "$.historicalContext",
+        "currentPrompt.$": "$.currentPrompt",
+        "turn1Response.$": "$.turn1Response",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "conversationState": {
+          "currentTurn": 1,
+          "maxTurns": 2,
+          "history.$": "States.Array($.conversationState.history, $.turn1Response)",
+          "referenceAnalysis.$": "$.referenceAnalysis",
+          "checkingAnalysis.$": "$.conversationState.checkingAnalysis"
+        }
+      },
+      "Next": "PrepareTurn2Prompt"
+    },
+    "PrepareTurn2Prompt": {
+      "Type": "Task",
+      "Resource": "${function_arns["prepare_turn_prompt"]}",
+      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "historicalContext.$": "$.historicalContext",
+        "conversationState.$": "$.conversationState",
+        "turnNumber": 2,
+        "includeImage": "checking",
+        "previousContext.$": "$.referenceAnalysis"
+      },
+      "ResultPath": "$.currentPrompt",
+      "Next": "ExecuteTurn2"
+    },
+    "ExecuteTurn2": {
+      "Type": "Task",
+      "Resource": "${function_arns["invoke_bedrock"]}",
+      "InputPath": "$",
+      "ResultPath": "$.turn2Response",
+      "Retry": [
+        {
+          "ErrorEquals": ["ServiceException", "ThrottlingException"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleBedrockError"
+        }
+      ],
+      "Next": "ProcessTurn2Response"
+    },
+    "HandleBedrockError": {
+      "Type": "Task",
+      "Resource": "${function_arns["handle_bedrock_error"]}",
+      "InputPath": "$",
+      "ResultPath": "$",
+      "Next": "FinalizeWithError"
+    },
+    "FinalizeWithError": {
+      "Type": "Task",
+      "Resource": "${function_arns["finalize_with_error"]}",
+      "InputPath": "$",
+      "ResultPath": "$.finalResults",
+      "Next": "StoreResults"
+    },
+    "ProcessTurn2Response": {
+      "Type": "Task",
+      "Resource": "${function_arns["process_turn2_response"]}",
+      "InputPath": "$",
+      "ResultPath": "$.checkingAnalysis",
+      "Next": "UpdateConversationStateAfterTurn2"
+    },
+    "UpdateConversationStateAfterTurn2": {
+      "Type": "Pass",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "historicalContext.$": "$.historicalContext",
+        "currentPrompt.$": "$.currentPrompt",
+        "turn1Response.$": "$.turn1Response",
+        "turn2Response.$": "$.turn2Response",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "checkingAnalysis.$": "$.checkingAnalysis",
+        "conversationState": {
+          "currentTurn": 2,
+          "maxTurns": 2,
+          "history.$": "States.Array($.conversationState.history, $.turn2Response)",
+          "referenceAnalysis.$": "$.referenceAnalysis",
+          "checkingAnalysis.$": "$.checkingAnalysis"
+        }
+      },
+      "Next": "FinalizeResults"
+    },
+    "FinalizeResults": {
+      "Type": "Task",
+      "Resource": "${function_arns["finalize_results"]}",
+      "InputPath": "$",
+      "ResultPath": "$.finalResults",
+      "Next": "StoreResults"
+    },
+    "StoreResults": {
+      "Type": "Task",
+      "Resource": "${function_arns["store_results"]}",
+      "InputPath": "$",
+      "ResultPath": "$.storageResult",
+      "Next": "ShouldNotify"
+    },
+    "ShouldNotify": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verificationContext.notificationEnabled",
+          "BooleanEquals": true,
+          "Next": "Notify"
+        }
+      ],
+      "Default": "WorkflowComplete"
+    },
+    "Notify": {
+      "Type": "Task",
+      "Resource": "${function_arns["notify"]}",
+      "InputPath": "$",
+      "ResultPath": "$.notificationResult",
+      "Next": "WorkflowComplete"
+    },
+    "WorkflowComplete": {
+      "Type": "Pass",
+      "Parameters": {
+        "verificationId.$": "$.verificationContext.verificationId",
+        "verificationType.$": "$.verificationContext.verificationType",
+        "status": "COMPLETED",
+        "timestamp.$": "$$.State.EnteredTime",
+        "result": {
+          "verificationStatus.$": "$.finalResults.verificationStatus",
+          "resultImageUrl.$": "$.storageResult.resultImageUrl",
+          "confidenceScore.$": "$.finalResults.confidenceScore",
+          "discrepanciesCount.$": "$.finalResults.discrepanciesCount"
+        }
+      },
+      "End": true
+    }
+  }
+}
