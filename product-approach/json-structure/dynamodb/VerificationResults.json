@@ -1,0 +1,83 @@
+{
+  "verificationId": "verif-2025042115302500", // ID for this run
+  "verificationAt": "2025-04-21T15:30:25Z",
+  "verificationType": "previous_vs_current", // Indicates Use Case 2
+  "previousVerificationId": "verif-2025042010000000", // Link to the previous run
+  // layoutId and layoutPrefix are absent/null for Use Case 2
+  "vendingMachineId": "VM-3245",
+  "location": "Office Building A, Floor 3",
+  "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg", // Previous check image
+  "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg", // Current check image
+  "verificationStatus": "INCORRECT", // Example status based on comparison
+  "machineStructure": { // Potentially inferred by AI in Turn 1 for UC2
+    "rowCount": 6,
+    "columnsPerRow": 7, // Example: AI only saw 7 columns clearly
+    "rowOrder": ["A", "B", "C", "D", "E", "F"],
+    "columnOrder": ["1", "2", "3", "4", "5", "6", "7"]
+  },
+  "initialConfirmation": "Baseline analysis complete based on previous checking image (verif-2025042010000000). Row F identified as empty.", // Summary of Turn 1 for UC2
+  "correctedRows": ["A", "B", "C", "D"], // Rows with no changes found between previous and current
+  "emptySlotReport": {
+    "referenceEmptyRows": [],
+    "checkingEmptyRows": ["F"],
+    "checkingPartiallyEmptyRows": [],
+    "checkingEmptyPositions": ["F01", "F02", "F03", "F04", "F05", "F06", "F07"],
+    "totalEmpty": 7
+    },
+  "referenceStatus": { // Describes state of PREVIOUS check image (baseline)
+      "A": "Baseline: 7 pink 'Mi Hảo Hảo' cup noodles visible.",
+      "B": "Baseline: 7 pink 'Mi Hảo Hảo' cup noodles visible.",
+      "C": "Baseline: 7 red/white 'Mi modern Lẩu thái' cup noodles visible.",
+      "D": "Baseline: 7 red/white 'Mi modern Lẩu thái' cup noodles visible.",
+      "E": "Baseline: 7 red/white 'Mi modern Lẩu thái' cup noodles visible.", // Note: This was incorrect vs layout, but is baseline now
+      "F": "Partial - 7 green \"Mi Cung Đình\" cup noodles visible in positions F01-F07. Positions F08-F10 not visible in image."
+    },
+  "checkingStatus": { // Describes state of CURRENT check image
+      "A": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+      "B": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+      "C": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+      "D": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+      "E": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Changed Product.", // Example change
+      "F": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Filled." // Example change
+    },
+  "discrepancies": [ // List focuses on CHANGES from baseline
+    {
+      "position": "E01",
+      "expected": "Green \"Mi Cung Đình\" cup noodle",
+      "found": "Red/white \"Mi modern Lẩu thái\" cup noodle",
+      "issue": "Incorrect Product Type",
+      "confidence": 95,
+      "evidence": "Different packaging color and branding visible",
+      "verificationResult": "INCORRECT"
+    },
+     {
+      "position": "E02",
+      "expected": "Green \"Mi Cung Đình\" cup noodle",
+      "found": "Red/white \"Mi modern Lẩu thái\" cup noodle",
+      "issue": "Incorrect Product Type",
+      "confidence": 95,
+      "evidence": "Different packaging color and branding visible",
+      "verificationResult": "INCORRECT"
+    }
+    // ... other potential changes like quantity, position swaps etc.
+  ],
+  "verificationSummary": {
+    "totalPositionsChecked": 42,
+    "correctPositions": 28,
+    "discrepantPositions": 14,
+    "missingProducts": 7,
+    "incorrectProductTypes": 7,
+    "unexpectedProducts": 0,
+    "emptyPositionsCount": 7,
+    "overallAccuracy": 66.7,
+    "overallConfidence": 97,
+    "verificationStatus": "INCORRECT",
+    "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+  },
+  "metadata": {
+      "bedrockModel": "anthropic.claude-3-7-sonnet-20240620", // Updated model example
+      "turn1LatencyMs": 2300,
+      "turn2LatencyMs": 2500
+      // ... other metadata
+  }
+}

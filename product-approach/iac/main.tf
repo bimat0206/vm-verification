@@ -108,7 +108,9 @@ module "step_functions" {
   source = "./modules/step_functions"
   count  = var.step_functions.create_step_functions && var.lambda_functions.create_functions ? 1 : 0
   
-  state_machine_name = local.naming_standard("sfn", "verification-workflow")
+  state_machine_name = local.generate_name("sfn", "verification-workflow")
+
+
   log_level = var.step_functions.log_level
   
   lambda_function_arns = {
@@ -135,7 +137,8 @@ module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
   
-  api_name = local.naming_standard("api", "verification")
+  api_name = local.generate_name("api", "verification")
+
   api_description = "Kootoro Vending Machine Verification API"
   
   stage_name = var.api_gateway.stage_name
@@ -162,7 +165,8 @@ module "app_runner" {
   source = "./modules/app_runner"
   count  = var.app_runner.create_app_runner ? 1 : 0
   
-  service_name = local.naming_standard("apprunner", "frontend")
+  service_name = local.generate_name("apprunner", "frontend")
+
   image_uri = var.app_runner.image_uri
   
   cpu = var.app_runner.cpu
@@ -185,7 +189,8 @@ module "monitoring" {
   source = "./modules/monitoring"
   count  = var.monitoring.create_dashboard ? 1 : 0
   
-  dashboard_name = local.naming_standard("dashboard", "verification")
+  dashboard_name = local.generate_name("dashboard", "verification")
+
   log_retention_days = var.monitoring.log_retention_days
   
   lambda_function_names = var.lambda_functions.create_functions ? module.lambda_functions[0].function_names : {}

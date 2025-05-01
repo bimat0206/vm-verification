@@ -1,54 +1,161 @@
-        {
+//Use Case 1: LAYOUT_VS_CHECKING
+//input
+{
+  "verificationContext": {
     "verificationId": "verif-2025042115302500",
     "verificationAt": "2025-04-21T15:30:25Z",
-    "status": "PROMPT_PREPARED",
-    “promptId": "prompt-20250421",
+    "status": "IMAGES_FETCHED",
+    "verificationType": "LAYOUT_VS_CHECKING",
     "vendingMachineId": "VM-3245",
     "layoutId": 23591,
     "layoutPrefix": "1q2w3e",
     "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
-    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
-    "bedrockRequest": {
-      "anthropic_version": "bedrock-2023-05-31",
-      "max_tokens": 24000,
-      "thinking": {
-        "type": "enabled",
-        "budget_tokens": 16000
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+  },
+  "layoutMetadata": {
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
     },
-      "system": "You are an AI assistant specialized in analyzing vending machine product placement...",
-      "messages": [
-        {
-          "role": "user",
-          "content": [
-            {
-              "type": "text",
-              "text": "TASK: Compare the reference layout image with the checking image for vending machine ID: VM-3245 at location: Office Building A, Floor 3...\n\nPRODUCT DETAILS:\n- Position A01: \"Mì Hảo Hảo\", Expected Quantity: 5\n..."
-            },
-            {
-              "type": "image",
-              "source": {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": "base64_encoded_reference_image"
-              }
-            },
-            {
-              "type": "image",
-              "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": "base64_encoded_checking_image"
-              }
-            }
-          ]
-        }
-      ]
+    "productPositionMap": {
+      "A01": {
+        "productId": 3486,
+        "productName": "Mì Hảo Hảo"
+      },
+      "A02": {
+        "productId": 3486,
+        "productName": "Mì Hảo Hảo"
+      },
+      "B01": {
+        "productId": 3920,
+        "productName": "Mì Cung Đình"
+      }
     },
-    "estimatedTokens": {
-      "text": 1250,
-      "images": 3000,
-      "total": 4250
+    "location": "Office Building A, Floor 3"
+  }
+}
+
+//output
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "SYSTEM_PROMPT_READY",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-3245",
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+  },
+  "layoutMetadata": {
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    },
+  },
+  "systemPrompt": {
+    "content": "You are an AI assistant specialized in analyzing vending machine product placement...",
+    "promptId": "prompt-20250421-23ds-system",
+    "createdAt": "2025-04-21T15:30:28Z",
+    "promptVersion": "1.2.3",
+  },
+  "bedrockConfig": {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 24000,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 16000
+    }
+  }}
+
+//Use Case 2: PREVIOUS_VS_CURRENT
+//input
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "IMAGES_FETCHED",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "vendingMachineId": "VM-3245",
+    "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+  },
+  "historicalContext": {
+    "previousVerificationId": "verif-2025042010000000",
+    "previousVerificationAt": "2025-04-20T10:00:00Z",
+    "previousVerificationStatus": "CORRECT",
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    },
+    "verificationSummary": {
+      "totalPositionsChecked": 42,
+      "correctPositions": 28,
+      "discrepantPositions": 14,
+      "missingProducts": 7,
+      "incorrectProductTypes": 7,
+      "unexpectedProducts": 0,
+      "emptyPositionsCount": 7,
+      "overallAccuracy": 66.7,
+      "overallConfidence": 97,
+      "verificationStatus": "INCORRECT",
+      "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
     }
   }
-   
-  
+}
+
+//Output
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "SYSTEM_PROMPT_READY",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "vendingMachineId": "VM-3245",
+    "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+  },
+  "historicalContext": {
+    "previousVerificationId": "verif-2025042010000000",
+    "previousVerificationAt": "2025-04-20T10:00:00Z",
+    "previousVerificationStatus": "CORRECT",
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    },
+    "verificationSummary": {
+      "totalPositionsChecked": 42,
+      "correctPositions": 28,
+      "discrepantPositions": 14,
+      "missingProducts": 7,
+      "incorrectProductTypes": 7,
+      "unexpectedProducts": 0,
+      "emptyPositionsCount": 7,
+      "overallAccuracy": 66.7,
+      "overallConfidence": 97,
+      "verificationStatus": "INCORRECT",
+      "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+    }
+  },
+  "systemPrompt": {
+    "content": "You are an AI assistant specialized in analyzing vending machine product placement...",
+    "promptId": "prompt-20250421-system",
+    "createdAt": "2025-04-21T15:30:28Z",
+    "promptVersion": "1.2.3",
+  },
+  "bedrockConfig": {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 24000,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 16000
+    }
+  },
+}

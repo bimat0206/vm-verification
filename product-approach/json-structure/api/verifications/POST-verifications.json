@@ -1,0 +1,41 @@
+//Request Body:
+  {
+    "verificationType": "string",         // REQUIRED. Must be "layout_vs_checking" or "previous_vs_current".
+    "referenceImageUrl": "string",      // REQUIRED.
+                                        //   - If verificationType="layout_vs_checking": S3 key for the reference layout image (in reference bucket).
+                                        //   - If verificationType="previous_vs_current": S3 key for the *previous* checking image (in checking bucket).
+    "checkingImageUrl": "string",       // REQUIRED. S3 key for the *current* checking image (in checking bucket).
+    "vendingMachineId": "string",       // OPTIONAL. Unique ID of the vending machine.
+    "layoutId": "number",               // REQUIRED only if verificationType="layout_vs_checking". Layout identifier. Omit or null otherwise.
+    "layoutPrefix": "string",           // REQUIRED only if verificationType="layout_vs_checking". Layout version prefix. Omit or null otherwise.
+    "notificationEnabled": "boolean"    // OPTIONAL. Default: false. Whether to trigger notifications on completion.
+  }
+
+//Example Request (Use Case 1: Layout vs. Checking):
+{
+    "verificationType": "layout_vs_checking",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "vendingMachineId": "VM-3245",
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+    "notificationEnabled": false
+}
+
+//Example Request (Use Case 2: Previous vs. Current Checking):
+{
+  "verificationType": "previous_vs_current",
+  "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg", // Previous check image key
+  "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg", // Current check image key
+  "vendingMachineId": "VM-3245",
+  // layoutId and layoutPrefix are omitted
+  "notificationEnabled": false
+}
+
+//Response
+{
+  "verificationId": "string",       // Unique verification ID for this new run
+  "verificationAt": "string",       // ISO8601 timestamp of initiation
+  "status": "PROCESSING",
+  "message": "Verification has been successfully initiated."
+}

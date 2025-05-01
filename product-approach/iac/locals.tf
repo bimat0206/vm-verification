@@ -5,12 +5,8 @@ locals {
   # Standard naming convention for resources
   name_prefix = var.environment != "" ? "${var.project_name}-${var.environment}" : var.project_name
 
-  # Resource name pattern function
-  # Usage: local.naming_standard("s3", "reference-bucket")
-  naming_standard = function(resource_type, resource_name) {
-    lower(join("-", compact([local.name_prefix, resource_type, resource_name, local.name_suffix])))
-  }
-
+  # Resource name pattern function is defined in naming.tf
+  
   # Common tags to be applied to all resources
   common_tags = merge(
     var.additional_tags,
@@ -23,16 +19,16 @@ locals {
 
   # S3 bucket names
   s3_buckets = {
-    reference = local.naming_standard("s3", "reference")
-    checking  = local.naming_standard("s3", "checking")
-    results   = local.naming_standard("s3", "results")
+    reference = local.generate_name("s3", "reference"),
+    checking  = local.generate_name("s3", "checking"),
+    results   = local.generate_name("s3", "results")
   }
 
   # DynamoDB table names
   dynamodb_tables = {
-    verification_results = local.naming_standard("dynamodb", "verification-results")
-    layout_metadata      = local.naming_standard("dynamodb", "layout-metadata")
-    conversation_history = local.naming_standard("dynamodb", "conversation-history")
+    verification_results = local.generate_name("dynamodb", "verification-results"),
+    layout_metadata      = local.generate_name("dynamodb", "layout-metadata"),
+    conversation_history = local.generate_name("dynamodb", "conversation-history")
   }
 
   # ECR Repository URL (without specific repository)
