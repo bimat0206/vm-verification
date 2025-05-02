@@ -15,10 +15,17 @@ variable "lambda_function_names" {
   default     = {}
 }
 
+
 variable "step_function_name" {
   description = "Name of the Step Functions state machine to monitor"
   type        = string
   default     = ""
+}
+
+variable "enable_step_function_monitoring" {
+  description = "Whether to enable Step Functions monitoring"
+  type        = bool
+  default     = false
 }
 
 variable "dynamodb_table_names" {
@@ -33,6 +40,12 @@ variable "api_gateway_name" {
   default     = ""
 }
 
+variable "enable_api_gateway_monitoring" {
+  description = "Whether to enable API Gateway monitoring"
+  type        = bool
+  default     = false
+}
+
 variable "ecr_repository_names" {
   description = "Map of ECR repository names to monitor"
   type        = map(string)
@@ -43,6 +56,12 @@ variable "app_runner_service_name" {
   description = "Name of the App Runner service to monitor"
   type        = string
   default     = ""
+}
+
+variable "enable_app_runner_monitoring" {
+  description = "Whether to enable App Runner monitoring"
+  type        = bool
+  default     = false
 }
 
 variable "log_retention_days" {
@@ -61,4 +80,10 @@ variable "common_tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "cloudwatch_kms_key_id" {
+  description = "KMS Key ID for CloudWatch Logs encryption"
+  type        = string
+  default     = null
 }

@@ -4,16 +4,17 @@ resource "aws_lambda_function" "this" {
   function_name = each.value.name
   description   = each.value.description
   role          = var.execution_role_arn
-  
+
   # Image configuration for container-based Lambda
-  package_type  = "Image"
-  image_uri     = var.use_ecr_repository ? "${var.ecr_repository_url}/${each.key}:${var.image_tag}" : var.image_uri
-  
+  package_type = "Image"
+  # Use ECR repository if enabled, otherwise use default image_uri
+  image_uri = var.use_ecr_repository ? "${var.ecr_repository_url}/${each.key}:${var.image_tag}" : var.default_image_uri
+
   # Configure resources
   memory_size   = each.value.memory_size
   timeout       = each.value.timeout
   architectures = var.architectures
-  
+
   # Environment variables
   environment {
     variables = each.value.environment_variables
@@ -41,8 +42,8 @@ resource "aws_cloudwatch_log_group" "this" {
 
   name              = "/aws/lambda/${each.value.name}"
   retention_in_days = var.log_retention_days
-  
-  tags = var.common_tags
+
+  # tags = var.common_tags
 }
 
 # Lambda function permissions for API Gateway

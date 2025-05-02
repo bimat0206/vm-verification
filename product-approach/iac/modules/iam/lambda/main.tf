@@ -14,8 +14,8 @@ resource "aws_iam_role" "lambda_execution_role" {
       }
     ]
   })
-
-  tags = var.common_tags
+  
+  # Don't add tags here as they're provided by default_tags in the provider
 }
 
 # Basic Lambda execution policy attachment

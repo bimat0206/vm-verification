@@ -14,8 +14,8 @@ resource "aws_iam_role" "step_functions_role" {
       }
     ]
   })
-
-  tags = var.common_tags
+  
+  # Don't add tags here as they're provided by default_tags in the provider
 }
 
 # IAM Policy for Step Functions to invoke Lambda functions
@@ -76,8 +76,8 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_logs_attachment" {
 resource "aws_cloudwatch_log_group" "step_functions_logs" {
   name              = "/aws/states/${var.state_machine_name}"
   retention_in_days = var.log_retention_days
-
-  tags = var.common_tags
+  
+  # Don't add tags here as they're provided by default_tags in the provider
 }
 
 # Step Functions State Machine

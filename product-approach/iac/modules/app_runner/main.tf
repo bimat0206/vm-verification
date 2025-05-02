@@ -15,7 +15,7 @@ resource "aws_iam_role" "app_runner_role" {
     ]
   })
 
-  tags = var.common_tags
+  # tags = var.common_tags
 }
 
 # IAM Policy for App Runner to access ECR
@@ -66,13 +66,13 @@ resource "aws_iam_role" "app_runner_instance_role" {
     ]
   })
 
-  tags = var.common_tags
+  # tags = var.common_tags
 }
 
 # API Gateway access policy for App Runner instance role
 resource "aws_iam_policy" "app_runner_api_gateway_policy" {
   count = var.api_gateway_access ? 1 : 0
-  
+
   name        = "${var.service_name}-api-gateway-policy"
   description = "Policy for App Runner to access API Gateway"
 
@@ -101,7 +101,7 @@ resource "aws_iam_role_policy_attachment" "app_runner_api_gateway_attachment" {
 # S3 access policy for App Runner instance role
 resource "aws_iam_policy" "app_runner_s3_policy" {
   count = length(var.s3_bucket_arns) > 0 ? 1 : 0
-  
+
   name        = "${var.service_name}-s3-policy"
   description = "Policy for App Runner to access S3 buckets"
 
@@ -134,15 +134,19 @@ resource "aws_apprunner_service" "this" {
   source_configuration {
     image_repository {
       image_configuration {
-        port = var.port
+        port                          = var.port
         runtime_environment_variables = var.environment_variables
       }
       image_identifier      = var.image_uri
       image_repository_type = var.image_repo_type
     }
 
-    authentication_configuration {
-      access_role_arn = aws_iam_role.app_runner_role.arn
+    # Only include authentication configuration for private ECR repositories
+    dynamic "authentication_configuration" {
+      for_each = var.image_repo_type == "ECR" ? [1] : []
+      content {
+        access_role_arn = aws_iam_role.app_runner_role.arn
+      }
     }
 
     auto_deployments_enabled = var.auto_deployments_enabled
@@ -150,7 +154,7 @@ resource "aws_apprunner_service" "this" {
 
   instance_configuration {
     cpu               = "${var.cpu} vCPU"
-    memory            = "${var.memory} MB"
+    memory            = var.memory
     instance_role_arn = aws_iam_role.app_runner_instance_role.arn
   }
 
@@ -163,19 +167,9 @@ resource "aws_apprunner_service" "this" {
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
 
-  dynamic "network_configuration" {
-    for_each = var.ingress_vpc_configuration != null ? [1] : []
-    content {
-      ingress_configuration {
-        is_publicly_accessible = var.is_publicly_accessible
-        dynamic "vpc_configuration" {
-          for_each = var.ingress_vpc_configuration != null ? [var.ingress_vpc_configuration] : []
-          content {
-            subnets         = vpc_configuration.value.subnets
-            security_groups = vpc_configuration.value.security_groups
-          }
-        }
-      }
+  network_configuration {
+    ingress_configuration {
+      is_publicly_accessible = var.is_publicly_accessible
     }
   }
 
@@ -192,7 +186,7 @@ resource "aws_cloudwatch_log_group" "app_runner" {
   name              = "/aws/apprunner/${var.service_name}"
   retention_in_days = var.log_retention_days
 
-  tags = var.common_tags
+  # tags = var.common_tags
 }
 
 # Auto scaling configuration (optional)
@@ -200,7 +194,7 @@ resource "aws_apprunner_auto_scaling_configuration_version" "this" {
   count = var.enable_auto_scaling ? 1 : 0
 
   auto_scaling_configuration_name = "${var.service_name}-auto-scaling"
-  
+
   max_concurrency = var.max_concurrency
   max_size        = var.max_size
   min_size        = var.min_size
@@ -211,7 +205,7 @@ resource "aws_apprunner_auto_scaling_configuration_version" "this" {
 # Associate auto scaling configuration with service
 resource "aws_apprunner_custom_domain_association" "this" {
   count = var.custom_domain_name != "" ? 1 : 0
-  
+
   domain_name          = var.custom_domain_name
   service_arn          = aws_apprunner_service.this.arn
   enable_www_subdomain = var.enable_www_subdomain

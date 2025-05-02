@@ -1,6 +1,2 @@
-locals {
-  # Generate resource name based on standard pattern
-  generate_name = function(resource_type, resource_name) {
-    lower(join("-", compact([local.name_prefix, resource_type, resource_name, local.name_suffix])))
-  }
-}
+# naming.tf is now empty or may be used for documentation or future valid Terraform code.
+# The original invalid custom function is removed.

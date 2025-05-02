@@ -33,6 +33,12 @@ variable "image_uri" {
   default     = "public.ecr.aws/nginx/nginx:latest" # Placeholder image
 }
 
+variable "default_image_uri" {
+  description = "Default URI of the container image to use for Lambda functions"
+  type        = string
+  default     = "public.ecr.aws/nginx/nginx:latest" # Placeholder image
+}
+
 variable "image_tag" {
   description = "Tag of the ECR image to use for Lambda functions"
   type        = string

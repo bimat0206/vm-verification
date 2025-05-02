@@ -1,7 +1,7 @@
 resource "aws_ecr_repository" "this" {
   for_each = var.repositories
 
-  name                 = each.key
+  name                 = each.value.name
   image_tag_mutability = each.value.image_tag_mutability
   force_delete         = each.value.force_delete
 
@@ -17,7 +17,7 @@ resource "aws_ecr_repository" "this" {
   tags = merge(
     var.common_tags,
     {
-      Name = each.key
+      Name = each.value.name
     }
   )
 }

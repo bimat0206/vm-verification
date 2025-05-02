@@ -141,7 +141,8 @@ resource "aws_cloudwatch_dashboard" "this" {
 resource "aws_sns_topic" "alarms" {
   count = length(var.alarm_email_endpoints) > 0 ? 1 : 0
   name  = "${var.dashboard_name}-alarms"
-  tags  = var.common_tags
+  
+  # Don't add tags here as they're provided by default_tags in the provider
 }
 
 # SNS Subscriptions for Email Endpoints
@@ -172,13 +173,11 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   dimensions = {
     FunctionName = each.value
   }
-
-  tags = var.common_tags
 }
 
 # Step Functions Execution Failed Alarm
 resource "aws_cloudwatch_metric_alarm" "step_functions_failed" {
-  count = var.step_function_name != "" && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_step_function_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
 
   alarm_name          = "${var.step_function_name}-failed-executions-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -196,8 +195,6 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failed" {
   dimensions = {
     StateMachineArn = var.step_function_name
   }
-
-  tags = var.common_tags
 }
 
 # DynamoDB Throttled Requests Alarm
@@ -220,13 +217,11 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttles" {
   dimensions = {
     TableName = each.value
   }
-
-  tags = var.common_tags
 }
 
 # API Gateway 5XX Error Alarm
 resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
-  count = var.api_gateway_name != "" && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_api_gateway_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
 
   alarm_name          = "${var.api_gateway_name}-5xx-errors-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -244,13 +239,11 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
   dimensions = {
     ApiName = var.api_gateway_name
   }
-
-  tags = var.common_tags
 }
 
 # App Runner Error Alarm
 resource "aws_cloudwatch_metric_alarm" "app_runner_5xx" {
-  count = var.app_runner_service_name != "" && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_app_runner_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
 
   alarm_name          = "${var.app_runner_service_name}-5xx-errors-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -268,8 +261,6 @@ resource "aws_cloudwatch_metric_alarm" "app_runner_5xx" {
   dimensions = {
     ServiceName = var.app_runner_service_name
   }
-
-  tags = var.common_tags
 }
 
 # Log Group Configuration for Lambda Functions
@@ -278,36 +269,56 @@ resource "aws_cloudwatch_log_group" "lambda_log_groups" {
 
   name              = "/aws/lambda/${each.value}"
   retention_in_days = var.log_retention_days
-
-  tags = var.common_tags
+  
+  lifecycle {
+    create_before_destroy = true
+    # Prevent errors when the log group already exists
+    ignore_changes = [name]
+  }
 }
 
 # Log Group for Step Functions
 resource "aws_cloudwatch_log_group" "step_functions_log_group" {
-  count = var.step_function_name != "" ? 1 : 0
+  count = var.enable_step_function_monitoring ? 1 : 0
 
   name              = "/aws/states/${var.step_function_name}"
   retention_in_days = var.log_retention_days
-
-  tags = var.common_tags
+  
+  lifecycle {
+    create_before_destroy = true
+    # Prevent errors when the log group already exists
+    ignore_changes = [name]
+  }
 }
 
 # Log Group for API Gateway
 resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
-  count = var.api_gateway_name != "" ? 1 : 0
-
+  count = var.enable_api_gateway_monitoring ? 1 : 0
   name              = "/aws/apigateway/${var.api_gateway_name}"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.cloudwatch_kms_key_id
+  tags              = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    create_before_destroy = true
+    # Prevent errors when the log group already exists
+    ignore_changes = [name]
+  }
 }
+  
+  # Don't add tags here as they're provided by default_tags in the provider
 
 # Log Group for App Runner
 resource "aws_cloudwatch_log_group" "app_runner_log_group" {
-  count = var.app_runner_service_name != "" ? 1 : 0
+  count = var.enable_app_runner_monitoring ? 1 : 0
 
   name              = "/aws/apprunner/${var.app_runner_service_name}"
   retention_in_days = var.log_retention_days
-
-  tags = var.common_tags
+  
+  lifecycle {
+    create_before_destroy = true
+    # Prevent errors when the log group already exists
+    ignore_changes = [name]
+  }
+  # Don't add tags here as they're provided by default_tags in the provider
 }
