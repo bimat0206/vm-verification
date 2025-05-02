@@ -1,20 +1,12 @@
-# Terraform Variables Backup
-
-**Date:** 2025-05-02 11:21:48
-**Directory:** .
-**File:** terraform.tfvars
-
-## Variables Content
-```hcl
 # General Configuration
-aws_region          = "us-east-1"
-project_name        = "kootoro"
-environment         = "dev"
+aws_region   = "us-east-1"
+project_name = "kootoro"
+environment  = "dev"
 # resource_name_suffix is intentionally not set to use the auto-generated random suffix
 
 additional_tags = {
-  Owner       = "ManhDT"
-  Project     = "VendingMachineVerification"
+  Owner   = "ManhDT"
+  Project = "VendingMachineVerification"
 }
 
 # S3 Bucket Configuration
@@ -54,10 +46,10 @@ s3_buckets = {
 
 # DynamoDB Configuration
 dynamodb_tables = {
-  create_tables         = true
-  billing_mode          = "PROVISIONED"
-  read_capacity         = 10
-  write_capacity        = 10
+  create_tables          = true
+  billing_mode           = "PROVISIONED"
+  read_capacity          = 10
+  write_capacity         = 10
   point_in_time_recovery = true
 }
 
@@ -68,35 +60,35 @@ ecr = {
     # Each Lambda function will get its repository
     # Production-specific settings
     initialize = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     fetch_historical_verification = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     fetch_images = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     prepare_system_prompt = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     prepare_turn_prompt = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     invoke_bedrock = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
-      lifecycle_policy = <<EOF
+      lifecycle_policy     = <<EOF
 {
   "rules": [
     {
@@ -129,43 +121,43 @@ ecr = {
 EOF
     },
     process_turn1_response = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     process_turn2_response = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     finalize_results = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     store_results = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     notify = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     handle_bedrock_error = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     finalize_with_error = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     },
     render_layout = {
-      force_delete = false
-      scan_on_push = true
+      force_delete         = false
+      scan_on_push         = true
       image_tag_mutability = "IMMUTABLE"
     }
   }
@@ -173,48 +165,49 @@ EOF
 
 # Lambda Configuration
 lambda_functions = {
-  create_functions = true
-  use_ecr          = false  # Set to false to use default_image_uri instead of ECR
-  image_tag        = "latest"
-  default_image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest" # Placeholder image for first deployment
-  architectures    = ["arm64"]
+  create_functions  = true
+  use_ecr           = true # Set to true to create and use ECR repositories
+  image_tag         = "latest"
+  default_image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest" # Fallback image if ECR image not available
+  architectures     = ["arm64"]
   memory_sizes = {
-    initialize                  = 1024
+    initialize                    = 1024
     fetch_historical_verification = 1024
-    fetch_images                = 1536
-    prepare_system_prompt       = 1024
-    prepare_turn_prompt         = 512
-    invoke_bedrock              = 2048
-    process_turn1_response      = 1024
-    process_turn2_response      = 1024
-    finalize_results            = 1024
-    store_results               = 1024
-    notify                      = 512
-    handle_bedrock_error        = 512
-    finalize_with_error         = 512
-    render_layout               = 2048
+    fetch_images                  = 1536
+    prepare_system_prompt         = 1024
+    prepare_turn_prompt           = 512
+    invoke_bedrock                = 2048
+    process_turn1_response        = 1024
+    process_turn2_response        = 1024
+    finalize_results              = 1024
+    store_results                 = 1024
+    notify                        = 512
+    handle_bedrock_error          = 512
+    finalize_with_error           = 512
+    render_layout                 = 2048
   }
   timeouts = {
-    initialize                  = 30
+    initialize                    = 30
     fetch_historical_verification = 30
-    fetch_images                = 60
-    prepare_system_prompt       = 30
-    prepare_turn_prompt         = 30
-    invoke_bedrock              = 150
-    process_turn1_response      = 90
-    process_turn2_response      = 90
-    finalize_results            = 90
-    store_results               = 60
-    notify                      = 60
-    handle_bedrock_error        = 60
-    finalize_with_error         = 60
-    render_layout               = 120
+    fetch_images                  = 60
+    prepare_system_prompt         = 30
+    prepare_turn_prompt           = 30
+    invoke_bedrock                = 150
+    process_turn1_response        = 90
+    process_turn2_response        = 90
+    finalize_results              = 90
+    store_results                 = 60
+    notify                        = 60
+    handle_bedrock_error          = 60
+    finalize_with_error           = 60
+    render_layout                 = 120
   }
-  log_retention_days = 90
-  s3_trigger_functions = ["render_layout"]
+  log_retention_days            = 90
+  s3_trigger_functions          = ["render_layout"]
   eventbridge_trigger_functions = []
 }
 
+# API Gateway Configuration
 # API Gateway Configuration
 api_gateway = {
   create_api_gateway     = true
@@ -223,6 +216,7 @@ api_gateway = {
   throttling_burst_limit = 400
   cors_enabled           = true
   metrics_enabled        = true
+  use_api_key            = false  # Add this line
 }
 
 # Step Functions Configuration
@@ -253,7 +247,7 @@ bedrock = {
 
 # Monitoring Configuration
 monitoring = {
-  create_dashboard    = true
-  log_retention_days  = 90
+  create_dashboard      = true
+  log_retention_days    = 90
   alarm_email_endpoints = ["ops-alerts@example.com", "on-call@example.com"]
-}```
+}

@@ -123,6 +123,7 @@ variable "api_gateway" {
     throttling_burst_limit = number
     cors_enabled           = bool
     metrics_enabled        = bool
+    use_api_key            = bool
   })
   default = {
     create_api_gateway     = true
@@ -131,6 +132,7 @@ variable "api_gateway" {
     throttling_burst_limit = 50
     cors_enabled           = true
     metrics_enabled        = true
+    use_api_key            = false
   }
 }
 
@@ -176,4 +178,9 @@ variable "bedrock" {
   default = {
     model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
   }
+}
+variable "cors_allowed_origins" {
+  description = "List of allowed origins for CORS"
+  type        = list(string)
+  default     = ["*"]
 }

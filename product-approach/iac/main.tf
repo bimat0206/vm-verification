@@ -138,6 +138,7 @@ module "step_functions" {
 # product-approach/iac/main.tf (partial update)
 
 # API Gateway
+# API Gateway
 module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
@@ -151,8 +152,8 @@ module "api_gateway" {
   metrics_enabled = var.api_gateway.metrics_enabled
   use_api_key = var.api_gateway.use_api_key
   openapi_definition = "${path.module}/openapi.yaml"
-    # Add CORS allowed origins to the template vars
-  cors_allowed_origins                = jsonencode(var.cors_allowed_origins)
+  # Pass the list directly without jsonencode
+  cors_allowed_origins = var.cors_allowed_origins
   lambda_function_arns = {
     for k, v in module.lambda_functions[0].function_arns : k => v
   }
