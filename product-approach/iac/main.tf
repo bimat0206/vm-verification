@@ -37,7 +37,7 @@ module "dynamodb_tables" {
 # ECR Repositories
 module "ecr_repositories" {
   source = "./modules/ecr"
-  count  = var.ecr.create_repositories && var.lambda_functions.use_ecr ? 1 : 0
+  count  = var.ecr.create_repositories ? 1 : 0 # Create ECR repositories regardless of Lambda configuration
 
   repositories = local.ecr_repositories
 
@@ -65,7 +65,7 @@ module "lambda_iam" {
     module.dynamodb_tables[0].conversation_history_table_arn
   ] : []
 
-  ecr_repository_arns = var.ecr.create_repositories && var.lambda_functions.use_ecr ? [
+  ecr_repository_arns = var.ecr.create_repositories ? [
     for repo_name, repo_url in module.ecr_repositories[0].repository_arns : repo_url
   ] : []
 
@@ -143,15 +143,15 @@ module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
 
-  api_name = local.api_gateway_name
-  api_description = "Kootoro Vending Machine Verification API"
-  stage_name = var.api_gateway.stage_name
+  api_name               = local.api_gateway_name
+  api_description        = "Kootoro Vending Machine Verification API"
+  stage_name             = var.api_gateway.stage_name
   throttling_rate_limit  = var.api_gateway.throttling_rate_limit
   throttling_burst_limit = var.api_gateway.throttling_burst_limit
-  cors_enabled    = var.api_gateway.cors_enabled
-  metrics_enabled = var.api_gateway.metrics_enabled
-  use_api_key = var.api_gateway.use_api_key
-  openapi_definition = "${path.module}/openapi.yaml"
+  cors_enabled           = var.api_gateway.cors_enabled
+  metrics_enabled        = var.api_gateway.metrics_enabled
+  use_api_key            = var.api_gateway.use_api_key
+  openapi_definition     = "${path.module}/openapi.yaml"
   # Pass the list directly without jsonencode
   cors_allowed_origins = var.cors_allowed_origins
   lambda_function_arns = {
@@ -162,33 +162,12 @@ module "api_gateway" {
     for k, v in module.lambda_functions[0].function_names : k => v
   }
 
+  region = var.aws_region
+
   common_tags = local.common_tags
 }
 
 # App Runner service for frontend
-module "app_runner" {
-  source = "./modules/app_runner"
-  count  = var.app_runner.create_app_runner ? 1 : 0
-
-  service_name = local.app_runner_service_name
-
-  image_uri       = var.app_runner.image_uri
-  image_repo_type = "ECR_PUBLIC" # Explicitly set to ECR_PUBLIC for public images
-
-  cpu    = var.app_runner.cpu
-  memory = var.app_runner.memory
-
-  auto_deployments_enabled = var.app_runner.auto_deployments_enabled
-
-  environment_variables = merge(
-    var.app_runner.environment_variables,
-    {
-      API_ENDPOINT = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_endpoint : ""
-    }
-  )
-
-  common_tags = local.common_tags
-}
 
 # CloudWatch Monitoring Resources
 module "monitoring" {
@@ -215,10 +194,62 @@ module "monitoring" {
 
   ecr_repository_names = var.ecr.create_repositories && var.lambda_functions.use_ecr ? module.ecr_repositories[0].repository_names : {}
 
-  app_runner_service_name      = var.app_runner.create_app_runner ? module.app_runner[0].service_name : ""
-  enable_app_runner_monitoring = var.app_runner.create_app_runner
+
 
   alarm_email_endpoints = var.monitoring.alarm_email_endpoints
+
+  common_tags = local.common_tags
+}
+# Streamlit Frontend Service
+module "streamlit_frontend" {
+  source = "./modules/streamlit-frontend"
+  count  = var.streamlit_frontend.create_streamlit ? 1 : 0
+
+  service_name = var.streamlit_frontend.service_name
+  environment  = var.environment
+  name_suffix  = local.name_suffix
+
+  image_uri                = var.streamlit_frontend.image_uri
+  image_repository_type    = var.streamlit_frontend.image_repository_type
+  cpu                      = var.streamlit_frontend.cpu
+  memory                   = var.streamlit_frontend.memory
+  port                     = var.streamlit_frontend.port
+  auto_deployments_enabled = var.streamlit_frontend.auto_deployments_enabled
+
+  enable_auto_scaling = var.streamlit_frontend.enable_auto_scaling
+  min_size            = var.streamlit_frontend.min_size
+  max_size            = var.streamlit_frontend.max_size
+
+  theme_mode         = var.streamlit_frontend.theme_mode
+  log_retention_days = var.streamlit_frontend.log_retention_days
+
+  # If API Gateway is created, provide access to it
+  api_gateway_arn = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_arn : ""
+
+  # Provide access to S3 buckets if created
+  s3_bucket_arns = var.s3_buckets.create_buckets ? [
+    module.s3_buckets[0].reference_bucket_arn,
+    module.s3_buckets[0].checking_bucket_arn,
+    module.s3_buckets[0].results_bucket_arn
+  ] : []
+
+  # Provide access to DynamoDB tables if created
+  dynamodb_table_arns = var.dynamodb_tables.create_tables ? [
+    module.dynamodb_tables[0].verification_results_table_arn,
+    module.dynamodb_tables[0].layout_metadata_table_arn,
+    module.dynamodb_tables[0].conversation_history_table_arn
+  ] : []
+
+  # Merge in API endpoint to environment variables if API Gateway is created
+  environment_variables = merge(
+    var.streamlit_frontend.environment_variables,
+    var.api_gateway.create_api_gateway ? {
+      API_BASE_URL = module.api_gateway[0].invoke_url
+    } : {}
+  )
+
+  # Enable full ECR access for App Runner
+  enable_ecr_full_access = true
 
   common_tags = local.common_tags
 }

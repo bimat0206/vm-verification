@@ -92,3 +92,9 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "region" {
+  description = "AWS region where the API Gateway is deployed"
+  type        = string
+  default     = "us-east-1"
+}

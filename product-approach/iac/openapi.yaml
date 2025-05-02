@@ -9,8 +9,7 @@ info:
     email: "support@kootoro.ai"
 # Global CORS configuration 
 x-amazon-apigateway-cors:
-  allowOrigins:
-    - ${cors_allowed_origins}
+  allowOrigins: ${cors_allowed_origins}
   allowCredentials: true
   allowMethods:
     - "DELETE"
@@ -415,13 +414,13 @@ x-amazon-apigateway-gateway-responses:
     responseTemplates:
       application/json: '{"error":{"code":"$context.error.responseType","message":"$context.error.message"}}'
     responseParameters:
-      gatewayresponse.header.Access-Control-Allow-Origin: "'${cors_allowed_origins}'"
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
       gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
       gatewayresponse.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
   DEFAULT_5XX:
     responseTemplates:
       application/json: '{"error":{"code":"$context.error.responseType","message":"Internal Server Error"}}'
     responseParameters:
-      gatewayresponse.header.Access-Control-Allow-Origin: "'${cors_allowed_origins}'"
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
       gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
       gatewayresponse.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"

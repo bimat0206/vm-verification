@@ -1,54 +1,66 @@
 variable "service_name" {
-  description = "Name of the App Runner service"
+  description = "Name of the Streamlit application service"
   type        = string
+}
+
+variable "environment" {
+  description = "Environment (e.g., dev, staging, prod)"
+  type        = string
+  default     = ""
+}
+
+variable "name_suffix" {
+  description = "Suffix to add to resource names (optional)"
+  type        = string
+  default     = ""
 }
 
 variable "image_uri" {
-  description = "URI of the container image for App Runner service"
+  description = "URI of the Docker image for Streamlit app"
   type        = string
 }
 
-variable "image_repo_type" {
+variable "image_repository_type" {
   description = "Type of the image repository (ECR or ECR_PUBLIC)"
   type        = string
   default     = "ECR_PUBLIC"
-  
+
   validation {
-    condition     = contains(["ECR", "ECR_PUBLIC"], var.image_repo_type)
+    condition     = contains(["ECR", "ECR_PUBLIC"], var.image_repository_type)
     error_message = "Image repository type must be ECR or ECR_PUBLIC."
   }
 }
 
 variable "port" {
-  description = "Port that your application listens to in the container"
+  description = "Port that Streamlit listens to in the container"
   type        = number
-  default     = 8080
+  default     = 8501
 }
 
 variable "cpu" {
   description = "CPU units for App Runner service"
-  type        = number
-  default     = 1
-  
+  type        = string
+  default     = "1 vCPU"
+
   validation {
-    condition     = contains([0.25, 0.5, 1, 2, 4], var.cpu)
-    error_message = "CPU must be one of 0.25, 0.5, 1, 2, or 4."
+    condition     = contains(["0.25 vCPU", "0.5 vCPU", "1 vCPU", "2 vCPU", "4 vCPU"], var.cpu)
+    error_message = "CPU must be one of: 0.25 vCPU, 0.5 vCPU, 1 vCPU, 2 vCPU, or 4 vCPU."
   }
 }
 
 variable "memory" {
-  description = "Memory in MB for App Runner service"
-  type        = number
-  default     = 2048
-  
+  description = "Memory for App Runner service"
+  type        = string
+  default     = "2 GB"
+
   validation {
-    condition     = contains([0.5, 1, 2, 3, 4], floor(var.memory / 1024))
-    error_message = "Memory must be approximately 0.5, 1, 2, 3, or 4 GB (512, 1024, 2048, 3072, or 4096 MB)."
+    condition     = contains(["0.5 GB", "1 GB", "2 GB", "3 GB", "4 GB", "6 GB", "8 GB", "10 GB"], var.memory)
+    error_message = "Memory must be one of: 0.5 GB, 1 GB, 2 GB, 3 GB, 4 GB, 6 GB, 8 GB, or 10 GB."
   }
 }
 
 variable "environment_variables" {
-  description = "Environment variables for App Runner service"
+  description = "Environment variables for Streamlit application"
   type        = map(string)
   default     = {}
 }
@@ -56,24 +68,24 @@ variable "environment_variables" {
 variable "auto_deployments_enabled" {
   description = "Whether to automatically deploy new images when pushed to the repository"
   type        = bool
-  default     = false
+  default     = true
 }
 
-variable "health_check_protocol" {
-  description = "Protocol for health checks (TCP or HTTP)"
+variable "theme_mode" {
+  description = "Streamlit theme mode (light or dark)"
   type        = string
-  default     = "HTTP"
-  
+  default     = "dark"
+
   validation {
-    condition     = contains(["TCP", "HTTP"], var.health_check_protocol)
-    error_message = "Health check protocol must be TCP or HTTP."
+    condition     = contains(["light", "dark"], var.theme_mode)
+    error_message = "Theme mode must be 'light' or 'dark'."
   }
 }
 
 variable "health_check_path" {
   description = "Path for HTTP health checks"
   type        = string
-  default     = "/"
+  default     = "/_stcore/health"
 }
 
 variable "health_check_interval" {
@@ -121,7 +133,7 @@ variable "min_size" {
 variable "max_size" {
   description = "Maximum number of instances"
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "is_publicly_accessible" {
@@ -130,37 +142,12 @@ variable "is_publicly_accessible" {
   default     = true
 }
 
-variable "ingress_vpc_configuration" {
-  description = "VPC configuration for App Runner service"
-  type = object({
-    subnets         = list(string)
-    security_groups = list(string)
-  })
-  default = null
-}
 
-variable "custom_domain_name" {
-  description = "Custom domain name for App Runner service"
-  type        = string
-  default     = ""
-}
-
-variable "enable_www_subdomain" {
-  description = "Whether to enable the www subdomain for the custom domain"
-  type        = bool
-  default     = true
-}
 
 variable "log_retention_days" {
   description = "Number of days to retain App Runner logs"
   type        = number
   default     = 14
-}
-
-variable "api_gateway_access" {
-  description = "Whether to grant access to API Gateway"
-  type        = bool
-  default     = false
 }
 
 variable "api_gateway_arn" {
@@ -169,10 +156,40 @@ variable "api_gateway_arn" {
   default     = ""
 }
 
+variable "enable_api_gateway_access" {
+  description = "Whether to enable API Gateway access for the Streamlit app"
+  type        = bool
+  default     = false
+}
+
 variable "s3_bucket_arns" {
-  description = "List of S3 bucket ARNs to grant read access to"
+  description = "List of S3 bucket ARNs to grant access to"
   type        = list(string)
   default     = []
+}
+
+variable "enable_s3_access" {
+  description = "Whether to enable S3 access for the Streamlit app"
+  type        = bool
+  default     = false
+}
+
+variable "dynamodb_table_arns" {
+  description = "List of DynamoDB table ARNs to grant access to"
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_dynamodb_access" {
+  description = "Whether to enable DynamoDB access for the Streamlit app"
+  type        = bool
+  default     = false
+}
+
+variable "enable_ecr_full_access" {
+  description = "Whether to enable full ECR access for the App Runner instance role"
+  type        = bool
+  default     = true
 }
 
 variable "common_tags" {

@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-02 15:35:12
+**Date:** 2025-05-02 20:56:32
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -172,11 +172,14 @@ EOF
 }
 
 # Lambda Configuration
+# Deployment process:
+# 1. First deployment: Keep use_ecr = false to use the default_image_uri for all Lambda functions
+# 2. After ECR repositories are created and images are pushed, set use_ecr = true to use the ECR images
 lambda_functions = {
   create_functions  = true
-  use_ecr           = true # Set to true to create and use ECR repositories
+  use_ecr           = false # Set to false for initial deployment, then change to true after ECR repos are created and images are pushed
   image_tag         = "latest"
-  default_image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest" # Fallback image if ECR image not available
+  default_image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest" # Fallback image for all Lambda functions
   architectures     = ["arm64"]
   memory_sizes = {
     initialize                    = 1024
@@ -216,6 +219,7 @@ lambda_functions = {
 }
 
 # API Gateway Configuration
+# API Gateway Configuration
 api_gateway = {
   create_api_gateway     = true
   stage_name             = "v1"
@@ -223,6 +227,7 @@ api_gateway = {
   throttling_burst_limit = 400
   cors_enabled           = true
   metrics_enabled        = true
+  use_api_key            = false # Add this line
 }
 
 # Step Functions Configuration
@@ -232,15 +237,29 @@ step_functions = {
 }
 
 # App Runner Configuration
-app_runner = {
-  create_app_runner = true
-  image_uri         = "public.ecr.aws/nginx/nginx:latest" # Placeholder image for first deployment
-  cpu               = 2
-  memory            = 4096
-  environment_variables = {
-    NODE_ENV = "production"
-  }
+# Streamlit Frontend Configuration
+streamlit_frontend = {
+  create_streamlit         = true
+  service_name             = "vm-fe"
+  image_uri                = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
+  image_repository_type    = "ECR"
+  cpu                      = "1 vCPU"
+  memory                   = "2 GB"
+  port                     = 8501
   auto_deployments_enabled = false
+  enable_auto_scaling      = true
+  min_size                 = 1
+  max_size                 = 3
+  theme_mode               = "dark"
+  log_retention_days       = 30
+  environment_variables = {
+    STREAMLIT_THEME_PRIMARY_COLOR              = "#FF4B4B"
+    STREAMLIT_THEME_BACKGROUND_COLOR           = "#0E1117"
+    STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR = "#262730"
+    STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
+    STREAMLIT_THEME_FONT                       = "sans serif"
+    API_BASE_URL                               = "" # Will be populated from API Gateway endpoint
+  }
 }
 
 # Bedrock Configuration

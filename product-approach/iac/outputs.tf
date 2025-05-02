@@ -80,20 +80,28 @@ output "api_gateway_id" {
   value       = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
 }
 
-# App Runner outputs
-output "app_runner_service_url" {
-  description = "URL of created App Runner service"
-  value       = var.app_runner.create_app_runner ? module.app_runner[0].service_url : ""
-}
 
-output "app_runner_service_arn" {
-  description = "ARN of created App Runner service"
-  value       = var.app_runner.create_app_runner ? module.app_runner[0].service_arn : ""
-}
 # product-approach/iac/outputs.tf (append)
 
 output "api_gateway_api_key" {
   description = "API key for the API Gateway"
   value       = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.api_gateway[0].api_key_value : null
   sensitive   = true
+}
+# Streamlit Frontend outputs
+output "streamlit_frontend_url" {
+  description = "URL of created Streamlit frontend service"
+  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_url : ""
+}
+
+output "streamlit_frontend_service_arn" {
+  description = "ARN of created Streamlit frontend service"
+  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_arn : ""
+}
+
+
+
+output "streamlit_frontend_log_group" {
+  description = "CloudWatch log group for Streamlit frontend"
+  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].log_group_name : ""
 }

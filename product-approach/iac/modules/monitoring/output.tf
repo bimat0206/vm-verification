@@ -24,11 +24,11 @@ output "dynamodb_alarms" {
 }
 
 output "log_groups" {
-  description = "Map of resource types to their CloudWatch log group names"
+  description = "Map of resource types to their CloudWatch log group names (now managed by respective service modules)"
   value = {
-    lambda        = { for name, function_name in var.lambda_function_names : name => aws_cloudwatch_log_group.lambda_log_groups[name].name }
-    step_function = var.step_function_name != "" ? { "${var.step_function_name}" = aws_cloudwatch_log_group.step_functions_log_group[0].name } : {}
-    api_gateway   = var.api_gateway_name != "" ? { "${var.api_gateway_name}" = aws_cloudwatch_log_group.api_gateway_log_group[0].name } : {}
-    app_runner    = var.app_runner_service_name != "" ? { "${var.app_runner_service_name}" = aws_cloudwatch_log_group.app_runner_log_group[0].name } : {}
+    lambda        = { for name, function_name in var.lambda_function_names : name => "/aws/lambda/${function_name}" }
+    step_function = var.step_function_name != "" ? { "${var.step_function_name}" = "/aws/states/${var.step_function_name}" } : {}
+    api_gateway   = var.api_gateway_name != "" ? { "${var.api_gateway_name}" = "/aws/apigateway/${var.api_gateway_name}" } : {}
+    app_runner    = var.app_runner_service_name != "" ? { "${var.app_runner_service_name}" = "/aws/apprunner/${var.app_runner_service_name}" } : {}
   }
 }

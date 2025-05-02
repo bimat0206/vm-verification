@@ -136,25 +136,7 @@ variable "api_gateway" {
   }
 }
 
-variable "app_runner" {
-  description = "Configuration for App Runner service"
-  type = object({
-    create_app_runner       = bool
-    image_uri               = string
-    cpu                     = string
-    memory                  = string
-    auto_deployments_enabled = bool
-    environment_variables   = map(string)
-  })
-  default = {
-    create_app_runner       = false
-    image_uri               = ""
-    cpu                     = "1 vCPU"
-    memory                  = "2 GB"
-    auto_deployments_enabled = true
-    environment_variables   = {}
-  }
-}
+
 
 variable "monitoring" {
   description = "Configuration for monitoring resources"
@@ -183,4 +165,39 @@ variable "cors_allowed_origins" {
   description = "List of allowed origins for CORS"
   type        = list(string)
   default     = ["*"]
+}
+variable "streamlit_frontend" {
+  description = "Configuration for Streamlit frontend application"
+  type = object({
+    create_streamlit       = bool
+    service_name           = string
+    image_uri              = string
+    image_repository_type  = string
+    cpu                    = string
+    memory                 = string
+    port                   = number
+    auto_deployments_enabled = bool
+    enable_auto_scaling    = bool
+    min_size               = number
+    max_size               = number
+    theme_mode             = string
+    log_retention_days     = number
+    environment_variables  = map(string)
+  })
+  default = {
+    create_streamlit       = false
+    service_name           = "streamlit-frontend"
+    image_uri              = ""
+    image_repository_type  = "ECR_PUBLIC"
+    cpu                    = "1 vCPU"
+    memory                 = "2 GB"
+    port                   = 8501
+    auto_deployments_enabled = true
+    enable_auto_scaling    = false
+    min_size               = 1
+    max_size               = 3
+    theme_mode             = "dark"
+    log_retention_days     = 14
+    environment_variables  = {}
+  }
 }
