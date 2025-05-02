@@ -90,3 +90,10 @@ output "app_runner_service_arn" {
   description = "ARN of created App Runner service"
   value       = var.app_runner.create_app_runner ? module.app_runner[0].service_arn : ""
 }
+# product-approach/iac/outputs.tf (append)
+
+output "api_gateway_api_key" {
+  description = "API key for the API Gateway"
+  value       = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.api_gateway[0].api_key_value : null
+  sensitive   = true
+}

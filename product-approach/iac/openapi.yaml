@@ -1,0 +1,427 @@
+# product-approach/iac/openapi.yaml
+openapi: 3.0.0
+info:
+  title: "Kootoro GenAI Vending Machine Verification API"
+  description: "API for the Kootoro vending machine product verification solution using Amazon Bedrock's multimodal capabilities to verify product placement."
+  version: "1.0.0"
+  contact:
+    name: "Kootoro Support"
+    email: "support@kootoro.ai"
+# Global CORS configuration 
+x-amazon-apigateway-cors:
+  allowOrigins:
+    - ${cors_allowed_origins}
+  allowCredentials: true
+  allowMethods:
+    - "DELETE"
+    - "GET"
+    - "HEAD"
+    - "OPTIONS"
+    - "PATCH"
+    - "POST"
+    - "PUT"
+  allowHeaders:
+    - "Content-Type"
+    - "X-Amz-Date"
+    - "Authorization"
+    - "X-Api-Key"
+    - "X-Amz-Security-Token"
+    - "X-Amz-User-Agent"
+  exposeHeaders:
+    - "ETag"
+  maxAge: 7200
+paths:
+  /api/v1/verifications/lookup:
+    get:
+      summary: "Lookup previous verification by checking image"
+      description: "Retrieves historical verification results based on a checking image key."
+      operationId: "lookupVerification"
+      parameters:
+        - name: "checkingImageUrl"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+        - name: "vendingMachineId"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            default: 1
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            default: "verificationAt:desc"
+      x-amazon-apigateway-integration:
+        uri: "${verification_lookup_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Successful lookup"
+        '400':
+          description: "Missing or invalid checkingImageUrl"
+        '404':
+          description: "No verification found for the provided checkingImageUrl"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for verifications lookup"
+      description: "Enable CORS by returning correct headers"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/verifications:
+    post:
+      summary: "Initiate a new verification"
+      description: "Initiates a new verification process."
+      operationId: "initiateVerification"
+      x-amazon-apigateway-integration:
+        uri: "${verification_initiate_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '202':
+          description: "Verification initiated successfully"
+        '400':
+          description: "Missing required parameters or invalid input"
+        '404':
+          description: "Specified image or layout not found"
+        '409':
+          description: "Verification already in progress for these inputs"
+      security:
+        - api_key: []
+    get:
+      summary: "List verification results"
+      description: "Lists verification results with filtering options"
+      operationId: "listVerifications"
+      parameters:
+        - name: "vendingMachineId"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+        - name: "verificationStatus"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            enum: ["CORRECT", "INCORRECT"]
+        - name: "fromDate"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date-time"
+        - name: "toDate"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date-time"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            default: 20
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            default: 0
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            default: "verificationAt:desc"
+      x-amazon-apigateway-integration:
+        uri: "${verification_list_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Successful retrieval"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for verifications"
+      description: "Enable CORS by returning correct headers"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/verifications/{id}:
+    get:
+      summary: "Get verification details"
+      description: "Retrieves details for a specific verification"
+      operationId: "getVerification"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        uri: "${verification_get_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Verification completed"
+        '202':
+          description: "Verification still processing"
+        '404':
+          description: "Verification not found"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for verification by ID"
+      description: "Enable CORS by returning correct headers"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/verifications/{id}/conversation:
+    get:
+      summary: "Get verification conversation history"
+      description: "Retrieves the conversation history for a verification"
+      operationId: "getVerificationConversation"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        uri: "${verification_conversation_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Successful retrieval"
+        '404':
+          description: "Verification not found"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for verification conversation"
+      description: "Enable CORS by returning correct headers"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/health:
+    get:
+      summary: "System health check"
+      description: "Monitor system health and status"
+      operationId: "getHealthStatus"
+      x-amazon-apigateway-integration:
+        uri: "${health_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "System is healthy"
+        '500':
+          description: "System is unhealthy"
+    options:
+      summary: "CORS support for health check"
+      description: "Enable CORS by returning correct headers"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/images/{key}/view:
+    get:
+      summary: "Get pre-signed URL for image"
+      description: "Generates a pre-signed URL for temporary direct access to an S3 image."
+      operationId: "getImagePresignedUrl"
+      parameters:
+        - name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        uri: "${image_view_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Successful operation"
+        '400':
+          description: "Invalid key"
+        '404':
+          description: "Image not found"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for image view"
+      description: "Enable CORS by returning correct headers"
+      parameters:
+        - name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+  /api/v1/images/browser/{path+}:
+    get:
+      summary: "Browse images in S3 bucket"
+      description: "Implements a virtual file browser for navigating S3 bucket contents."
+      operationId: "browseImages"
+      parameters:
+        - name: "path"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "bucketType"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            enum: ["reference", "checking"]
+      x-amazon-apigateway-integration:
+        uri: "${image_browser_lambda_arn}"
+        payloadFormatVersion: "2.0"
+        type: "aws_proxy"
+        httpMethod: "POST"
+      responses:
+        '200':
+          description: "Successful operation"
+        '400':
+          description: "Invalid parameters"
+      security:
+        - api_key: []
+    options:
+      summary: "CORS support for image browser"
+      description: "Enable CORS by returning correct headers"
+      parameters:
+        - name: "path"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        requestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        passthroughBehavior: "when_no_match"
+        responses:
+          default:
+            statusCode: "200"
+      responses:
+        "200":
+          description: "200 response"
+
+components:
+  securitySchemes:
+    api_key:
+      type: "apiKey"
+      name: "x-api-key"
+      in: "header"
+x-amazon-apigateway-binary-media-types:
+  - "image/png"
+  - "image/jpeg"
+  - "application/pdf"
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true
+x-amazon-apigateway-gateway-responses:
+  DEFAULT_4XX:
+    responseTemplates:
+      application/json: '{"error":{"code":"$context.error.responseType","message":"$context.error.message"}}'
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin: "'${cors_allowed_origins}'"
+      gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+      gatewayresponse.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+  DEFAULT_5XX:
+    responseTemplates:
+      application/json: '{"error":{"code":"$context.error.responseType","message":"Internal Server Error"}}'
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin: "'${cors_allowed_origins}'"
+      gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+      gatewayresponse.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"

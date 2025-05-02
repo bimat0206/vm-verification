@@ -1,3 +1,5 @@
+# product-approach/iac/modules/api_gateway/variable.tf
+
 variable "api_name" {
   description = "Name of the API Gateway"
   type        = string
@@ -77,6 +79,12 @@ variable "api_quota_period" {
   description = "Quota period for API Gateway usage plan (DAY, WEEK, or MONTH)"
   type        = string
   default     = "DAY"
+}
+
+variable "openapi_definition" {
+  description = "Path to the OpenAPI definition file"
+  type        = string
+  default     = "openapi.yaml"
 }
 
 variable "common_tags" {

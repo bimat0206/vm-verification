@@ -135,28 +135,30 @@ module "step_functions" {
 }
 
 # API Gateway
+# product-approach/iac/main.tf (partial update)
+
+# API Gateway
 module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
 
   api_name = local.api_gateway_name
-
   api_description = "Kootoro Vending Machine Verification API"
-
   stage_name = var.api_gateway.stage_name
-
   throttling_rate_limit  = var.api_gateway.throttling_rate_limit
   throttling_burst_limit = var.api_gateway.throttling_burst_limit
-
   cors_enabled    = var.api_gateway.cors_enabled
   metrics_enabled = var.api_gateway.metrics_enabled
-
+  use_api_key = var.api_gateway.use_api_key
+  openapi_definition = "${path.module}/openapi.yaml"
+    # Add CORS allowed origins to the template vars
+  cors_allowed_origins                = jsonencode(var.cors_allowed_origins)
   lambda_function_arns = {
-    initialize = module.lambda_functions[0].function_arns["initialize"]
+    for k, v in module.lambda_functions[0].function_arns : k => v
   }
 
   lambda_function_names = {
-    initialize = module.lambda_functions[0].function_names["initialize"]
+    for k, v in module.lambda_functions[0].function_names : k => v
   }
 
   common_tags = local.common_tags
