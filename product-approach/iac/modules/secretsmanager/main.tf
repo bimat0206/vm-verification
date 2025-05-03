@@ -1,13 +1,20 @@
-# modules/secretsmanager/main.tf
+# Create a consistent naming convention with random suffix
+locals {
+  # Standard naming convention for resources
+  name_prefix = var.environment != "" ? "${var.project_name}-${var.environment}" : var.project_name
+  
+  # Format the secret name using the same pattern as other resources
+  secret_name = lower(join("-", compact([local.name_prefix, "secret", var.secret_base_name, var.name_suffix])))
+}
 
 resource "aws_secretsmanager_secret" "secret" {
-  name        = var.secret_name
+  name        = local.secret_name
   description = var.secret_description
 
   tags = merge(
     var.common_tags,
     {
-      Name = var.secret_name
+      Name = local.secret_name
     }
   )
 }

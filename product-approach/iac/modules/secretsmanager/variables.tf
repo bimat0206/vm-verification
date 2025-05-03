@@ -1,7 +1,22 @@
-# modules/secretsmanager/variables.tf
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+}
 
-variable "secret_name" {
-  description = "Name of the Secrets Manager secret"
+variable "environment" {
+  description = "Environment (e.g., dev, staging, prod)"
+  type        = string
+  default     = ""
+}
+
+variable "name_suffix" {
+  description = "Suffix to add to resource names"
+  type        = string
+  default     = ""
+}
+
+variable "secret_base_name" {
+  description = "Base name for the secret (without prefix/suffix)"
   type        = string
 }
 

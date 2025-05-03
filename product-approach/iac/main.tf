@@ -174,11 +174,15 @@ module "api_gateway" {
 }
 
 # Secrets Manager for API Key
+# Secrets Manager for API Key
 module "secretsmanager" {
   source = "./modules/secretsmanager"
   count  = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? 1 : 0
 
-  secret_name        = "kootoro/api-key"
+  project_name      = var.project_name
+  environment       = var.environment
+  name_suffix       = local.name_suffix
+  secret_base_name  = "api-key"  # Replace "kootoro/api-key" with just "api-key"
   secret_description = "API key for Kootoro Vending Machine Verification API"
   secret_value       = module.api_gateway[0].api_key_value
 
@@ -271,6 +275,7 @@ module "streamlit_frontend" {
       DYNAMODB_TABLE     = local.dynamodb_tables.verification_results
       S3_BUCKET          = local.s3_buckets.reference
       AWS_DEFAULT_REGION = var.aws_region
+      API_KEY_SECRET_NAME = module.secretsmanager[0].secret_name  # Use the output instead of hardcoded value
     }
   )
 

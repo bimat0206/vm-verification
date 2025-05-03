@@ -258,7 +258,6 @@ streamlit_frontend = {
     STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
     STREAMLIT_THEME_FONT                       = "sans serif"
     API_ENDPOINT                               = ""                # Will be populated from API Gateway endpoint
-    API_KEY_SECRET_NAME                        = "kootoro/api-key" # Added for Secrets Manager
   }
 }
 
