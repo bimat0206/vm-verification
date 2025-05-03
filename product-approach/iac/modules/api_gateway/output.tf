@@ -1,65 +1,32 @@
+# modules/api_gateway/outputs.tf
+
 output "api_id" {
   description = "ID of the API Gateway"
-  value       = aws_api_gateway_rest_api.this.id
+  value       = aws_api_gateway_rest_api.api.id
 }
 
 output "api_name" {
   description = "Name of the API Gateway"
-  value       = aws_api_gateway_rest_api.this.name
-}
-
-output "api_arn" {
-  description = "ARN of the API Gateway"
-  value       = aws_api_gateway_rest_api.this.arn
+  value       = aws_api_gateway_rest_api.api.name
 }
 
 output "api_endpoint" {
   description = "Endpoint URL of the API Gateway"
-  value       = aws_api_gateway_rest_api.this.execution_arn
+  value       = "https://${aws_api_gateway_rest_api.api.id}.execute-api.${var.region}.amazonaws.com/${var.stage_name}"
 }
 
-output "stage_id" {
-  description = "ID of the API Gateway stage"
-  value       = aws_api_gateway_stage.this.id
-}
-
-output "stage_name" {
-  description = "Name of the API Gateway stage"
-  value       = aws_api_gateway_stage.this.stage_name
-}
-
-output "stage_arn" {
-  description = "ARN of the API Gateway stage"
-  value       = aws_api_gateway_stage.this.arn
-}
-
-output "api_key_id" {
-  description = "ID of the API key (if used)"
-  value       = var.use_api_key ? aws_api_gateway_api_key.this[0].id : null
-}
-
-output "api_key_value" {
-  description = "Value of the API key (if used)"
-  value       = var.use_api_key ? aws_api_gateway_api_key.this[0].value : null
-  sensitive   = true
+output "api_arn" {
+  description = "ARN of the API Gateway"
+  value       = aws_api_gateway_rest_api.api.arn
 }
 
 output "invoke_url" {
-  description = "Base URL for invoking the API"
-  value       = "${aws_api_gateway_stage.this.invoke_url}/api"
+  description = "Invoke URL of the API Gateway stage"
+  value       = "https://${aws_api_gateway_rest_api.api.id}.execute-api.${var.region}.amazonaws.com/${var.stage_name}"
 }
 
-output "execution_arn" {
-  description = "Execution ARN of the API Gateway"
-  value       = aws_api_gateway_rest_api.this.execution_arn
-}
-
-output "log_group_name" {
-  description = "Name of the CloudWatch log group for API Gateway"
-  value       = aws_cloudwatch_log_group.api_gateway.name
-}
-
-output "log_group_arn" {
-  description = "ARN of the CloudWatch log group for API Gateway"
-  value       = aws_cloudwatch_log_group.api_gateway.arn
+output "api_key_value" {
+  description = "Value of the API key"
+  value       = var.use_api_key ? aws_api_gateway_api_key.api_key[0].value : null
+  sensitive   = true
 }

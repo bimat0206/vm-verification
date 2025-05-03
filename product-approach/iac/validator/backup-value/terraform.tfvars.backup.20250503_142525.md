@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-02 17:01:56
+**Date:** 2025-05-03 14:25:25
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -55,7 +55,7 @@ s3_buckets = {
 # DynamoDB Configuration
 dynamodb_tables = {
   create_tables          = true
-  billing_mode           = "PROVISIONED"
+  billing_mode           = "PAY_PER_REQUEST"  # Changed to PAY_PER_REQUEST for scalability
   read_capacity          = 10
   write_capacity         = 10
   point_in_time_recovery = true
@@ -172,11 +172,8 @@ EOF
 }
 
 # Lambda Configuration
-# Deployment process:
-# 1. First deployment: Keep use_ecr = false to use the default_image_uri for all Lambda functions
-# 2. After ECR repositories are created and images are pushed, set use_ecr = true to use the ECR images
 lambda_functions = {
-  create_functions  = true
+  create_functions3  = true
   use_ecr           = false # Set to false for initial deployment, then change to true after ECR repos are created and images are pushed
   image_tag         = "latest"
   default_image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest" # Fallback image for all Lambda functions
@@ -219,7 +216,6 @@ lambda_functions = {
 }
 
 # API Gateway Configuration
-# API Gateway Configuration
 api_gateway = {
   create_api_gateway     = true
   stage_name             = "v1"
@@ -227,7 +223,7 @@ api_gateway = {
   throttling_burst_limit = 400
   cors_enabled           = true
   metrics_enabled        = true
-  use_api_key            = false # Add this line
+  use_api_key            = true  # Enable API key authentication
 }
 
 # Step Functions Configuration
@@ -237,12 +233,11 @@ step_functions = {
 }
 
 # App Runner Configuration
-# Streamlit Frontend Configuration
 streamlit_frontend = {
   create_streamlit         = true
   service_name             = "vm-fe"
   image_uri                = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
-  image_repository_type    = "ECR_PUBLIC"
+  image_repository_type    = "ECR"
   cpu                      = "1 vCPU"
   memory                   = "2 GB"
   port                     = 8501
@@ -252,13 +247,16 @@ streamlit_frontend = {
   max_size                 = 3
   theme_mode               = "dark"
   log_retention_days       = 30
+  health_check_path        = "/_stcore/health"  # Fixed to match Streamlit
+  health_check_healthy_threshold = 2  # Increased for reliability
   environment_variables = {
     STREAMLIT_THEME_PRIMARY_COLOR              = "#FF4B4B"
     STREAMLIT_THEME_BACKGROUND_COLOR           = "#0E1117"
     STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR = "#262730"
     STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
     STREAMLIT_THEME_FONT                       = "sans serif"
-    API_BASE_URL                               = "" # Will be populated from API Gateway endpoint
+    API_ENDPOINT                               = "" # Will be populated from API Gateway endpoint
+    API_KEY_SECRET_NAME                        = "kootoro/api-key"  # Added for Secrets Manager
   }
 }
 
@@ -275,5 +273,4 @@ monitoring = {
   create_dashboard      = true
   log_retention_days    = 90
   alarm_email_endpoints = ["ops-alerts@example.com", "on-call@example.com"]
-}
-```
+}```

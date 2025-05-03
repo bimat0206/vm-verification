@@ -37,7 +37,7 @@ module "dynamodb_tables" {
 # ECR Repositories
 module "ecr_repositories" {
   source = "./modules/ecr"
-  count  = var.ecr.create_repositories ? 1 : 0 # Create ECR repositories regardless of Lambda configuration
+  count  = var.ecr.create_repositories ? 1 : 0
 
   repositories = local.ecr_repositories
 
@@ -84,7 +84,6 @@ module "lambda_functions" {
   execution_role_arn = module.lambda_iam[0].lambda_execution_role_arn
 
   use_ecr_repository = var.lambda_functions.use_ecr
-  # Use the actual ECR repository URLs from the ECR module output
   ecr_repository_url = var.lambda_functions.use_ecr && var.ecr.create_repositories ? local.ecr_repository_base_url : ""
   image_uri          = var.lambda_functions.default_image_uri
   default_image_uri  = var.lambda_functions.default_image_uri
@@ -100,7 +99,7 @@ module "lambda_functions" {
   } : null
 
   eventbridge_trigger_functions = var.lambda_functions.eventbridge_trigger_functions
-  eventbridge_source_arns       = null # To be populated if EventBridge rules are created
+  eventbridge_source_arns       = null
 
   common_tags = local.common_tags
 }
@@ -111,7 +110,6 @@ module "step_functions" {
   count  = var.step_functions.create_step_functions && var.lambda_functions.create_functions ? 1 : 0
 
   state_machine_name = local.step_function_name
-
 
   log_level = var.step_functions.log_level
 
@@ -135,10 +133,6 @@ module "step_functions" {
 }
 
 # API Gateway
-# product-approach/iac/main.tf (partial update)
-
-# API Gateway
-# API Gateway
 module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
@@ -152,8 +146,7 @@ module "api_gateway" {
   metrics_enabled        = var.api_gateway.metrics_enabled
   use_api_key            = var.api_gateway.use_api_key
   openapi_definition     = "${path.module}/openapi.yaml"
-  # Pass the list directly without jsonencode
-  cors_allowed_origins = var.cors_allowed_origins
+  streamlit_service_url  = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_url : ""
   lambda_function_arns = {
     for k, v in module.lambda_functions[0].function_arns : k => v
   }
@@ -167,7 +160,17 @@ module "api_gateway" {
   common_tags = local.common_tags
 }
 
-# App Runner service for frontend
+# Secrets Manager for API Key
+module "secretsmanager" {
+  source = "./modules/secretsmanager"
+  count  = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? 1 : 0
+
+  secret_name        = "kootoro/api-key"
+  secret_description = "API key for Kootoro Vending Machine Verification API"
+  secret_value       = module.api_gateway[0].api_key_value
+
+  common_tags = local.common_tags
+}
 
 # CloudWatch Monitoring Resources
 module "monitoring" {
@@ -194,12 +197,11 @@ module "monitoring" {
 
   ecr_repository_names = var.ecr.create_repositories && var.lambda_functions.use_ecr ? module.ecr_repositories[0].repository_names : {}
 
-
-
   alarm_email_endpoints = var.monitoring.alarm_email_endpoints
 
   common_tags = local.common_tags
 }
+
 # Streamlit Frontend Service
 module "streamlit_frontend" {
   source = "./modules/streamlit-frontend"
@@ -216,6 +218,12 @@ module "streamlit_frontend" {
   port                     = var.streamlit_frontend.port
   auto_deployments_enabled = var.streamlit_frontend.auto_deployments_enabled
 
+  health_check_path                = var.streamlit_frontend.health_check_path
+  health_check_interval            = 15
+  health_check_timeout             = 5
+  health_check_healthy_threshold   = var.streamlit_frontend.health_check_healthy_threshold
+  health_check_unhealthy_threshold = 5
+
   enable_auto_scaling = var.streamlit_frontend.enable_auto_scaling
   min_size            = var.streamlit_frontend.min_size
   max_size            = var.streamlit_frontend.max_size
@@ -223,33 +231,63 @@ module "streamlit_frontend" {
   theme_mode         = var.streamlit_frontend.theme_mode
   log_retention_days = var.streamlit_frontend.log_retention_days
 
-  # If API Gateway is created, provide access to it
+  # Access permissions
+  enable_api_gateway_access = true
+  enable_s3_access          = true
+  enable_dynamodb_access    = true
+
   api_gateway_arn = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_arn : ""
 
-  # Provide access to S3 buckets if created
   s3_bucket_arns = var.s3_buckets.create_buckets ? [
     module.s3_buckets[0].reference_bucket_arn,
     module.s3_buckets[0].checking_bucket_arn,
     module.s3_buckets[0].results_bucket_arn
   ] : []
 
-  # Provide access to DynamoDB tables if created
   dynamodb_table_arns = var.dynamodb_tables.create_tables ? [
     module.dynamodb_tables[0].verification_results_table_arn,
     module.dynamodb_tables[0].layout_metadata_table_arn,
     module.dynamodb_tables[0].conversation_history_table_arn
   ] : []
 
-  # Merge in API endpoint to environment variables if API Gateway is created
+
   environment_variables = merge(
     var.streamlit_frontend.environment_variables,
-    var.api_gateway.create_api_gateway ? {
-      API_BASE_URL = module.api_gateway[0].invoke_url
-    } : {}
+    {
+      REGION             = var.aws_region
+      DYNAMODB_TABLE     = local.dynamodb_tables.verification_results
+      S3_BUCKET          = local.s3_buckets.reference
+      AWS_DEFAULT_REGION = var.aws_region
+    }
   )
 
-  # Enable full ECR access for App Runner
-  enable_ecr_full_access = true
+  enable_ecr_full_access = false
 
   common_tags = local.common_tags
+}
+
+# This resource will update the Streamlit environment variables after both resources are created
+resource "null_resource" "update_streamlit_api_endpoint" {
+  count = var.api_gateway.create_api_gateway && var.streamlit_frontend.create_streamlit ? 1 : 0
+
+  # Only run this after both resources are created
+  depends_on = [
+    module.api_gateway,
+    module.streamlit_frontend
+  ]
+
+  # Use local-exec to update the Streamlit environment variables
+  provisioner "local-exec" {
+    command = <<EOT
+      # Use AWS CLI to update the Streamlit environment variables with the API Gateway URL
+      aws apprunner update-service \
+        --service-arn ${module.streamlit_frontend[0].service_arn} \
+        --source-configuration '{"ImageRepository": {"ImageConfiguration": {"RuntimeEnvironmentVariables": {"API_ENDPOINT": "${module.api_gateway[0].invoke_url}"}}}}'
+    EOT
+  }
+
+  # Add a trigger to run this whenever the API Gateway URL changes
+  triggers = {
+    api_gateway_url = var.api_gateway.create_api_gateway ? module.api_gateway[0].invoke_url : "none"
+  }
 }

@@ -53,17 +53,17 @@ variable "s3_buckets" {
 variable "dynamodb_tables" {
   description = "Configuration for DynamoDB tables"
   type = object({
-    create_tables         = bool
-    billing_mode          = string
-    read_capacity         = number
-    write_capacity        = number
+    create_tables          = bool
+    billing_mode           = string
+    read_capacity          = number
+    write_capacity         = number
     point_in_time_recovery = bool
   })
   default = {
-    create_tables         = true
-    billing_mode          = "PAY_PER_REQUEST"
-    read_capacity         = 5
-    write_capacity        = 5
+    create_tables          = true
+    billing_mode           = "PAY_PER_REQUEST"
+    read_capacity          = 5
+    write_capacity         = 5
     point_in_time_recovery = true
   }
 }
@@ -81,23 +81,23 @@ variable "ecr" {
 variable "lambda_functions" {
   description = "Configuration for Lambda functions"
   type = object({
-    create_functions        = bool
-    use_ecr                 = bool
-    default_image_uri       = string
-    image_tag               = string
-    architectures           = list(string)
-    log_retention_days      = number
-    s3_trigger_functions    = list(string)
+    create_functions              = bool
+    use_ecr                       = bool
+    default_image_uri             = string
+    image_tag                     = string
+    architectures                 = list(string)
+    log_retention_days            = number
+    s3_trigger_functions          = list(string)
     eventbridge_trigger_functions = list(string)
   })
   default = {
-    create_functions        = true
-    use_ecr                 = true
-    default_image_uri       = ""
-    image_tag               = "latest"
-    architectures           = ["x86_64"]
-    log_retention_days      = 7
-    s3_trigger_functions    = []
+    create_functions              = true
+    use_ecr                       = true
+    default_image_uri             = ""
+    image_tag                     = "latest"
+    architectures                 = ["x86_64"]
+    log_retention_days            = 7
+    s3_trigger_functions          = []
     eventbridge_trigger_functions = []
   }
 }
@@ -125,18 +125,7 @@ variable "api_gateway" {
     metrics_enabled        = bool
     use_api_key            = bool
   })
-  default = {
-    create_api_gateway     = true
-    stage_name             = "v1"
-    throttling_rate_limit  = 100
-    throttling_burst_limit = 50
-    cors_enabled           = true
-    metrics_enabled        = true
-    use_api_key            = false
-  }
 }
-
-
 
 variable "monitoring" {
   description = "Configuration for monitoring resources"
@@ -161,43 +150,43 @@ variable "bedrock" {
     model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
   }
 }
-variable "cors_allowed_origins" {
-  description = "List of allowed origins for CORS"
-  type        = list(string)
-  default     = ["*"]
-}
+
 variable "streamlit_frontend" {
   description = "Configuration for Streamlit frontend application"
   type = object({
-    create_streamlit       = bool
-    service_name           = string
-    image_uri              = string
-    image_repository_type  = string
-    cpu                    = string
-    memory                 = string
-    port                   = number
-    auto_deployments_enabled = bool
-    enable_auto_scaling    = bool
-    min_size               = number
-    max_size               = number
-    theme_mode             = string
-    log_retention_days     = number
-    environment_variables  = map(string)
+    create_streamlit               = bool
+    service_name                   = string
+    image_uri                      = string
+    image_repository_type          = string
+    cpu                            = string
+    memory                         = string
+    port                           = number
+    auto_deployments_enabled       = bool
+    enable_auto_scaling            = bool
+    min_size                       = number
+    max_size                       = number
+    theme_mode                     = string
+    log_retention_days             = number
+    health_check_path              = string
+    health_check_healthy_threshold = number
+    environment_variables          = map(string)
   })
   default = {
-    create_streamlit       = false
-    service_name           = "streamlit-frontend"
-    image_uri              = ""
-    image_repository_type  = "ECR_PUBLIC"
-    cpu                    = "1 vCPU"
-    memory                 = "2 GB"
-    port                   = 8501
-    auto_deployments_enabled = true
-    enable_auto_scaling    = false
-    min_size               = 1
-    max_size               = 3
-    theme_mode             = "dark"
-    log_retention_days     = 14
-    environment_variables  = {}
+    create_streamlit               = true
+    service_name                   = "streamlit-frontend"
+    image_uri                      = ""
+    image_repository_type          = "ECR_PUBLIC"
+    cpu                            = "1 vCPU"
+    memory                         = "2 GB"
+    port                           = 8501
+    auto_deployments_enabled       = true
+    enable_auto_scaling            = true
+    min_size                       = 1
+    max_size                       = 3
+    theme_mode                     = "dark"
+    log_retention_days             = 30
+    health_check_path              = "/_stcore/health"
+    health_check_healthy_threshold = 2
+    environment_variables          = {}
   }
 }

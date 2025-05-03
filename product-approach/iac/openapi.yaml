@@ -9,7 +9,10 @@ info:
     email: "support@kootoro.ai"
 # Global CORS configuration 
 x-amazon-apigateway-cors:
-  allowOrigins: ${cors_allowed_origins}
+  allowOrigins: 
+    %{ for origin in cors_allowed_origins ~}
+    - "${origin}"
+    %{ endfor ~}
   allowCredentials: true
   allowMethods:
     - "DELETE"
@@ -92,6 +95,26 @@ paths:
       summary: "Initiate a new verification"
       description: "Initiates a new verification process."
       operationId: "initiateVerification"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: ["vendingMachineId", "referenceImageUrl", "checkingImageUrl"]
+              properties:
+                vendingMachineId:
+                  type: string
+                  description: "Unique identifier for the vending machine"
+                referenceImageUrl:
+                  type: string
+                  description: "URL of the reference image showing the correct product placement"
+                checkingImageUrl:
+                  type: string
+                  description: "URL of the image to check against the reference"
+                metadata:
+                  type: object
+                  description: "Additional metadata for the verification"
       x-amazon-apigateway-integration:
         uri: "${verification_initiate_lambda_arn}"
         payloadFormatVersion: "2.0"
@@ -100,12 +123,39 @@ paths:
       responses:
         '202':
           description: "Verification initiated successfully"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verificationId:
+                    type: string
+                    description: "Unique identifier for the verification process"
+                  status:
+                    type: string
+                    enum: ["INITIATED"]
+                    description: "Current status of the verification"
+                  message:
+                    type: string
+                    description: "Success message"
         '400':
           description: "Missing required parameters or invalid input"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: "Specified image or layout not found"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '409':
           description: "Verification already in progress for these inputs"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
       security:
         - api_key: []
     get:
@@ -396,6 +446,22 @@ paths:
           description: "200 response"
 
 components:
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "Error code"
+        message:
+          type: string
+          description: "Error message"
+        details:
+          type: object
+          description: "Additional error details"
   securitySchemes:
     api_key:
       type: "apiKey"

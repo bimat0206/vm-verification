@@ -192,6 +192,8 @@ variable "enable_ecr_full_access" {
   default     = true
 }
 
+# Secrets Manager access is now handled automatically based on environment variables
+
 variable "common_tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
