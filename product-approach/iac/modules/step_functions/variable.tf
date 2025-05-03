@@ -31,8 +31,38 @@ variable "create_definition_file" {
   default     = false
 }
 
+variable "enable_x_ray_tracing" {
+  description = "Whether to enable X-Ray tracing for the state machine"
+  type        = bool
+  default     = true
+}
+
 variable "common_tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "create_api_gateway_integration" {
+  description = "Whether to create API Gateway integration for the state machine"
+  type        = bool
+  default     = false
+}
+
+variable "api_gateway_id" {
+  description = "ID of the API Gateway to integrate with"
+  type        = string
+  default     = ""
+}
+
+variable "api_gateway_root_resource_id" {
+  description = "ID of the API Gateway root resource"
+  type        = string
+  default     = ""
+}
+
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
 }

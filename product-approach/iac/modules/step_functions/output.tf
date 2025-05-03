@@ -42,3 +42,8 @@ output "cloudwatch_log_group_arn" {
   description = "ARN of the CloudWatch log group for Step Functions"
   value       = aws_cloudwatch_log_group.step_functions_logs.arn
 }
+
+output "api_gateway_integration_endpoint" {
+  description = "Endpoint URL for the API Gateway integration"
+  value       = var.create_api_gateway_integration ? "https://${var.api_gateway_id}.execute-api.${var.region}.amazonaws.com/executions" : ""
+}

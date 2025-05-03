@@ -1,116 +1,60 @@
-# IAM Role for Step Functions
-resource "aws_iam_role" "step_functions_role" {
-  name = "${var.state_machine_name}-role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "states.amazonaws.com"
-        }
-      }
-    ]
-  })
+# API Gateway integration with Step Functions
+resource "aws_api_gateway_integration" "step_functions_start" {
+  count               = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id         = var.api_gateway_id
+  resource_id         = aws_api_gateway_resource.step_functions[0].id
+  http_method         = aws_api_gateway_method.step_functions_start[0].http_method
+  type                = "AWS"
+  integration_http_method = "POST"
+  uri                 = "arn:aws:apigateway:${var.region}:states:action/StartExecution"
+  credentials         = aws_iam_role.api_gateway_step_functions_role[0].arn
   
-  # Don't add tags here as they're provided by default_tags in the provider
+  request_templates = {
+    "application/json" = <<EOF
+{
+  "input": "$util.escapeJavaScript($input.json('$'))",
+  "stateMachineArn": "${aws_sfn_state_machine.verification_workflow.arn}"
 }
-
-# IAM Policy for Step Functions to invoke Lambda functions
-resource "aws_iam_policy" "lambda_invoke_policy" {
-  name        = "${var.state_machine_name}-lambda-invoke-policy"
-  description = "Allows Step Functions to invoke Lambda functions"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = "lambda:InvokeFunction"
-        Effect   = "Allow"
-        Resource = values(var.lambda_function_arns)
-      }
-    ]
-  })
-}
-
-# IAM Policy for Step Functions logging
-resource "aws_iam_policy" "cloudwatch_logs_policy" {
-  name        = "${var.state_machine_name}-cloudwatch-logs-policy"
-  description = "Allows Step Functions to write logs to CloudWatch"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "logs:CreateLogDelivery",
-          "logs:GetLogDelivery",
-          "logs:UpdateLogDelivery",
-          "logs:DeleteLogDelivery",
-          "logs:ListLogDeliveries",
-          "logs:PutResourcePolicy",
-          "logs:DescribeResourcePolicies",
-          "logs:DescribeLogGroups"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# Attach policies to the Step Functions IAM role
-resource "aws_iam_role_policy_attachment" "lambda_invoke_attachment" {
-  role       = aws_iam_role.step_functions_role.name
-  policy_arn = aws_iam_policy.lambda_invoke_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "cloudwatch_logs_attachment" {
-  role       = aws_iam_role.step_functions_role.name
-  policy_arn = aws_iam_policy.cloudwatch_logs_policy.arn
-}
-
-# CloudWatch Log Group for Step Functions
-resource "aws_cloudwatch_log_group" "step_functions_logs" {
-  name              = "/aws/states/${var.state_machine_name}"
-  retention_in_days = var.log_retention_days
-  
-  # Don't add tags here as they're provided by default_tags in the provider
-}
-
-# Step Functions State Machine
-resource "aws_sfn_state_machine" "verification_workflow" {
-  name     = var.state_machine_name
-  role_arn = aws_iam_role.step_functions_role.arn
-
-  definition = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
-    function_arns = var.lambda_function_arns
-  })
-
-  logging_configuration {
-    log_destination        = "${aws_cloudwatch_log_group.step_functions_logs.arn}:*"
-    include_execution_data = true
-    level                  = var.log_level
+EOF
   }
-
-  type = "STANDARD"
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = var.state_machine_name
-    }
-  )
 }
 
-# Create the state machine definition template file
-resource "local_file" "state_machine_definition" {
-  count = var.create_definition_file ? 1 : 0
+# API Gateway integration response
+resource "aws_api_gateway_integration_response" "step_functions_start" {
+  count               = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id         = var.api_gateway_id
+  resource_id         = aws_api_gateway_resource.step_functions[0].id
+  http_method         = aws_api_gateway_method.step_functions_start[0].http_method
+  status_code         = "200"
   
-  content  = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
-    function_arns = var.lambda_function_arns
-  })
-  filename = "${path.module}/generated_definition.json"
+  response_templates = {
+    "application/json" = <<EOF
+{
+  "executionArn": "$input.path('$.executionArn')",
+  "startDate": "$input.path('$.startDate')"
+}
+EOF
+  }
+  
+  depends_on = [
+    aws_api_gateway_integration.step_functions_start
+  ]
+}
+
+# API Gateway method response
+resource "aws_api_gateway_method_response" "step_functions_start" {
+  count       = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id = var.api_gateway_id
+  resource_id = aws_api_gateway_resource.step_functions[0].id
+  http_method = aws_api_gateway_method.step_functions_start[0].http_method
+  status_code = "200"
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
 }

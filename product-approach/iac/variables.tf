@@ -107,10 +107,12 @@ variable "step_functions" {
   type = object({
     create_step_functions = bool
     log_level             = string
+    enable_x_ray_tracing  = bool
   })
   default = {
     create_step_functions = true
     log_level             = "ALL"
+    enable_x_ray_tracing  = true
   }
 }
 

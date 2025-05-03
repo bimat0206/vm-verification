@@ -5,12 +5,13 @@ resource "aws_api_gateway_rest_api" "api" {
   description = var.api_description
   body = templatefile(var.openapi_definition, {
     cors_allowed_origins                 = var.streamlit_service_url != "" ? [startswith(var.streamlit_service_url, "http") ? var.streamlit_service_url : "https://${var.streamlit_service_url}"] : ["*"]
+    # Updated mappings to use dedicated Lambda functions
     verification_lookup_lambda_arn       = var.lambda_function_arns["fetch_historical_verification"]
     verification_initiate_lambda_arn     = var.lambda_function_arns["initialize"]
-    verification_list_lambda_arn         = var.lambda_function_arns["fetch_historical_verification"]
-    verification_get_lambda_arn          = var.lambda_function_arns["fetch_historical_verification"]
-    verification_conversation_lambda_arn = var.lambda_function_arns["fetch_historical_verification"]
-    health_lambda_arn                    = var.lambda_function_arns["initialize"]
+    verification_list_lambda_arn         = var.lambda_function_arns["list_verifications"]
+    verification_get_lambda_arn          = var.lambda_function_arns["get_verification"]
+    verification_conversation_lambda_arn = var.lambda_function_arns["get_conversation"]
+    health_lambda_arn                    = var.lambda_function_arns["health_check"]
     image_view_lambda_arn                = var.lambda_function_arns["fetch_images"]
     image_browser_lambda_arn             = var.lambda_function_arns["fetch_images"]
   })
@@ -24,7 +25,15 @@ resource "aws_api_gateway_rest_api" "api" {
 
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.api.id
+  
+  # Add a trigger for redeployment when definition changes
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api.body))
+  }
 
+  lifecycle {
+    create_before_destroy = true
+  }
 
   depends_on = [
     aws_api_gateway_rest_api.api

@@ -174,17 +174,66 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     }
+    # Add new repositories for dedicated functions
+    list_verifications = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "list-verifications", local.name_suffix])))
+      image_tag_mutability = "IMMUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    get_verification = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-verification", local.name_suffix])))
+      image_tag_mutability = "IMMUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    get_conversation = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-conversation", local.name_suffix])))
+      image_tag_mutability = "IMMUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    health_check = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "health-check", local.name_suffix])))
+      image_tag_mutability = "IMMUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
   }
 
   # Lambda Functions Configuration
   lambda_functions = {
-    initialize = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "initialize", local.name_suffix]))),
-      description           = "Initialize verification workflow",
-      memory_size           = 256,
-      timeout               = 30,
-      environment_variables = {}
-    },
+# Update to locals.tf to add Step Functions ARN to initialize Lambda
+  initialize = {
+  name                  = lower(join("-", compact([local.name_prefix, "lambda", "initialize", local.name_suffix]))),
+  description           = "Initialize verification workflow and trigger Step Functions execution",
+  memory_size           = 512,
+  timeout               = 30,
+  environment_variables = {
+    STEP_FUNCTIONS_STATE_MACHINE_ARN = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.step_function_name}"
+    VERIFICATION_RESULTS_TABLE       = local.dynamodb_tables.verification_results
+    CONVERSATION_HISTORY_TABLE       = local.dynamodb_tables.conversation_history
+    REFERENCE_BUCKET                 = local.s3_buckets.reference
+    CHECKING_BUCKET                  = local.s3_buckets.checking
+    RESULTS_BUCKET                   = local.s3_buckets.results
+  }
+},
     fetch_historical_verification = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "fetch-historical", local.name_suffix]))),
       description           = "Fetch historical verification data",
@@ -268,7 +317,36 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {}
-    }
+    },
+        # Add new Lambda functions
+    list_verifications = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "list-verifications", local.name_suffix]))),
+      description           = "List verification results",
+      memory_size           = 256,
+      timeout               = 30,
+      environment_variables = {}
+    },
+    get_verification = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-verification", local.name_suffix]))),
+      description           = "Get verification details",
+      memory_size           = 256,
+      timeout               = 30,
+      environment_variables = {}
+    },
+    get_conversation = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
+      description           = "Get verification conversation history",
+      memory_size           = 256,
+      timeout               = 30,
+      environment_variables = {}
+    },
+    health_check = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "health-check", local.name_suffix]))),
+      description           = "System health check",
+      memory_size           = 256,
+      timeout               = 30,
+      environment_variables = {}
+    },
   }
 
   # Step function state machine name

@@ -105,13 +105,21 @@ module "lambda_functions" {
 }
 
 # Step Functions State Machine
+# Module update in main.tf to enable API Gateway integration
+
 module "step_functions" {
   source = "./modules/step_functions"
   count  = var.step_functions.create_step_functions && var.lambda_functions.create_functions ? 1 : 0
 
   state_machine_name = local.step_function_name
-
   log_level = var.step_functions.log_level
+  enable_x_ray_tracing = var.step_functions.enable_x_ray_tracing
+  
+  # Enable API Gateway integration
+  create_api_gateway_integration = var.api_gateway.create_api_gateway
+  api_gateway_id = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
+  api_gateway_root_resource_id = var.api_gateway.create_api_gateway ? module.api_gateway[0].root_resource_id : ""
+  region = var.aws_region
 
   lambda_function_arns = {
     initialize                    = module.lambda_functions[0].function_arns["initialize"]
@@ -127,6 +135,11 @@ module "step_functions" {
     notify                        = module.lambda_functions[0].function_arns["notify"]
     handle_bedrock_error          = module.lambda_functions[0].function_arns["handle_bedrock_error"]
     finalize_with_error           = module.lambda_functions[0].function_arns["finalize_with_error"]
+    list_verifications            = module.lambda_functions[0].function_arns["list_verifications"]
+    get_verification              = module.lambda_functions[0].function_arns["get_verification"]
+    get_conversation              = module.lambda_functions[0].function_arns["get_conversation"]
+    health_check                  = module.lambda_functions[0].function_arns["health_check"]
+
   }
 
   common_tags = local.common_tags
