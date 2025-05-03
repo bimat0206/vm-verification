@@ -30,3 +30,8 @@ output "api_key_value" {
   value       = var.use_api_key ? aws_api_gateway_api_key.api_key[0].value : null
   sensitive   = true
 }
+
+output "root_resource_id" {
+  description = "ID of the API Gateway root resource"
+  value       = aws_api_gateway_rest_api.api.root_resource_id
+}

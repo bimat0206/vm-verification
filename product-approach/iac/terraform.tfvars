@@ -62,32 +62,32 @@ ecr = {
     initialize = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     fetch_historical_verification = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     fetch_images = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     prepare_system_prompt = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     prepare_turn_prompt = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     invoke_bedrock = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
       lifecycle_policy     = <<EOF
 {
   "rules": [
@@ -123,42 +123,42 @@ EOF
     process_turn1_response = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     process_turn2_response = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     finalize_results = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     store_results = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     notify = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     handle_bedrock_error = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     finalize_with_error = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     render_layout = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     }
   }
 }

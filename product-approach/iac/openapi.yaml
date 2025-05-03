@@ -528,36 +528,6 @@ paths:
         "200":
           description: "200 response"
 
-  /api/v1/docs:
-    get:
-      summary: "API Documentation"
-      description: "View API documentation and endpoints"
-      operationId: "getApiDocs"
-      x-amazon-apigateway-integration:
-        uri: "${documentation_lambda_arn}"
-        payloadFormatVersion: "2.0"
-        type: "aws_proxy"
-        httpMethod: "POST"
-      responses:
-        '200':
-          description: "Successful operation"
-      security:
-        - api_key: []
-    options:
-      summary: "CORS support for documentation"
-      description: "Enable CORS by returning correct headers"
-      x-amazon-apigateway-integration:
-        type: "mock"
-        requestTemplates:
-          application/json: "{ \"statusCode\": 200 }"
-        passthroughBehavior: "when_no_match"
-        responses:
-          default:
-            statusCode: "200"
-      responses:
-        "200":
-          description: "200 response"
-
 components:
   schemas:
     Error:

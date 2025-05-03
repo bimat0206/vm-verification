@@ -36,7 +36,7 @@ locals {
     # Create repositories for each Lambda function
     initialize = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "initialize", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -46,7 +46,7 @@ locals {
     },
     fetch_historical_verification = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "fetch-historical-verification", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -56,7 +56,7 @@ locals {
     },
     fetch_images = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "fetch-images", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -66,7 +66,7 @@ locals {
     },
     prepare_system_prompt = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-system-prompt", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -76,7 +76,7 @@ locals {
     },
     prepare_turn_prompt = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn-prompt", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -86,7 +86,7 @@ locals {
     },
     invoke_bedrock = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "invoke-bedrock", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -96,7 +96,7 @@ locals {
     },
     process_turn1_response = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "process-turn1-response", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -106,7 +106,7 @@ locals {
     },
     process_turn2_response = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "process-turn2-response", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -116,7 +116,7 @@ locals {
     },
     finalize_results = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "finalize-results", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -126,7 +126,7 @@ locals {
     },
     store_results = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "store-results", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -136,7 +136,7 @@ locals {
     },
     notify = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "notify", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -146,7 +146,7 @@ locals {
     },
     handle_bedrock_error = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "handle-bedrock-error", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -156,7 +156,7 @@ locals {
     },
     finalize_with_error = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "finalize-with-error", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -166,7 +166,7 @@ locals {
     },
     render_layout = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "render-layout", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -177,7 +177,7 @@ locals {
     # Add new repositories for dedicated functions
     list_verifications = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "list-verifications", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -187,7 +187,7 @@ locals {
     },
     get_verification = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-verification", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -197,7 +197,7 @@ locals {
     },
     get_conversation = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-conversation", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"
@@ -207,7 +207,7 @@ locals {
     },
     health_check = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "health-check", local.name_suffix])))
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
       encryption_type      = "AES256"

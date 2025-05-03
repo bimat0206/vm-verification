@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-03 14:29:43
+**Date:** 2025-05-03 16:02:02
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -70,32 +70,32 @@ ecr = {
     initialize = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     fetch_historical_verification = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     fetch_images = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     prepare_system_prompt = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     prepare_turn_prompt = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     invoke_bedrock = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
       lifecycle_policy     = <<EOF
 {
   "rules": [
@@ -131,42 +131,42 @@ EOF
     process_turn1_response = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     process_turn2_response = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     finalize_results = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     store_results = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     notify = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     handle_bedrock_error = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     finalize_with_error = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     },
     render_layout = {
       force_delete         = false
       scan_on_push         = true
-      image_tag_mutability = "IMMUTABLE"
+      image_tag_mutability = "mutable"
     }
   }
 }
@@ -193,6 +193,10 @@ lambda_functions = {
     handle_bedrock_error          = 512
     finalize_with_error           = 512
     render_layout                 = 2048
+    list_verifications = 1024
+    get_verification   = 1024
+    get_conversation   = 1024
+    health_check       = 512
   }
   timeouts = {
     initialize                    = 30
@@ -209,6 +213,10 @@ lambda_functions = {
     handle_bedrock_error          = 60
     finalize_with_error           = 60
     render_layout                 = 120
+    list_verifications = 30
+    get_verification   = 30
+    get_conversation   = 30
+    health_check       = 30
   }
   log_retention_days            = 90
   s3_trigger_functions          = ["render_layout"]
@@ -227,9 +235,11 @@ api_gateway = {
 }
 
 # Step Functions Configuration
+# Step Functions Configuration
 step_functions = {
   create_step_functions = true
   log_level             = "ALL"
+  enable_x_ray_tracing  = true
 }
 
 # App Runner Configuration
