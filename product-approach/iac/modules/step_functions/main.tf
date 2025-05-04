@@ -2,11 +2,11 @@
 # Create the state machine definition template file
 resource "local_file" "state_machine_definition" {
   count = var.create_definition_file ? 1 : 0
-  
-  content  = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
-    function_arns = var.lambda_function_arns
-    region = var.region
-    account_id = data.aws_caller_identity.current.account_id
+
+  content = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
+    function_arns               = var.lambda_function_arns
+    region                      = var.region
+    account_id                  = data.aws_caller_identity.current.account_id
     dynamodb_verification_table = var.dynamodb_verification_table
     dynamodb_conversation_table = var.dynamodb_conversation_table
   })
@@ -16,15 +16,32 @@ resource "local_file" "state_machine_definition" {
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
 
+# API Gateway resource for Step Functions
+resource "aws_api_gateway_resource" "step_functions" {
+  count       = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id = var.api_gateway_id
+  parent_id   = var.api_gateway_root_resource_id
+  path_part   = "workflow"
+}
+
+# API Gateway method for Step Functions
+resource "aws_api_gateway_method" "step_functions_start" {
+  count         = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id   = var.api_gateway_id
+  resource_id   = aws_api_gateway_resource.step_functions[0].id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
 # Step Functions State Machine with enhanced definition
 resource "aws_sfn_state_machine" "verification_workflow" {
   name     = var.state_machine_name
   role_arn = aws_iam_role.step_functions_role.arn
 
   definition = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
-    function_arns = var.lambda_function_arns
-    region = var.region
-    account_id = data.aws_caller_identity.current.account_id
+    function_arns               = var.lambda_function_arns
+    region                      = var.region
+    account_id                  = data.aws_caller_identity.current.account_id
     dynamodb_verification_table = var.dynamodb_verification_table
     dynamodb_conversation_table = var.dynamodb_conversation_table
   })
@@ -51,15 +68,15 @@ resource "aws_sfn_state_machine" "verification_workflow" {
 
 # API Gateway integration with Step Functions
 resource "aws_api_gateway_integration" "step_functions_start" {
-  count               = var.create_api_gateway_integration ? 1 : 0
-  rest_api_id         = var.api_gateway_id
-  resource_id         = aws_api_gateway_resource.step_functions[0].id
-  http_method         = aws_api_gateway_method.step_functions_start[0].http_method
-  type                = "AWS"
+  count                   = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id             = var.api_gateway_id
+  resource_id             = aws_api_gateway_resource.step_functions[0].id
+  http_method             = aws_api_gateway_method.step_functions_start[0].http_method
+  type                    = "AWS"
   integration_http_method = "POST"
-  uri                 = "arn:aws:apigateway:${var.region}:states:action/StartExecution"
-  credentials         = aws_iam_role.api_gateway_step_functions_role[0].arn
-  
+  uri                     = "arn:aws:apigateway:${var.region}:states:action/StartExecution"
+  credentials             = aws_iam_role.api_gateway_step_functions_role[0].arn
+
   request_templates = {
     "application/json" = <<EOF
 {
@@ -72,12 +89,12 @@ EOF
 
 # API Gateway integration response
 resource "aws_api_gateway_integration_response" "step_functions_start" {
-  count               = var.create_api_gateway_integration ? 1 : 0
-  rest_api_id         = var.api_gateway_id
-  resource_id         = aws_api_gateway_resource.step_functions[0].id
-  http_method         = aws_api_gateway_method.step_functions_start[0].http_method
-  status_code         = "200"
-  
+  count       = var.create_api_gateway_integration ? 1 : 0
+  rest_api_id = var.api_gateway_id
+  resource_id = aws_api_gateway_resource.step_functions[0].id
+  http_method = aws_api_gateway_method.step_functions_start[0].http_method
+  status_code = "200"
+
   response_templates = {
     "application/json" = <<EOF
 {
@@ -86,7 +103,7 @@ resource "aws_api_gateway_integration_response" "step_functions_start" {
 }
 EOF
   }
-  
+
   depends_on = [
     aws_api_gateway_integration.step_functions_start
   ]
@@ -99,9 +116,9 @@ resource "aws_api_gateway_method_response" "step_functions_start" {
   resource_id = aws_api_gateway_resource.step_functions[0].id
   http_method = aws_api_gateway_method.step_functions_start[0].http_method
   status_code = "200"
-  
+
   response_models = {}
-  
+
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin" = true
   }

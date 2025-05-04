@@ -142,6 +142,17 @@ module "step_functions" {
 
   }
 
+  # Add DynamoDB table ARNs
+  dynamodb_table_arns = var.dynamodb_tables.create_tables ? [
+    module.dynamodb_tables[0].verification_results_table_arn,
+    module.dynamodb_tables[0].layout_metadata_table_arn,
+    module.dynamodb_tables[0].conversation_history_table_arn
+  ] : []
+
+  # Add DynamoDB table names
+  dynamodb_verification_table = var.dynamodb_tables.create_tables ? module.dynamodb_tables[0].verification_results_table_name : ""
+  dynamodb_conversation_table = var.dynamodb_tables.create_tables ? module.dynamodb_tables[0].conversation_history_table_name : ""
+
   common_tags = local.common_tags
 }
 
@@ -321,17 +332,34 @@ resource "aws_api_gateway_stage" "verification_api" {
 */
 
 # Use a null_resource to update the Streamlit environment variables after deployment
+# Use a null_resource to update the Streamlit environment variables after deployment
+# Use a null_resource to update the Streamlit environment variables after deployment
+# Use a null_resource to update the Streamlit environment variables after deployment
 resource "null_resource" "update_streamlit_env" {
   count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
 
   # Use local-exec to update the Streamlit environment variables
   provisioner "local-exec" {
     command = <<EOT
-      # Use AWS CLI to update only the API_ENDPOINT environment variable without affecting others
+      # Create a JSON file to use with the AWS CLI command
+      cat > update_env.json <<EOF
+{
+  "SourceConfiguration": {
+    "ImageRepository": {
+      "ImageConfiguration": {
+        "RuntimeEnvironmentVariables": {
+          "API_ENDPOINT": "${module.api_gateway[0].invoke_url}"
+        }
+      }
+    }
+  }
+}
+EOF
+      # Use AWS CLI to update the service with the JSON file
       aws apprunner update-service \
         --service-arn ${module.streamlit_frontend[0].service_arn} \
-        --source-configuration-update '{"ImageRepository": {"ImageConfiguration": {"RuntimeEnvironmentVariables": {"API_ENDPOINT": "${module.api_gateway[0].invoke_url}"}}}}'
-    EOT
+        --source-configuration-update file://update_env.json
+EOT
   }
 
   # Add a trigger to run this whenever the API Gateway URL changes

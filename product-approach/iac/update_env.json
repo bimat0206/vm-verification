@@ -1,0 +1,11 @@
+{
+  "SourceConfiguration": {
+    "ImageRepository": {
+      "ImageConfiguration": {
+        "RuntimeEnvironmentVariables": {
+          "API_ENDPOINT": "https://ttbaa1fn3h.execute-api.us-east-1.amazonaws.com/v1"
+        }
+      }
+    }
+  }
+}

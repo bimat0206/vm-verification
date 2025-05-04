@@ -1,0 +1,18 @@
+{"SourceConfiguration":{"ImageRepository":{"ImageConfiguration":{"RuntimeEnvironmentVariables":{
+  "API_KEY_SECRET_NAME": "kootoro-dev-secret-api-key-hv6541",
+  "AWS_DEFAULT_REGION": "us-east-1",
+  "DYNAMODB_TABLE": "kootoro-dev-dynamodb-verification-results-hv6541",
+  "REGION": "us-east-1",
+  "S3_BUCKET": "kootoro-dev-s3-reference-hv6541",
+  "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false",
+  "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
+  "STREAMLIT_SERVER_HEADLESS": "true",
+  "STREAMLIT_SERVER_PORT": "8501",
+  "STREAMLIT_THEME_BACKGROUND_COLOR": "#0E1117",
+  "STREAMLIT_THEME_BASE": "dark",
+  "STREAMLIT_THEME_FONT": "sans serif",
+  "STREAMLIT_THEME_PRIMARY_COLOR": "#FF4B4B",
+  "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR": "#262730",
+  "STREAMLIT_THEME_TEXT_COLOR": "#FAFAFA",
+  "API_ENDPOINT": "https://ttbaa1fn3h.execute-api.us-east-1.amazonaws.com/v1"
+}}}}}

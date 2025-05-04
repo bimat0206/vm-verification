@@ -239,84 +239,139 @@ locals {
       description           = "Fetch historical verification data",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     fetch_images = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "fetch-images", local.name_suffix]))),
       description           = "Fetch images for verification",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  REFERENCE_BUCKET    = local.s3_buckets.reference
+  CHECKING_BUCKET     = local.s3_buckets.checking
+  LAYOUT_METADATA_TABLE = local.dynamodb_tables.layout_metadata
+  LOG_LEVEL           = "INFO"
+}
     },
     prepare_system_prompt = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-system-prompt", local.name_suffix]))),
       description           = "Prepare system prompt for Bedrock",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+  BEDROCK_MODEL              = var.bedrock.model_id
+  MAX_TOKENS                 = var.bedrock.max_tokens
+  BUDGET_TOKENS              = var.bedrock.budget_tokens
+  THINKING_TYPE              = "enable"
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     prepare_turn_prompt = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn-prompt", local.name_suffix]))),
       description           = "Prepare turn prompt for Bedrock",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+  BEDROCK_MODEL              = var.bedrock.model_id
+  MAX_TOKENS                 = var.bedrock.max_tokens
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     invoke_bedrock = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "invoke-bedrock", local.name_suffix]))),
       description           = "Invoke Amazon Bedrock",
       memory_size           = 256,
       timeout               = 60,
-      environment_variables = {}
+      environment_variables = {
+  BEDROCK_MODEL              = var.bedrock.model_id
+  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+  MAX_TOKENS                 = var.bedrock.max_tokens
+  THINKING_TYPE              = "enable"
+  BUDGET_TOKENS              = var.bedrock.budget_tokens
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     process_turn1_response = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "process-turn1", local.name_suffix]))),
       description           = "Process turn 1 response from Bedrock",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     process_turn2_response = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "process-turn2", local.name_suffix]))),
       description           = "Process turn 2 response from Bedrock",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     finalize_results = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "finalize-results", local.name_suffix]))),
       description           = "Finalize verification results",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     store_results = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "store-results", local.name_suffix]))),
       description           = "Store verification results",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  RESULTS_BUCKET             = local.s3_buckets.results
+  LOG_LEVEL                  = "INFO"
+}
     },
     notify = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "notify", local.name_suffix]))),
       description           = "Send notification about verification results",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  SNS_TOPIC_ARN          = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:KootoroVerificationTopic"
+  LOG_LEVEL             = "INFO"
+}
     },
     handle_bedrock_error = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "handle-bedrock-error", local.name_suffix]))),
       description           = "Handle Bedrock errors",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     finalize_with_error = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "finalize-with-error", local.name_suffix]))),
       description           = "Finalize workflow with error",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  LOG_LEVEL                  = "INFO"
+}
     },
         # Add new Lambda functions
     list_verifications = {
@@ -324,28 +379,45 @@ locals {
       description           = "List verification results",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  LOG_LEVEL                  = "INFO"
+}
     },
     get_verification = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-verification", local.name_suffix]))),
       description           = "Get verification details",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  LOG_LEVEL                  = "INFO"
+}
     },
     get_conversation = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
       description           = "Get verification conversation history",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  LOG_LEVEL                  = "INFO"
+}
     },
     health_check = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "health-check", local.name_suffix]))),
       description           = "System health check",
       memory_size           = 256,
       timeout               = 30,
-      environment_variables = {}
+      environment_variables = {
+  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  REFERENCE_BUCKET           = local.s3_buckets.reference
+  CHECKING_BUCKET            = local.s3_buckets.checking
+  RESULTS_BUCKET             = local.s3_buckets.results
+  BEDROCK_MODEL              = var.bedrock.model_id
+  LOG_LEVEL                  = "INFO"
+}
     },
   }
 
