@@ -50,9 +50,7 @@ resource "aws_api_gateway_method_response" "step_functions_start" {
   http_method = aws_api_gateway_method.step_functions_start[0].http_method
   status_code = "200"
   
-  response_models = {
-    "application/json" = "Empty"
-  }
+  response_models = {}
   
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin" = true

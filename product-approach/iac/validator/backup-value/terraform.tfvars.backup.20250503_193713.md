@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-03 16:07:07
+**Date:** 2025-05-03 19:37:13
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -266,7 +266,6 @@ streamlit_frontend = {
     STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
     STREAMLIT_THEME_FONT                       = "sans serif"
     API_ENDPOINT                               = ""                # Will be populated from API Gateway endpoint
-    API_KEY_SECRET_NAME                        = "kootoro/api-key" # Added for Secrets Manager
   }
 }
 

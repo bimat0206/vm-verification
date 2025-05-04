@@ -285,15 +285,37 @@ module "streamlit_frontend" {
 }
 
 # This resource will update the Streamlit environment variables after both resources are created
-resource "null_resource" "update_streamlit_api_endpoint" {
-  count = var.api_gateway.create_api_gateway && var.streamlit_frontend.create_streamlit ? 1 : 0
-
-  # Only run this after both resources are created
+# This resource is commented out as it's causing errors and appears to be redundant with the API Gateway module
+# The API Gateway module already creates a stage with the necessary configuration
+# If additional configuration is needed, it should be added to the API Gateway module
+/*
+resource "aws_api_gateway_stage" "verification_api" {
+  deployment_id = aws_api_gateway_deployment.verification_api.id
+  rest_api_id  = aws_api_gateway_rest_api.verification_api.id
+  stage_name   = var.environment
+  
+  variables = {
+    verification_lookup_lambda = aws_lambda_function.verification_lookup.arn
+    verification_initiate_lambda = aws_lambda_function.verification_initiate.arn
+    verification_list_lambda = aws_lambda_function.verification_list.arn
+    verification_get_lambda = aws_lambda_function.verification_get.arn
+    verification_conversation_lambda = aws_lambda_function.verification_conversation.arn
+    health_lambda = aws_lambda_function.health.arn
+    image_view_lambda = aws_lambda_function.image_view.arn
+    image_browser_lambda = aws_lambda_function.image_browser.arn
+  }
+  
   depends_on = [
     module.api_gateway,
     module.streamlit_frontend
   ]
+}
+*/
 
+# Use a null_resource to update the Streamlit environment variables after deployment
+resource "null_resource" "update_streamlit_env" {
+  count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
+  
   # Use local-exec to update the Streamlit environment variables
   provisioner "local-exec" {
     command = <<EOT
@@ -308,4 +330,9 @@ resource "null_resource" "update_streamlit_api_endpoint" {
   triggers = {
     api_gateway_url = var.api_gateway.create_api_gateway ? module.api_gateway[0].invoke_url : "none"
   }
+  
+  depends_on = [
+    module.api_gateway,
+    module.streamlit_frontend
+  ]
 }

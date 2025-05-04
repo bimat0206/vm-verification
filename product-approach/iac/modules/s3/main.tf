@@ -238,47 +238,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "checking" {
   }
 }
 
-# Results bucket lifecycle configuration
-resource "aws_s3_bucket_lifecycle_configuration" "results" {
-  bucket = aws_s3_bucket.results.id
-
-  dynamic "rule" {
-    for_each = var.results_lifecycle_rules
-
-    content {
-      id     = rule.value.id
-      status = rule.value.enabled ? "Enabled" : "Disabled"
-
-      dynamic "filter" {
-        for_each = rule.value.prefix != null ? [rule.value.prefix] : []
-        content {
-          prefix = filter.value
-        }
-      }
-
-      dynamic "expiration" {
-        for_each = rule.value.expiration_days != null ? [rule.value.expiration_days] : []
-        content {
-          days = expiration.value
-        }
-      }
-
-      dynamic "noncurrent_version_expiration" {
-        for_each = rule.value.noncurrent_version_expiration_days != null ? [rule.value.noncurrent_version_expiration_days] : []
-        content {
-          noncurrent_days = noncurrent_version_expiration.value
-        }
-      }
-
-      dynamic "abort_incomplete_multipart_upload" {
-        for_each = rule.value.abort_incomplete_multipart_upload_days != null ? [rule.value.abort_incomplete_multipart_upload_days] : []
-        content {
-          days_after_initiation = abort_incomplete_multipart_upload.value
-        }
-      }
-    }
-  }
-}
+# Results bucket lifecycle configuration - Using fixed configuration instead of dynamic rules
 
 # Create folder structure in reference bucket
 resource "aws_s3_object" "reference_raw_folder" {
@@ -295,25 +255,27 @@ resource "aws_s3_object" "reference_processed_folder" {
   content      = ""
 }
 
-resource "aws_s3_object" "reference_logs_folder" {
-  bucket       = aws_s3_bucket.reference.id
-  key          = "logs/"
-  content_type = "application/x-directory"
-  content      = ""
-}
+resource "aws_s3_bucket_lifecycle_configuration" "results" {
+  bucket = aws_s3_bucket.results.id
 
-# Create folder structure in checking bucket based on current date
-resource "aws_s3_object" "checking_current_date_folder" {
-  bucket       = aws_s3_bucket.checking.id
-  key          = "${formatdate("YYYY-MM-DD", timestamp())}/"
-  content_type = "application/x-directory"
-  content      = ""
-}
+  rule {
+    id     = "expire-after-12-months"
+    status = "Enabled"
 
-# Create folder structure in results bucket based on current date
-resource "aws_s3_object" "results_current_date_folder" {
-  bucket       = aws_s3_bucket.results.id
-  key          = "${formatdate("YYYY-MM-DD", timestamp())}/"
-  content_type = "application/x-directory"
-  content      = ""
+    filter {
+      prefix = ""
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+
+    expiration {
+      days = 365
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
 }
