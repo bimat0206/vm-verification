@@ -83,25 +83,61 @@ resource "aws_api_gateway_integration" "verifications_lookup_get" {
 
 # 2. Initiate Verification - POST /api/v1/verifications
 resource "aws_api_gateway_method" "verifications_post" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.verifications.id
-  http_method   = "POST"
-  authorization = var.use_api_key ? "NONE" : "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.verifications.id
+  http_method      = "POST"
+  authorization    = var.use_api_key ? "NONE" : "NONE"
   api_key_required = var.use_api_key
+  
+  # Add request validation
+  request_validator_id = aws_api_gateway_request_validator.full_validator.id
+  request_models = {
+    "application/json" = aws_api_gateway_model.verification_request.name
+  }
 }
 
 resource "aws_api_gateway_method_response" "verifications_post" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   resource_id = aws_api_gateway_resource.verifications.id
   http_method = aws_api_gateway_method.verifications_post.http_method
-  status_code = "200"
+  status_code = "202"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Location" = true
+  }
+  
+  response_models = {
+    "application/json" = aws_api_gateway_model.verification_result.name
+  }
+}
+
+resource "aws_api_gateway_method_response" "verifications_post_400" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications.id
+  http_method = aws_api_gateway_method.verifications_post.http_method
+  status_code = "400"
   
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin" = true
   }
   
   response_models = {
-    "application/json" = "Empty"
+    "application/json" = aws_api_gateway_model.error.name
+  }
+}
+resource "aws_api_gateway_method_response" "verifications_post_404" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications.id
+  http_method = aws_api_gateway_method.verifications_post.http_method
+  status_code = "404"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = aws_api_gateway_model.error.name
   }
 }
 
@@ -164,11 +200,23 @@ resource "aws_api_gateway_integration" "verifications_post" {
 
 # 3. List Verifications - GET /api/v1/verifications
 resource "aws_api_gateway_method" "verifications_get" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.verifications.id
-  http_method   = "GET"
-  authorization = var.use_api_key ? "NONE" : "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.verifications.id
+  http_method      = "GET"
+  authorization    = var.use_api_key ? "NONE" : "NONE"
   api_key_required = var.use_api_key
+  
+  # Add request parameter validation
+  request_validator_id = aws_api_gateway_request_validator.params_only_validator.id
+  request_parameters = {
+    "method.request.querystring.vendingMachineId" = false
+    "method.request.querystring.verificationStatus" = false
+    "method.request.querystring.fromDate" = false
+    "method.request.querystring.toDate" = false
+    "method.request.querystring.limit" = false
+    "method.request.querystring.offset" = false
+    "method.request.querystring.sortBy" = false
+  }
 }
 
 resource "aws_api_gateway_method_response" "verifications_get" {
@@ -182,7 +230,7 @@ resource "aws_api_gateway_method_response" "verifications_get" {
   }
   
   response_models = {
-    "application/json" = "Empty"
+    "application/json" = aws_api_gateway_model.verification_list.name
   }
 }
 
@@ -242,6 +290,49 @@ resource "aws_api_gateway_method_response" "verification_id_options" {
   }
 }
 
+# Example for POST /api/v1/verifications
+resource "aws_api_gateway_integration_response" "verifications_post_success" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications.id
+  http_method = aws_api_gateway_method.verifications_post.http_method
+  status_code = aws_api_gateway_method_response.verifications_post.status_code
+  
+  # Lambda proxy integration
+  selection_pattern = ""
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Location" = "integration.response.body.headers.Location"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "verifications_post_bad_request" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications.id
+  http_method = aws_api_gateway_method.verifications_post.http_method
+  status_code = aws_api_gateway_method_response.verifications_post_400.status_code
+  
+  # Match 400 error responses from Lambda
+  selection_pattern = ".*[Bb]ad [Rr]equest.*|.*400.*"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "verifications_post_not_found" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications.id
+  http_method = aws_api_gateway_method.verifications_post.http_method
+  status_code = aws_api_gateway_method_response.verifications_post_404.status_code
+  
+  # Match 404 error responses from Lambda
+  selection_pattern = ".*[Nn]ot [Ff]ound.*|.*404.*"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+  }
+}
 resource "aws_api_gateway_integration_response" "verification_id_options" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   resource_id = aws_api_gateway_resource.verification_id.id
