@@ -295,12 +295,17 @@ module "streamlit_frontend" {
       S3_BUCKET           = local.s3_buckets.reference
       AWS_DEFAULT_REGION  = var.aws_region
       API_KEY_SECRET_NAME = module.secretsmanager[0].secret_name # Use the output instead of hardcoded value
+      API_ENDPOINT        = module.api_gateway[0].api_gateway_endpoint
     }
   )
 
   enable_ecr_full_access = false
 
   common_tags = local.common_tags
+  
+  depends_on = [
+    module.api_gateway,
+  ]
 }
 
 # This resource will update the Streamlit environment variables after both resources are created
@@ -335,14 +340,16 @@ resource "aws_api_gateway_stage" "verification_api" {
 # Use a null_resource to update the Streamlit environment variables after deployment
 # Use a null_resource to update the Streamlit environment variables after deployment
 # Use a null_resource to update the Streamlit environment variables after deployment
+# Use a null_resource to update the Streamlit environment variables after deployment
+/*
 resource "null_resource" "update_streamlit_env" {
   count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
 
-  # Use local-exec to update the Streamlit environment variables
   provisioner "local-exec" {
-    command = <<EOT
-      # Create a JSON file to use with the AWS CLI command
-      cat > update_env.json <<EOF
+    interpreter = ["/bin/bash", "-c"]
+    command = <<-EOT
+      # Create a JSON file with just the API endpoint update
+      cat > apprunner_update.json << EOF
 {
   "SourceConfiguration": {
     "ImageRepository": {
@@ -355,14 +362,20 @@ resource "null_resource" "update_streamlit_env" {
   }
 }
 EOF
-      # Use AWS CLI to update the service with the JSON file
+
+      echo "Updating AppRunner service with API endpoint: ${module.api_gateway[0].invoke_url}"
+      
+      # Use AWS CLI to merge environment variables instead of replacing them
       aws apprunner update-service \
         --service-arn ${module.streamlit_frontend[0].service_arn} \
-        --source-configuration-update file://update_env.json
-EOT
+        --cli-input-json file://apprunner_update.json \
+        --no-apply-during-maintenance-window
+        
+      # Clean up
+      rm -f apprunner_update.json
+    EOT
   }
 
-  # Add a trigger to run this whenever the API Gateway URL changes
   triggers = {
     api_gateway_url = var.api_gateway.create_api_gateway ? module.api_gateway[0].invoke_url : "none"
   }
@@ -372,3 +385,4 @@ EOT
     module.streamlit_frontend
   ]
 }
+*/

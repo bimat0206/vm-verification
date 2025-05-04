@@ -146,11 +146,11 @@ variable "monitoring" {
 variable "bedrock" {
   description = "Configuration for Amazon Bedrock"
   type = object({
-    model_id = string
+    model_id          = string
+    anthropic_version = string
+    max_tokens        = number
+    budget_tokens     = number
   })
-  default = {
-    model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
-  }
 }
 
 variable "streamlit_frontend" {
