@@ -3,7 +3,7 @@
 # Common Models
 resource "aws_api_gateway_model" "error" {
   rest_api_id  = aws_api_gateway_rest_api.api.id
-  name         = "Error"
+  name         = "${replace(var.stage_name, "-", "_")}error"
   description  = "Error response model"
   content_type = "application/json"
   schema = jsonencode({
@@ -25,7 +25,7 @@ resource "aws_api_gateway_model" "error" {
 
 resource "aws_api_gateway_model" "empty" {
   rest_api_id  = aws_api_gateway_rest_api.api.id
-  name         = "Empty"
+  name         = "${replace(var.stage_name, "-", "_")}empty"
   description  = "Empty model"
   content_type = "application/json"
   schema = jsonencode({

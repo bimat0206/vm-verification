@@ -1,3 +1,5 @@
+# modules/step_functions/iam.tf
+
 # IAM Role for Step Functions
 resource "aws_iam_role" "step_functions_role" {
   name = "${var.state_machine_name}-role"
@@ -83,6 +85,28 @@ resource "aws_iam_policy" "xray_policy" {
   })
 }
 
+# Add DynamoDB policy for direct integration
+resource "aws_iam_policy" "dynamodb_policy" {
+  name        = "${var.state_machine_name}-dynamodb-policy"
+  description = "Allows Step Functions to access DynamoDB tables"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ],
+        Effect   = "Allow",
+        Resource = var.dynamodb_table_arns
+      }
+    ]
+  })
+}
+
 # Attach policies to the Step Functions IAM role
 resource "aws_iam_role_policy_attachment" "lambda_invoke_attachment" {
   role       = aws_iam_role.step_functions_role.name
@@ -99,6 +123,12 @@ resource "aws_iam_role_policy_attachment" "xray_attachment" {
   policy_arn = aws_iam_policy.xray_policy.arn
 }
 
+# Add the attachment for the DynamoDB policy
+resource "aws_iam_role_policy_attachment" "dynamodb_attachment" {
+  role       = aws_iam_role.step_functions_role.name
+  policy_arn = aws_iam_policy.dynamodb_policy.arn
+}
+
 # CloudWatch Log Group for Step Functions
 resource "aws_cloudwatch_log_group" "step_functions_logs" {
   name              = "/aws/states/${var.state_machine_name}"
@@ -107,13 +137,34 @@ resource "aws_cloudwatch_log_group" "step_functions_logs" {
   tags = var.common_tags
 }
 
-# Step Functions State Machine
+# Create policy for Lambda to invoke Step Functions
+resource "aws_iam_policy" "lambda_to_sfn_policy" {
+  name        = "${var.state_machine_name}-lambda-start-execution-policy"
+  description = "Allows Lambda functions to start Step Functions executions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "states:StartExecution"
+        Effect   = "Allow"
+        Resource = "arn:aws:states:${var.region}:*:stateMachine:${var.state_machine_name}"
+      }
+    ]
+  })
+}
+
+# Step Functions State Machine with enhanced definition
 resource "aws_sfn_state_machine" "verification_workflow" {
   name     = var.state_machine_name
   role_arn = aws_iam_role.step_functions_role.arn
 
   definition = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
     function_arns = var.lambda_function_arns
+    region = var.region
+    account_id = data.aws_caller_identity.current.account_id
+    dynamodb_verification_table = var.dynamodb_verification_table
+    dynamodb_conversation_table = var.dynamodb_conversation_table
   })
 
   logging_configuration {
@@ -142,69 +193,13 @@ resource "local_file" "state_machine_definition" {
   
   content  = templatefile("${path.module}/templates/state_machine_definition.tftpl", {
     function_arns = var.lambda_function_arns
+    region = var.region
+    account_id = data.aws_caller_identity.current.account_id
+    dynamodb_verification_table = var.dynamodb_verification_table
+    dynamodb_conversation_table = var.dynamodb_conversation_table
   })
   filename = "${path.module}/generated_definition.json"
 }
 
-# API Gateway resource
-resource "aws_api_gateway_resource" "step_functions" {
-  count       = var.create_api_gateway_integration ? 1 : 0
-  rest_api_id = var.api_gateway_id
-  parent_id   = var.api_gateway_root_resource_id
-  path_part   = "executions"
-}
-
-# API Gateway method for starting executions
-resource "aws_api_gateway_method" "step_functions_start" {
-  count         = var.create_api_gateway_integration ? 1 : 0
-  rest_api_id   = var.api_gateway_id
-  resource_id   = aws_api_gateway_resource.step_functions[0].id
-  http_method   = "POST"
-  authorization = "NONE"
-  api_key_required = true
-}
-
-# IAM Role for API Gateway to invoke Step Functions
-resource "aws_iam_role" "api_gateway_step_functions_role" {
-  count = var.create_api_gateway_integration ? 1 : 0
-  name  = "${var.state_machine_name}-apigw-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "apigateway.amazonaws.com"
-        }
-      }
-    ]
-  })
-  
-  tags = var.common_tags
-}
-
-# IAM Policy for API Gateway to invoke Step Functions
-resource "aws_iam_policy" "api_gateway_step_functions_policy" {
-  count       = var.create_api_gateway_integration ? 1 : 0
-  name        = "${var.state_machine_name}-apigw-policy"
-  description = "Allows API Gateway to invoke Step Functions"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = "states:StartExecution"
-        Effect   = "Allow"
-        Resource = aws_sfn_state_machine.verification_workflow.arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "api_gateway_step_functions_attachment" {
-  count      = var.create_api_gateway_integration ? 1 : 0
-  role       = aws_iam_role.api_gateway_step_functions_role[0].name
-  policy_arn = aws_iam_policy.api_gateway_step_functions_policy[0].arn
-}
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}

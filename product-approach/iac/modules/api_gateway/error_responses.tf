@@ -87,7 +87,7 @@ resource "aws_api_gateway_gateway_response" "resource_not_found" {
 
 resource "aws_api_gateway_gateway_response" "method_not_allowed" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
-  response_type = "METHOD_NOT_ALLOWED"
+  response_type = "DEFAULT_4XX"
   status_code   = "405"
   
   response_templates = {

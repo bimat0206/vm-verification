@@ -111,15 +111,15 @@ module "step_functions" {
   source = "./modules/step_functions"
   count  = var.step_functions.create_step_functions && var.lambda_functions.create_functions ? 1 : 0
 
-  state_machine_name = local.step_function_name
-  log_level = var.step_functions.log_level
+  state_machine_name   = local.step_function_name
+  log_level            = var.step_functions.log_level
   enable_x_ray_tracing = var.step_functions.enable_x_ray_tracing
-  
+
   # Enable API Gateway integration
   create_api_gateway_integration = var.api_gateway.create_api_gateway
-  api_gateway_id = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
-  api_gateway_root_resource_id = var.api_gateway.create_api_gateway ? module.api_gateway[0].root_resource_id : ""
-  region = var.aws_region
+  api_gateway_id                 = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
+  api_gateway_root_resource_id   = var.api_gateway.create_api_gateway ? module.api_gateway[0].root_resource_id : ""
+  region                         = var.aws_region
 
   lambda_function_arns = {
     initialize                    = module.lambda_functions[0].function_arns["initialize"]
@@ -187,10 +187,10 @@ module "secretsmanager" {
   source = "./modules/secretsmanager"
   count  = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? 1 : 0
 
-  project_name      = var.project_name
-  environment       = var.environment
-  name_suffix       = local.name_suffix
-  secret_base_name  = "api-key"  # Replace "kootoro/api-key" with just "api-key"
+  project_name       = var.project_name
+  environment        = var.environment
+  name_suffix        = local.name_suffix
+  secret_base_name   = "api-key" # Replace "kootoro/api-key" with just "api-key"
   secret_description = "API key for Kootoro Vending Machine Verification API"
   secret_value       = module.api_gateway[0].api_key_value
 
@@ -279,11 +279,11 @@ module "streamlit_frontend" {
   environment_variables = merge(
     var.streamlit_frontend.environment_variables,
     {
-      REGION             = var.aws_region
-      DYNAMODB_TABLE     = local.dynamodb_tables.verification_results
-      S3_BUCKET          = local.s3_buckets.reference
-      AWS_DEFAULT_REGION = var.aws_region
-      API_KEY_SECRET_NAME = module.secretsmanager[0].secret_name  # Use the output instead of hardcoded value
+      REGION              = var.aws_region
+      DYNAMODB_TABLE      = local.dynamodb_tables.verification_results
+      S3_BUCKET           = local.s3_buckets.reference
+      AWS_DEFAULT_REGION  = var.aws_region
+      API_KEY_SECRET_NAME = module.secretsmanager[0].secret_name # Use the output instead of hardcoded value
     }
   )
 
@@ -323,14 +323,14 @@ resource "aws_api_gateway_stage" "verification_api" {
 # Use a null_resource to update the Streamlit environment variables after deployment
 resource "null_resource" "update_streamlit_env" {
   count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
-  
+
   # Use local-exec to update the Streamlit environment variables
   provisioner "local-exec" {
     command = <<EOT
       # Use AWS CLI to update only the API_ENDPOINT environment variable without affecting others
       aws apprunner update-service \
         --service-arn ${module.streamlit_frontend[0].service_arn} \
-        --patch-operations '[{"Op":"add","Path":"/SourceConfiguration/ImageRepository/ImageConfiguration/RuntimeEnvironmentVariables/API_ENDPOINT","Value":"${module.api_gateway[0].invoke_url}"}]'
+        --source-configuration-update '{"ImageRepository": {"ImageConfiguration": {"RuntimeEnvironmentVariables": {"API_ENDPOINT": "${module.api_gateway[0].invoke_url}"}}}}'
     EOT
   }
 
@@ -338,7 +338,7 @@ resource "null_resource" "update_streamlit_env" {
   triggers = {
     api_gateway_url = var.api_gateway.create_api_gateway ? module.api_gateway[0].invoke_url : "none"
   }
-  
+
   depends_on = [
     module.api_gateway,
     module.streamlit_frontend

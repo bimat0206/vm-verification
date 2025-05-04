@@ -1,11 +1,27 @@
+// modules/step_functions/templates/state_machine_definition.tftpl
+
 {
   "Comment": "Vending Machine Verification - Enhanced Two-Turn Workflow",
-  "StartAt": "Initialize",
+  "StartAt": "ValidateInput",
   "States": {
+    "ValidateInput": {
+      "Type": "Pass",
+      "InputPath": "$",
+      "Parameters": {
+        "rawInput.$": "$",
+        "startTime": "$$.State.EnteredTime"
+      },
+      "Next": "Initialize"
+    },
     "Initialize": {
       "Type": "Task",
       "Resource": "${function_arns["initialize"]}",
       "ResultPath": "$.verificationContext",
+      "Parameters": {
+        "input.$": "$.rawInput",
+        "executionId.$": "$$.Execution.Id",
+        "executionStartTime.$": "$.startTime"
+      },
       "Retry": [
         {
           "ErrorEquals": ["States.TaskFailed"],
@@ -21,6 +37,36 @@
           "Next": "HandleInitializationError"
         }
       ],
+      "Next": "UpdateStatusInitialized"
+    },
+    "UpdateStatusInitialized": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #updatedAt = :updatedAt, #executionId = :executionId",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#updatedAt": "updatedAt",
+          "#executionId": "executionId"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "INITIALIZED"
+          },
+          ":updatedAt": {
+            "S.$": "$$.State.EnteredTime"
+          },
+          ":executionId": {
+            "S.$": "$$.Execution.Id"
+          }
+        }
+      },
       "Next": "CheckVerificationType"
     },
     "CheckVerificationType": {
@@ -54,23 +100,33 @@
           "Next": "HandleHistoricalFetchError"
         }
       ],
+      "Next": "UpdateStatusFetchingImages"
+    },
+    "UpdateStatusFetchingImages": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #updatedAt = :updatedAt",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#updatedAt": "updatedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "FETCHING_IMAGES"
+          },
+          ":updatedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "FetchImages"
-    },
-    "HandleHistoricalFetchError": {
-      "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to retrieve historical verification data"
-      },
-      "End": true
-    },
-    "HandleInitializationError": {
-      "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to initialize verification process"
-      },
-      "End": true
     },
     "FetchImages": {
       "Type": "Task",
@@ -92,15 +148,33 @@
           "Next": "HandleFetchImagesError"
         }
       ],
-      "Next": "PrepareSystemPrompt"
+      "Next": "UpdateStatusAnalyzing"
     },
-    "HandleFetchImagesError": {
-      "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to fetch images or metadata"
+    "UpdateStatusAnalyzing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #updatedAt = :updatedAt",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#updatedAt": "updatedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "ANALYZING"
+          },
+          ":updatedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
       },
-      "End": true
+      "Next": "PrepareSystemPrompt"
     },
     "PrepareSystemPrompt": {
       "Type": "Task",
@@ -140,6 +214,37 @@
         "includeImage": "reference"
       },
       "ResultPath": "$.currentPrompt",
+      "Next": "SaveConversationTurn1Start"
+    },
+    "SaveConversationTurn1Start": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${dynamodb_conversation_table}",
+        "Item": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          },
+          "conversationAt": {
+            "S.$": "$$.State.EnteredTime"
+          },
+          "turnId": {
+            "N": "1"
+          },
+          "turnStatus": {
+            "S": "STARTED"
+          },
+          "prompt": {
+            "S.$": "States.JsonToString($.currentPrompt)"
+          },
+          "analysisStage": {
+            "S": "REFERENCE_ANALYSIS"
+          },
+          "timestamp": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "ExecuteTurn1"
     },
     "ExecuteTurn1": {
@@ -162,6 +267,39 @@
           "Next": "HandleBedrockError"
         }
       ],
+      "Next": "SaveConversationTurn1Complete"
+    },
+    "SaveConversationTurn1Complete": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_conversation_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          },
+          "turnId": {
+            "N": "1"
+          }
+        },
+        "UpdateExpression": "SET #turnStatus = :turnStatus, #response = :response, #completedAt = :completedAt",
+        "ExpressionAttributeNames": {
+          "#turnStatus": "turnStatus",
+          "#response": "response",
+          "#completedAt": "completedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":turnStatus": {
+            "S": "COMPLETED"
+          },
+          ":response": {
+            "S.$": "States.JsonToString($.turn1Response)"
+          },
+          ":completedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "ProcessTurn1Response"
     },
     "ProcessTurn1Response": {
@@ -206,6 +344,37 @@
         "previousContext.$": "$.referenceAnalysis"
       },
       "ResultPath": "$.currentPrompt",
+      "Next": "SaveConversationTurn2Start"
+    },
+    "SaveConversationTurn2Start": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${dynamodb_conversation_table}",
+        "Item": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          },
+          "conversationAt": {
+            "S.$": "$$.State.EnteredTime"
+          },
+          "turnId": {
+            "N": "2"
+          },
+          "turnStatus": {
+            "S": "STARTED"
+          },
+          "prompt": {
+            "S.$": "States.JsonToString($.currentPrompt)"
+          },
+          "analysisStage": {
+            "S": "CHECKING_ANALYSIS"
+          },
+          "timestamp": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "ExecuteTurn2"
     },
     "ExecuteTurn2": {
@@ -228,6 +397,39 @@
           "Next": "HandleBedrockError"
         }
       ],
+      "Next": "SaveConversationTurn2Complete"
+    },
+    "SaveConversationTurn2Complete": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_conversation_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          },
+          "turnId": {
+            "N": "2"
+          }
+        },
+        "UpdateExpression": "SET #turnStatus = :turnStatus, #response = :response, #completedAt = :completedAt",
+        "ExpressionAttributeNames": {
+          "#turnStatus": "turnStatus",
+          "#response": "response",
+          "#completedAt": "completedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":turnStatus": {
+            "S": "COMPLETED"
+          },
+          ":response": {
+            "S.$": "States.JsonToString($.turn2Response)"
+          },
+          ":completedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "ProcessTurn2Response"
     },
     "HandleBedrockError": {
@@ -235,6 +437,36 @@
       "Resource": "${function_arns["handle_bedrock_error"]}",
       "InputPath": "$",
       "ResultPath": "$",
+      "Next": "UpdateStatusError"
+    },
+    "UpdateStatusError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #errorDetails = :errorDetails, #updatedAt = :updatedAt",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#errorDetails": "errorDetails",
+          "#updatedAt": "updatedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "FAILED"
+          },
+          ":errorDetails": {
+            "S.$": "States.JsonToString($.error)"
+          },
+          ":updatedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "FinalizeWithError"
     },
     "FinalizeWithError": {
@@ -278,6 +510,32 @@
       "Resource": "${function_arns["finalize_results"]}",
       "InputPath": "$",
       "ResultPath": "$.finalResults",
+      "Next": "UpdateStatusProcessingResults"
+    },
+    "UpdateStatusProcessingResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #updatedAt = :updatedAt",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#updatedAt": "updatedAt"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "PROCESSING_RESULTS"
+          },
+          ":updatedAt": {
+            "S.$": "$$.State.EnteredTime"
+          }
+        }
+      },
       "Next": "StoreResults"
     },
     "StoreResults": {
@@ -285,6 +543,36 @@
       "Resource": "${function_arns["store_results"]}",
       "InputPath": "$",
       "ResultPath": "$.storageResult",
+      "Next": "UpdateStatusCompleted"
+    },
+    "UpdateStatusCompleted": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${dynamodb_verification_table}",
+        "Key": {
+          "verificationId": {
+            "S.$": "$.verificationContext.verificationId"
+          }
+        },
+        "UpdateExpression": "SET #status = :status, #completedAt = :completedAt, #processingTimeMs = :processingTimeMs",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#completedAt": "completedAt",
+          "#processingTimeMs": "processingTimeMs"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "COMPLETED"
+          },
+          ":completedAt": {
+            "S.$": "$$.State.EnteredTime"
+          },
+          ":processingTimeMs": {
+            "N.$": "States.JsonToString(States.TimestampDiff($.startTime, $$.State.EnteredTime, 'Milliseconds'))"
+          }
+        }
+      },
       "Next": "ShouldNotify"
     },
     "ShouldNotify": {
@@ -316,8 +604,34 @@
           "verificationStatus.$": "$.finalResults.verificationStatus",
           "resultImageUrl.$": "$.storageResult.resultImageUrl",
           "confidenceScore.$": "$.finalResults.confidenceScore",
-          "discrepanciesCount.$": "$.finalResults.discrepanciesCount"
+          "discrepanciesCount.$": "$.finalResults.discrepanciesCount",
+          "processingTimeMs.$": "States.TimestampDiff($.startTime, $$.State.EnteredTime, 'Milliseconds')"
         }
+      },
+      "ResultPath": "$.apiResponse",
+      "End": true
+    },
+    "HandleInitializationError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to initialize verification process"
+      },
+      "End": true
+    },
+    "HandleHistoricalFetchError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to retrieve historical verification data"
+      },
+      "End": true
+    },
+    "HandleFetchImagesError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to fetch images or metadata"
       },
       "End": true
     }

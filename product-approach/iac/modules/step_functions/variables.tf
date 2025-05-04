@@ -1,3 +1,5 @@
+# modules/step_functions/variables.tf
+
 variable "state_machine_name" {
   description = "Name of the Step Functions state machine"
   type        = string
@@ -65,4 +67,23 @@ variable "region" {
   description = "AWS region"
   type        = string
   default     = "us-east-1"
+}
+
+# Add new variables for DynamoDB integration
+variable "dynamodb_table_arns" {
+  description = "List of DynamoDB table ARNs that Step Functions needs access to"
+  type        = list(string)
+  default     = []
+}
+
+variable "dynamodb_verification_table" {
+  description = "Name of the DynamoDB table for verification results"
+  type        = string
+  default     = ""
+}
+
+variable "dynamodb_conversation_table" {
+  description = "Name of the DynamoDB table for conversation history"
+  type        = string
+  default     = ""
 }
