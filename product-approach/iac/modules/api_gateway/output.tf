@@ -1,4 +1,4 @@
-# modules/api_gateway/outputs.tf
+# modules/api_gateway/output.tf
 
 output "api_id" {
   description = "ID of the API Gateway"

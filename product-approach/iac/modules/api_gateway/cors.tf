@@ -11,13 +11,21 @@ locals {
     aws_api_gateway_resource.image_view.id,
     aws_api_gateway_resource.image_browser_path.id
   ] : []
+  
+  # Common CORS headers and methods
+  cors_headers = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+  cors_methods = {
+    "verifications_lookup" = "'GET,OPTIONS'",
+    "verifications" = "'POST,OPTIONS'",
+    "verification_id" = "'GET,OPTIONS'",
+    "verification_conversation" = "'POST,OPTIONS'",
+    "health" = "'GET,OPTIONS'",
+    "image_view" = "'GET,OPTIONS'",
+    "image_browser_path" = "'GET,OPTIONS'"
+  }
 }
 
-module "cors" {
-  source   = "../cors"
-  count    = length(local.cors_resources)
-  
-  api_id          = aws_api_gateway_rest_api.api.id
-  api_resource_id = local.cors_resources[count.index]
-  allow_origin    = local.cors_origin
-}
+# Create OPTIONS method, integration, method response, and integration response for each resource
+# These resources are already defined in methods.tf for each endpoint
+# The cors.tf file now serves as documentation for CORS-enabled resources
+# and provides the common configuration values used across the module

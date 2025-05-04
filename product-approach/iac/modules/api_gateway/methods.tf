@@ -264,6 +264,21 @@ resource "aws_api_gateway_integration" "verification_id_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["get_verification"]}/invocations"
 }
 
+resource "aws_api_gateway_method_response" "verification_id_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verification_id.id
+  http_method = aws_api_gateway_method.verification_id_get.http_method
+  status_code = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
 # 5. Get Verification Conversation - GET /api/v1/verifications/{verificationId}/conversation
 resource "aws_api_gateway_method" "verification_conversation_get" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
@@ -333,6 +348,21 @@ resource "aws_api_gateway_integration" "verification_conversation_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["get_conversation"]}/invocations"
 }
 
+resource "aws_api_gateway_method_response" "verification_conversation_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verification_conversation.id
+  http_method = aws_api_gateway_method.verification_conversation_get.http_method
+  status_code = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
 # 6. Health Check - GET /api/v1/health
 resource "aws_api_gateway_method" "health_get" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
@@ -397,6 +427,21 @@ resource "aws_api_gateway_integration" "health_get" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["health_check"]}/invocations"
+}
+
+resource "aws_api_gateway_method_response" "health_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.health.id
+  http_method = aws_api_gateway_method.health_get.http_method
+  status_code = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
 }
 
 # 7. Get Image View - GET /api/v1/images/{key}/view
@@ -468,6 +513,21 @@ resource "aws_api_gateway_integration" "image_view_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["fetch_images"]}/invocations"
 }
 
+resource "aws_api_gateway_method_response" "image_view_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_view.id
+  http_method = aws_api_gateway_method.image_view_get.http_method
+  status_code = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
 # 8. Get Image Browser - GET /api/v1/images/browser
 resource "aws_api_gateway_method" "image_browser_get" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
@@ -532,6 +592,21 @@ resource "aws_api_gateway_integration" "image_browser_get" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["fetch_images"]}/invocations"
+}
+
+resource "aws_api_gateway_method_response" "image_browser_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_browser.id
+  http_method = aws_api_gateway_method.image_browser_get.http_method
+  status_code = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
 }
 
 # Lambda permissions for API Gateway to invoke Lambda functions

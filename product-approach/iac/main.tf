@@ -146,6 +146,14 @@ module "step_functions" {
 }
 
 # API Gateway
+# The API Gateway module has been reorganized into smaller, more manageable files:
+# - resources.tf: Contains all API Gateway resource definitions
+# - methods.tf: Contains all API Gateway method and integration definitions
+# - deployment.tf: Contains deployment, stage, and API key configurations
+# - cors.tf: Contains CORS configuration for API endpoints
+# - locals.tf: Contains local variable definitions
+# - variables.tf: Contains input variable definitions
+# - output.tf: Contains output definitions
 module "api_gateway" {
   source = "./modules/api_gateway"
   count  = var.api_gateway.create_api_gateway && var.lambda_functions.create_functions ? 1 : 0
@@ -319,10 +327,10 @@ resource "null_resource" "update_streamlit_env" {
   # Use local-exec to update the Streamlit environment variables
   provisioner "local-exec" {
     command = <<EOT
-      # Use AWS CLI to update the Streamlit environment variables with the API Gateway URL
+      # Use AWS CLI to update only the API_ENDPOINT environment variable without affecting others
       aws apprunner update-service \
         --service-arn ${module.streamlit_frontend[0].service_arn} \
-        --source-configuration '{"ImageRepository": {"ImageConfiguration": {"RuntimeEnvironmentVariables": {"API_ENDPOINT": "${module.api_gateway[0].invoke_url}"}}}}'
+        --patch-operations '[{"Op":"add","Path":"/SourceConfiguration/ImageRepository/ImageConfiguration/RuntimeEnvironmentVariables/API_ENDPOINT","Value":"${module.api_gateway[0].invoke_url}"}]'
     EOT
   }
 
