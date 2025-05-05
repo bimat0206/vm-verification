@@ -427,8 +427,14 @@ locals {
   # API gateway name
   api_gateway_name = lower(join("-", compact([local.name_prefix, "api", "verification", local.name_suffix])))
 
-  # App Runner service name
-  app_runner_service_name = lower(join("-", compact([local.name_prefix, "apprunner", "frontend", local.name_suffix])))
+  # VPC name
+  vpc_name = lower(join("-", compact([local.name_prefix, "vpc", local.name_suffix])))
+
+  # ECS service name
+  ecs_service_name = lower(join("-", compact([local.name_prefix, "ecs", "streamlit", local.name_suffix])))
+
+  # ALB name
+  alb_name = lower(join("-", compact([local.name_prefix, "alb", "streamlit", local.name_suffix])))
 
   # Cloudwatch dashboard name
   dashboard_name = lower(join("-", compact([local.name_prefix, "dashboard", "verification", local.name_suffix])))

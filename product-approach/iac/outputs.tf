@@ -88,20 +88,49 @@ output "api_gateway_api_key" {
   value       = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.api_gateway[0].api_key_value : null
   sensitive   = true
 }
+# VPC outputs
+output "vpc_id" {
+  description = "ID of the created VPC"
+  value       = var.vpc.create_vpc && var.streamlit_frontend.create_streamlit ? module.vpc[0].vpc_id : ""
+}
+
+output "vpc_public_subnet_ids" {
+  description = "IDs of the public subnets in the VPC"
+  value       = var.vpc.create_vpc && var.streamlit_frontend.create_streamlit ? module.vpc[0].public_subnet_ids : []
+}
+
+output "vpc_private_subnet_ids" {
+  description = "IDs of the private subnets in the VPC"
+  value       = var.vpc.create_vpc && var.streamlit_frontend.create_streamlit ? module.vpc[0].private_subnet_ids : []
+}
+
 # Streamlit Frontend outputs
 output "streamlit_frontend_url" {
   description = "URL of created Streamlit frontend service"
-  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_url : ""
+  value       = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].service_url : ""
 }
 
-output "streamlit_frontend_service_arn" {
-  description = "ARN of created Streamlit frontend service"
-  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_arn : ""
+output "streamlit_frontend_https_url" {
+  description = "HTTPS URL of created Streamlit frontend service (if HTTPS is enabled)"
+  value       = var.streamlit_frontend.create_streamlit && var.streamlit_frontend.enable_https ? module.ecs_streamlit[0].service_https_url : ""
 }
 
+output "streamlit_frontend_alb_dns_name" {
+  description = "DNS name of the ALB for Streamlit frontend"
+  value       = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].alb_dns_name : ""
+}
 
+output "streamlit_frontend_ecs_cluster_id" {
+  description = "ID of the ECS cluster for Streamlit frontend"
+  value       = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_cluster_id : ""
+}
+
+output "streamlit_frontend_ecs_service_name" {
+  description = "Name of the ECS service for Streamlit frontend"
+  value       = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_service_name : ""
+}
 
 output "streamlit_frontend_log_group" {
   description = "CloudWatch log group for Streamlit frontend"
-  value       = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].log_group_name : ""
+  value       = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].cloudwatch_log_group_name : ""
 }

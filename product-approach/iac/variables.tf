@@ -153,6 +153,22 @@ variable "bedrock" {
   })
 }
 
+variable "vpc" {
+  description = "Configuration for VPC"
+  type = object({
+    create_vpc         = bool
+    vpc_cidr           = string
+    availability_zones = list(string)
+    create_nat_gateway = bool
+  })
+  default = {
+    create_vpc         = true
+    vpc_cidr           = "10.0.0.0/16"
+    availability_zones = ["us-east-1a", "us-east-1b"]
+    create_nat_gateway = true
+  }
+}
+
 variable "streamlit_frontend" {
   description = "Configuration for Streamlit frontend application"
   type = object({
@@ -160,35 +176,55 @@ variable "streamlit_frontend" {
     service_name                   = string
     image_uri                      = string
     image_repository_type          = string
-    cpu                            = string
-    memory                         = string
+    cpu                            = number
+    memory                         = number
     port                           = number
     auto_deployments_enabled       = bool
     enable_auto_scaling            = bool
     min_size                       = number
+    max_capacity                   = number
     max_size                       = number
+    cpu_threshold                  = number
+    memory_threshold               = number
     theme_mode                     = string
     log_retention_days             = number
     health_check_path              = string
+    health_check_interval          = number
+    health_check_timeout           = number
     health_check_healthy_threshold = number
+    health_check_unhealthy_threshold = number
+    enable_https                   = bool
+    internal_alb                   = bool
+    enable_container_insights      = bool
+    enable_execute_command         = bool
     environment_variables          = map(string)
   })
   default = {
     create_streamlit               = true
     service_name                   = "streamlit-frontend"
     image_uri                      = ""
-    image_repository_type          = "ECR_PUBLIC"
-    cpu                            = "1 vCPU"
-    memory                         = "2 GB"
+    image_repository_type          = "ECR"
+    cpu                            = 256
+    memory                         = 512
     port                           = 8501
     auto_deployments_enabled       = true
     enable_auto_scaling            = true
     min_size                       = 1
+    max_capacity                   = 10
     max_size                       = 3
+    cpu_threshold                  = 70
+    memory_threshold               = 70
     theme_mode                     = "dark"
     log_retention_days             = 30
     health_check_path              = "/_stcore/health"
+    health_check_interval          = 30
+    health_check_timeout           = 5
     health_check_healthy_threshold = 2
+    health_check_unhealthy_threshold = 3
+    enable_https                   = false
+    internal_alb                   = false
+    enable_container_insights      = false
+    enable_execute_command         = true
     environment_variables          = {}
   }
 }

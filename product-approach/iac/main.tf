@@ -178,7 +178,7 @@ module "api_gateway" {
   metrics_enabled        = var.api_gateway.metrics_enabled
   use_api_key            = var.api_gateway.use_api_key
   openapi_definition     = "${path.module}/openapi.yaml"
-  streamlit_service_url  = var.streamlit_frontend.create_streamlit ? module.streamlit_frontend[0].service_url : ""
+  # Removed streamlit_service_url to avoid dependency cycle
   lambda_function_arns = {
     for k, v in module.lambda_functions[0].function_arns : k => v
   }
@@ -233,44 +233,87 @@ module "monitoring" {
 
   ecr_repository_names = var.ecr.create_repositories && var.lambda_functions.use_ecr ? module.ecr_repositories[0].repository_names : {}
 
+  # ECS and ALB monitoring
+  ecs_cluster_name      = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_cluster_id : ""
+  ecs_service_name      = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_service_name : ""
+  enable_ecs_monitoring = var.streamlit_frontend.create_streamlit
+
+  alb_name              = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].alb_dns_name : ""
+  enable_alb_monitoring = var.streamlit_frontend.create_streamlit
+
   alarm_email_endpoints = var.monitoring.alarm_email_endpoints
 
   common_tags = local.common_tags
 }
 
-# Streamlit Frontend Service
-module "streamlit_frontend" {
-  source = "./modules/streamlit-frontend"
+# VPC for ALB and ECS
+module "vpc" {
+  source = "./modules/vpc"
+  count  = var.vpc.create_vpc && var.streamlit_frontend.create_streamlit ? 1 : 0
+
+  vpc_cidr           = var.vpc.vpc_cidr
+  availability_zones = var.vpc.availability_zones
+  create_nat_gateway = var.vpc.create_nat_gateway
+  name_prefix        = local.vpc_name
+  container_port     = var.streamlit_frontend.port
+
+  common_tags = local.common_tags
+}
+
+# Streamlit Frontend Service using ECS and ALB
+module "ecs_streamlit" {
+  source = "./modules/ecs-streamlit"
   count  = var.streamlit_frontend.create_streamlit ? 1 : 0
 
   service_name = var.streamlit_frontend.service_name
   environment  = var.environment
   name_suffix  = local.name_suffix
 
-  image_uri                = var.streamlit_frontend.image_uri
-  image_repository_type    = var.streamlit_frontend.image_repository_type
-  cpu                      = var.streamlit_frontend.cpu
-  memory                   = var.streamlit_frontend.memory
-  port                     = var.streamlit_frontend.port
-  auto_deployments_enabled = var.streamlit_frontend.auto_deployments_enabled
+  # Container configuration
+  image_uri             = var.streamlit_frontend.image_uri
+  image_repository_type = var.streamlit_frontend.image_repository_type
+  cpu                   = var.streamlit_frontend.cpu
+  memory                = var.streamlit_frontend.memory
+  port                  = var.streamlit_frontend.port
+  theme_mode            = var.streamlit_frontend.theme_mode
 
+  # ECS configuration
+  enable_container_insights = var.streamlit_frontend.enable_container_insights
+  enable_execute_command    = var.streamlit_frontend.enable_execute_command
+  min_capacity              = var.streamlit_frontend.min_size
+  max_capacity              = var.streamlit_frontend.max_capacity
+  enable_auto_scaling       = var.streamlit_frontend.enable_auto_scaling
+  cpu_threshold             = var.streamlit_frontend.cpu_threshold
+  memory_threshold          = var.streamlit_frontend.memory_threshold
+  auto_deployments_enabled  = var.streamlit_frontend.auto_deployments_enabled
+
+  # VPC and networking
+  vpc_id                = module.vpc[0].vpc_id
+  public_subnet_ids     = module.vpc[0].public_subnet_ids
+  private_subnet_ids    = module.vpc[0].private_subnet_ids
+  alb_security_group_id = module.vpc[0].alb_security_group_id
+  ecs_security_group_id = module.vpc[0].ecs_security_group_id
+
+  # ALB configuration
+  internal_alb               = var.streamlit_frontend.internal_alb
+  enable_deletion_protection = false
+  enable_https               = var.streamlit_frontend.enable_https
+
+  # Health check configuration
   health_check_path                = var.streamlit_frontend.health_check_path
-  health_check_interval            = 15
-  health_check_timeout             = 5
+  health_check_interval            = var.streamlit_frontend.health_check_interval
+  health_check_timeout             = var.streamlit_frontend.health_check_timeout
   health_check_healthy_threshold   = var.streamlit_frontend.health_check_healthy_threshold
-  health_check_unhealthy_threshold = 5
+  health_check_unhealthy_threshold = var.streamlit_frontend.health_check_unhealthy_threshold
 
-  enable_auto_scaling = var.streamlit_frontend.enable_auto_scaling
-  min_size            = var.streamlit_frontend.min_size
-  max_size            = var.streamlit_frontend.max_size
-
-  theme_mode         = var.streamlit_frontend.theme_mode
+  # Logging
   log_retention_days = var.streamlit_frontend.log_retention_days
 
   # Access permissions
   enable_api_gateway_access = true
   enable_s3_access          = true
   enable_dynamodb_access    = true
+  enable_ecr_full_access    = true
 
   api_gateway_arn = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_arn : ""
 
@@ -286,7 +329,6 @@ module "streamlit_frontend" {
     module.dynamodb_tables[0].conversation_history_table_arn
   ] : []
 
-
   environment_variables = merge(
     var.streamlit_frontend.environment_variables,
     {
@@ -294,95 +336,46 @@ module "streamlit_frontend" {
       DYNAMODB_TABLE      = local.dynamodb_tables.verification_results
       S3_BUCKET           = local.s3_buckets.reference
       AWS_DEFAULT_REGION  = var.aws_region
-      API_KEY_SECRET_NAME = module.secretsmanager[0].secret_name # Use the output instead of hardcoded value
-      API_ENDPOINT        = module.api_gateway[0].api_gateway_endpoint
+      API_KEY_SECRET_NAME = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.secretsmanager[0].secret_name : ""
+      # Remove direct reference to API Gateway endpoint to avoid dependency cycle
+      API_ENDPOINT = ""
     }
   )
 
-  enable_ecr_full_access = false
-
   common_tags = local.common_tags
-  
+
   depends_on = [
     module.api_gateway,
+    module.vpc,
+    module.secretsmanager
   ]
 }
 
-# This resource will update the Streamlit environment variables after both resources are created
-# This resource is commented out as it's causing errors and appears to be redundant with the API Gateway module
-# The API Gateway module already creates a stage with the necessary configuration
-# If additional configuration is needed, it should be added to the API Gateway module
-/*
-resource "aws_api_gateway_stage" "verification_api" {
-  deployment_id = aws_api_gateway_deployment.verification_api.id
-  rest_api_id  = aws_api_gateway_rest_api.verification_api.id
-  stage_name   = var.environment
-  
-  variables = {
-    verification_lookup_lambda = aws_lambda_function.verification_lookup.arn
-    verification_initiate_lambda = aws_lambda_function.verification_initiate.arn
-    verification_list_lambda = aws_lambda_function.verification_list.arn
-    verification_get_lambda = aws_lambda_function.verification_get.arn
-    verification_conversation_lambda = aws_lambda_function.verification_conversation.arn
-    health_lambda = aws_lambda_function.health.arn
-    image_view_lambda = aws_lambda_function.image_view.arn
-    image_browser_lambda = aws_lambda_function.image_browser.arn
-  }
-  
-  depends_on = [
-    module.api_gateway,
-    module.streamlit_frontend
-  ]
-}
-*/
-
-# Use a null_resource to update the Streamlit environment variables after deployment
-# Use a null_resource to update the Streamlit environment variables after deployment
-# Use a null_resource to update the Streamlit environment variables after deployment
-# Use a null_resource to update the Streamlit environment variables after deployment
-# Use a null_resource to update the Streamlit environment variables after deployment
-/*
-resource "null_resource" "update_streamlit_env" {
+# Update ECS task definition with API Gateway endpoint after both resources are created
+# This breaks the dependency cycle while ensuring the ECS task has the correct API Gateway endpoint
+resource "null_resource" "update_ecs_task_with_api_endpoint" {
   count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
 
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command = <<-EOT
-      # Create a JSON file with just the API endpoint update
-      cat > apprunner_update.json << EOF
-{
-  "SourceConfiguration": {
-    "ImageRepository": {
-      "ImageConfiguration": {
-        "RuntimeEnvironmentVariables": {
-          "API_ENDPOINT": "${module.api_gateway[0].invoke_url}"
-        }
-      }
-    }
-  }
-}
-EOF
-
-      echo "Updating AppRunner service with API endpoint: ${module.api_gateway[0].invoke_url}"
-      
-      # Use AWS CLI to merge environment variables instead of replacing them
-      aws apprunner update-service \
-        --service-arn ${module.streamlit_frontend[0].service_arn} \
-        --cli-input-json file://apprunner_update.json \
-        --no-apply-during-maintenance-window
-        
-      # Clean up
-      rm -f apprunner_update.json
-    EOT
-  }
-
   triggers = {
-    api_gateway_url = var.api_gateway.create_api_gateway ? module.api_gateway[0].invoke_url : "none"
+    api_endpoint        = module.api_gateway[0].api_endpoint
+    ecs_task_definition = module.ecs_streamlit[0].task_definition_arn
+  }
+
+  provisioner "local-exec" {
+    command = <<EOF
+      aws ecs describe-task-definition --task-definition ${module.ecs_streamlit[0].task_definition_family} --region ${var.aws_region} > task-def.json
+      jq '.taskDefinition.containerDefinitions[0].environment += [{"name": "API_ENDPOINT", "value": "${module.api_gateway[0].api_endpoint}"}]' task-def.json > updated-task-def.json
+      aws ecs register-task-definition --family ${module.ecs_streamlit[0].task_definition_family} --container-definitions "$(jq '.taskDefinition.containerDefinitions' updated-task-def.json)" --execution-role-arn "$(jq -r '.taskDefinition.executionRoleArn' task-def.json)" --task-role-arn "$(jq -r '.taskDefinition.taskRoleArn' task-def.json)" --network-mode "$(jq -r '.taskDefinition.networkMode' task-def.json)" --cpu "$(jq -r '.taskDefinition.cpu' task-def.json)" --memory "$(jq -r '.taskDefinition.memory' task-def.json)" --requires-compatibilities "$(jq -r '.taskDefinition.requiresCompatibilities[]' task-def.json)" --region ${var.aws_region}
+      aws ecs update-service --cluster ${module.ecs_streamlit[0].ecs_cluster_id} --service ${module.ecs_streamlit[0].ecs_service_name} --task-definition ${module.ecs_streamlit[0].task_definition_family} --force-new-deployment --region ${var.aws_region}
+      rm task-def.json updated-task-def.json
+    EOF
   }
 
   depends_on = [
     module.api_gateway,
-    module.streamlit_frontend
+    module.ecs_streamlit
   ]
 }
-*/
+
+# This commented-out section is no longer needed as we're using ECS and ALB instead of App Runner
+# The environment variables are now set directly in the ECS task definition

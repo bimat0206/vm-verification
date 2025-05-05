@@ -52,14 +52,32 @@ variable "ecr_repository_names" {
   default     = {}
 }
 
-variable "app_runner_service_name" {
-  description = "Name of the App Runner service to monitor"
+variable "ecs_cluster_name" {
+  description = "Name of the ECS cluster to monitor"
   type        = string
   default     = ""
 }
 
-variable "enable_app_runner_monitoring" {
-  description = "Whether to enable App Runner monitoring"
+variable "ecs_service_name" {
+  description = "Name of the ECS service to monitor"
+  type        = string
+  default     = ""
+}
+
+variable "enable_ecs_monitoring" {
+  description = "Whether to enable ECS monitoring"
+  type        = bool
+  default     = false
+}
+
+variable "alb_name" {
+  description = "Name of the ALB to monitor"
+  type        = string
+  default     = ""
+}
+
+variable "enable_alb_monitoring" {
+  description = "Whether to enable ALB monitoring"
   type        = bool
   default     = false
 }

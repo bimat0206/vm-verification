@@ -106,22 +106,41 @@ resource "aws_cloudwatch_dashboard" "this" {
           }
         }
       ],
-      # App Runner Widget
-      var.app_runner_service_name != "" ? [
+      # ECS Widget
+      var.ecs_cluster_name != "" && var.ecs_service_name != "" ? [
         {
           type   = "metric"
-          width  = 24
+          width  = 12
           height = 6
           properties = {
             metrics = [
-              ["AWS/AppRunner", "Requests", "ServiceName", var.app_runner_service_name],
-              ["AWS/AppRunner", "HTTP4xx", "ServiceName", var.app_runner_service_name],
-              ["AWS/AppRunner", "HTTP5xx", "ServiceName", var.app_runner_service_name],
-              ["AWS/AppRunner", "Latency", "ServiceName", var.app_runner_service_name]
+              ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name],
+              ["AWS/ECS", "MemoryUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name]
+            ]
+            period = 300
+            stat   = "Average"
+            title  = "ECS: ${var.ecs_service_name}"
+            view   = "timeSeries"
+            region = var.region
+          }
+        }
+      ] : [],
+      # ALB Widget
+      var.alb_name != "" ? [
+        {
+          type   = "metric"
+          width  = 12
+          height = 6
+          properties = {
+            metrics = [
+              ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_name],
+              ["AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", var.alb_name],
+              ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", var.alb_name],
+              ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", var.alb_name]
             ]
             period = 300
             stat   = "Sum"
-            title  = "App Runner: ${var.app_runner_service_name}"
+            title  = "ALB: ${var.alb_name}"
             view   = "timeSeries"
             region = var.region
           }
@@ -241,25 +260,71 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
   }
 }
 
-# App Runner Error Alarm
-resource "aws_cloudwatch_metric_alarm" "app_runner_5xx" {
-  count = var.enable_app_runner_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+# ECS CPU Utilization Alarm
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_utilization" {
+  count = var.enable_ecs_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
 
-  alarm_name          = "${var.app_runner_service_name}-5xx-errors-alarm"
+  alarm_name          = "${var.ecs_service_name}-cpu-utilization-alarm"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "HTTP5xx"
-  namespace           = "AWS/AppRunner"
+  evaluation_periods  = 3
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
   period              = 300
-  statistic           = "Sum"
-  threshold           = 5
-  alarm_description   = "Alarm for ${var.app_runner_service_name} App Runner 5XX errors"
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "Alarm for ${var.ecs_service_name} ECS service CPU utilization exceeding threshold"
   actions_enabled     = true
   alarm_actions       = [aws_sns_topic.alarms[0].arn]
   ok_actions          = [aws_sns_topic.alarms[0].arn]
 
   dimensions = {
-    ServiceName = var.app_runner_service_name
+    ClusterName = var.ecs_cluster_name
+    ServiceName = var.ecs_service_name
+  }
+}
+
+# ECS Memory Utilization Alarm
+resource "aws_cloudwatch_metric_alarm" "ecs_memory_utilization" {
+  count = var.enable_ecs_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+
+  alarm_name          = "${var.ecs_service_name}-memory-utilization-alarm"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "Alarm for ${var.ecs_service_name} ECS service memory utilization exceeding threshold"
+  actions_enabled     = true
+  alarm_actions       = [aws_sns_topic.alarms[0].arn]
+  ok_actions          = [aws_sns_topic.alarms[0].arn]
+
+  dimensions = {
+    ClusterName = var.ecs_cluster_name
+    ServiceName = var.ecs_service_name
+  }
+}
+
+# ALB 5XX Error Alarm
+resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
+  count = var.enable_alb_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+
+  alarm_name          = "${var.alb_name}-5xx-errors-alarm"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5
+  alarm_description   = "Alarm for ${var.alb_name} ALB 5XX errors"
+  actions_enabled     = true
+  alarm_actions       = [aws_sns_topic.alarms[0].arn]
+  ok_actions          = [aws_sns_topic.alarms[0].arn]
+
+  dimensions = {
+    LoadBalancer = var.alb_name
   }
 }
 

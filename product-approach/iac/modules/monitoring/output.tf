@@ -29,6 +29,7 @@ output "log_groups" {
     lambda        = { for name, function_name in var.lambda_function_names : name => "/aws/lambda/${function_name}" }
     step_function = var.step_function_name != "" ? { "${var.step_function_name}" = "/aws/states/${var.step_function_name}" } : {}
     api_gateway   = var.api_gateway_name != "" ? { "${var.api_gateway_name}" = "/aws/apigateway/${var.api_gateway_name}" } : {}
-    app_runner    = var.app_runner_service_name != "" ? { "${var.app_runner_service_name}" = "/aws/apprunner/${var.app_runner_service_name}" } : {}
+    ecs          = var.ecs_service_name != "" ? { "${var.ecs_service_name}" = "/aws/ecs/${var.ecs_service_name}" } : {},
+    alb          = var.alb_name != "" ? { "${var.alb_name}" = "/aws/alb/${var.alb_name}" } : {}
   }
 }
