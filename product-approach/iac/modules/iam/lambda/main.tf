@@ -70,6 +70,7 @@ resource "aws_iam_policy" "dynamodb_access" {
     Statement = [
       {
         Action = [
+          "dynamodb:DescribeTable",
           "dynamodb:BatchGetItem",
           "dynamodb:GetItem",
           "dynamodb:Query",

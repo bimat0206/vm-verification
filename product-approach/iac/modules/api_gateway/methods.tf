@@ -66,8 +66,8 @@ resource "aws_api_gateway_integration_response" "verifications_lookup_options" {
   status_code = aws_api_gateway_method_response.verifications_lookup_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -183,8 +183,8 @@ resource "aws_api_gateway_integration_response" "verifications_options" {
   status_code = aws_api_gateway_method_response.verifications_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -402,8 +402,8 @@ resource "aws_api_gateway_integration_response" "verification_id_options" {
   status_code = aws_api_gateway_method_response.verification_id_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -486,8 +486,8 @@ resource "aws_api_gateway_integration_response" "verification_conversation_optio
   status_code = aws_api_gateway_method_response.verification_conversation_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -567,8 +567,8 @@ resource "aws_api_gateway_integration_response" "health_options" {
   status_code = aws_api_gateway_method_response.health_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -596,6 +596,8 @@ resource "aws_api_gateway_method_response" "health_get" {
     "application/json" = "Empty"
   }
 }
+
+# Health GET integration response is now defined in cors_integration_responses.tf
 
 # 7. Get Image View - GET /api/v1/images/{key}/view
 resource "aws_api_gateway_method" "image_view_get" {
@@ -651,8 +653,8 @@ resource "aws_api_gateway_integration_response" "image_view_options" {
   status_code = aws_api_gateway_method_response.image_view_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }
@@ -732,8 +734,8 @@ resource "aws_api_gateway_integration_response" "image_browser_options" {
   status_code = aws_api_gateway_method_response.image_browser_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
   }
 }

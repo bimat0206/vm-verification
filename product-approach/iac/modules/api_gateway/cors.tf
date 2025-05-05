@@ -13,16 +13,30 @@ locals {
   ] : []
   
   # Common CORS headers and methods
-  cors_headers = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+  cors_headers = "'*'"
   cors_methods = {
-    "verifications_lookup" = "'GET,OPTIONS'",
-    "verifications" = "'POST,OPTIONS'",
-    "verification_id" = "'GET,OPTIONS'",
-    "verification_conversation" = "'POST,OPTIONS'",
-    "health" = "'GET,OPTIONS'",
-    "image_view" = "'GET,OPTIONS'",
-    "image_browser_path" = "'GET,OPTIONS'"
+    "verifications_lookup" = "'*'",
+    "verifications" = "'*'",
+    "verification_id" = "'*'",
+    "verification_conversation" = "'*'",
+    "health" = "'*'",
+    "image_view" = "'*'",
+    "image_browser_path" = "'*'"
   }
+  
+  # Resource to endpoint mapping for easier reference
+  resource_to_endpoint = {
+    "verifications_lookup" = aws_api_gateway_resource.verifications_lookup.id,
+    "verifications" = aws_api_gateway_resource.verifications.id,
+    "verification_id" = aws_api_gateway_resource.verification_id.id,
+    "verification_conversation" = aws_api_gateway_resource.verification_conversation.id,
+    "health" = aws_api_gateway_resource.health.id,
+    "image_view" = aws_api_gateway_resource.image_view.id,
+    "image_browser_path" = aws_api_gateway_resource.image_browser_path.id
+  }
+  
+  # HTTP methods that need CORS headers in their responses
+  cors_enabled_methods = var.cors_enabled ? ["*"] : []
 }
 
 # Create OPTIONS method, integration, method response, and integration response for each resource

@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-04 11:33:56
+**Date:** 2025-05-05 13:50:42
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -183,8 +183,10 @@ lambda_functions = {
     fetch_historical_verification = 1024
     fetch_images                  = 1536
     prepare_system_prompt         = 1024
-    prepare_turn_prompt           = 512
-    invoke_bedrock                = 2048
+    prepare_turn1_prompt = 512
+    prepare_turn2_prompt = 512
+    execute_turn1        = 2048
+    execute_turn2        = 2048
     process_turn1_response        = 1024
     process_turn2_response        = 1024
     finalize_results              = 1024
@@ -203,8 +205,10 @@ lambda_functions = {
     fetch_historical_verification = 30
     fetch_images                  = 60
     prepare_system_prompt         = 30
-    prepare_turn_prompt           = 30
-    invoke_bedrock                = 150
+    prepare_turn1_prompt = 30
+    prepare_turn2_prompt = 30
+    execute_turn1        = 150
+    execute_turn2        = 150
     process_turn1_response        = 90
     process_turn2_response        = 90
     finalize_results              = 90
@@ -242,23 +246,33 @@ step_functions = {
   enable_x_ray_tracing  = true
 }
 
-# App Runner Configuration
+# ECS Streamlit Configuration
 streamlit_frontend = {
   create_streamlit               = true
   service_name                   = "vm-fe"
   image_uri                      = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
   image_repository_type          = "ECR"
-  cpu                            = "1 vCPU"
-  memory                         = "2 GB"
+  cpu                            = 1024  # 1 vCPU = 1024 CPU units
+  memory                         = 2048  # 2 GB = 2048 MB
   port                           = 8501
   auto_deployments_enabled       = false
   enable_auto_scaling            = true
   min_size                       = 1
   max_size                       = 3
+  max_capacity                   = 10
+  cpu_threshold                  = 70
+  memory_threshold               = 70
   theme_mode                     = "dark"
   log_retention_days             = 30
-  health_check_path              = "/_stcore/health" # Fixed to match Streamlit
-  health_check_healthy_threshold = 2                 # Increased for reliability
+  health_check_path              = "/_stcore/health"
+  health_check_interval          = 30
+  health_check_timeout           = 5
+  health_check_healthy_threshold = 2
+  health_check_unhealthy_threshold = 3
+  enable_https                   = false
+  internal_alb                   = false
+  enable_container_insights      = true
+  enable_execute_command         = true
   environment_variables = {
     STREAMLIT_THEME_PRIMARY_COLOR              = "#FF4B4B"
     STREAMLIT_THEME_BACKGROUND_COLOR           = "#0E1117"
@@ -267,6 +281,14 @@ streamlit_frontend = {
     STREAMLIT_THEME_FONT                       = "sans serif"
     API_ENDPOINT                               = ""                # Will be populated from API Gateway endpoint
   }
+}
+
+# VPC Configuration
+vpc = {
+  create_vpc         = true
+  vpc_cidr           = "172.1.0.0/16"
+  availability_zones = ["us-east-1a", "us-east-1b"]
+  create_nat_gateway = true
 }
 
 # Bedrock Configuration
