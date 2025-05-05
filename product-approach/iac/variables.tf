@@ -161,12 +161,14 @@ variable "vpc" {
     availability_zones = list(string)
     create_nat_gateway = bool
   })
+  /*
   default = {
     create_vpc         = true
     vpc_cidr           = "10.0.0.0/16"
     availability_zones = ["us-east-1a", "us-east-1b"]
     create_nat_gateway = true
   }
+  */
 }
 
 variable "streamlit_frontend" {
@@ -199,6 +201,7 @@ variable "streamlit_frontend" {
     enable_execute_command         = bool
     environment_variables          = map(string)
   })
+  /*
   default = {
     create_streamlit               = true
     service_name                   = "streamlit-frontend"
@@ -227,4 +230,5 @@ variable "streamlit_frontend" {
     enable_execute_command         = true
     environment_variables          = {}
   }
+  */
 }

@@ -126,8 +126,12 @@ module "step_functions" {
     fetch_historical_verification = module.lambda_functions[0].function_arns["fetch_historical_verification"]
     fetch_images                  = module.lambda_functions[0].function_arns["fetch_images"]
     prepare_system_prompt         = module.lambda_functions[0].function_arns["prepare_system_prompt"]
-    prepare_turn_prompt           = module.lambda_functions[0].function_arns["prepare_turn_prompt"]
-    invoke_bedrock                = module.lambda_functions[0].function_arns["invoke_bedrock"]
+    # Remove prepare_turn_prompt and add the two new ones
+    prepare_turn1_prompt         = module.lambda_functions[0].function_arns["prepare_turn1_prompt"]
+    prepare_turn2_prompt         = module.lambda_functions[0].function_arns["prepare_turn2_prompt"]
+    # Remove invoke_bedrock and add the two new ones
+    execute_turn1                = module.lambda_functions[0].function_arns["execute_turn1"]
+    execute_turn2                = module.lambda_functions[0].function_arns["execute_turn2"]
     process_turn1_response        = module.lambda_functions[0].function_arns["process_turn1_response"]
     process_turn2_response        = module.lambda_functions[0].function_arns["process_turn2_response"]
     finalize_results              = module.lambda_functions[0].function_arns["finalize_results"]

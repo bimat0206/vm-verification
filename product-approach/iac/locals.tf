@@ -74,8 +74,9 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    prepare_turn_prompt = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn-prompt", local.name_suffix])))
+    # Remove prepare_turn_prompt and add the two new ones
+    prepare_turn1_prompt = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn1-prompt", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -84,8 +85,31 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    invoke_bedrock = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "invoke-bedrock", local.name_suffix])))
+    
+    prepare_turn2_prompt = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn2-prompt", local.name_suffix])))
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    # Remove invoke_bedrock and add the two new ones
+    execute_turn1 = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn1", local.name_suffix])))
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    
+    execute_turn2 = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn2", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -272,33 +296,68 @@ locals {
   LOG_LEVEL                  = "INFO"
 }
     },
-    prepare_turn_prompt = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn-prompt", local.name_suffix]))),
-      description           = "Prepare turn prompt for Bedrock",
+    # Replace consolidated prepare_turn_prompt with two separate functions
+    prepare_turn1_prompt = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn1", local.name_suffix]))),
+      description           = "Prepare turn 1 prompt for analyzing reference layout",
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-  BEDROCK_MODEL              = var.bedrock.model_id
-  MAX_TOKENS                 = var.bedrock.max_tokens
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-}
+        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+        BEDROCK_MODEL              = var.bedrock.model_id
+        MAX_TOKENS                 = var.bedrock.max_tokens
+        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                  = "INFO"
+        TURN_NUMBER                = "1"
+      }
     },
-    invoke_bedrock = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "invoke-bedrock", local.name_suffix]))),
-      description           = "Invoke Amazon Bedrock",
+        prepare_turn2_prompt = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn2", local.name_suffix]))),
+      description           = "Prepare turn 2 prompt for comparing checking image to reference",
       memory_size           = 256,
-      timeout               = 60,
+      timeout               = 30,
       environment_variables = {
-  BEDROCK_MODEL              = var.bedrock.model_id
-  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-  MAX_TOKENS                 = var.bedrock.max_tokens
-  THINKING_TYPE              = "enable"
-  BUDGET_TOKENS              = var.bedrock.budget_tokens
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-}
+        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+        BEDROCK_MODEL              = var.bedrock.model_id
+        MAX_TOKENS                 = var.bedrock.max_tokens
+        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                  = "INFO"
+        TURN_NUMBER                = "2"
+      }
+    },
+    # Replace consolidated invoke_bedrock with two separate functions
+    execute_turn1 = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn1", local.name_suffix]))),
+      description           = "Execute turn 1 to analyze reference layout with Bedrock",
+      memory_size           = 1024,
+      timeout               = 90,
+      environment_variables = {
+        BEDROCK_MODEL              = var.bedrock.model_id
+        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+        MAX_TOKENS                 = var.bedrock.max_tokens
+        THINKING_TYPE              = "enable"
+        BUDGET_TOKENS              = var.bedrock.budget_tokens
+        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                  = "INFO"
+        TURN_NUMBER                = "1"
+      }
+    },
+    
+    execute_turn2 = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn2", local.name_suffix]))),
+      description           = "Execute turn 2 to analyze checking image with Bedrock",
+      memory_size           = 1024,
+      timeout               = 90,
+      environment_variables = {
+        BEDROCK_MODEL              = var.bedrock.model_id
+        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
+        MAX_TOKENS                 = var.bedrock.max_tokens
+        THINKING_TYPE              = "enable"
+        BUDGET_TOKENS              = var.bedrock.budget_tokens
+        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                  = "INFO"
+        TURN_NUMBER                = "2"
+      }
     },
     process_turn1_response = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "process-turn1", local.name_suffix]))),
