@@ -3,7 +3,7 @@
 # Integration responses for GET methods to include CORS headers
 # These are only created when CORS is enabled
 
-# 1. Verifications Lookup - GET /api/v1/verifications/lookup
+# 1. Verifications Lookup - GET /api/verifications/lookup
 resource "aws_api_gateway_integration_response" "verifications_lookup_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -13,13 +13,14 @@ resource "aws_api_gateway_integration_response" "verifications_lookup_get" {
   status_code = aws_api_gateway_method_response.verifications_lookup_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.verifications_lookup_get]
 }
 
-# 2. Verifications - GET /api/v1/verifications
+# 2. Verifications - GET /api/verifications
 resource "aws_api_gateway_integration_response" "verifications_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -29,13 +30,14 @@ resource "aws_api_gateway_integration_response" "verifications_get" {
   status_code = aws_api_gateway_method_response.verifications_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.verifications_get]
 }
 
-# 3. Verification ID - GET /api/v1/verifications/{id}
+# 3. Verification ID - GET /api/verifications/{id}
 resource "aws_api_gateway_integration_response" "verification_id_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -45,13 +47,14 @@ resource "aws_api_gateway_integration_response" "verification_id_get" {
   status_code = aws_api_gateway_method_response.verification_id_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.verification_id_get]
 }
 
-# 4. Verification Conversation - GET /api/v1/verifications/{id}/conversation
+# 4. Verification Conversation - GET /api/verifications/{id}/conversation
 resource "aws_api_gateway_integration_response" "verification_conversation_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -61,13 +64,14 @@ resource "aws_api_gateway_integration_response" "verification_conversation_get" 
   status_code = aws_api_gateway_method_response.verification_conversation_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.verification_conversation_get]
 }
 
-# 5. Image View - GET /api/v1/images/{key}/view
+# 5. Image View - GET /api/images/{key}/view
 resource "aws_api_gateway_integration_response" "image_view_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -77,13 +81,14 @@ resource "aws_api_gateway_integration_response" "image_view_get" {
   status_code = aws_api_gateway_method_response.image_view_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.image_view_get]
 }
 
-# 6. Image Browser - GET /api/v1/images/browser
+# 6. Image Browser - GET /api/images/browser
 resource "aws_api_gateway_integration_response" "image_browser_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -93,13 +98,14 @@ resource "aws_api_gateway_integration_response" "image_browser_get" {
   status_code = aws_api_gateway_method_response.image_browser_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.image_browser_get]
 }
 
-# 7. Verifications - POST /api/v1/verifications
+# 7. Verifications - POST /api/verifications
 resource "aws_api_gateway_integration_response" "verifications_post" {
   count = var.cors_enabled ? 1 : 0
 
@@ -109,13 +115,14 @@ resource "aws_api_gateway_integration_response" "verifications_post" {
   status_code = aws_api_gateway_method_response.verifications_post.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.verifications_post]
 }
 
-# 9. Health Check - GET /api/v1/health
+# 9. Health Check - GET /api/health
 resource "aws_api_gateway_integration_response" "health_get" {
   count = var.cors_enabled ? 1 : 0
 
@@ -125,7 +132,8 @@ resource "aws_api_gateway_integration_response" "health_get" {
   status_code = aws_api_gateway_method_response.health_get.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${local.cors_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
   }
 
   depends_on = [aws_api_gateway_integration.health_get]

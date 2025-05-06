@@ -14,6 +14,7 @@ The module has been organized into smaller, more manageable files to improve mai
 - **locals.tf**: Contains local variable definitions
 - **variables.tf**: Contains input variable definitions
 - **output.tf**: Contains output definitions
+- **CHANGELOG.md**: Documents changes to the module
 
 ## Benefits of This Structure
 
@@ -41,14 +42,26 @@ module "api_gateway" {
 
 The API Gateway exposes the following endpoints:
 
-- `GET /api/v1/verifications/lookup`: Lookup historical verifications
-- `POST /api/v1/verifications`: Initiate a new verification
-- `GET /api/v1/verifications`: List all verifications
-- `GET /api/v1/verifications/{verificationId}`: Get a specific verification
-- `GET /api/v1/verifications/{verificationId}/conversation`: Get verification conversation
-- `GET /api/v1/health`: Health check endpoint
-- `GET /api/v1/images/{key}/view`: View a specific image
-- `GET /api/v1/images/browser`: Browse available images
+- `GET /api/verifications/lookup`: Lookup historical verifications
+- `POST /api/verifications`: Initiate a new verification
+- `GET /api/verifications`: List all verifications
+- `GET /api/verifications/{verificationId}`: Get a specific verification
+- `GET /api/verifications/{verificationId}/conversation`: Get verification conversation
+- `GET /api/health`: Health check endpoint
+- `GET /api/images/{key}/view`: View a specific image
+- `GET /api/images/browser`: Browse available images
+
+## API Base Path
+
+The API uses `/api/` as its base path. This simplifies the final invoke URL structure, which follows the pattern:
+```
+https://{api-id}.execute-api.{region}.amazonaws.com/{stage}/api/...
+```
+
+For example, with a stage name of `v1`, the health endpoint would be accessible at:
+```
+https://abc123.execute-api.ap-southeast-1.amazonaws.com/v1/api/health
+```
 
 ## CORS Configuration
 

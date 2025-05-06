@@ -1,6 +1,6 @@
 # modules/api_gateway/methods.tf
 
-# 1. Verification Lookup - GET /api/v1/verifications/lookup
+# 1. Verification Lookup - GET /api/verifications/lookup
 resource "aws_api_gateway_method" "verifications_lookup_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.verifications_lookup.id
@@ -16,7 +16,8 @@ resource "aws_api_gateway_method_response" "verifications_lookup_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -81,7 +82,7 @@ resource "aws_api_gateway_integration" "verifications_lookup_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["fetch_historical_verification"]}/invocations"
 }
 
-# 2. Initiate Verification - POST /api/v1/verifications
+# 2. Initiate Verification - POST /api/verifications
 resource "aws_api_gateway_method" "verifications_post" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.verifications.id
@@ -103,8 +104,9 @@ resource "aws_api_gateway_method_response" "verifications_post" {
   status_code = "202"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
-    "method.response.header.Location"                    = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Location"                     = true
   }
 
   response_models = {
@@ -119,7 +121,8 @@ resource "aws_api_gateway_method_response" "verifications_post_400" {
   status_code = "400"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -133,7 +136,8 @@ resource "aws_api_gateway_method_response" "verifications_post_404" {
   status_code = "404"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -224,7 +228,7 @@ EOF
   }
 }
 
-# 3. List Verifications - GET /api/v1/verifications
+# 3. List Verifications - GET /api/verifications
 resource "aws_api_gateway_method" "verifications_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.verifications.id
@@ -252,7 +256,8 @@ resource "aws_api_gateway_method_response" "verifications_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -269,7 +274,7 @@ resource "aws_api_gateway_integration" "verifications_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["list_verifications"]}/invocations"
 }
 
-# 4. Get Verification - GET /api/v1/verifications/{verificationId}
+# 4. Get Verification - GET /api/verifications/{verificationId}
 resource "aws_api_gateway_method" "verification_id_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.verification_id.id
@@ -316,7 +321,7 @@ resource "aws_api_gateway_method_response" "verification_id_options" {
   }
 }
 
-# Integration responses for POST /api/v1/verifications
+# Integration responses for POST /api/verifications
 resource "aws_api_gateway_integration_response" "verifications_post_success" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   resource_id = aws_api_gateway_resource.verifications.id
@@ -424,7 +429,8 @@ resource "aws_api_gateway_method_response" "verification_id_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -432,7 +438,7 @@ resource "aws_api_gateway_method_response" "verification_id_get" {
   }
 }
 
-# 5. Get Verification Conversation - GET /api/v1/verifications/{verificationId}/conversation
+# 5. Get Verification Conversation - GET /api/verifications/{verificationId}/conversation
 resource "aws_api_gateway_method" "verification_conversation_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.verification_conversation.id
@@ -508,7 +514,8 @@ resource "aws_api_gateway_method_response" "verification_conversation_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -516,7 +523,7 @@ resource "aws_api_gateway_method_response" "verification_conversation_get" {
   }
 }
 
-# 6. Health Check - GET /api/v1/health
+# 6. Health Check - GET /api/health
 resource "aws_api_gateway_method" "health_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.health.id
@@ -589,7 +596,8 @@ resource "aws_api_gateway_method_response" "health_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -599,7 +607,7 @@ resource "aws_api_gateway_method_response" "health_get" {
 
 # Health GET integration response is now defined in cors_integration_responses.tf
 
-# 7. Get Image View - GET /api/v1/images/{key}/view
+# 7. Get Image View - GET /api/images/{key}/view
 resource "aws_api_gateway_method" "image_view_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.image_view.id
@@ -675,7 +683,8 @@ resource "aws_api_gateway_method_response" "image_view_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
@@ -683,7 +692,7 @@ resource "aws_api_gateway_method_response" "image_view_get" {
   }
 }
 
-# 8. Get Image Browser - GET /api/v1/images/browser
+# 8. Get Image Browser - GET /api/images/browser
 resource "aws_api_gateway_method" "image_browser_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.image_browser.id
@@ -756,7 +765,8 @@ resource "aws_api_gateway_method_response" "image_browser_get" {
   status_code = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 
   response_models = {
