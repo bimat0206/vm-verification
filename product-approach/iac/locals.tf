@@ -251,8 +251,9 @@ locals {
   timeout               = 30,
   environment_variables = {
     STEP_FUNCTIONS_STATE_MACHINE_ARN = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.step_function_name}"
-    VERIFICATION_RESULTS_TABLE       = local.dynamodb_tables.verification_results
-    CONVERSATION_HISTORY_TABLE       = local.dynamodb_tables.conversation_history
+    DYNAMODB_VERIFICATION_TABLE       = local.dynamodb_tables.verification_results
+    DYNAMODB_CONVERSATION_TABLE       = local.dynamodb_tables.conversation_history
+    DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
     REFERENCE_BUCKET                 = local.s3_buckets.reference
     CHECKING_BUCKET                  = local.s3_buckets.checking
     RESULTS_BUCKET                   = local.s3_buckets.results
@@ -264,8 +265,8 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -277,7 +278,7 @@ locals {
       environment_variables = {
   REFERENCE_BUCKET    = local.s3_buckets.reference
   CHECKING_BUCKET     = local.s3_buckets.checking
-  LAYOUT_METADATA_TABLE = local.dynamodb_tables.layout_metadata
+  DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
   LOG_LEVEL           = "INFO"
 }
     },
@@ -292,7 +293,7 @@ locals {
   MAX_TOKENS                 = var.bedrock.max_tokens
   BUDGET_TOKENS              = var.bedrock.budget_tokens
   THINKING_TYPE              = "enable"
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -306,7 +307,7 @@ locals {
         ANTHROPIC_VERSION          = var.bedrock.anthropic_version
         BEDROCK_MODEL              = var.bedrock.model_id
         MAX_TOKENS                 = var.bedrock.max_tokens
-        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "1"
       }
@@ -320,7 +321,7 @@ locals {
         ANTHROPIC_VERSION          = var.bedrock.anthropic_version
         BEDROCK_MODEL              = var.bedrock.model_id
         MAX_TOKENS                 = var.bedrock.max_tokens
-        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
       }
@@ -337,7 +338,7 @@ locals {
         MAX_TOKENS                 = var.bedrock.max_tokens
         THINKING_TYPE              = "enable"
         BUDGET_TOKENS              = var.bedrock.budget_tokens
-        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "1"
       }
@@ -354,7 +355,7 @@ locals {
         MAX_TOKENS                 = var.bedrock.max_tokens
         THINKING_TYPE              = "enable"
         BUDGET_TOKENS              = var.bedrock.budget_tokens
-        CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
       }
@@ -365,7 +366,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -375,7 +376,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -385,8 +386,8 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -396,8 +397,8 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   RESULTS_BUCKET             = local.s3_buckets.results
   LOG_LEVEL                  = "INFO"
 }
@@ -418,7 +419,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -428,7 +429,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -439,7 +440,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -449,7 +450,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -459,7 +460,7 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
 }
     },
@@ -469,8 +470,8 @@ locals {
       memory_size           = 256,
       timeout               = 30,
       environment_variables = {
-  VERIFICATION_RESULTS_TABLE = local.dynamodb_tables.verification_results
-  CONVERSATION_HISTORY_TABLE = local.dynamodb_tables.conversation_history
+  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   REFERENCE_BUCKET           = local.s3_buckets.reference
   CHECKING_BUCKET            = local.s3_buckets.checking
   RESULTS_BUCKET             = local.s3_buckets.results
