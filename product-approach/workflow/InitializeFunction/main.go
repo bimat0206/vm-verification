@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-
+"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 )
@@ -30,51 +30,94 @@ type WrappedRequest struct {
 }
 
 // Handler is the Lambda handler function
-func Handler(ctx context.Context, wrappedRequest WrappedRequest) (*VerificationContext, error) {
-	// Extract the actual request from the wrapped body field
-	var request InitRequest
-	
-	// If Body is a JSON string (happens with some API Gateway configurations)
-	if len(wrappedRequest.Body) > 0 {
-		// Try unmarshaling directly
-		err := json.Unmarshal(wrappedRequest.Body, &request)
-		if err != nil {
-			// If direct unmarshal fails, it might be a string that needs another unmarshal
-			var bodyString string
-			if err := json.Unmarshal(wrappedRequest.Body, &bodyString); err == nil {
-				// Successfully got a string, now try to unmarshal that
-				if err := json.Unmarshal([]byte(bodyString), &request); err != nil {
-					log.Printf("Failed to unmarshal body string: %v", err)
-					return nil, err
-				}
-			} else {
-				log.Printf("Failed to unmarshal body: %v", err)
-				return nil, err
-			}
-		}
-	}
-
-	// Get configuration from environment
-	config := ConfigVars{
-		LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
-		VerificationTable:  os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
-		VerificationPrefix: os.Getenv("VERIFICATION_PREFIX"),
-		ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
-		CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
-	}
-
-	// Initialize dependencies
-	deps, err := initDependencies(ctx)
-	if err != nil {
-		log.Printf("Failed to initialize dependencies: %v", err)
-		return nil, err
-	}
-
-	// Initialize service
-	service := NewInitService(deps, config)
-
-	// Process the request
-	return service.Process(ctx, request)
+// main.go - update Handler function
+func Handler(ctx context.Context, event interface{}) (*VerificationContext, error) {
+    // Initialize dependencies
+    deps, err := initDependencies(ctx)
+    if err != nil {
+        log.Printf("Failed to initialize dependencies: %v", err)
+        return nil, err
+    }
+    
+    // Get logger
+    logger := deps.GetLogger()
+    logger.Info("Received event", map[string]interface{}{
+        "eventType": fmt.Sprintf("%T", event),
+    })
+    
+    // Extract the request based on event type
+    var request InitRequest
+    
+    // Try to determine if this is coming from API Gateway or Step Functions
+    switch eventData := event.(type) {
+    case WrappedRequest:
+        // API Gateway integration
+        if len(eventData.Body) > 0 {
+            err := json.Unmarshal(eventData.Body, &request)
+            if err != nil {
+                logger.Error("Failed to unmarshal body from API Gateway", map[string]interface{}{
+                    "error": err.Error(),
+                })
+                return nil, fmt.Errorf("failed to parse API Gateway request: %w", err)
+            }
+        }
+    case map[string]interface{}:
+        // Direct JSON input (likely from Step Functions)
+        jsonBytes, err := json.Marshal(eventData)
+        if err != nil {
+            logger.Error("Failed to marshal raw event", map[string]interface{}{
+                "error": err.Error(),
+            })
+            return nil, fmt.Errorf("failed to process raw event: %w", err)
+        }
+        
+        if err := json.Unmarshal(jsonBytes, &request); err != nil {
+            logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
+                "error": err.Error(),
+            })
+            return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
+        }
+    default:
+        // Try to unmarshal directly as InitRequest
+        jsonBytes, err := json.Marshal(event)
+        if err != nil {
+            logger.Error("Failed to marshal unknown event type", map[string]interface{}{
+                "error": err.Error(),
+            })
+            return nil, fmt.Errorf("unknown event format: %w", err)
+        }
+        
+        if err := json.Unmarshal(jsonBytes, &request); err != nil {
+            logger.Error("Failed to unmarshal as InitRequest", map[string]interface{}{
+                "error": err.Error(),
+                "eventJson": string(jsonBytes),
+            })
+            return nil, fmt.Errorf("failed to parse event: %w", err)
+        }
+    }
+    
+    // Log the parsed request for debugging
+    logger.Info("Parsed request", map[string]interface{}{
+        "referenceImageUrl": request.ReferenceImageUrl,
+        "checkingImageUrl": request.CheckingImageUrl,
+        "layoutId": request.LayoutId,
+        "layoutPrefix": request.LayoutPrefix,
+    })
+    
+    // Get configuration from environment
+    config := ConfigVars{
+        LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
+        VerificationTable:  os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
+        VerificationPrefix: os.Getenv("VERIFICATION_PREFIX"),
+        ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
+        CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
+    }
+    
+    // Initialize service
+    service := NewInitService(deps, config)
+    
+    // Process the request
+    return service.Process(ctx, request)
 }
 
 func main() {
