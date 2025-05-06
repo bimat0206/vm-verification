@@ -15,6 +15,18 @@ The solution uses the following AWS services:
 - Amazon Bedrock for AI image processing
 - AWS CloudWatch for monitoring and logging
 
+### API Gateway and Step Functions Integration
+
+The architecture features a direct integration between API Gateway and Step Functions:
+
+1. API Gateway receives requests at the POST /api/verifications endpoint
+2. API Gateway directly invokes the Step Functions state machine using the StartExecution action
+3. Step Functions Initialize state maps the input parameters to ensure consistent structure
+4. The workflow executes through the state machine, invoking Lambda functions as needed
+5. Results are stored in DynamoDB and S3 for retrieval
+
+This integration pattern ensures consistent input handling regardless of whether the workflow is invoked via API Gateway or directly through the Step Functions API.
+
 ## Prerequisites
 
 - Terraform >= 1.0.0

@@ -87,3 +87,9 @@ variable "dynamodb_conversation_table" {
   type        = string
   default     = ""
 }
+
+variable "api_gateway_endpoint" {
+  description = "API Gateway endpoint URL"
+  type        = string
+  default     = ""
+}

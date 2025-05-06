@@ -119,6 +119,7 @@ module "step_functions" {
   create_api_gateway_integration = var.api_gateway.create_api_gateway
   api_gateway_id                 = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
   api_gateway_root_resource_id   = var.api_gateway.create_api_gateway ? module.api_gateway[0].root_resource_id : ""
+  api_gateway_endpoint           = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_endpoint : ""
   region                         = var.aws_region
 
   lambda_function_arns = {
@@ -190,6 +191,10 @@ module "api_gateway" {
   lambda_function_names = {
     for k, v in module.lambda_functions[0].function_names : k => v
   }
+
+  # Add Step Functions integration parameters
+  step_functions_role_arn = var.step_functions.create_step_functions ? module.step_functions[0].api_gateway_role_arn : ""
+  step_functions_state_machine_arn = var.step_functions.create_step_functions ? module.step_functions[0].state_machine_arn : ""
 
   region = var.aws_region
 

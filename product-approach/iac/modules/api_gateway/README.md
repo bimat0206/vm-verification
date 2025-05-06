@@ -13,7 +13,7 @@ The module has been organized into smaller, more manageable files to improve mai
 - **cors.tf**: Contains CORS configuration for API endpoints
 - **locals.tf**: Contains local variable definitions
 - **variables.tf**: Contains input variable definitions
-- **output.tf**: Contains output definitions
+- **outputs.tf**: Contains output definitions
 - **CHANGELOG.md**: Documents changes to the module
 
 ## Benefits of This Structure
@@ -43,13 +43,47 @@ module "api_gateway" {
 The API Gateway exposes the following endpoints:
 
 - `GET /api/verifications/lookup`: Lookup historical verifications
-- `POST /api/verifications`: Initiate a new verification
+- `POST /api/verifications`: Initiate a new verification (directly integrated with Step Functions)
 - `GET /api/verifications`: List all verifications
 - `GET /api/verifications/{verificationId}`: Get a specific verification
 - `GET /api/verifications/{verificationId}/conversation`: Get verification conversation
 - `GET /api/health`: Health check endpoint
 - `GET /api/images/{key}/view`: View a specific image
 - `GET /api/images/browser`: Browse available images
+- `POST /api/workflow`: Direct access to the Step Functions workflow (if enabled)
+
+## Step Functions Integration
+
+The API Gateway now integrates directly with AWS Step Functions for the `POST /api/verifications` endpoint. This integration:
+
+1. Eliminates the need for an intermediary Lambda function
+2. Directly starts a Step Functions execution when the endpoint is called
+3. Passes the request payload as input to the state machine
+4. Uses IAM roles to authorize the API Gateway to invoke Step Functions
+
+### Configuration
+
+To enable Step Functions integration, provide the following variables:
+
+```hcl
+module "api_gateway" {
+  source = "./modules/api_gateway"
+  
+  # Other variables...
+  
+  step_functions_role_arn = module.step_functions.api_gateway_role_arn
+  step_functions_state_machine_arn = module.step_functions.state_machine_arn
+}
+```
+
+The integration uses a request template to format the input for the Step Functions StartExecution API:
+
+```json
+{
+  "input": "$util.escapeJavaScript($input.json('$'))",
+  "stateMachineArn": "${var.step_functions_state_machine_arn}"
+}
+```
 
 ## API Base Path
 

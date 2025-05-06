@@ -66,3 +66,13 @@ output "api_gateway_integration_id" {
   description = "ID of the API Gateway integration for Step Functions"
   value       = var.create_api_gateway_integration ? aws_api_gateway_integration.step_functions_start[0].id : null
 }
+
+output "api_gateway_role_arn" {
+  description = "ARN of the IAM role for API Gateway to invoke Step Functions"
+  value       = var.create_api_gateway_integration ? aws_iam_role.api_gateway_step_functions_role[0].arn : ""
+}
+
+output "workflow_api_endpoint" {
+  description = "API Gateway endpoint for the Step Functions workflow"
+  value       = var.create_api_gateway_integration ? "${var.api_gateway_endpoint}/workflow" : ""
+}

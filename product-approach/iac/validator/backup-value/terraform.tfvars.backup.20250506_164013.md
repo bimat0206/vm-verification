@@ -1,6 +1,6 @@
 # Terraform Variables Backup
 
-**Date:** 2025-05-04 22:53:29
+**Date:** 2025-05-06 16:40:13
 **Directory:** .
 **File:** terraform.tfvars
 
@@ -183,8 +183,10 @@ lambda_functions = {
     fetch_historical_verification = 1024
     fetch_images                  = 1536
     prepare_system_prompt         = 1024
-    prepare_turn_prompt           = 512
-    invoke_bedrock                = 2048
+    prepare_turn1_prompt = 512
+    prepare_turn2_prompt = 512
+    execute_turn1        = 2048
+    execute_turn2        = 2048
     process_turn1_response        = 1024
     process_turn2_response        = 1024
     finalize_results              = 1024
@@ -203,8 +205,10 @@ lambda_functions = {
     fetch_historical_verification = 30
     fetch_images                  = 60
     prepare_system_prompt         = 30
-    prepare_turn_prompt           = 30
-    invoke_bedrock                = 150
+    prepare_turn1_prompt = 30
+    prepare_turn2_prompt = 30
+    execute_turn1        = 150
+    execute_turn2        = 150
     process_turn1_response        = 90
     process_turn2_response        = 90
     finalize_results              = 90

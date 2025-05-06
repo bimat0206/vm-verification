@@ -71,3 +71,13 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "step_functions_role_arn" {
+  description = "ARN of the IAM role for API Gateway to invoke Step Functions"
+  type        = string
+}
+
+variable "step_functions_state_machine_arn" {
+  description = "ARN of the Step Functions state machine"
+  type        = string
+}

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Renamed `output.tf` to `outputs.tf` to match the expected naming convention in the main.tf file
+- Updated module structure documentation in README.md to reflect the file name change
+
 ## [1.1.0] - 2024-05-XX
 
 ### Changed

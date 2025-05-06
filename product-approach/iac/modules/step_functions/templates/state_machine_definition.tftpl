@@ -6,6 +6,17 @@
       "Type": "Task",
       "Resource": "${function_arns["initialize"]}",
       "ResultPath": "$.verificationContext",
+      "Parameters": {
+        "verificationType.$": "$.verificationType",
+        "referenceImageUrl.$": "$.referenceImageUrl",
+        "checkingImageUrl.$": "$.checkingImageUrl",
+        "vendingMachineId.$": "$.vendingMachineId",
+        "layoutId.$": "$.layoutId",
+        "layoutPrefix.$": "$.layoutPrefix",
+        "notificationEnabled.$": "$.notificationEnabled",
+        "requestId.$": "$.requestId",
+        "requestTimestamp.$": "$.requestTimestamp"
+      },
       "Retry": [
         {
           "ErrorEquals": ["States.TaskFailed"],

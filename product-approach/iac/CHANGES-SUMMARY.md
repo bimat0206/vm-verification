@@ -1,35 +1,47 @@
-# API Gateway Base Path Changes Summary
+# API Gateway and Step Functions Integration Changes
 
 ## Overview
-The API Gateway module has been updated to simplify the base path structure. Previously, the API used `/api/v1` as its base path, which resulted in redundant path segments in the final invoke URL. The base path has been changed to `/api/` to create a cleaner URL structure.
+The infrastructure has been updated to improve the integration between API Gateway and Step Functions. Previously, the API Gateway POST /api/verifications endpoint was integrated with a Lambda function (initialize), which then triggered the Step Functions workflow. Now, API Gateway integrates directly with Step Functions, providing a more streamlined architecture and consistent input handling.
 
 ## Changes Made
 
-### 1. API Resource Structure
-- Removed the `/api/v1` path segment in favor of `/api/`
-- Updated all child resources to be direct children of the `/api/` resource
-- Modified all endpoint paths in the Terraform configuration
+### 1. API Gateway Integration Update
+- Changed the POST /api/verifications endpoint to integrate directly with Step Functions
+- Updated the integration type to AWS with StartExecution action
+- Added request template to format the input for Step Functions
+- Configured proper IAM permissions for API Gateway to invoke Step Functions
 
-### 2. Documentation Updates
-- Updated README.md with the new endpoint paths
-- Added a new section explaining the API base path structure
-- Added CHANGELOG.md files to all modules to track changes
+### 2. Step Functions Initialize State Update
+- Added Parameters mapping to the Initialize state in the Step Functions template
+- Ensured consistent input structure regardless of invocation source
+- Mapped all required parameters: verificationType, referenceImageUrl, checkingImageUrl, vendingMachineId, layoutId, layoutPrefix, notificationEnabled, requestId, and requestTimestamp
 
-### 3. File Changes
+### 3. Infrastructure Support Changes
+- Added necessary outputs for the Step Functions module
+- Added required variables for API Gateway and Step Functions modules
+- Updated main.tf to pass the correct parameters between modules
+
+### 4. File Changes
 The following files were modified:
-- `resources.tf`: Updated resource definitions and path comments
-- `methods.tf`: Updated method comments to reflect new paths
-- `cors_integration_responses.tf`: Updated integration response comments
-- `README.md`: Updated documentation with new paths and added explanations
+- `step_functions/templates/state_machine_definition.tftpl`: Added Parameters mapping to Initialize state
+- `api_gateway/methods.tf`: Updated integration for POST /api/verifications
+- `api_gateway/variables.tf`: Added Step Functions related variables
+- `step_functions/variables.tf`: Added API Gateway endpoint variable
+- `step_functions/output.tf`: Renamed to `outputs.tf` to match naming convention in main.tf
+- `api_gateway/output.tf`: Renamed to `outputs.tf` to match naming convention in main.tf
+- `step_functions/outputs.tf`: Added outputs for API Gateway integration
+- `main.tf`: Updated module calls to pass the correct parameters between modules
 
 ## Benefits
-- Simplified URL structure: `https://{api-id}.execute-api.{region}.amazonaws.com/{stage}/api/...`
-- Eliminated redundant path segments
-- Improved clarity in API documentation
-- Better alignment with API versioning best practices (version in stage name)
+- Simplified architecture by removing an unnecessary Lambda invocation
+- Consistent input structure for the Step Functions workflow
+- More direct control over the Step Functions execution
+- Improved error handling and monitoring
+- Better alignment with AWS best practices for serverless architectures
 
 ## Testing Recommendations
 After deploying these changes, verify that:
-1. All API endpoints are accessible at their new paths
-2. Any client applications are updated to use the new paths
-3. Documentation is consistent with the implemented changes
+1. The POST /api/verifications endpoint successfully starts a Step Functions execution
+2. The Initialize Lambda function receives the correct parameters
+3. The workflow completes successfully with the new integration
+4. Error handling works as expected

@@ -199,30 +199,16 @@ resource "aws_api_gateway_integration" "verifications_post" {
   http_method             = aws_api_gateway_method.verifications_post.http_method
   integration_http_method = "POST"
   type                    = "AWS"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["initialize"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:states:action/StartExecution"
+  credentials             = var.step_functions_role_arn
   passthrough_behavior    = "WHEN_NO_TEMPLATES"
 
-  # Add request templates for non-proxy integration
+  # Add request templates for Step Functions integration
   request_templates = {
     "application/json" = <<EOF
 {
-  "body": $input.json('$'),
-  "headers": {
-    #foreach($header in $input.params().header.keySet())
-    "$header": "$util.escapeJavaScript($input.params().header.get($header))" #if($foreach.hasNext),#end
-    #end
-  },
-  "method": "$context.httpMethod",
-  "params": {
-    #foreach($param in $input.params().path.keySet())
-    "$param": "$util.escapeJavaScript($input.params().path.get($param))" #if($foreach.hasNext),#end
-    #end
-  },
-  "query": {
-    #foreach($queryParam in $input.params().querystring.keySet())
-    "$queryParam": "$util.escapeJavaScript($input.params().querystring.get($queryParam))" #if($foreach.hasNext),#end
-    #end
-  }
+  "input": "$util.escapeJavaScript($input.json('$'))",
+  "stateMachineArn": "${var.step_functions_state_machine_arn}"
 }
 EOF
   }
