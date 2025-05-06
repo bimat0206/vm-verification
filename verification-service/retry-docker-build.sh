@@ -6,7 +6,7 @@ set -e  # Exit immediately if a command fails
 
 # Manually set the ECR repository URL if terraform output isn't working
 # Replace this with your actual ECR repository URL from the AWS console
-ECR_REPO="879654127886.dkr.ecr.us-east-1.amazonaws.com/ecr-verification-service-hwmjt8j0"
+ECR_REPO="879654127886.dkr.ecr.us-east-1.amazonaws.com/ecr-verification-service-dptnik39"
 
 echo "Using ECR repository: $ECR_REPO"
 

@@ -44,15 +44,17 @@ class StreamlitFrontendResources:
         # Create security group
         self.security_group = self._create_security_group()
         
-        # Create target group and listener rule
+        # Create target group
         self.target_group = self._create_target_group()
-        self.listener_rule = self._create_listener_rule()
         
         # Create ECS Task Definition
         self.task_definition = self._create_task_definition()
         
         # Create ECS Service
         self.service = self._create_service()
+        
+        # Create listener rule - do this last after everything else is set up
+        self.listener_rule = self._create_listener_rule()
         
         # Output the ECR repository URI
         self._create_outputs()
@@ -159,28 +161,40 @@ class StreamlitFrontendResources:
     def _create_listener_rule(self):
         """Create listener rule to route /ui path to Streamlit"""
         # Find the HTTP listener in the load balancer
-        http_listener = None
-        for listener in self.load_balancer.listeners:
-            if listener.connections.default_port == 80:
-                http_listener = listener
+        listener = None
+        for l in self.load_balancer.listeners:
+            if hasattr(l, 'connections') and l.connections.default_port == 80:
+                listener = l
                 break
         
-        if not http_listener:
-            # If no HTTP listener found, create one
-            http_listener = self.load_balancer.add_listener(
-                f"{self.resource_prefix}-http-listener",
-                port=80,
-                open=True
+        # If no listener was found, create a new one for the Streamlit frontend
+        if not listener:
+            # Create a new listener with HTTP protocol explicitly specified
+            listener = self.load_balancer.add_listener(
+                f"{self.resource_prefix}-streamlit-listener",
+                port=8080,  # Use a standard HTTP port instead of 8501
+                protocol=elbv2.ApplicationProtocol.HTTP,  # Explicitly specify HTTP protocol
+                default_action=elbv2.ListenerAction.forward([self.target_group])
             )
-        
-        # Create listener rule for '/ui' path
-        return http_listener.add_action(
+            
+            # Add to ALB outputs to show this alternate port - ensure unique name
+            CfnOutput(
+                self.scope, 
+                "StreamlitAlternatePort",  # Changed name to avoid conflicts
+                value=f"http://{self.load_balancer.load_balancer_dns_name}:8080",
+                description="Alternative port for accessing the Streamlit frontend"
+            )
+            
+            return listener
+            
+        # Create a path-based routing rule for the Streamlit UI
+        return listener.add_action(
             f"{self.resource_prefix}-streamlit-action",
-            action=elbv2.ListenerAction.forward([self.target_group]),
+            priority=5,  # Low priority number (evaluated first)
             conditions=[
-                elbv2.ListenerCondition.path_patterns(["/ui/*"])
+                elbv2.ListenerCondition.path_patterns(["/ui", "/ui/*"])
             ],
-            priority=10  # Lower priority numbers are evaluated first
+            action=elbv2.ListenerAction.forward([self.target_group])
         )
     
     def _create_task_definition(self):
@@ -252,10 +266,4 @@ class StreamlitFrontendResources:
             description="ECR repository URI for Streamlit frontend"
         )
         
-        streamlit_url = f"http://{self.load_balancer.load_balancer_dns_name}/ui"
-        CfnOutput(
-            self.scope, 
-            "StreamlitUrl",
-            value=streamlit_url,
-            description="URL for accessing the Streamlit frontend"
-        )
+        # Removed the StreamlitUrl output since it's already defined in base_stack.py

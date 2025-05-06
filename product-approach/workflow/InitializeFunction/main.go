@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -18,8 +19,41 @@ type ConfigVars struct {
 	CheckingBucket     string
 }
 
+// WrappedRequest represents the structure API Gateway sends to Lambda
+// with non-proxy integration
+type WrappedRequest struct {
+	Body        json.RawMessage         `json:"body"`
+	Headers     map[string]string       `json:"headers"`
+	Method      string                  `json:"method"`
+	Params      map[string]string       `json:"params"`
+	Query       map[string]string       `json:"query"`
+}
+
 // Handler is the Lambda handler function
-func Handler(ctx context.Context, request InitRequest) (*VerificationContext, error) {
+func Handler(ctx context.Context, wrappedRequest WrappedRequest) (*VerificationContext, error) {
+	// Extract the actual request from the wrapped body field
+	var request InitRequest
+	
+	// If Body is a JSON string (happens with some API Gateway configurations)
+	if len(wrappedRequest.Body) > 0 {
+		// Try unmarshaling directly
+		err := json.Unmarshal(wrappedRequest.Body, &request)
+		if err != nil {
+			// If direct unmarshal fails, it might be a string that needs another unmarshal
+			var bodyString string
+			if err := json.Unmarshal(wrappedRequest.Body, &bodyString); err == nil {
+				// Successfully got a string, now try to unmarshal that
+				if err := json.Unmarshal([]byte(bodyString), &request); err != nil {
+					log.Printf("Failed to unmarshal body string: %v", err)
+					return nil, err
+				}
+			} else {
+				log.Printf("Failed to unmarshal body: %v", err)
+				return nil, err
+			}
+		}
+	}
+
 	// Get configuration from environment
 	config := ConfigVars{
 		LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
