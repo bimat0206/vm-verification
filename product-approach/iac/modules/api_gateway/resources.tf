@@ -5,6 +5,9 @@ resource "aws_api_gateway_rest_api" "api" {
   name        = var.api_name
   description = var.api_description
 
+  # Add empty body to satisfy AWS provider >= 5.0.0 requirement
+  body = ""
+
   endpoint_configuration {
     types = ["REGIONAL"]
   }

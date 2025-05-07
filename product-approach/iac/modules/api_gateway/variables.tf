@@ -40,10 +40,7 @@ variable "use_api_key" {
   type        = bool
 }
 
-variable "openapi_definition" {
-  description = "Path to OpenAPI definition file"
-  type        = string
-}
+
 
 variable "streamlit_service_url" {
   description = "URL of the Streamlit frontend service for CORS configuration"

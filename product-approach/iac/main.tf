@@ -182,7 +182,6 @@ module "api_gateway" {
   cors_enabled           = var.api_gateway.cors_enabled
   metrics_enabled        = var.api_gateway.metrics_enabled
   use_api_key            = var.api_gateway.use_api_key
-  openapi_definition     = "${path.module}/openapi.yaml"
   # Removed streamlit_service_url to avoid dependency cycle
   lambda_function_arns = {
     for k, v in module.lambda_functions[0].function_arns : k => v

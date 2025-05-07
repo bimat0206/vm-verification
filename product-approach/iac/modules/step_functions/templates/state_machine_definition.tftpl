@@ -1,8 +1,25 @@
 {
-  "Comment": "Vending Machine Verification - Enhanced Two-Turn Workflow",
-  "StartAt": "Initialize",
+  "Comment": "Kootoro GenAI Vending Machine Verification - Enhanced Two-Turn Workflow",
+  "StartAt": "CheckVerificationType",
   "States": {
-    "Initialize": {
+    "CheckVerificationType": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verificationType",
+          "StringEquals": "LAYOUT_VS_CHECKING",
+          "Next": "InitializeLayoutChecking"
+        },
+        {
+          "Variable": "$.verificationType",
+          "StringEquals": "PREVIOUS_VS_CURRENT",
+          "Next": "InitializePreviousCurrent"
+        }
+      ],
+      "Default": "HandleInvalidVerificationType"
+    },
+    
+    "InitializeLayoutChecking": {
       "Type": "Task",
       "Resource": "${function_arns["initialize"]}",
       "ResultPath": "$.verificationContext",
@@ -32,19 +49,59 @@
           "Next": "HandleInitializationError"
         }
       ],
-      "Next": "CheckVerificationType"
+      "Next": "FetchImages"
     },
-    "CheckVerificationType": {
-      "Type": "Choice",
-      "Choices": [
+    
+    "InitializePreviousCurrent": {
+      "Type": "Task",
+      "Resource": "${function_arns["initialize"]}",
+      "ResultPath": "$.verificationContext",
+      "Parameters": {
+        "verificationType.$": "$.verificationType",
+        "referenceImageUrl.$": "$.referenceImageUrl",
+        "checkingImageUrl.$": "$.checkingImageUrl",
+        "vendingMachineId.$": "$.vendingMachineId",
+        "previousVerificationId": "$.previousVerificationId",
+        "notificationEnabled.$": "$.notificationEnabled",
+        "requestId.$": "$.requestId",
+        "requestTimestamp.$": "$.requestTimestamp"
+      },
+      "Retry": [
         {
-          "Variable": "$.verificationContext.verificationType",
-          "StringEquals": "previous_vs_current",
-          "Next": "FetchHistoricalVerification"
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
         }
       ],
-      "Default": "FetchImages"
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleInitializationError"
+        }
+      ],
+      "Next": "FetchHistoricalVerification"
     },
+    
+    "HandleInvalidVerificationType": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Invalid verificationType. Must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT."
+      },
+      "End": true
+    },
+    
+    "HandleInitializationError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "error": "Failed to initialize verification process"
+      },
+      "End": true
+    },
+    
     "FetchHistoricalVerification": {
       "Type": "Task",
       "Resource": "${function_arns["fetch_historical_verification"]}",
@@ -67,6 +124,7 @@
       ],
       "Next": "FetchImages"
     },
+    
     "HandleHistoricalFetchError": {
       "Type": "Pass",
       "Result": {
@@ -75,14 +133,7 @@
       },
       "End": true
     },
-    "HandleInitializationError": {
-      "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to initialize verification process"
-      },
-      "End": true
-    },
+    
     "FetchImages": {
       "Type": "Task",
       "Resource": "${function_arns["fetch_images"]}",
@@ -105,6 +156,7 @@
       ],
       "Next": "PrepareSystemPrompt"
     },
+    
     "HandleFetchImagesError": {
       "Type": "Pass",
       "Result": {
@@ -113,6 +165,7 @@
       },
       "End": true
     },
+    
     "PrepareSystemPrompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_system_prompt"]}",
@@ -120,6 +173,7 @@
       "ResultPath": "$.systemPrompt",
       "Next": "InitializeConversationState"
     },
+    
     "InitializeConversationState": {
       "Type": "Pass",
       "Parameters": {
@@ -137,6 +191,7 @@
       },
       "Next": "PrepareTurn1Prompt"
     },
+    
     "PrepareTurn1Prompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn1_prompt"]}",
@@ -147,11 +202,13 @@
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
         "conversationState.$": "$.conversationState",
+        "turnNumber": 1,
         "includeImage": "reference"
       },
       "ResultPath": "$.currentPrompt",
       "Next": "ExecuteTurn1"
     },
+    
     "ExecuteTurn1": {
       "Type": "Task",
       "Resource": "${function_arns["execute_turn1"]}",
@@ -174,6 +231,7 @@
       ],
       "Next": "ProcessTurn1Response"
     },
+    
     "ProcessTurn1Response": {
       "Type": "Task",
       "Resource": "${function_arns["process_turn1_response"]}",
@@ -181,6 +239,7 @@
       "ResultPath": "$.referenceAnalysis",
       "Next": "UpdateConversationStateAfterTurn1"
     },
+    
     "UpdateConversationStateAfterTurn1": {
       "Type": "Pass",
       "Parameters": {
@@ -201,6 +260,7 @@
       },
       "Next": "PrepareTurn2Prompt"
     },
+    
     "PrepareTurn2Prompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn2_prompt"]}",
@@ -211,12 +271,14 @@
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
         "conversationState.$": "$.conversationState",
-        "previousContext.$": "$.referenceAnalysis",
-        "includeImage": "checking"
+        "turnNumber": 2,
+        "includeImage": "checking",
+        "previousContext.$": "$.referenceAnalysis"
       },
       "ResultPath": "$.currentPrompt",
       "Next": "ExecuteTurn2"
     },
+    
     "ExecuteTurn2": {
       "Type": "Task",
       "Resource": "${function_arns["execute_turn2"]}",
@@ -239,6 +301,7 @@
       ],
       "Next": "ProcessTurn2Response"
     },
+    
     "HandleBedrockError": {
       "Type": "Task",
       "Resource": "${function_arns["handle_bedrock_error"]}",
@@ -246,6 +309,7 @@
       "ResultPath": "$",
       "Next": "FinalizeWithError"
     },
+    
     "FinalizeWithError": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
@@ -253,6 +317,7 @@
       "ResultPath": "$.finalResults",
       "Next": "StoreResults"
     },
+    
     "ProcessTurn2Response": {
       "Type": "Task",
       "Resource": "${function_arns["process_turn2_response"]}",
@@ -260,6 +325,7 @@
       "ResultPath": "$.checkingAnalysis",
       "Next": "UpdateConversationStateAfterTurn2"
     },
+    
     "UpdateConversationStateAfterTurn2": {
       "Type": "Pass",
       "Parameters": {
@@ -282,6 +348,7 @@
       },
       "Next": "FinalizeResults"
     },
+    
     "FinalizeResults": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_results"]}",
@@ -289,6 +356,7 @@
       "ResultPath": "$.finalResults",
       "Next": "StoreResults"
     },
+    
     "StoreResults": {
       "Type": "Task",
       "Resource": "${function_arns["store_results"]}",
@@ -296,6 +364,7 @@
       "ResultPath": "$.storageResult",
       "Next": "ShouldNotify"
     },
+    
     "ShouldNotify": {
       "Type": "Choice",
       "Choices": [
@@ -307,6 +376,7 @@
       ],
       "Default": "WorkflowComplete"
     },
+    
     "Notify": {
       "Type": "Task",
       "Resource": "${function_arns["notify"]}",
@@ -314,6 +384,7 @@
       "ResultPath": "$.notificationResult",
       "Next": "WorkflowComplete"
     },
+    
     "WorkflowComplete": {
       "Type": "Pass",
       "Parameters": {
