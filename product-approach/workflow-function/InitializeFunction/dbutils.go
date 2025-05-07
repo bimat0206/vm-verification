@@ -55,15 +55,18 @@ func (d *DynamoDBUtils) VerifyLayoutExists(ctx context.Context, layoutId int, la
 func (d *DynamoDBUtils) StoreVerificationRecord(ctx context.Context, verificationContext *VerificationContext) error {
 	// Create DynamoDB item
 	item := DynamoDBVerificationItem{
-		VerificationId:    verificationContext.VerificationId,
-		VerificationAt:    verificationContext.VerificationAt,
-		Status:            verificationContext.Status,
-		VendingMachineId:  verificationContext.VendingMachineId,
-		LayoutId:          verificationContext.LayoutId,
-		LayoutPrefix:      verificationContext.LayoutPrefix,
-		ReferenceImageUrl: verificationContext.ReferenceImageUrl,
-		CheckingImageUrl:  verificationContext.CheckingImageUrl,
-		RequestId:         verificationContext.RequestMetadata.RequestId,
+		VerificationId:       verificationContext.VerificationId,
+		VerificationAt:       verificationContext.VerificationAt,
+		Status:               verificationContext.Status,
+		VerificationType:     verificationContext.VerificationType,
+		VendingMachineId:     verificationContext.VendingMachineId,
+		LayoutId:             verificationContext.LayoutId,
+		LayoutPrefix:         verificationContext.LayoutPrefix,
+		PreviousVerificationId: verificationContext.PreviousVerificationId,
+		ReferenceImageUrl:    verificationContext.ReferenceImageUrl,
+		CheckingImageUrl:     verificationContext.CheckingImageUrl,
+		RequestId:            verificationContext.RequestMetadata.RequestId,
+		NotificationEnabled:  verificationContext.NotificationEnabled,
 		// Set TTL for 30 days from now
 		TTL: time.Now().AddDate(0, 0, 30).Unix(),
 	}
@@ -163,6 +166,53 @@ func (d *DynamoDBUtils) UpdateVerificationStatus(ctx context.Context, verificati
 	})
 	
 	return nil
+}
+
+// FindPreviousVerification retrieves the most recent verification that used a specific checking image
+func (d *DynamoDBUtils) FindPreviousVerification(ctx context.Context, checkingImageUrl string) (*VerificationContext, error) {
+	d.logger.Info("Searching for previous verification", map[string]interface{}{
+		"checkingImageUrl": checkingImageUrl,
+		"indexName": "CheckingImageIndex",
+	})
+
+	// Use GSI4 (CheckingImageIndex) to find verifications where this image was used as checking
+	queryInput := &dynamodb.QueryInput{
+		TableName: aws.String(d.config.VerificationTable),
+		IndexName: aws.String("CheckingImageIndex"), // GSI4 name
+		KeyConditionExpression: aws.String("checkingImageUrl = :checkingUrl"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":checkingUrl": &types.AttributeValueMemberS{Value: checkingImageUrl},
+		},
+		ScanIndexForward: aws.Bool(false), // Return most recent first
+		Limit: aws.Int32(1), // We only need the most recent one
+	}
+	
+	result, err := d.client.Query(ctx, queryInput)
+	if err != nil {
+		return nil, fmt.Errorf("error querying previous verification: %w", err)
+	}
+	
+	if len(result.Items) == 0 {
+		d.logger.Info("No previous verification found", map[string]interface{}{
+			"checkingImageUrl": checkingImageUrl,
+		})
+		return nil, nil // No previous verification found
+	}
+	
+	// Unmarshal into VerificationContext
+	var verification VerificationContext
+	err = attributevalue.UnmarshalMap(result.Items[0], &verification)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling previous verification: %w", err)
+	}
+	
+	d.logger.Info("Found previous verification", map[string]interface{}{
+		"previousVerificationId": verification.VerificationId,
+		"verificationAt": verification.VerificationAt,
+		"status": verification.Status,
+	})
+	
+	return &verification, nil
 }
 
 // BatchGetVerificationRecords retrieves multiple verification records based on IDs
