@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `output.tf` to `outputs.tf` to match the expected naming convention in the main.tf file
 - Updated module structure documentation in README.md to reflect the file name change
+- Updated VerificationRequest model to make previousVerificationId and vendingMachineId optional for PREVIOUS_VS_CURRENT verification type
+- Updated API documentation to clarify that requests must use the verificationContext wrapper structure
 
 ## [1.1.0] - 2024-05-XX
 

@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `output.tf` to `outputs.tf` to match the expected naming convention in the main.tf file
 - Updated module structure documentation in README.md to reflect the file name change
+- Updated state machine definition template to pass `previousVerificationId` parameter to InitializePreviousCurrent state
+- Made `previousVerificationId` and `vendingMachineId` optional for PREVIOUS_VS_CURRENT verification type
+- Updated CheckVerificationType state to use `$.verificationContext.verificationType` path for Choice state
+- Updated InitializeLayoutChecking and InitializePreviousCurrent states to use verificationContext-prefixed parameters
 
 ## [1.0.0] - 2024-XX-XX
 
