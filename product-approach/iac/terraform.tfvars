@@ -175,10 +175,10 @@ lambda_functions = {
     fetch_historical_verification = 1024
     fetch_images                  = 1536
     prepare_system_prompt         = 1024
-    prepare_turn1_prompt = 512
-    prepare_turn2_prompt = 512
-    execute_turn1        = 2048
-    execute_turn2        = 2048
+    prepare_turn1_prompt          = 512
+    prepare_turn2_prompt          = 512
+    execute_turn1                 = 2048
+    execute_turn2                 = 2048
     process_turn1_response        = 1024
     process_turn2_response        = 1024
     finalize_results              = 1024
@@ -187,20 +187,20 @@ lambda_functions = {
     handle_bedrock_error          = 512
     finalize_with_error           = 512
     render_layout                 = 2048
-    list_verifications = 1024
-    get_verification   = 1024
-    get_conversation   = 1024
-    health_check       = 512
+    list_verifications            = 1024
+    get_verification              = 1024
+    get_conversation              = 1024
+    health_check                  = 512
   }
   timeouts = {
     initialize                    = 30
     fetch_historical_verification = 30
     fetch_images                  = 60
     prepare_system_prompt         = 30
-    prepare_turn1_prompt = 30
-    prepare_turn2_prompt = 30
-    execute_turn1        = 150
-    execute_turn2        = 150
+    prepare_turn1_prompt          = 30
+    prepare_turn2_prompt          = 30
+    execute_turn1                 = 150
+    execute_turn2                 = 150
     process_turn1_response        = 90
     process_turn2_response        = 90
     finalize_results              = 90
@@ -209,10 +209,10 @@ lambda_functions = {
     handle_bedrock_error          = 60
     finalize_with_error           = 60
     render_layout                 = 120
-    list_verifications = 30
-    get_verification   = 30
-    get_conversation   = 30
-    health_check       = 30
+    list_verifications            = 30
+    get_verification              = 30
+    get_conversation              = 30
+    health_check                  = 30
   }
   log_retention_days            = 90
   s3_trigger_functions          = ["render_layout"]
@@ -240,38 +240,38 @@ step_functions = {
 
 # ECS Streamlit Configuration
 streamlit_frontend = {
-  create_streamlit               = true
-  service_name                   = "vm-fe"
-  image_uri                      = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
-  image_repository_type          = "ECR"
-  cpu                            = 1024  # 1 vCPU = 1024 CPU units
-  memory                         = 2048  # 2 GB = 2048 MB
-  port                           = 8501
-  auto_deployments_enabled       = false
-  enable_auto_scaling            = true
-  min_size                       = 1
-  max_size                       = 3
-  max_capacity                   = 10
-  cpu_threshold                  = 70
-  memory_threshold               = 70
-  theme_mode                     = "dark"
-  log_retention_days             = 30
-  health_check_path              = "/_stcore/health"
-  health_check_interval          = 30
-  health_check_timeout           = 5
-  health_check_healthy_threshold = 2
+  create_streamlit                 = true
+  service_name                     = "vm-fe"
+  image_uri                        = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
+  image_repository_type            = "ECR"
+  cpu                              = 1024 # 1 vCPU = 1024 CPU units
+  memory                           = 2048 # 2 GB = 2048 MB
+  port                             = 8501
+  auto_deployments_enabled         = false
+  enable_auto_scaling              = true
+  min_size                         = 1
+  max_size                         = 3
+  max_capacity                     = 10
+  cpu_threshold                    = 70
+  memory_threshold                 = 70
+  theme_mode                       = "dark"
+  log_retention_days               = 30
+  health_check_path                = "/_stcore/health"
+  health_check_interval            = 30
+  health_check_timeout             = 5
+  health_check_healthy_threshold   = 2
   health_check_unhealthy_threshold = 3
-  enable_https                   = false
-  internal_alb                   = false
-  enable_container_insights      = true
-  enable_execute_command         = true
+  enable_https                     = false
+  internal_alb                     = false
+  enable_container_insights        = true
+  enable_execute_command           = true
   environment_variables = {
     STREAMLIT_THEME_PRIMARY_COLOR              = "#FF4B4B"
     STREAMLIT_THEME_BACKGROUND_COLOR           = "#0E1117"
     STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR = "#262730"
     STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
     STREAMLIT_THEME_FONT                       = "sans serif"
-    API_ENDPOINT                               = ""                # Will be populated from API Gateway endpoint
+    API_ENDPOINT                               = "" # Will be populated from API Gateway endpoint
   }
 }
 
@@ -294,6 +294,6 @@ bedrock = {
 # Monitoring Configuration
 monitoring = {
   create_dashboard      = true
-  log_retention_days    = 90
-  alarm_email_endpoints = ["ops-alerts@example.com", "on-call@example.com"]
+  log_retention_days    = 12
+  alarm_email_endpoints = ["manh.hoang@renovacloud.com" ]
 }
