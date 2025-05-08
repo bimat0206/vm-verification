@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -24,105 +25,117 @@ type ConfigVars struct {
 // WrappedRequest represents the structure API Gateway sends to Lambda
 // with non-proxy integration
 type WrappedRequest struct {
-	Body        json.RawMessage   `json:"body"`
-	Headers     map[string]string `json:"headers"`
-	Method      string            `json:"method"`
-	Params      map[string]string `json:"params"`
-	Query       map[string]string `json:"query"`
+	Body    json.RawMessage   `json:"body"`
+	Headers map[string]string `json:"headers"`
+	Method  string            `json:"method"`
+	Params  map[string]string `json:"params"`
+	Query   map[string]string `json:"query"`
 }
 
+
+
 // Handler is the Lambda handler function
-func Handler(ctx context.Context, event interface{}) (*VerificationContext, error) {
-	// Initialize dependencies
+func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
+	// 1) Initialize dependencies
 	deps, err := initDependencies(ctx)
 	if err != nil {
 		log.Printf("Failed to initialize dependencies: %v", err)
 		return nil, err
 	}
-	
-	// Get logger
 	logger := deps.GetLogger()
 	logger.Info("Received event", map[string]interface{}{
 		"eventType": fmt.Sprintf("%T", event),
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
-	
-	// Extract the request based on event type
-	var request InitRequest
-	
-	// Try to determine if this is coming from API Gateway or Step Functions
-	switch eventData := event.(type) {
+
+	// 2) Marshal the incoming event to JSON bytes
+	var jsonBytes []byte
+	switch e := event.(type) {
 	case WrappedRequest:
-		// API Gateway integration
-		if len(eventData.Body) > 0 {
-			err := json.Unmarshal(eventData.Body, &request)
-			if err != nil {
-				logger.Error("Failed to unmarshal body from API Gateway", map[string]interface{}{
-					"error": err.Error(),
-				})
-				return nil, fmt.Errorf("failed to parse API Gateway request: %w", err)
-			}
+		// API Gateway
+		if len(e.Body) > 0 {
+			jsonBytes = e.Body
+		} else {
+			jsonBytes = []byte("{}")
 		}
 	case map[string]interface{}:
-		// Direct JSON input (likely from Step Functions)
-		jsonBytes, err := json.Marshal(eventData)
+		// Step Functions / direct map
+		jsonBytes, err = json.Marshal(e)
 		if err != nil {
 			logger.Error("Failed to marshal raw event", map[string]interface{}{
 				"error": err.Error(),
 			})
 			return nil, fmt.Errorf("failed to process raw event: %w", err)
 		}
-		
-		if err := json.Unmarshal(jsonBytes, &request); err != nil {
-			logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
-				"error": err.Error(),
-			})
-			return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
-		}
 	default:
-		// Try to unmarshal directly as InitRequest
-		jsonBytes, err := json.Marshal(event)
+		// Fallback: try to marshal entire event
+		jsonBytes, err = json.Marshal(e)
 		if err != nil {
 			logger.Error("Failed to marshal unknown event type", map[string]interface{}{
 				"error": err.Error(),
 			})
 			return nil, fmt.Errorf("unknown event format: %w", err)
 		}
-		
-		if err := json.Unmarshal(jsonBytes, &request); err != nil {
-			logger.Error("Failed to unmarshal as InitRequest", map[string]interface{}{
+	}
+
+	// 3) Unwrap if there is a top-level "verificationContext" field
+	var raw map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &raw); err != nil {
+		logger.Error("Failed to unmarshal event to map", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, fmt.Errorf("failed to parse event: %w", err)
+	}
+
+	var request InitRequest
+	if vc, ok := raw["verificationContext"]; ok {
+		vcBytes, err := json.Marshal(vc)
+		if err != nil {
+			logger.Error("Failed to marshal verificationContext", map[string]interface{}{
 				"error": err.Error(),
+			})
+			return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
+		}
+		if err := json.Unmarshal(vcBytes, &request); err != nil {
+			logger.Error("Failed to unmarshal verificationContext", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
+		}
+	} else {
+		// No wrapper: parse the full payload directly
+		if err := json.Unmarshal(jsonBytes, &request); err != nil {
+			logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
+				"error":     err.Error(),
 				"eventJson": string(jsonBytes),
 			})
 			return nil, fmt.Errorf("failed to parse event: %w", err)
 		}
 	}
-	
-	// Set default verificationType if not provided
+
+	// 4) Default verificationType if missing
 	if request.VerificationType == "" {
 		logger.Info("VerificationType not provided, defaulting to LAYOUT_VS_CHECKING", nil)
 		request.VerificationType = VerificationTypeLayoutVsChecking
 	}
-	
-	// Log the parsed request with details appropriate for the verification type
+
+	// 5) Log parsed request
 	logDetails := map[string]interface{}{
-		"verificationType":  request.VerificationType,
-		"referenceImageUrl": request.ReferenceImageUrl,
-		"checkingImageUrl":  request.CheckingImageUrl,
-		"vendingMachineId":  request.VendingMachineId,
+		"verificationType":    request.VerificationType,
+		"referenceImageUrl":   request.ReferenceImageUrl,
+		"checkingImageUrl":    request.CheckingImageUrl,
+		"vendingMachineId":    request.VendingMachineId,
+		"notificationEnabled": request.NotificationEnabled,
 	}
-	
-	// Add type-specific details to log
 	if request.VerificationType == VerificationTypeLayoutVsChecking {
 		logDetails["layoutId"] = request.LayoutId
 		logDetails["layoutPrefix"] = request.LayoutPrefix
-	} else if request.VerificationType == VerificationTypePreviousVsCurrent {
+	} else {
 		logDetails["previousVerificationId"] = request.PreviousVerificationId
 	}
-	
 	logger.Info("Parsed request", logDetails)
-	
-	// Get configuration from environment
+
+	// 6) Load config from environment
 	config := ConfigVars{
 		LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
 		VerificationTable:  os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
@@ -130,34 +143,37 @@ func Handler(ctx context.Context, event interface{}) (*VerificationContext, erro
 		ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
 		CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
 	}
-	
-	// Log configuration (excluding sensitive values)
 	logger.Info("Using configuration", map[string]interface{}{
 		"layoutTable":        config.LayoutTable,
 		"verificationTable":  config.VerificationTable,
 		"verificationPrefix": config.VerificationPrefix,
 	})
-	
-	// Initialize service
+
+	// 7) Run business logic
 	service := NewInitService(deps, config)
-	
-	// Process the request
 	result, err := service.Process(ctx, request)
 	if err != nil {
 		logger.Error("Failed to process request", map[string]interface{}{
-			"error": err.Error(),
+			"error":            err.Error(),
 			"verificationType": request.VerificationType,
 		})
 		return nil, err
 	}
-	
 	logger.Info("Successfully processed request", map[string]interface{}{
-		"verificationId": result.VerificationId,
+		"verificationId":   result.VerificationId,
 		"verificationType": result.VerificationType,
-		"status": result.Status,
+		"status":           result.Status,
 	})
-	
-	return result, nil
+
+	// 8) Wrap and return response
+	message := fmt.Sprintf(
+		"Verification initialized successfully. Will perform %s verification with two-turn approach.",
+		strings.ToLower(request.VerificationType),
+	)
+	return &InitResponse{
+		VerificationContext: result,
+		Message:             message,
+	}, nil
 }
 
 // getEnvWithDefault gets an environment variable with a default value
@@ -170,18 +186,14 @@ func getEnvWithDefault(key, defaultValue string) string {
 }
 
 func main() {
-	// Start Lambda handler
 	lambda.Start(Handler)
 }
 
 // initDependencies initializes all required dependencies
 func initDependencies(ctx context.Context) (*Dependencies, error) {
-	// Load AWS SDK configuration
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	// Initialize dependencies
 	return NewDependencies(awsCfg), nil
 }

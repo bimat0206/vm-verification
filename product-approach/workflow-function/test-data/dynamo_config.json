@@ -1,0 +1,9 @@
+{
+  "layoutMetadataTable": "kootoro-dev-dynamodb-layout-metadata-f6d3xl",
+  "verificationResultsTable": "kootoro-dev-dynamodb-verification-results-f6d3xl",
+  "conversationHistoryTable": "kootoro-dev-dynamodb-conversation-history-f6d3xl",
+  "region": "us-east-1",
+  "numLayouts": 5,
+  "numVerifications": 10,
+  "numConversations": 10
+}

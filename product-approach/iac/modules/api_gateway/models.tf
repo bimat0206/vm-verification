@@ -42,33 +42,39 @@ resource "aws_api_gateway_model" "verification_request" {
   schema = jsonencode({
     type = "object"
     properties = {
-      verificationType = {
-        type = "string",
-        enum = ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"]
-      }
-      referenceImageUrl = {
-        type = "string"
-      }
-      checkingImageUrl = {
-        type = "string"
-      }
-      vendingMachineId = {
-        type = "string"
-      }
-      layoutId = {
-        type = "integer"
-      }
-      layoutPrefix = {
-        type = "string"
-      }
-      notificationEnabled = {
-        type = "boolean"
-      }
-      previousVerificationId = {
-        type = "string"
+      verificationContext = {
+        type = "object"
+        properties = {
+          verificationType = {
+            type = "string",
+            enum = ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"]
+          }
+          referenceImageUrl = {
+            type = "string"
+          }
+          checkingImageUrl = {
+            type = "string"
+          }
+          vendingMachineId = {
+            type = "string"
+          }
+          layoutId = {
+            type = "integer"
+          }
+          layoutPrefix = {
+            type = "string"
+          }
+          previousVerificationId = {
+            type = "string"
+          }
+          notificationEnabled = {
+            type = "boolean"
+          }
+        }
+        required = ["verificationType", "referenceImageUrl", "checkingImageUrl", "notificationEnabled"]
       }
     }
-    required = ["verificationType", "referenceImageUrl", "checkingImageUrl"]
+    required = ["verificationContext"]
   })
 }
 

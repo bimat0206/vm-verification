@@ -64,4 +64,33 @@ The code now uses proper dependency injection, making it more testable:
 - **Reusable Components**: Utility functions grouped by responsibility
 - **Configuration Management**: Environment variables centralized in main
 
+## 5. Verification Types
+
+The function supports two verification types:
+
+### LAYOUT_VS_CHECKING
+- **Required fields**: verificationType, referenceImageUrl, checkingImageUrl, layoutId, layoutPrefix, notificationEnabled
+- **Optional fields**: vendingMachineId
+
+### PREVIOUS_VS_CURRENT
+- **Required fields**: verificationType, referenceImageUrl, checkingImageUrl, notificationEnabled
+- **Optional fields**: previousVerificationId, vendingMachineId
+
+## 6. Input Schema
+
+```json
+{
+  "verificationContext": {
+    "verificationType": "LAYOUT_VS_CHECKING" | "PREVIOUS_VS_CURRENT",
+    "referenceImageUrl": "string",
+    "checkingImageUrl": "string",
+    "vendingMachineId": "string (optional)",
+    "layoutId": "integer (required for LAYOUT_VS_CHECKING)",
+    "layoutPrefix": "string (required for LAYOUT_VS_CHECKING)",
+    "previousVerificationId": "string (optional for PREVIOUS_VS_CURRENT)",
+    "notificationEnabled": "boolean"
+  }
+}
+```
+
 This modular approach makes the code more maintainable, testable, and easier to understand. Each file has a clear purpose and the components are loosely coupled through dependency injection.

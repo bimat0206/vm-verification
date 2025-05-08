@@ -1,13 +1,13 @@
 package main
 
 import (
-    "context"
-    "errors"
-    "fmt"
-    "sync"
-    "time"
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
 
-    "github.com/google/uuid"
+	"github.com/google/uuid"
 )
 
 // Custom error types for better error handling
@@ -156,6 +156,9 @@ func (s *InitService) validateRequest(request InitRequest) error {
         if request.LayoutPrefix == "" {
             return fmt.Errorf("%w: layoutPrefix required for %s", ErrMissingRequiredField, VerificationTypeLayoutVsChecking)
         }
+    } else if request.VerificationType == VerificationTypePreviousVsCurrent {
+        // For PREVIOUS_VS_CURRENT, both previousVerificationId and vendingMachineId are optional
+        // No additional validation needed here
     }
 
     // Validate S3 URLs format
@@ -176,6 +179,10 @@ func (s *InitService) validateRequest(request InitRequest) error {
     if request.ReferenceImageUrl == request.CheckingImageUrl {
         return fmt.Errorf("reference and checking images cannot be the same")
     }
+
+    // notificationEnabled is a required field in the schema
+    // Since it's a boolean, we don't need to check its value, just ensure it's properly set in the struct
+    // The Go zero value for bool is false, which is a valid value for notificationEnabled
 
     return nil
 }
@@ -305,17 +312,15 @@ func (s *InitService) createVerificationContext(
     resourceValidation *ResourceValidation,
     historicalContext *HistoricalContext,
 ) (*VerificationContext, error) {
-    // Generate a unique verification ID
-    timestamp := time.Now().UTC()
-    formattedTime := timestamp.Format("20060102150405")
-    verificationId := fmt.Sprintf("%s%s", s.config.VerificationPrefix, formattedTime)
-    
-    // Add a random suffix for extra uniqueness
-    randomId := uuid.New().String()[0:8]
-    verificationId = fmt.Sprintf("%s%s", verificationId, randomId)
+        // Generate a unique verification ID: verif-<timestamp>-<4-char random>
+        now := time.Now().UTC()
+        ts := now.Format("20060102150405")                // e.g. "20250421153025"
+        randomSuffix := uuid.New().String()[0:4]          // e.g. "a1b4"
+        base := fmt.Sprintf("%s%s", s.config.VerificationPrefix, ts)
+        verificationId := fmt.Sprintf("%s-%s", base, randomSuffix)
 
     // Format ISO timestamp
-    isoTimestamp := timestamp.Format(time.RFC3339)
+    isoTimestamp := now.Format(time.RFC3339)
 
     // Create verification context
     verificationContext := &VerificationContext{
