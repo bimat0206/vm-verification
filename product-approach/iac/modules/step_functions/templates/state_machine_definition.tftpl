@@ -1,7 +1,17 @@
 {
   "Comment": "Kootoro GenAI Vending Machine Verification - Enhanced Two-Turn Workflow",
-  "StartAt": "CheckVerificationType",
+  "StartAt": "GenerateMissingFields",
   "States": {
+    "GenerateMissingFields": {
+      "Type": "Pass",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "requestId.$": "States.UUID()",
+        "requestTimestamp.$": "$$.State.EnteredTime"
+      },
+      "Next": "CheckVerificationType"
+    },
+    
     "CheckVerificationType": {
       "Type": "Choice",
       "Choices": [
@@ -61,7 +71,7 @@
         "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
         "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
         "vendingMachineId.$": "$.verificationContext.vendingMachineId",
-        "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+        "previousVerificationId": "",
         "notificationEnabled.$": "$.verificationContext.notificationEnabled",
         "requestId.$": "$.requestId",
         "requestTimestamp.$": "$.requestTimestamp"
@@ -105,7 +115,14 @@
     "FetchHistoricalVerification": {
       "Type": "Task",
       "Resource": "${function_arns["fetch_historical_verification"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationId.$": "$.verificationContext.verificationId",
+        "verificationType.$": "$.verificationContext.verificationType",
+        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+        "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+        "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+      },
       "ResultPath": "$.historicalContext",
       "Retry": [
         {
@@ -137,7 +154,15 @@
     "FetchImages": {
       "Type": "Task",
       "Resource": "${function_arns["fetch_images"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationId.$": "$.verificationContext.verificationId",
+        "verificationType.$": "$.verificationContext.verificationType",
+        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+        "layoutId.$": "$.verificationContext.layoutId",
+        "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+        "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+      },
       "ResultPath": "$",
       "Retry": [
         {

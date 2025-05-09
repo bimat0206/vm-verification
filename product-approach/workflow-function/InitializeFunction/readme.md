@@ -78,6 +78,8 @@ The function supports two verification types:
 
 ## 6. Input Schema
 
+### Step Function Input (with verificationContext wrapper)
+
 ```json
 {
   "verificationContext": {
@@ -89,8 +91,37 @@ The function supports two verification types:
     "layoutPrefix": "string (required for LAYOUT_VS_CHECKING)",
     "previousVerificationId": "string (optional for PREVIOUS_VS_CURRENT)",
     "notificationEnabled": "boolean"
-  }
+  },
+  "requestId": "string (optional)",
+  "requestTimestamp": "string (optional)"
 }
 ```
+
+### Direct Lambda Input (without wrapper)
+
+```json
+{
+  "verificationType": "LAYOUT_VS_CHECKING" | "PREVIOUS_VS_CURRENT",
+  "referenceImageUrl": "string",
+  "checkingImageUrl": "string",
+  "vendingMachineId": "string (optional)",
+  "layoutId": "integer (required for LAYOUT_VS_CHECKING)",
+  "layoutPrefix": "string (required for LAYOUT_VS_CHECKING)",
+  "previousVerificationId": "string (optional for PREVIOUS_VS_CURRENT)",
+  "notificationEnabled": "boolean",
+  "requestId": "string (optional)",
+  "requestTimestamp": "string (optional)"
+}
+```
+
+## 7. Input Handling
+
+The function supports multiple input formats:
+
+1. **Step Function Input**: When invoked from Step Functions, the function expects a nested structure with `verificationContext` at the top level, along with separate `requestId` and `requestTimestamp` fields.
+
+2. **Direct Lambda Input**: When invoked directly, all fields are expected at the top level.
+
+The function automatically detects the input format and processes it accordingly.
 
 This modular approach makes the code more maintainable, testable, and easier to understand. Each file has a clear purpose and the components are loosely coupled through dependency injection.

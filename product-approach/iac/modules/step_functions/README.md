@@ -51,23 +51,45 @@ The state machine implements a workflow for vending machine verification:
 
 ## Parameters Mapping
 
-The Initialize state includes Parameters mapping to ensure consistent input structure:
+Different Lambda functions in the workflow expect different input structures. The state machine handles this by using appropriate parameter mapping for each Lambda function:
+
+### Initialize Lambda
+
+The Initialize Lambda expects a nested verificationContext object:
 
 ```json
 "Parameters": {
-  "verificationType.$": "$.verificationType",
-  "referenceImageUrl.$": "$.referenceImageUrl",
-  "checkingImageUrl.$": "$.checkingImageUrl",
-  "vendingMachineId.$": "$.vendingMachineId",
-  "layoutId.$": "$.layoutId",
-  "layoutPrefix.$": "$.layoutPrefix",
-  "notificationEnabled.$": "$.notificationEnabled",
+  "verificationContext": {
+    "verificationType.$": "$.verificationContext.verificationType",
+    "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+    "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+    "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+    "layoutId.$": "$.verificationContext.layoutId",
+    "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+    "notificationEnabled.$": "$.verificationContext.notificationEnabled"
+  },
   "requestId.$": "$.requestId",
   "requestTimestamp.$": "$.requestTimestamp"
 }
 ```
 
-This mapping ensures that the Lambda function receives a consistent input structure regardless of whether the workflow is invoked directly or via API Gateway.
+### FetchImages Lambda
+
+The FetchImages Lambda expects fields at the top level:
+
+```json
+"Parameters": {
+  "verificationId.$": "$.verificationContext.verificationId",
+  "verificationType.$": "$.verificationContext.verificationType",
+  "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+  "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+  "layoutId.$": "$.verificationContext.layoutId",
+  "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+  "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+}
+```
+
+This mapping ensures that each Lambda function receives input in the expected format, regardless of whether the workflow is invoked directly or via API Gateway.
 
 ## API Gateway Integration
 

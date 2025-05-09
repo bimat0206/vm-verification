@@ -89,6 +89,7 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 
 	var request InitRequest
 	if vc, ok := raw["verificationContext"]; ok {
+		// Extract verificationContext
 		vcBytes, err := json.Marshal(vc)
 		if err != nil {
 			logger.Error("Failed to marshal verificationContext", map[string]interface{}{
@@ -99,9 +100,23 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 		if err := json.Unmarshal(vcBytes, &request); err != nil {
 			logger.Error("Failed to unmarshal verificationContext", map[string]interface{}{
 				"error": err.Error(),
+				"jsonBytes": string(vcBytes),
 			})
-			return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
+			return nil, fmt.Errorf("failed to parse verificationContext detail: %w", err)
 		}
+		
+		// Extract top-level requestId and requestTimestamp if present
+		if requestId, ok := raw["requestId"].(string); ok && requestId != "" {
+			request.RequestId = requestId
+		}
+		if requestTimestamp, ok := raw["requestTimestamp"].(string); ok && requestTimestamp != "" {
+			request.RequestTimestamp = requestTimestamp
+		}
+		
+		logger.Info("Parsed request with verificationContext", map[string]interface{}{
+			"requestId": request.RequestId,
+			"requestTimestamp": request.RequestTimestamp,
+		})
 	} else {
 		// No wrapper: parse the full payload directly
 		if err := json.Unmarshal(jsonBytes, &request); err != nil {
@@ -109,7 +124,7 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 				"error":     err.Error(),
 				"eventJson": string(jsonBytes),
 			})
-			return nil, fmt.Errorf("failed to parse event: %w", err)
+			return nil, fmt.Errorf("failed to parse event detail: %w", err)
 		}
 	}
 

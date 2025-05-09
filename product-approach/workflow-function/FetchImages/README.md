@@ -10,6 +10,7 @@ This AWS Lambda function is designed to fetch image metadata (not the image byte
 - **Runs S3 and DynamoDB queries in parallel** for performance.
 - **Structured error handling and logging** for easy debugging.
 - **Configurable** via environment variables.
+- **Flexible input handling** supporting both direct Step Function invocations and Function URL requests.
 
 ## Project Structure
 
@@ -29,8 +30,9 @@ fetchimages/
 - `LAYOUT_TABLE_NAME` (default: `LayoutMetadata`)
 - `VERIFICATION_TABLE_NAME` (default: `VerificationResults`)
 
-## Input Example
+## Input Examples
 
+### Direct Lambda Invocation
 ```json
 {
   "verificationId": "abc123",
@@ -40,6 +42,54 @@ fetchimages/
   "layoutId": 42,
   "layoutPrefix": "vm-001"
 }
+```
+
+### Step Function Integration
+When used within the Step Function workflow, the Lambda expects parameters to be extracted from the verificationContext object:
+
+```json
+// Step Function state definition for FetchImages
+{
+  "FetchImages": {
+    "Type": "Task",
+    "Resource": "arn:aws:lambda:region:account:function:FetchImages",
+    "Parameters": {
+      "verificationId.$": "$.verificationContext.verificationId",
+      "verificationType.$": "$.verificationContext.verificationType",
+      "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+      "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+      "layoutId.$": "$.verificationContext.layoutId",
+      "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+      "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+    }
+  }
+}
+```
+
+For the Initialize Lambda, the verificationContext object needs to be nested:
+
+```json
+// Step Function state definition for Initialize
+{
+  "InitializeLayoutChecking": {
+    "Type": "Task",
+    "Resource": "arn:aws:lambda:region:account:function:Initialize",
+    "Parameters": {
+      "verificationContext": {
+        "verificationType.$": "$.verificationContext.verificationType",
+        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+        "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+        "layoutId.$": "$.verificationContext.layoutId",
+        "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+        "notificationEnabled.$": "$.verificationContext.notificationEnabled"
+      },
+      "requestId.$": "$.requestId",
+      "requestTimestamp.$": "$.requestTimestamp"
+    }
+  }
+}
+```
 Output Example
 {
   "verificationId": "abc123",
