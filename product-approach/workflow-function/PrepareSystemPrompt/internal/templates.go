@@ -10,20 +10,11 @@ import (
 	"strings"
 	"text/template"
 )
-
-// NewTemplateManager creates a new TemplateManager
-func NewTemplateManager(baseDir string) *TemplateManager {
-	tm := &TemplateManager{
-		baseDir:   baseDir,
-		templates: make(map[string]*template.Template),
-		versions:  make(map[string]string),
-	}
-	
-	// Load version information
-	tm.discoverTemplateVersions()
-	
-	return tm
+// GetLatestVersion returns the latest version for a verification type (exported version)
+func (tm *TemplateManager) GetLatestVersion(verificationType string) string {
+    return tm.getLatestVersion(verificationType)
 }
+
 
 // GetTemplate retrieves and caches a template by verification type
 func (tm *TemplateManager) GetTemplate(verificationType string) (*template.Template, error) {
@@ -159,3 +150,135 @@ func (tm *TemplateManager) ListAvailableTemplates() map[string]string {
 	
 	return result
 }
+
+
+// Custom template functions
+var templateFuncs = template.FuncMap{
+	"split": strings.Split,
+	"join":  strings.Join,
+	"add": func(a, b int) int {
+		return a + b
+	},
+	"sub": func(a, b int) int {
+		return a - b
+	},
+	"mul": func(a, b int) int {
+		return a * b
+	},
+	"div": func(a, b int) int {
+		if b == 0 {
+			return 0
+		}
+		return a / b
+	},
+	"gt": func(a, b int) bool {
+		return a > b
+	},
+	"lt": func(a, b int) bool {
+		return a < b
+	},
+	"eq": func(a, b interface{}) bool {
+		return a == b
+	},
+	"index": func(arr []string, i int) string {
+		if i < 0 || i >= len(arr) {
+			return ""
+		}
+		return arr[i]
+	},
+	"ordinal": func(num int) string {
+		switch num {
+		case 1:
+			return "first"
+		case 2:
+			return "second"
+		case 3:
+			return "third"
+		case 4:
+			return "fourth"
+		case 5:
+			return "fifth"
+		case 6:
+			return "sixth"
+		case 7:
+			return "seventh"
+		case 8:
+			return "eighth"
+		case 9:
+			return "ninth"
+		case 10:
+			return "tenth"
+		default:
+			suffix := "th"
+			if num%10 == 1 && num%100 != 11 {
+				suffix = "st"
+			} else if num%10 == 2 && num%100 != 12 {
+				suffix = "nd"
+			} else if num%10 == 3 && num%100 != 13 {
+				suffix = "rd"
+			}
+			return fmt.Sprintf("%d%s", num, suffix)
+		}
+	},
+}
+
+// NewTemplateManager creates a new TemplateManager
+func NewTemplateManager(baseDir string) *TemplateManager {
+	tm := &TemplateManager{
+		BaseDir:   baseDir,
+		Templates: make(map[string]*template.Template),
+		Versions:  make(map[string]string),
+	}
+	
+	// Load version information
+	tm.discoverTemplateVersions()
+	
+	return tm
+}
+
+// GetTemplate retrieves and caches a template by verification type
+func (tm *TemplateManager) GetTemplate(verificationType string) (*template.Template, error) {
+	// Normalize verification type for file system
+	templateKey := strings.ToLower(verificationType)
+	
+	// Check if template is already cached
+	if tmpl, exists := tm.Templates[templateKey]; exists {
+		return tmpl, nil
+	}
+	
+	// Get latest version for this template type
+	version := tm.GetLatestVersion(verificationType)
+	if version == "" {
+		return nil, fmt.Errorf("no template version found for type: %s", verificationType)
+	}
+	
+	// Build template path
+	templateType := strings.ReplaceAll(strings.ToLower(verificationType), "_", "-")
+	templatePath := filepath.Join(tm.BaseDir, templateType, fmt.Sprintf("v%s.tmpl", version))
+	
+	// Read template file
+	content, err := ioutil.ReadFile(templatePath)
+	if err != nil {
+		// Try alternate format if first attempt fails
+		altTemplatePath := filepath.Join(tm.BaseDir, templateType + ".tmpl")
+		content, err = ioutil.ReadFile(altTemplatePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read template file at %s or %s: %w", 
+				templatePath, altTemplatePath, err)
+		}
+	}
+	
+	// Parse template with custom functions
+	tmpl, err := template.New(templateType).Funcs(templateFuncs).Parse(string(content))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse template: %w", err)
+	}
+	
+	// Cache template
+	tm.Templates[templateKey] = tmpl
+	
+	log.Printf("Loaded template: %s v%s", templateType, version)
+	return tmpl, nil
+}
+
+// Rest of the file remains the same...
