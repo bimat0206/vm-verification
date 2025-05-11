@@ -155,13 +155,19 @@
       "Type": "Task",
       "Resource": "${function_arns["fetch_images"]}",
       "Parameters": {
-        "verificationId.$": "$.verificationContext.verificationId",
-        "verificationType.$": "$.verificationContext.verificationType",
-        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-        "layoutId.$": "$.verificationContext.layoutId",
-        "layoutPrefix.$": "$.verificationContext.layoutPrefix",
-        "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "status.$": "$.verificationContext.status",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "previousVerificationId.$": "States.ArrayGetItem(States.Array(null, $.verificationContext.previousVerificationId), States.StringEquals($.verificationContext.verificationType, 'PREVIOUS_VS_CURRENT'))",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled"
+        }
       },
       "ResultPath": "$",
       "Retry": [
@@ -194,7 +200,12 @@
     "PrepareSystemPrompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_system_prompt"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "historicalContext.$": "$.historicalContext"
+      },
       "ResultPath": "$.systemPrompt",
       "Next": "InitializeConversationState"
     },
@@ -206,6 +217,7 @@
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
         "conversationState": {
           "currentTurn": 0,
           "maxTurns": 2,
@@ -220,12 +232,12 @@
     "PrepareTurn1Prompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn1_prompt"]}",
-      "InputPath": "$",
       "Parameters": {
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
         "conversationState.$": "$.conversationState",
         "turnNumber": 1,
         "includeImage": "reference"
@@ -237,7 +249,15 @@
     "ExecuteTurn1": {
       "Type": "Task",
       "Resource": "${function_arns["execute_turn1"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "currentPrompt.$": "$.currentPrompt",
+        "conversationState.$": "$.conversationState",
+        "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata"
+      },
       "ResultPath": "$.turn1Response",
       "Retry": [
         {
@@ -260,7 +280,16 @@
     "ProcessTurn1Response": {
       "Type": "Task",
       "Resource": "${function_arns["process_turn1_response"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "turn1Response.$": "$.turn1Response",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "currentPrompt.$": "$.currentPrompt",
+        "conversationState.$": "$.conversationState",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "historicalContext.$": "$.historicalContext"
+      },
       "ResultPath": "$.referenceAnalysis",
       "Next": "UpdateConversationStateAfterTurn1"
     },
@@ -272,6 +301,7 @@
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
         "currentPrompt.$": "$.currentPrompt",
         "turn1Response.$": "$.turn1Response",
         "referenceAnalysis.$": "$.referenceAnalysis",
@@ -289,12 +319,12 @@
     "PrepareTurn2Prompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn2_prompt"]}",
-      "InputPath": "$",
       "Parameters": {
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
         "conversationState.$": "$.conversationState",
         "turnNumber": 2,
         "includeImage": "checking",
@@ -307,7 +337,17 @@
     "ExecuteTurn2": {
       "Type": "Task",
       "Resource": "${function_arns["execute_turn2"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "currentPrompt.$": "$.currentPrompt",
+        "conversationState.$": "$.conversationState",
+        "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "turn1Response.$": "$.turn1Response"
+      },
       "ResultPath": "$.turn2Response",
       "Retry": [
         {
@@ -330,7 +370,12 @@
     "HandleBedrockError": {
       "Type": "Task",
       "Resource": "${function_arns["handle_bedrock_error"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "error.$": "$.error",
+        "conversationState.$": "$.conversationState",
+        "images.$": "$.images"
+      },
       "ResultPath": "$",
       "Next": "FinalizeWithError"
     },
@@ -338,7 +383,12 @@
     "FinalizeWithError": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "error.$": "$.error",
+        "conversationState.$": "$.conversationState",
+        "images.$": "$.images"
+      },
       "ResultPath": "$.finalResults",
       "Next": "StoreResults"
     },
@@ -346,7 +396,18 @@
     "ProcessTurn2Response": {
       "Type": "Task",
       "Resource": "${function_arns["process_turn2_response"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "turn2Response.$": "$.turn2Response",
+        "turn1Response.$": "$.turn1Response",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "conversationState.$": "$.conversationState",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "currentPrompt.$": "$.currentPrompt",
+        "historicalContext.$": "$.historicalContext"
+      },
       "ResultPath": "$.checkingAnalysis",
       "Next": "UpdateConversationStateAfterTurn2"
     },
@@ -358,6 +419,7 @@
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "historicalContext.$": "$.historicalContext",
+        "layoutMetadata.$": "$.layoutMetadata",
         "currentPrompt.$": "$.currentPrompt",
         "turn1Response.$": "$.turn1Response",
         "turn2Response.$": "$.turn2Response",
@@ -377,7 +439,15 @@
     "FinalizeResults": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_results"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "conversationState.$": "$.conversationState",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "checkingAnalysis.$": "$.checkingAnalysis",
+        "images.$": "$.images",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "historicalContext.$": "$.historicalContext"
+      },
       "ResultPath": "$.finalResults",
       "Next": "StoreResults"
     },
@@ -385,7 +455,16 @@
     "StoreResults": {
       "Type": "Task",
       "Resource": "${function_arns["store_results"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "finalResults.$": "$.finalResults",
+        "conversationState.$": "$.conversationState",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "checkingAnalysis.$": "$.checkingAnalysis",
+        "images.$": "$.images",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "historicalContext.$": "$.historicalContext"
+      },
       "ResultPath": "$.storageResult",
       "Next": "ShouldNotify"
     },
@@ -405,7 +484,11 @@
     "Notify": {
       "Type": "Task",
       "Resource": "${function_arns["notify"]}",
-      "InputPath": "$",
+      "Parameters": {
+        "verificationContext.$": "$.verificationContext",
+        "finalResults.$": "$.finalResults",
+        "storageResult.$": "$.storageResult"
+      },
       "ResultPath": "$.notificationResult",
       "Next": "WorkflowComplete"
     },
