@@ -14,8 +14,8 @@ type Config struct {
 // LoadConfig loads configuration from environment variables.
 func LoadConfig() Config {
     return Config{
-        LayoutTableName:       getEnv("LAYOUT_TABLE_NAME", "LayoutMetadata"),
-        VerificationTableName: getEnv("VERIFICATION_TABLE_NAME", "VerificationResults"),
+        LayoutTableName:       getEnv("DYNAMODB_LAYOUT_TABLE", "LayoutMetadata"),
+        VerificationTableName: getEnv("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
     }
 }
 

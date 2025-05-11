@@ -1,10 +1,49 @@
-
----
-
-## CHANGELOG.md
-
-```markdown
 # Changelog
+
+## [1.0.1] - 2025-05-10
+
+### Fixed
+- Fixed "JSONPath '$.verificationContext.previousVerificationId' could not be found" error in LAYOUT_VS_CHECKING workflow by improving the conditional handling in the state machine definition
+- Fixed schema validation error in Step Functions state machine by replacing the ternary operator with States.ArrayGetItem and States.Array intrinsic functions for conditional previousVerificationId handling
+
+## [1.0.0] - 2025-05-10
+
+### Added
+- Added bucket owner information (AWS account ID) to image metadata
+- Added Bucket and Key fields to ImageMetadata struct for better traceability
+- Added S3 GetBucketAcl call to retrieve bucket owner information
+
+### Changed
+- Updated state machine definition to ensure historicalContext is at the top level
+- Modified ResultPath in FetchImages task to "$" to promote all fields to root level
+- Made previousVerificationId field conditional based on verificationType in state machine definition
+- Updated validation logic to only require previousVerificationId for PREVIOUS_VS_CURRENT verification type
+
+### Fixed
+- Fixed "JSONPath '$.verificationContext.previousVerificationId' could not be found" error in LAYOUT_VS_CHECKING workflow
+
+## [0.3.0] - 2025-05-10
+
+### Added
+- Added MachineStructure struct definition to models.go
+- Added comprehensive field definitions to LayoutMetadata struct
+- Added comprehensive field definitions to HistoricalContext struct
+- Added ImagesData struct for better image metadata organization
+
+### Fixed
+- Fixed "layoutMeta.ReferenceImageUrl undefined" error by adding missing fields
+- Fixed "layoutMeta.SourceJsonUrl undefined" error by adding missing field
+- Fixed "undefined: MachineStructure" error by defining the struct
+- Fixed "layoutMeta.RowProductMapping undefined" error by adding field
+- Fixed "historicalCtx.Summary undefined" error by adding field
+- Removed unused imports to eliminate compiler warnings
+- Fixed structure of verificationContext in response payload
+- Improved metadata handling for DynamoDB records
+
+### Changed
+- Updated FetchImagesResponse to include structured verificationContext
+- Enhanced DynamoDB attribute parsing for better error handling
+- Restructured data models for more consistent API responses
 
 ## [0.2.2] - 2025-05-09
 

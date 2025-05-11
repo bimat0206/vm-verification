@@ -37,8 +37,17 @@ func ParallelFetch(
         defer mu.Unlock()
         if err != nil {
             results.Errors = append(results.Errors, err)
+            Error("Failed to fetch reference image metadata", map[string]interface{}{
+                "bucket": referenceS3.Bucket,
+                "key":    referenceS3.Key,
+                "error":  err.Error(),
+            })
         } else {
             results.ReferenceMeta = meta
+            Info("Successfully fetched reference image metadata", map[string]interface{}{
+                "contentType": meta.ContentType,
+                "size":       meta.Size,
+            })
         }
     }()
 
@@ -50,8 +59,17 @@ func ParallelFetch(
         defer mu.Unlock()
         if err != nil {
             results.Errors = append(results.Errors, err)
+            Error("Failed to fetch checking image metadata", map[string]interface{}{
+                "bucket": checkingS3.Bucket,
+                "key":    checkingS3.Key,
+                "error":  err.Error(),
+            })
         } else {
             results.CheckingMeta = meta
+            Info("Successfully fetched checking image metadata", map[string]interface{}{
+                "contentType": meta.ContentType,
+                "size":       meta.Size,
+            })
         }
     }()
 
@@ -64,9 +82,20 @@ func ParallelFetch(
             mu.Lock()
             defer mu.Unlock()
             if err != nil {
+                // Only add as error if verificationType requires it
+                // (would need to pass verificationType to this function)
                 results.Errors = append(results.Errors, err)
+                Error("Failed to fetch layout metadata", map[string]interface{}{
+                    "layoutId":     layoutId,
+                    "layoutPrefix": layoutPrefix,
+                    "error":        err.Error(),
+                })
             } else {
                 results.LayoutMeta = meta
+                Info("Successfully fetched layout metadata", map[string]interface{}{
+                    "layoutId":     layoutId,
+                    "layoutPrefix": layoutPrefix,
+                })
             }
         }()
     }
@@ -80,9 +109,17 @@ func ParallelFetch(
             mu.Lock()
             defer mu.Unlock()
             if err != nil {
+                // Only add as error if verificationType requires it
                 results.Errors = append(results.Errors, err)
+                Error("Failed to fetch historical verification", map[string]interface{}{
+                    "previousVerificationId": prevVerificationId,
+                    "error":                  err.Error(),
+                })
             } else {
                 results.HistoricalContext = ctxObj
+                Info("Successfully fetched historical verification", map[string]interface{}{
+                    "previousVerificationId": prevVerificationId,
+                })
             }
         }()
     }
