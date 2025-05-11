@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1] - 2025-05-11
+
+### Fixed
+- Fixed "JSONPath '$.verificationContext.previousVerificationId' could not be found" error in FetchImages state by implementing conditional parameter inclusion using Step Functions intrinsic functions
+- Fixed "SCHEMA_VALIDATION_FAILED" error by simplifying the intrinsic function syntax for conditional previousVerificationId handling
+- Used a simpler combination of States.ArrayGetItem and States.Array intrinsic functions to conditionally include previousVerificationId only when verificationType is PREVIOUS_VS_CURRENT
+
 ## [1.1.0] - 2025-05-11
 
 ### Added

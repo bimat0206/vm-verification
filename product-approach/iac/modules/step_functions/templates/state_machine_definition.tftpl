@@ -165,7 +165,7 @@
           "layoutId.$": "$.verificationContext.layoutId",
           "layoutPrefix.$": "$.verificationContext.layoutPrefix",
           "vendingMachineId.$": "$.verificationContext.vendingMachineId",
-          "previousVerificationId.$": "States.ArrayGetItem(States.Array(null, $.verificationContext.previousVerificationId), States.StringEquals($.verificationContext.verificationType, 'PREVIOUS_VS_CURRENT'))",
+          "previousVerificationId.$": "States.ArrayGetItem(States.Array($.verificationContext.previousVerificationId, null), States.StringEquals($.verificationContext.verificationType, 'PREVIOUS_VS_CURRENT') ? 0 : 1)",
           "notificationEnabled.$": "$.verificationContext.notificationEnabled"
         }
       },
