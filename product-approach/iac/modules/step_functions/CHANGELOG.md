@@ -1,15 +1,19 @@
 # Changelog
 
-All notable changes to the Step Functions module will be documented in this file.
+## [1.1.0] - 2025-05-11
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+### Added
+- Added comprehensive documentation for FetchHistoricalVerification Lambda integration
+- Added detailed error handling for FetchHistoricalVerification state
 
 ### Changed
+- Improved documentation for state machine parameter handling and data flow
 - Renamed `output.tf` to `outputs.tf` to match the expected naming convention in the main.tf file
 - Updated module structure documentation in README.md to reflect the file name change
+
+## [1.0.1] - 2025-05-10
+
+### Changed
 - Updated state machine definition template to pass `previousVerificationId` parameter to InitializePreviousCurrent state
 - Made `previousVerificationId` and `vendingMachineId` optional for PREVIOUS_VS_CURRENT verification type
 - Updated CheckVerificationType state to use `$.verificationContext.verificationType` path for Choice state
