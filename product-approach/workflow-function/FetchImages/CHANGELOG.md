@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.0.6] - 2025-05-11
+
+### Fixed
+- Improved bucketOwner retrieval in S3 metadata using STS GetCallerIdentity
+- Added support for AWS_ACCOUNT_ID environment variable for bucket owner
+- Made the code more portable across different AWS accounts
+- Implemented proper fallback mechanism for bucket owner retrieval
+- Added detailed logging for bucket owner determination
+
+## [1.0.5] - 2025-05-11
+
+### Fixed
+- Fixed compilation errors in S3 code (GetObjectAttributes API was incompatible)
+- Simplified S3 bucketOwner retrieval by using GetBucketAcl API only
+- Added error handling for S3 owner retrieval with proper logging
+- Made code more resilient to missing bucket owner information
+
+## [1.0.4] - 2025-05-11
+
+### Fixed
+- Fixed DynamoDB access issue by properly using table names from environment variables
+- Added detailed logging for DynamoDB operations to help with troubleshooting
+- Fixed hardcoded table names in dynamodb.go to use config values
+
+## [1.0.3] - 2025-05-11
+
+### Fixed
+- Fixed issue with `previousVerificationId` field in Step Functions integration for LAYOUT_VS_CHECKING verification type
+- Modified ParallelFetch to only use previousVerificationId when verificationType is PREVIOUS_VS_CURRENT
+- Updated validation to explicitly note that previousVerificationId is not required for LAYOUT_VS_CHECKING
+- Updated Step Functions example configuration in README.md to use empty string instead of null for conditional previousVerificationId
+
+## [1.0.2] - 2025-05-11
+
+### Added
+- Enhanced validation for verification types in models.go
+- Added specific validation for referenceImageUrl in PREVIOUS_VS_CURRENT verification type
+- Improved error messages for historical verification data fetching
+- Added detailed logging for historical verification data
+
+### Changed
+- Updated documentation with clearer examples and integration details
+- Added data flow diagram to README.md for better visualization
+- Enhanced error handling in parallel.go for historical context fetching
+
 ## [1.0.1] - 2025-05-10
 
 ### Fixed

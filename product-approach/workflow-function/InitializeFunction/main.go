@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
+	//"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -35,7 +35,9 @@ type WrappedRequest struct {
 
 
 // Handler is the Lambda handler function
-func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
+// Handler is the Lambda handler function
+// Handler is the Lambda handler function
+func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 	// 1) Initialize dependencies
 	deps, err := initDependencies(ctx)
 	if err != nil {
@@ -78,7 +80,7 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 		}
 	}
 
-	// 3) Unwrap if there is a top-level "verificationContext" field
+	// 3) Parse the incoming event
 	var raw map[string]interface{}
 	if err := json.Unmarshal(jsonBytes, &raw); err != nil {
 		logger.Error("Failed to unmarshal event to map", map[string]interface{}{
@@ -88,8 +90,17 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 	}
 
 	var request InitRequest
-	if vc, ok := raw["verificationContext"]; ok {
-		// Extract verificationContext
+	
+	// Check if this is a Step Functions invocation (by checking for specific parameters pattern)
+	_, hasVerificationType := raw["verificationType"]
+	_, hasReferenceImageUrl := raw["referenceImageUrl"]
+	_, hasCheckingImageUrl := raw["checkingImageUrl"]
+	
+	// Step Functions invocation will have these parameters directly
+	isStepFunctions := hasVerificationType && hasReferenceImageUrl && hasCheckingImageUrl
+	
+	if vc, exist := raw["verificationContext"]; exist {
+		// If there's a verificationContext wrapper, extract fields from it
 		vcBytes, err := json.Marshal(vc)
 		if err != nil {
 			logger.Error("Failed to marshal verificationContext", map[string]interface{}{
@@ -113,15 +124,27 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 			request.RequestTimestamp = requestTimestamp
 		}
 		
-		logger.Info("Parsed request with verificationContext", map[string]interface{}{
+		logger.Info("Parsed request with verificationContext wrapper", map[string]interface{}{
 			"requestId": request.RequestId,
 			"requestTimestamp": request.RequestTimestamp,
 		})
+	} else if isStepFunctions {
+		// Direct parameters from Step Functions (no wrapper)
+		if err := json.Unmarshal(jsonBytes, &request); err != nil {
+			logger.Error("Failed to unmarshal direct Step Functions input", map[string]interface{}{
+				"error": err.Error(),
+				"eventJson": string(jsonBytes),
+			})
+			return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
+		}
+		logger.Info("Parsed direct Step Functions request", map[string]interface{}{
+			"verificationType": request.VerificationType,
+		})
 	} else {
-		// No wrapper: parse the full payload directly
+		// API Gateway or direct Lambda invocation without wrapper
 		if err := json.Unmarshal(jsonBytes, &request); err != nil {
 			logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
-				"error":     err.Error(),
+				"error": err.Error(),
 				"eventJson": string(jsonBytes),
 			})
 			return nil, fmt.Errorf("failed to parse event detail: %w", err)
@@ -174,21 +197,30 @@ func Handler(ctx context.Context, event interface{}) (*InitResponse, error) {
 		})
 		return nil, err
 	}
+	// Serialize the result to JSON for logging
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		logger.Error("Failed to marshal result to JSON", map[string]interface{}{
+			"error": err.Error(),
+		})
+	} else {
+		logger.Info("Result JSON", map[string]interface{}{
+			"json": string(resultJSON),
+		})
+	}
+
 	logger.Info("Successfully processed request", map[string]interface{}{
-		"verificationId":   result.VerificationId,
-		"verificationType": result.VerificationType,
-		"status":           result.Status,
+		"verificationId":          result.VerificationId,
+		"verificationType":        result.VerificationType,
+		"status":                  result.Status,
+		"hasPreviousVerification": result.PreviousVerificationId != "",
+		"previousVerificationId":  result.PreviousVerificationId,
 	})
 
-	// 8) Wrap and return response
-	message := fmt.Sprintf(
-		"Verification initialized successfully. Will perform %s verification with two-turn approach.",
-		strings.ToLower(request.VerificationType),
-	)
-	return &InitResponse{
-		VerificationContext: result,
-		Message:             message,
-	}, nil
+	// 8) Return result
+	// Always return just the VerificationContext for Step Functions
+	// This prevents nesting and follows the state machine design
+	return result, nil
 }
 
 // getEnvWithDefault gets an environment variable with a default value

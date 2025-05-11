@@ -5,6 +5,20 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-05-11
+
+### Fixed
+- Added explicit handling in the `Process` method to ensure that `previousVerificationId` field is always set for `PREVIOUS_VS_CURRENT` verification type, even if not provided in the request
+- Fixed Step Function error: `JSONPath '$.verificationContext.previousVerificationId' could not be found in the input`
+- Enhanced logging to track state of `previousVerificationId` field throughout processing
+
+## [1.1.2] - 2025-05-11
+
+### Fixed
+- Removed `omitempty` JSON tag from `PreviousVerificationId` field in the `VerificationContext` struct to ensure it's always included in the JSON output
+- Added enhanced logging to track the serialization and presence of the `previousVerificationId` field
+- Fixed Step Function error: `JSONPath '$.verificationContext.previousVerificationId' could not be found in the input`
+
 ## [1.1.1] - 2025-05-09
 
 ### Fixed

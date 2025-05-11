@@ -23,7 +23,16 @@ func FetchLayoutMetadata(ctx context.Context, layoutId int64, layoutPrefix strin
     }
     client := dynamodb.NewFromConfig(cfg)
 
-    tableName := "LayoutMetadata" // Replace with your table name
+    // Load configuration for table name
+    config := LoadConfig()
+    tableName := config.LayoutTableName
+
+    // Log the table being accessed
+    Info("Accessing DynamoDB table for layout metadata", map[string]interface{}{
+        "tableName": tableName,
+        "layoutId": layoutId,
+        "layoutPrefix": layoutPrefix,
+    })
 
     out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
         TableName: aws.String(tableName),
@@ -200,7 +209,15 @@ func FetchHistoricalContext(ctx context.Context, verificationId string) (*Histor
     }
     client := dynamodb.NewFromConfig(cfg)
 
-    tableName := "VerificationResults" // Replace with your table name
+    // Load configuration for table name
+    config := LoadConfig()
+    tableName := config.VerificationTableName
+
+    // Log the table being accessed
+    Info("Accessing DynamoDB table for historical verification", map[string]interface{}{
+        "tableName": tableName,
+        "verificationId": verificationId,
+    })
 
     out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
         TableName: aws.String(tableName),
@@ -336,7 +353,16 @@ func UpdateVerificationStatus(ctx context.Context, verificationId, status string
     }
     client := dynamodb.NewFromConfig(cfg)
 
-    tableName := "VerificationResults" // Replace with your table name
+    // Load configuration for table name
+    config := LoadConfig()
+    tableName := config.VerificationTableName
+
+    // Log the table being accessed
+    Info("Updating verification status in DynamoDB", map[string]interface{}{
+        "tableName": tableName,
+        "verificationId": verificationId,
+        "newStatus": status,
+    })
 
     _, err = client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
         TableName: aws.String(tableName),

@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "sync"
 )
 
@@ -100,7 +101,7 @@ func ParallelFetch(
         }()
     }
 
-    // DynamoDB: Historical context (optional)
+    // DynamoDB: Historical context (required for PREVIOUS_VS_CURRENT, skipped for LAYOUT_VS_CHECKING)
     if prevVerificationId != "" {
         wg.Add(1)
         go func() {
@@ -109,19 +110,30 @@ func ParallelFetch(
             mu.Lock()
             defer mu.Unlock()
             if err != nil {
-                // Only add as error if verificationType requires it
-                results.Errors = append(results.Errors, err)
+                // Add detailed error information
+                errMsg := fmt.Sprintf("Failed to fetch historical verification data for ID %s: %v",
+                    prevVerificationId, err)
+                results.Errors = append(results.Errors, fmt.Errorf(errMsg))
                 Error("Failed to fetch historical verification", map[string]interface{}{
                     "previousVerificationId": prevVerificationId,
                     "error":                  err.Error(),
+                    "errorType":              "HistoricalDataFetchError",
                 })
             } else {
                 results.HistoricalContext = ctxObj
                 Info("Successfully fetched historical verification", map[string]interface{}{
                     "previousVerificationId": prevVerificationId,
+                    "verificationStatus":     ctxObj.PreviousVerificationStatus,
+                    "verificationAt":         ctxObj.PreviousVerificationAt,
+                    "hoursSince":             ctxObj.HoursSinceLastVerification,
                 })
             }
         }()
+    } else {
+        // Log that we're skipping historical context for non-PREVIOUS_VS_CURRENT verifications
+        Info("Skipping historical context fetch", map[string]interface{}{
+            "reason": "No previousVerificationId provided, this is expected for LAYOUT_VS_CHECKING verification type",
+        })
     }
 
     wg.Wait()

@@ -4,6 +4,7 @@ import (
     "errors"
     "fmt"
     "regexp"
+    "strings"
 )
 
 // VerificationContext represents the context for the verification workflow
@@ -86,12 +87,32 @@ func (r *FetchImagesRequest) Validate() error {
         if r.VerificationContext.CheckingImageUrl == "" {
             return errors.New("verificationContext.checkingImageUrl is required")
         }
-        
-        // Check previousVerificationId only for PREVIOUS_VS_CURRENT type
-        if r.VerificationContext.VerificationType == "PREVIOUS_VS_CURRENT" && r.VerificationContext.PreviousVerificationId == "" {
-            return errors.New("verificationContext.previousVerificationId is required for PREVIOUS_VS_CURRENT verification type")
+
+        // Validate verification type
+        switch r.VerificationContext.VerificationType {
+        case "LAYOUT_VS_CHECKING":
+            // For LAYOUT_VS_CHECKING, we need layoutId and layoutPrefix
+            if r.VerificationContext.LayoutId == 0 {
+                return errors.New("verificationContext.layoutId is required for LAYOUT_VS_CHECKING verification type")
+            }
+            if r.VerificationContext.LayoutPrefix == "" {
+                return errors.New("verificationContext.layoutPrefix is required for LAYOUT_VS_CHECKING verification type")
+            }
+            // previousVerificationId is not required for LAYOUT_VS_CHECKING
+        case "PREVIOUS_VS_CURRENT":
+            // For PREVIOUS_VS_CURRENT, we need previousVerificationId
+            if r.VerificationContext.PreviousVerificationId == "" {
+                return errors.New("verificationContext.previousVerificationId is required for PREVIOUS_VS_CURRENT verification type")
+            }
+            // Validate that referenceImageUrl is from the checking bucket
+            if !strings.Contains(r.VerificationContext.ReferenceImageUrl, "checking") {
+                return errors.New("for PREVIOUS_VS_CURRENT verification, referenceImageUrl should point to a previous checking image")
+            }
+        default:
+            return fmt.Errorf("unsupported verificationType: %s (must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT)",
+                r.VerificationContext.VerificationType)
         }
-        
+
         // Validation passed
         return nil
     }
@@ -109,10 +130,30 @@ func (r *FetchImagesRequest) Validate() error {
     if r.CheckingImageUrl == "" {
         return errors.New("checkingImageUrl is required")
     }
-    
-    // Check previousVerificationId only for PREVIOUS_VS_CURRENT type
-    if r.VerificationType == "PREVIOUS_VS_CURRENT" && r.PreviousVerificationId == "" {
-        return errors.New("previousVerificationId is required for PREVIOUS_VS_CURRENT verification type")
+
+    // Validate verification type
+    switch r.VerificationType {
+    case "LAYOUT_VS_CHECKING":
+        // For LAYOUT_VS_CHECKING, we need layoutId and layoutPrefix
+        if r.LayoutId == 0 {
+            return errors.New("layoutId is required for LAYOUT_VS_CHECKING verification type")
+        }
+        if r.LayoutPrefix == "" {
+            return errors.New("layoutPrefix is required for LAYOUT_VS_CHECKING verification type")
+        }
+        // previousVerificationId is not required for LAYOUT_VS_CHECKING
+    case "PREVIOUS_VS_CURRENT":
+        // For PREVIOUS_VS_CURRENT, we need previousVerificationId
+        if r.PreviousVerificationId == "" {
+            return errors.New("previousVerificationId is required for PREVIOUS_VS_CURRENT verification type")
+        }
+        // Validate that referenceImageUrl is from the checking bucket
+        if !strings.Contains(r.ReferenceImageUrl, "checking") {
+            return errors.New("for PREVIOUS_VS_CURRENT verification, referenceImageUrl should point to a previous checking image")
+        }
+    default:
+        return fmt.Errorf("unsupported verificationType: %s (must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT)",
+            r.VerificationType)
     }
     
     return nil

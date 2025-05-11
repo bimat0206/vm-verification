@@ -44,7 +44,7 @@ type VerificationContext struct {
     VendingMachineId      string               `json:"vendingMachineId,omitempty"`
     LayoutId              int                  `json:"layoutId,omitempty"`
     LayoutPrefix          string               `json:"layoutPrefix,omitempty"`
-    PreviousVerificationId string              `json:"previousVerificationId,omitempty"`
+    PreviousVerificationId string              `json:"previousVerificationId"`
     ReferenceImageUrl     string               `json:"referenceImageUrl"`
     CheckingImageUrl      string               `json:"checkingImageUrl"`
     TurnConfig            *TurnConfig          `json:"turnConfig,omitempty"`

@@ -97,13 +97,24 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
     }
 
     // Fetch all data in parallel (metadata, DynamoDB context)
+    // Only pass previousVerificationId if verification type is PREVIOUS_VS_CURRENT
+    var prevVerificationId string
+    if verificationContext.VerificationType == "PREVIOUS_VS_CURRENT" {
+        // Make sure previousVerificationId exists for PREVIOUS_VS_CURRENT
+        if verificationContext.PreviousVerificationId == "" {
+            return FetchImagesResponse{}, NewBadRequestError("PreviousVerificationId is required for PREVIOUS_VS_CURRENT verification type", fmt.Errorf("missing previousVerificationId"))
+        }
+        prevVerificationId = verificationContext.PreviousVerificationId
+    }
+    // For LAYOUT_VS_CHECKING, prevVerificationId remains empty string, so the historical context fetch will be skipped
+
     results := ParallelFetch(
         ctx,
         referenceS3,
         checkingS3,
         verificationContext.LayoutId,
         verificationContext.LayoutPrefix,
-        verificationContext.PreviousVerificationId,
+        prevVerificationId,
     )
 
     // Check for errors from parallel processing

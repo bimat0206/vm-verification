@@ -48,9 +48,16 @@ func NewInitService(deps *Dependencies, config ConfigVars) *InitService {
 
 // Process handles the entire verification initialization workflow
 func (s *InitService) Process(ctx context.Context, request InitRequest) (*VerificationContext, error) {
+    // Ensure previousVerificationId field is set for PREVIOUS_VS_CURRENT type
+    if request.VerificationType == VerificationTypePreviousVsCurrent && request.PreviousVerificationId == "" {
+        s.logger.Info("Setting empty previousVerificationId for PREVIOUS_VS_CURRENT verification", nil)
+        request.PreviousVerificationId = ""  // Explicitly set to empty string to ensure it exists
+    }
+
     s.logger.Info("Starting verification initialization process", map[string]interface{}{
         "verificationType": request.VerificationType,
         "vendingMachineId": request.VendingMachineId,
+        "previousVerificationId": request.PreviousVerificationId,
     })
 
     // Step 1: Validate the request
@@ -342,8 +349,13 @@ func (s *InitService) createVerificationContext(
     }
 
     // Set previousVerificationId for PREVIOUS_VS_CURRENT
-    if request.VerificationType == VerificationTypePreviousVsCurrent && request.PreviousVerificationId != "" {
+    // Always include the field (even if empty) for PREVIOUS_VS_CURRENT verification type
+    if request.VerificationType == VerificationTypePreviousVsCurrent {
         verificationContext.PreviousVerificationId = request.PreviousVerificationId
+        s.logger.Info("Setting previousVerificationId in context", map[string]interface{}{
+            "previousVerificationId": verificationContext.PreviousVerificationId,
+            "isEmpty": verificationContext.PreviousVerificationId == "",
+        })
     }
 
     // Handle conversation configuration

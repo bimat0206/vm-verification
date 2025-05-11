@@ -166,7 +166,7 @@ func validateLayoutVsChecking(input *Input) error {
 		}
 		
 		// Extract bucket from S3 URL and verify it points to reference bucket
-		bucket, _, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
+		bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
 		if err != nil {
 			return &ValidationError{
 				Field:   "referenceImageUrl",
@@ -177,7 +177,8 @@ func validateLayoutVsChecking(input *Input) error {
 		if bucket != referenceBucket {
 			return &ValidationError{
 				Field:   "referenceImageUrl",
-				Message: fmt.Sprintf("reference image must be in the reference bucket (%s)", referenceBucket),
+				Message: fmt.Sprintf("reference image must be in the reference bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
+					referenceBucket, bucket, referenceBucket, key),
 			}
 		}
 		
@@ -200,18 +201,19 @@ func validateLayoutVsChecking(input *Input) error {
 		}
 		
 		// Extract bucket from S3 URL and verify it points to checking bucket
-		bucket, _, err := extractS3BucketAndKey(ctx.CheckingImageURL)
+		bucket, key, err := extractS3BucketAndKey(ctx.CheckingImageURL)
 		if err != nil {
 			return &ValidationError{
 				Field:   "checkingImageUrl",
 				Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
 			}
 		}
-		
+
 		if bucket != checkingBucket {
 			return &ValidationError{
 				Field:   "checkingImageUrl",
-				Message: fmt.Sprintf("checking image must be in the checking bucket (%s)", checkingBucket),
+				Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
+					checkingBucket, bucket, checkingBucket, key),
 			}
 		}
 		
@@ -273,18 +275,19 @@ func validatePreviousVsCurrent(input *Input) error {
 	}
 	
 	// Extract bucket from S3 URL and verify it points to checking bucket
-	bucket, _, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
+	bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
 	if err != nil {
 		return &ValidationError{
 			Field:   "referenceImageUrl",
 			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
 		}
 	}
-	
+
 	if bucket != checkingBucket {
 		return &ValidationError{
 			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("for PREVIOUS_VS_CURRENT, reference image must be in the checking bucket (%s)", checkingBucket),
+			Message: fmt.Sprintf("for PREVIOUS_VS_CURRENT, reference image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
+				checkingBucket, bucket, checkingBucket, key),
 		}
 	}
 	
@@ -312,18 +315,19 @@ func validatePreviousVsCurrent(input *Input) error {
 	}
 	
 	// Extract bucket from S3 URL and verify it points to checking bucket
-	bucket, _, err = extractS3BucketAndKey(ctx.CheckingImageURL)
+	bucket, key, err = extractS3BucketAndKey(ctx.CheckingImageURL)
 	if err != nil {
 		return &ValidationError{
 			Field:   "checkingImageUrl",
 			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
 		}
 	}
-	
+
 	if bucket != checkingBucket {
 		return &ValidationError{
 			Field:   "checkingImageUrl",
-			Message: fmt.Sprintf("checking image must be in the checking bucket (%s)", checkingBucket),
+			Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
+				checkingBucket, bucket, checkingBucket, key),
 		}
 	}
 	
@@ -443,7 +447,8 @@ func isValidISO8601(timestamp string) bool {
 // isValidS3URL checks if a string is a valid S3 URL
 func isValidS3URL(url string) bool {
 	// This pattern matches s3://bucket-name/path/to/object format
-	pattern := `^s3://[\w.\-]+/[\w.\-/]+$`
+	// Allow alphanumeric, dots, hyphens, spaces, underscores, and other common characters in the path
+	pattern := `^s3://[\w.\-]+/[\w.\-/ _+%()]+$`
 	match, _ := regexp.MatchString(pattern, url)
 	return match
 }
