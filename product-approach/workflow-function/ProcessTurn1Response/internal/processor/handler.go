@@ -1,12 +1,12 @@
-package main
+package processor
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
+	"product-approach/workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/schema"
 )
 
 // Handler handles the ProcessTurn1Response Lambda function

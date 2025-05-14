@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/logger"
 )
 
 // Validator provides validation logic for processed responses

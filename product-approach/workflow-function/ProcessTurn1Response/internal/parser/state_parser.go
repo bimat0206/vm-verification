@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 	
-	"workflow-function/product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // ParseValidationResponse parses validation indicators from response

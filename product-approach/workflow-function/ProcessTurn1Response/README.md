@@ -42,14 +42,54 @@ The codebase is organized using a standard Go project layout:
 - shared/dbutils: DynamoDB operations (if needed)
 
 ## Development
-To build and test the function locally:
+
+### Local Development with Go Workspace
+
+This project uses Go workspaces to manage local module dependencies. The workspace is configured in the root `go.work` file.
 
 ```bash
+# Run go mod tidy to ensure dependencies are properly resolved
+go mod tidy
+
 # Build the Lambda function locally
-go build -o main ./cmd/process-turn1-response
+go build -o main ./cmd
 
 # Run tests
 go test ./...
 ```
+
+### Docker Build
+
+The project includes a multi-stage Dockerfile that optimizes the build process:
+
+```bash
+# Build the Docker image
+docker build -t process-turn1-response -f Dockerfile ../..
+
+# Run the Docker image locally (for testing)
+docker run --rm -p 9000:8080 process-turn1-response
+
+# Test the function with AWS Lambda Runtime Interface Emulator
+curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{...}'
+```
+
+### Environment Variables
+
+The function supports the following environment variables:
+
+- `LOG_LEVEL`: Sets the logging level (default: "info")
+- `AWS_REGION`: AWS region for services (default: from AWS Lambda environment)
+- `DYNAMODB_TABLE`: DynamoDB table name (required for persistence)
+- `S3_BUCKET`: S3 bucket for artifact storage (optional)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Module Resolution Errors**: Ensure the `go.work` file includes all required modules and that replace directives are correctly configured in `go.mod`.
+
+2. **Docker Build Failures**: Check that the Docker context includes both the function code and shared modules.
+
+3. **Runtime Errors**: Verify environment variables are correctly set and that IAM permissions allow access to required AWS services.
 
 Check the CHANGELOG.md for version history and recent changes.

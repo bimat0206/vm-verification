@@ -1,10 +1,9 @@
-// Package main provides the ProcessTurn1Response Lambda function
-package main
+// Package types provides the ProcessTurn1Response Lambda function types
+package types
 
 import (
 	"time"
-	"text/template"
-	"workflow-function/shared/schema"
+	"product-approach/workflow-function/shared/schema"
 )
 
 // ProcessingConfig defines configuration for Turn 1 response processing

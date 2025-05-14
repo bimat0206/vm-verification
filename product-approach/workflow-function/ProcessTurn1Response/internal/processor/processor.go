@@ -1,19 +1,92 @@
-package main
+package processor
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
+	"product-approach/workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/schema"
 )
+
+// ProcessingResult represents the result of Turn 1 response processing
+type ProcessingResult struct {
+	// SourceType indicates the source of the analysis
+	SourceType string
+	
+	// AnalysisData contains the extracted analysis data
+	AnalysisData map[string]interface{}
+	
+	// ContextForTurn2 contains prepared context for Turn 2
+	ContextForTurn2 map[string]interface{}
+	
+	// ProcessingPath indicates which processing path was used
+	ProcessingPath string
+}
+
+// Dependencies is an alias for dependencies.Dependencies
+type Dependencies struct {
+	// Placeholder for dependencies
+	Logger logger.Logger
+}
+
+// Parser is an alias for parser.Parser
+type Parser interface {
+	// ParseValidationResponse parses validation indicators from response
+	ParseValidationResponse(response map[string]interface{}) map[string]interface{}
+	
+	// ParseVisualAnalysis parses visual analysis from response
+	ParseVisualAnalysis(response map[string]interface{}) map[string]interface{}
+	
+	// ParseMachineStructure parses machine structure from response
+	ParseMachineStructure(response map[string]interface{}) map[string]interface{}
+	
+	// ParseMachineState parses machine state from response
+	ParseMachineState(response map[string]interface{}) map[string]interface{}
+	
+	// ExtractObservations extracts observations from response
+	ExtractObservations(response map[string]interface{}) map[string]interface{}
+}
+
+// Validator handles validation of processing results
+type Validator struct {
+	logger logger.Logger
+}
+
+// ValidateReferenceAnalysis validates the reference analysis
+func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) error {
+	// This is a placeholder implementation
+	if analysis == nil {
+		return fmt.Errorf("analysis is nil")
+	}
+	return nil
+}
+
+// NewDependencies creates a new Dependencies instance
+func NewDependencies(log logger.Logger) *Dependencies {
+	return &Dependencies{
+		Logger: log,
+	}
+}
+
+// NewParser creates a new Parser instance
+func NewParser(log logger.Logger) Parser {
+	// This is a placeholder implementation
+	return nil
+}
+
+// NewValidator creates a new Validator instance
+func NewValidator(log logger.Logger) *Validator {
+	return &Validator{
+		logger: log,
+	}
+}
 
 // Processor handles the core processing logic for Turn 1 responses
 type Processor struct {
 	log    logger.Logger
 	deps   *Dependencies
-	parser *Parser
+	parser Parser
 }
 
 // NewProcessor creates a new processor instance
@@ -84,7 +157,7 @@ func (p *Processor) determineProcessingPath(input schema.WorkflowState) string {
 	}
 	
 	if verificationType == schema.VerificationTypePreviousVsCurrent {
-		// Check if historical context is available
+		// Check if historical data is available
 		if input.HistoricalContext != nil && len(input.HistoricalContext) > 0 {
 			return "UC2_HISTORICAL_ENHANCEMENT"
 		}

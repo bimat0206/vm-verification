@@ -5,8 +5,9 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
+	"product-approach/workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/schema"
+	"product-approach/workflow-function/ProcessTurn1Response/internal/processor"
 )
 
 func main() {
@@ -20,7 +21,7 @@ func main() {
 	})
 
 	// Create handler with dependencies
-	handler := NewHandler(log)
+	handler := processor.NewHandler(log)
 
 	// Start Lambda runtime
 	lambda.Start(func(ctx context.Context, input schema.WorkflowState) (schema.WorkflowState, error) {

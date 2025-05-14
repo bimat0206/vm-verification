@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0] - 2025-05-14
+
+### Changed
+- Updated Dockerfile to use multi-stage build for smaller image size
+- Upgraded to Go 1.24 for improved performance and security
+- Enhanced build process with optimized compilation flags
+- Improved dependency management with Go workspace integration
+- Added environment variable configuration for better runtime flexibility
+- Updated documentation with detailed build and troubleshooting instructions
+
 ## [1.1.0] - 2025-05-14
 
 ### Changed

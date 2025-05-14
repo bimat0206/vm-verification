@@ -1,4 +1,4 @@
-package main
+package dependencies
 
 import (
 	"context"
@@ -6,13 +6,15 @@ import (
 	"os"
 	"time"
 
+	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"product-approach/workflow-function/shared/dbutils"
+	"product-approach/workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/s3utils"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"workflow-function/shared/logger"
-	"workflow-function/shared/s3utils"
-	"workflow-function/shared/dbutils"
 )
 
 // Dependencies holds all AWS service clients and utilities
@@ -278,9 +280,9 @@ func (deps *Dependencies) GetConfig() *AppConfig {
 }
 
 // CreateProcessingConfig creates processing configuration based on verification context
-func (deps *Dependencies) CreateProcessingConfig(verificationType string, hasHistorical bool) *ProcessingConfig {
+func (deps *Dependencies) CreateProcessingConfig(verificationType string, hasHistorical bool) *types.ProcessingConfig {
 	// Get base configuration from use case
-	config := GetProcessingConfigForUseCase(verificationType, hasHistorical)
+	config := types.GetProcessingConfigForUseCase(verificationType, hasHistorical)
 	
 	// Apply feature flags from app config
 	config.FallbackToTextParsing = deps.Config.EnableFallbackParsing

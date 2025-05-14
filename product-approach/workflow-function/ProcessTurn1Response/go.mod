@@ -1,4 +1,4 @@
-module workflow-function/product-approach/workflow-function/ProcessTurn1Response
+module product-approach/workflow-function/ProcessTurn1Response
 
 go 1.24.0
 
@@ -8,10 +8,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
-	workflow-function/shared/dbutils v0.0.0
-	workflow-function/shared/logger v0.0.0
-	workflow-function/shared/s3utils v0.0.0
-	workflow-function/shared/schema v0.0.0
+	product-approach/workflow-function/shared/dbutils v0.0.0
+	product-approach/workflow-function/shared/logger v0.0.0
+	product-approach/workflow-function/shared/s3utils v0.0.0
+	product-approach/workflow-function/shared/schema v0.0.0
 )
 
 require (
@@ -36,10 +36,10 @@ require (
 )
 
 // Replace directives for local shared packages
-replace workflow-function/shared/schema => ../../../shared/schema
+replace product-approach/workflow-function/shared/schema => ../shared/schema
 
-replace workflow-function/shared/logger => ../../../shared/logger
+replace product-approach/workflow-function/shared/logger => ../shared/logger
 
-replace workflow-function/shared/s3utils => ../../../shared/s3utils
+replace product-approach/workflow-function/shared/s3utils => ../shared/s3utils
 
-replace workflow-function/shared/dbutils => ../../../shared/dbutils
+replace product-approach/workflow-function/shared/dbutils => ../shared/dbutils
