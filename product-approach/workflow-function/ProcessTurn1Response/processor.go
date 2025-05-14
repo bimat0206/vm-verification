@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,22 +14,6 @@ type Processor struct {
 	log    logger.Logger
 	deps   *Dependencies
 	parser *Parser
-}
-
-// ProcessingConfig holds configuration for processing
-type ProcessingConfig struct {
-	UseHistoricalEnhancement bool
-	FallbackToExtraction     bool
-	ValidateStructure        bool
-	RequireCompleteAnalysis  bool
-}
-
-// ProcessingResult contains the results of processing
-type ProcessingResult struct {
-	SourceType    string
-	AnalysisData  map[string]interface{}
-	ContextForTurn2 map[string]interface{}
-	ProcessingPath string
 }
 
 // NewProcessor creates a new processor instance

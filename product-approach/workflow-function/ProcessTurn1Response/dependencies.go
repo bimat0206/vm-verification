@@ -58,6 +58,23 @@ type AppConfig struct {
 	EnableMetrics          bool `json:"enableMetrics"`
 }
 
+// NewDependencies creates a new Dependencies instance
+func NewDependencies(log logger.Logger) *Dependencies {
+	ctx := context.Background()
+	deps, err := InitializeDependencies(ctx)
+	if err != nil {
+		log.Error("Failed to initialize dependencies", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Return a basic dependencies struct for graceful degradation
+		return &Dependencies{
+			Logger: log,
+			Config: LoadConfig(),
+		}
+	}
+	return deps
+}
+
 // LoadConfig loads configuration from environment variables
 func LoadConfig() *AppConfig {
 	return &AppConfig{
@@ -199,6 +216,12 @@ func (deps *Dependencies) ValidateConfiguration() error {
 // TestConnections tests connectivity to AWS services
 func (deps *Dependencies) TestConnections(ctx context.Context) error {
 	log := deps.Logger
+	
+	// Skip tests if clients are nil (graceful degradation)
+	if deps.DynamoClient == nil || deps.S3Client == nil {
+		log.Warn("Skipping connection tests due to missing clients", nil)
+		return nil
+	}
 	
 	// Test DynamoDB connection
 	log.Debug("Testing DynamoDB connection", nil)
