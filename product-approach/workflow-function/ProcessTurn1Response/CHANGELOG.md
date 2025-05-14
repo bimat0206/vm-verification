@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0] - 2025-05-14
+
+### Changed
+- Refactored parser package into multiple specialized files for better maintainability
+- Improved separation of concerns with dedicated files for each parsing responsibility
+- Enhanced documentation of parser components
+- Added parser test suite
+
 ## [1.0.0] - 2025-05-14
 
 ### Added

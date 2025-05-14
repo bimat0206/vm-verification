@@ -1,6 +1,7 @@
-package main
+package validator
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 

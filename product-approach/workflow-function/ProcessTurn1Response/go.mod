@@ -1,4 +1,4 @@
-module workflow-function/ProcessTurn1Response
+module workflow-function/product-approach/workflow-function/ProcessTurn1Response
 
 go 1.24.0
 
@@ -36,10 +36,10 @@ require (
 )
 
 // Replace directives for local shared packages
-replace workflow-function/shared/schema => ../shared/schema
+replace workflow-function/shared/schema => ../../../shared/schema
 
-replace workflow-function/shared/logger => ../shared/logger
+replace workflow-function/shared/logger => ../../../shared/logger
 
-replace workflow-function/shared/s3utils => ../shared/s3utils
+replace workflow-function/shared/s3utils => ../../../shared/s3utils
 
-replace workflow-function/shared/dbutils => ../shared/dbutils
+replace workflow-function/shared/dbutils => ../../../shared/dbutils
