@@ -16,6 +16,7 @@ import (
 type S3UtilsWrapper struct {
 	s3utils   *s3utils.S3Utils
 	s3Client  *s3.Client
+	config    *aws.Config // Store the AWS config for STS operations (optional)
 	logger    logger.Logger
 }
 
@@ -24,6 +25,19 @@ func NewS3Utils(client *s3.Client, log logger.Logger) *S3UtilsWrapper {
 	return &S3UtilsWrapper{
 		s3utils:  s3utils.New(client, log),
 		s3Client: client,
+		config:   nil, // No config available when created from client
+		logger:   log.WithFields(map[string]interface{}{
+			"component": "s3wrapper",
+		}),
+	}
+}
+
+// NewS3UtilsWithConfig creates a new S3UtilsWrapper with explicit config
+func NewS3UtilsWithConfig(config aws.Config, log logger.Logger) *S3UtilsWrapper {
+	return &S3UtilsWrapper{
+		s3utils:  s3utils.NewWithConfig(config, log),
+		s3Client: s3.NewFromConfig(config),
+		config:   &config, // Store pointer to config
 		logger:   log.WithFields(map[string]interface{}{
 			"component": "s3wrapper",
 		}),
@@ -168,18 +182,34 @@ func (u *S3UtilsWrapper) getBucketOwner(ctx context.Context, bucket string) (str
 		return accountID, nil
 	}
 	
-	// Method 3: Use STS GetCallerIdentity as last resort
-	stsClient := sts.NewFromConfig(u.s3Client.Options())
-	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err == nil && identity.Account != nil {
-		u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
+	// Method 3: Use STS GetCallerIdentity as last resort (only if config is available)
+	if u.config != nil {
+		stsClient := sts.NewFromConfig(*u.config) // Use dereferenced config
+		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err == nil && identity.Account != nil {
+			u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
+				"bucket": bucket,
+				"account": *identity.Account,
+			})
+			return *identity.Account, nil
+		}
+		u.logger.Debug("STS GetCallerIdentity failed", map[string]interface{}{
 			"bucket": bucket,
-			"account": *identity.Account,
+			"error": err.Error(),
 		})
-		return *identity.Account, nil
+	} else {
+		u.logger.Debug("No AWS config available for STS operation", map[string]interface{}{
+			"bucket": bucket,
+		})
 	}
 	
-	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed, no AWS_ACCOUNT_ID env var, STS failed", bucket)
+	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed, no AWS_ACCOUNT_ID env var, %s", bucket, 
+		func() string {
+			if u.config == nil {
+				return "no AWS config for STS"
+			}
+			return "STS failed"
+		}())
 }
 
 // formatForBedrock creates the Bedrock-compatible S3 URI format

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 	"workflow-function/shared/dbutils"
-	"workflow-function/shared/schema"
 )
 
 // DBUtilsWrapper wraps the shared dbutils package with specific functionality needed for FetchImages
@@ -43,7 +42,8 @@ func (d *DBUtilsWrapper) FetchLayoutMetadata(ctx context.Context, layoutId int, 
 	}
 
 	// Add derived fields for convenience
-	if machineStruct, ok := layout.MachineStructure.(map[string]interface{}); ok {
+	// layout.MachineStructure is already map[string]interface{}, no type assertion needed
+	if machineStruct := layout.MachineStructure; machineStruct != nil {
 		if rowCount, exists := machineStruct["rowCount"]; exists {
 			result["derivedRowCount"] = rowCount
 		}
@@ -53,7 +53,8 @@ func (d *DBUtilsWrapper) FetchLayoutMetadata(ctx context.Context, layoutId int, 
 	}
 
 	// Add product count if productPositionMap exists
-	if prodMap, ok := layout.ProductPositionMap.(map[string]interface{}); ok {
+	// layout.ProductPositionMap is already map[string]interface{}, no type assertion needed
+	if prodMap := layout.ProductPositionMap; prodMap != nil {
 		result["totalProductPositions"] = len(prodMap)
 	}
 
