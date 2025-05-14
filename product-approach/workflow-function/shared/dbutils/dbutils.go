@@ -120,6 +120,11 @@ func (d *DynamoDBUtils) StoreVerificationRecord(ctx context.Context, verificatio
 
 // GetVerificationRecord retrieves a verification record from DynamoDB
 func (d *DynamoDBUtils) GetVerificationRecord(ctx context.Context, verificationId string) (*schema.VerificationContext, error) {
+	d.logger.Debug("Getting verification record", map[string]interface{}{
+		"verificationId": verificationId,
+		"table":         d.config.VerificationTable,
+	})
+
 	result, err := d.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(d.config.VerificationTable),
 		Key: map[string]types.AttributeValue{
@@ -145,11 +150,22 @@ func (d *DynamoDBUtils) GetVerificationRecord(ctx context.Context, verificationI
 		return nil, fmt.Errorf("error unmarshaling verification record: %w", err)
 	}
 	
+	d.logger.Debug("Successfully retrieved verification record", map[string]interface{}{
+		"verificationId":   verificationId,
+		"verificationType": verificationContext.VerificationType,
+		"status":          verificationContext.Status,
+	})
+	
 	return &verificationContext, nil
 }
 
 // UpdateVerificationStatus updates the status of a verification record
 func (d *DynamoDBUtils) UpdateVerificationStatus(ctx context.Context, verificationId string, status string) error {
+	d.logger.Debug("Updating verification status", map[string]interface{}{
+		"verificationId": verificationId,
+		"newStatus":     status,
+	})
+
 	_, err := d.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(d.config.VerificationTable),
 		Key: map[string]types.AttributeValue{
@@ -234,6 +250,12 @@ func (d *DynamoDBUtils) FindPreviousVerification(ctx context.Context, checkingIm
 
 // VerifyLayoutExists checks if a layout exists in DynamoDB
 func (d *DynamoDBUtils) VerifyLayoutExists(ctx context.Context, layoutId int, layoutPrefix string) (bool, error) {
+	d.logger.Debug("Verifying layout exists", map[string]interface{}{
+		"layoutId":     layoutId,
+		"layoutPrefix": layoutPrefix,
+		"table":        d.config.LayoutTable,
+	})
+
 	result, err := d.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(d.config.LayoutTable),
 		Key: map[string]types.AttributeValue{
@@ -247,7 +269,111 @@ func (d *DynamoDBUtils) VerifyLayoutExists(ctx context.Context, layoutId int, la
 	}
 	
 	// If the item is nil or empty, the layout doesn't exist
-	return result.Item != nil && len(result.Item) > 0, nil
+	exists := result.Item != nil && len(result.Item) > 0
+	
+	d.logger.Debug("Layout existence check completed", map[string]interface{}{
+		"layoutId":     layoutId,
+		"layoutPrefix": layoutPrefix,
+		"exists":       exists,
+	})
+	
+	return exists, nil
+}
+
+// GetLayoutMetadata retrieves complete layout metadata from DynamoDB
+func (d *DynamoDBUtils) GetLayoutMetadata(ctx context.Context, layoutId int, layoutPrefix string) (*schema.LayoutMetadata, error) {
+	d.logger.Info("Getting layout metadata", map[string]interface{}{
+		"layoutId":     layoutId,
+		"layoutPrefix": layoutPrefix,
+		"table":        d.config.LayoutTable,
+	})
+
+	result, err := d.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(d.config.LayoutTable),
+		Key: map[string]types.AttributeValue{
+			"layoutId":     &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", layoutId)},
+			"layoutPrefix": &types.AttributeValueMemberS{Value: layoutPrefix},
+		},
+	})
+	
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving layout metadata: %w", err)
+	}
+	
+	if result.Item == nil || len(result.Item) == 0 {
+		return nil, fmt.Errorf("layout metadata not found: layoutId=%d, layoutPrefix=%s", layoutId, layoutPrefix)
+	}
+	
+	// Unmarshal the DynamoDB item into a layout metadata struct
+	var layout schema.LayoutMetadata
+	err = attributevalue.UnmarshalMap(result.Item, &layout)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling layout metadata: %w", err)
+	}
+
+	// Validate the unmarshaled data
+	if layout.LayoutId == 0 {
+		return nil, fmt.Errorf("invalid layout metadata: layoutId is 0")
+	}
+	if layout.LayoutPrefix == "" {
+		return nil, fmt.Errorf("invalid layout metadata: layoutPrefix is empty")
+	}
+
+	d.logger.Info("Successfully retrieved layout metadata", map[string]interface{}{
+		"layoutId":        layout.LayoutId,
+		"layoutPrefix":    layout.LayoutPrefix,
+		"vendingMachineId": layout.VendingMachineId,
+		"location":        layout.Location,
+		"createdAt":       layout.CreatedAt,
+		"updatedAt":       layout.UpdatedAt,
+		"machineStructureFields": len(layout.MachineStructure),
+		"productPositions": len(layout.ProductPositionMap),
+	})
+	
+	return &layout, nil
+}
+
+// StoreLayoutMetadata stores layout metadata in DynamoDB
+func (d *DynamoDBUtils) StoreLayoutMetadata(ctx context.Context, layout *schema.LayoutMetadata) error {
+	// Validate required fields
+	if layout.LayoutId == 0 {
+		return fmt.Errorf("layoutId is required")
+	}
+	if layout.LayoutPrefix == "" {
+		return fmt.Errorf("layoutPrefix is required")
+	}
+
+	// Set timestamps if not provided
+	now := time.Now().UTC().Format(time.RFC3339)
+	if layout.CreatedAt == "" {
+		layout.CreatedAt = now
+	}
+	layout.UpdatedAt = now
+
+	// Convert to DynamoDB AttributeValues
+	av, err := attributevalue.MarshalMap(layout)
+	if err != nil {
+		return fmt.Errorf("failed to marshal layout metadata: %w", err)
+	}
+
+	// Store in DynamoDB
+	_, err = d.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(d.config.LayoutTable),
+		Item:      av,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to store layout metadata: %w", err)
+	}
+
+	d.logger.Info("Stored layout metadata", map[string]interface{}{
+		"layoutId":        layout.LayoutId,
+		"layoutPrefix":    layout.LayoutPrefix,
+		"vendingMachineId": layout.VendingMachineId,
+		"table":           d.config.LayoutTable,
+	})
+
+	return nil
 }
 
 // ==========================================
@@ -259,6 +385,11 @@ func (d *DynamoDBUtils) BatchGetVerificationRecords(ctx context.Context, verific
 	if len(verificationIds) == 0 {
 		return []*schema.VerificationContext{}, nil
 	}
+
+	d.logger.Debug("Batch getting verification records", map[string]interface{}{
+		"count": len(verificationIds),
+		"table": d.config.VerificationTable,
+	})
 
 	// Convert verification IDs to DynamoDB keys
 	keys := make([]map[string]types.AttributeValue, len(verificationIds))
@@ -303,6 +434,74 @@ func (d *DynamoDBUtils) BatchGetVerificationRecords(ctx context.Context, verific
 		})
 	}
 
+	d.logger.Debug("Batch get completed", map[string]interface{}{
+		"requested": len(verificationIds),
+		"retrieved": len(results),
+	})
+
+	return results, nil
+}
+
+// BatchGetLayoutMetadata retrieves multiple layout metadata records
+func (d *DynamoDBUtils) BatchGetLayoutMetadata(ctx context.Context, layoutKeys []schema.LayoutKey) ([]*schema.LayoutMetadata, error) {
+	if len(layoutKeys) == 0 {
+		return []*schema.LayoutMetadata{}, nil
+	}
+
+	d.logger.Debug("Batch getting layout metadata", map[string]interface{}{
+		"count": len(layoutKeys),
+		"table": d.config.LayoutTable,
+	})
+
+	// Convert layout keys to DynamoDB keys
+	keys := make([]map[string]types.AttributeValue, len(layoutKeys))
+	for i, key := range layoutKeys {
+		keys[i] = map[string]types.AttributeValue{
+			"layoutId":     &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", key.LayoutId)},
+			"layoutPrefix": &types.AttributeValueMemberS{Value: key.LayoutPrefix},
+		}
+	}
+
+	// Batch get items from DynamoDB
+	response, err := d.client.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
+		RequestItems: map[string]types.KeysAndAttributes{
+			d.config.LayoutTable: {
+				Keys: keys,
+			},
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error batch getting layout metadata: %w", err)
+	}
+
+	// Process the results
+	items := response.Responses[d.config.LayoutTable]
+	results := make([]*schema.LayoutMetadata, 0, len(items))
+
+	for _, item := range items {
+		var layout schema.LayoutMetadata
+		if err := attributevalue.UnmarshalMap(item, &layout); err != nil {
+			d.logger.Warn("Failed to unmarshal layout metadata", map[string]interface{}{
+				"error": err.Error(),
+			})
+			continue
+		}
+		results = append(results, &layout)
+	}
+
+	// Handle unprocessed keys if any
+	if len(response.UnprocessedKeys) > 0 {
+		d.logger.Warn("Some layout metadata records couldn't be retrieved", map[string]interface{}{
+			"unprocessedCount": len(response.UnprocessedKeys[d.config.LayoutTable].Keys),
+		})
+	}
+
+	d.logger.Debug("Batch get layout metadata completed", map[string]interface{}{
+		"requested": len(layoutKeys),
+		"retrieved": len(results),
+	})
+
 	return results, nil
 }
 
@@ -316,6 +515,12 @@ func (d *DynamoDBUtils) StoreConversationHistory(ctx context.Context, verificati
 	if d.config.ConversationTable == "" {
 		return errors.New("conversation table name not configured")
 	}
+
+	d.logger.Debug("Storing conversation history", map[string]interface{}{
+		"verificationId": verificationId,
+		"currentTurn":    conversationState.CurrentTurn,
+		"maxTurns":       conversationState.MaxTurns,
+	})
 
 	// Create map for DynamoDB attributes
 	item := map[string]interface{}{
@@ -362,6 +567,11 @@ func (d *DynamoDBUtils) GetConversationHistory(ctx context.Context, verification
 		return nil, errors.New("conversation table name not configured")
 	}
 
+	d.logger.Debug("Getting conversation history", map[string]interface{}{
+		"verificationId": verificationId,
+		"table":         d.config.ConversationTable,
+	})
+
 	result, err := d.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(d.config.ConversationTable),
 		Key: map[string]types.AttributeValue{
@@ -383,6 +593,12 @@ func (d *DynamoDBUtils) GetConversationHistory(ctx context.Context, verification
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling conversation history: %w", err)
 	}
+	
+	d.logger.Debug("Successfully retrieved conversation history", map[string]interface{}{
+		"verificationId": verificationId,
+		"currentTurn":    conversationState.CurrentTurn,
+		"maxTurns":       conversationState.MaxTurns,
+	})
 	
 	return &conversationState, nil
 }

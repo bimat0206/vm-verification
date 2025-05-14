@@ -27,14 +27,16 @@ type FetchImagesRequest struct {
 }
 
 // ImageMetadata holds S3 object metadata.
+// Update the ImageMetadata struct in models.go to include the BedrockFormat field
 type ImageMetadata struct {
-	ContentType   string `json:"contentType"`
-	Size          int64  `json:"size"`
-	LastModified  string `json:"lastModified"`
-	ETag          string `json:"etag"`
-	BucketOwner   string `json:"bucketOwner"`
-	Bucket        string `json:"bucket"`
-	Key           string `json:"key"`
+	ContentType   string                 `json:"contentType"`
+	Size          int64                  `json:"size"`
+	LastModified  string                 `json:"lastModified"`
+	ETag          string                 `json:"etag"`
+	BucketOwner   string                 `json:"bucketOwner"`
+	Bucket        string                 `json:"bucket"`
+	Key           string                 `json:"key"`
+	BedrockFormat map[string]interface{} `json:"bedrockFormat,omitempty"`
 }
 
 // ImagesData contains metadata for both reference and checking images

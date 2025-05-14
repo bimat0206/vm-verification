@@ -207,3 +207,22 @@ func FormatISO8601() string {
 func GetCurrentTimestamp() string {
 	return time.Now().UTC().Format("20060102150405")
 }
+// LayoutMetadata represents layout metadata from DynamoDB
+type LayoutMetadata struct {
+	LayoutId           int                    `json:"layoutId" dynamodbav:"layoutId"`
+	LayoutPrefix       string                 `json:"layoutPrefix" dynamodbav:"layoutPrefix"`
+	VendingMachineId   string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	Location           string                 `json:"location" dynamodbav:"location"`
+	CreatedAt          string                 `json:"createdAt" dynamodbav:"createdAt"`
+	UpdatedAt          string                 `json:"updatedAt" dynamodbav:"updatedAt"`
+	ReferenceImageUrl  string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
+	SourceJsonUrl      string                 `json:"sourceJsonUrl" dynamodbav:"sourceJsonUrl"`
+	MachineStructure   map[string]interface{} `json:"machineStructure" dynamodbav:"machineStructure"`
+	ProductPositionMap map[string]interface{} `json:"productPositionMap" dynamodbav:"productPositionMap"`
+}
+
+// LayoutKey represents a composite key for layout metadata
+type LayoutKey struct {
+	LayoutId     int    `json:"layoutId"`
+	LayoutPrefix string `json:"layoutPrefix"`
+}

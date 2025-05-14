@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"workflow-function/shared/logger"
 )
 
@@ -97,6 +99,11 @@ func (u *S3Utils) GetImageMetadata(ctx context.Context, s3Url string) (map[strin
 		return nil, fmt.Errorf("invalid S3 URL: %w", err)
 	}
 
+	u.logger.Debug("Getting S3 object metadata", map[string]interface{}{
+		"bucket": parsed.Bucket,
+		"key":    parsed.Key,
+	})
+
 	// Get object metadata
 	headOutput, err := u.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(parsed.Bucket),
@@ -109,10 +116,35 @@ func (u *S3Utils) GetImageMetadata(ctx context.Context, s3Url string) (map[strin
 	// Extract metadata
 	metadata := make(map[string]string)
 	
-	// Add standard metadata
+	// Add standard metadata with proper nil handling
 	metadata["contentType"] = aws.ToString(headOutput.ContentType)
-	metadata["contentLength"] = fmt.Sprintf("%d", headOutput.ContentLength)
-	metadata["lastModified"] = headOutput.LastModified.Format("2006-01-02T15:04:05Z")
+	
+	// Handle ContentLength properly
+	if headOutput.ContentLength != nil {
+		metadata["contentLength"] = fmt.Sprintf("%d", *headOutput.ContentLength)
+	} else {
+		metadata["contentLength"] = "0"
+	}
+	
+	// Handle LastModified properly
+	if headOutput.LastModified != nil {
+		metadata["lastModified"] = headOutput.LastModified.Format("2006-01-02T15:04:05Z")
+	} else {
+		metadata["lastModified"] = ""
+	}
+	
+	// Handle ETag properly (remove quotes if present)
+	if headOutput.ETag != nil {
+		etag := *headOutput.ETag
+		// Remove surrounding quotes if present
+		if len(etag) >= 2 && etag[0] == '"' && etag[len(etag)-1] == '"' {
+			etag = etag[1 : len(etag)-1]
+		}
+		metadata["etag"] = etag
+	} else {
+		metadata["etag"] = ""
+	}
+	
 	metadata["bucket"] = parsed.Bucket
 	metadata["key"] = parsed.Key
 	
@@ -121,7 +153,71 @@ func (u *S3Utils) GetImageMetadata(ctx context.Context, s3Url string) (map[strin
 		metadata[k] = v
 	}
 
+	// Get bucket owner
+	bucketOwner, err := u.GetBucketOwner(ctx, parsed.Bucket)
+	if err != nil {
+		u.logger.Warn("Could not retrieve bucket owner", map[string]interface{}{
+			"bucket": parsed.Bucket,
+			"error": err.Error(),
+		})
+		bucketOwner = ""
+	}
+	metadata["bucketOwner"] = bucketOwner
+
+	u.logger.Debug("Successfully retrieved image metadata", map[string]interface{}{
+		"contentType":   metadata["contentType"],
+		"contentLength": metadata["contentLength"],
+		"etag":          metadata["etag"],
+		"bucketOwner":   bucketOwner,
+	})
+
 	return metadata, nil
+}
+
+// GetBucketOwner retrieves the bucket owner using multiple fallback methods
+func (u *S3Utils) GetBucketOwner(ctx context.Context, bucket string) (string, error) {
+	u.logger.Debug("Attempting to retrieve bucket owner", map[string]interface{}{
+		"bucket": bucket,
+	})
+
+	// Method 1: Try GetBucketAcl
+	aclOutput, err := u.client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
+		Bucket: aws.String(bucket),
+	})
+	if err == nil && aclOutput.Owner != nil && aclOutput.Owner.ID != nil {
+		u.logger.Debug("Retrieved bucket owner from GetBucketAcl", map[string]interface{}{
+			"bucket": bucket,
+			"owner": *aclOutput.Owner.ID,
+		})
+		return *aclOutput.Owner.ID, nil
+	}
+	
+	u.logger.Debug("GetBucketAcl failed, trying fallback methods", map[string]interface{}{
+		"bucket": bucket,
+		"error": err.Error(),
+	})
+	
+	// Method 2: Check environment variable
+	if accountID := os.Getenv("AWS_ACCOUNT_ID"); accountID != "" {
+		u.logger.Debug("Using bucket owner from environment variable", map[string]interface{}{
+			"bucket": bucket,
+			"accountId": accountID,
+		})
+		return accountID, nil
+	}
+	
+	// Method 3: Use STS GetCallerIdentity as last resort
+	stsClient := sts.NewFromConfig(u.client.Options())
+	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err == nil && identity.Account != nil {
+		u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
+			"bucket": bucket,
+			"account": *identity.Account,
+		})
+		return *identity.Account, nil
+	}
+	
+	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed (%v), no AWS_ACCOUNT_ID env var, STS failed (%v)", bucket, err, err)
 }
 
 // ParseS3URLs parses both reference and checking image URLs
@@ -179,7 +275,7 @@ func (u *S3Utils) ParseS3URL(s3Url string) (S3URL, error) {
 
 // GetPresignedURL generates a presigned URL for an S3 object
 func (u *S3Utils) GetPresignedURL(ctx context.Context, bucket, key string, expireSeconds int) (string, error) {
-	// This function is stubbed for now - actual implementation would use the AWS SDK
+	// This function is stubbed for now - actual implementation would use the AWS SDK presigner
 	u.logger.Debug("Getting presigned URL", map[string]interface{}{
 		"bucket":        bucket,
 		"key":           key,
@@ -233,8 +329,16 @@ func (u *S3Utils) IsValidBucketName(bucket string) bool {
 func (u *S3Utils) IsImageContentType(contentType string) bool {
 	validTypes := []string{
 		"image/jpeg",
+		"image/jpg",
 		"image/png",
+		"image/gif",
+		"image/webp",
+		"image/bmp",
+		"image/tiff",
 	}
+	
+	// Convert to lowercase for comparison
+	contentType = strings.ToLower(contentType)
 	
 	for _, t := range validTypes {
 		if contentType == t {
@@ -242,12 +346,13 @@ func (u *S3Utils) IsImageContentType(contentType string) bool {
 		}
 	}
 	
-	return false
+	// Also check if it starts with image/
+	return strings.HasPrefix(contentType, "image/")
 }
 
 // IsValidImageExtension checks if a file has a valid image extension
 func (u *S3Utils) IsValidImageExtension(key string) bool {
-	validExtensions := []string{".png", ".jpeg"}
+	validExtensions := []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"}
 	lower := strings.ToLower(key)
 	
 	for _, ext := range validExtensions {
@@ -257,4 +362,64 @@ func (u *S3Utils) IsValidImageExtension(key string) bool {
 	}
 	
 	return false
+}
+
+// ValidateImageForBedrock validates that an image meets Bedrock requirements
+func (u *S3Utils) ValidateImageForBedrock(ctx context.Context, s3Url string) error {
+	// Parse URL
+	parsed, err := u.ParseS3URL(s3Url)
+	if err != nil {
+		return fmt.Errorf("invalid S3 URL: %w", err)
+	}
+
+	// Get image metadata
+	metadata, err := u.GetImageMetadata(ctx, s3Url)
+	if err != nil {
+		return fmt.Errorf("failed to get image metadata: %w", err)
+	}
+
+	// Validate content type
+	contentType := metadata["contentType"]
+	if !u.IsImageContentType(contentType) {
+		return fmt.Errorf("invalid content type: %s, expected image/png or image/jpeg", contentType)
+	}
+
+	// Bedrock specifically supports PNG and JPEG
+	if contentType != "image/png" && contentType != "image/jpeg" && contentType != "image/jpg" {
+		u.logger.Warn("Content type may not be fully supported by Bedrock", map[string]interface{}{
+			"contentType": contentType,
+			"s3Url": s3Url,
+		})
+	}
+
+	// Parse and validate size
+	contentLength := metadata["contentLength"]
+	if contentLength == "" {
+		return fmt.Errorf("content length not available")
+	}
+
+	size := int64(0)
+	if _, err := fmt.Sscanf(contentLength, "%d", &size); err != nil {
+		return fmt.Errorf("invalid content length: %s", contentLength)
+	}
+	
+	// Bedrock limit is typically 100MB per image
+	const maxSize = 100 * 1024 * 1024 // 100MB
+	if size > maxSize {
+		return fmt.Errorf("image too large: %d bytes (max %d bytes for Bedrock)", size, maxSize)
+	}
+
+	// Validate bucket owner exists (required for Bedrock)
+	if metadata["bucketOwner"] == "" {
+		return fmt.Errorf("bucket owner not found, required for Bedrock API")
+	}
+
+	u.logger.Info("Image validated for Bedrock", map[string]interface{}{
+		"s3Url":        s3Url,
+		"contentType":  contentType,
+		"size":         size,
+		"bucketOwner":  metadata["bucketOwner"],
+	})
+
+	return nil
 }
