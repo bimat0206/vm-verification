@@ -1,177 +1,66 @@
-// models.go
+// Package main provides the entry point for the initialization Lambda function
+// This file contains model aliases for backward compatibility
 package main
 
-import "time"
-
-// -------------------------
-// Request/Response Models
-// -------------------------
-
-// Verification types
-const (
-    VerificationTypeLayoutVsChecking   = "LAYOUT_VS_CHECKING"
-    VerificationTypePreviousVsCurrent  = "PREVIOUS_VS_CURRENT"
+import (
+	"time"
+	"workflow-function/shared/schema"
 )
 
-// InitRequest represents the input payload to the Lambda function
-type InitRequest struct {
-    VerificationType      string              `json:"verificationType"`
-    ReferenceImageUrl     string              `json:"referenceImageUrl"`
-    CheckingImageUrl      string              `json:"checkingImageUrl"`
-    VendingMachineId      string              `json:"vendingMachineId,omitempty"`
-    LayoutId              int                 `json:"layoutId,omitempty"`
-    LayoutPrefix          string              `json:"layoutPrefix,omitempty"`
-    PreviousVerificationId string             `json:"previousVerificationId,omitempty"`
-    ConversationConfig    *ConversationConfig `json:"conversationConfig,omitempty"`
-    RequestId             string              `json:"requestId,omitempty"`
-    RequestTimestamp      string              `json:"requestTimestamp,omitempty"`
-    NotificationEnabled   bool                `json:"notificationEnabled"`
-}
+// Verification types - using constants from schema package
+const (
+	VerificationTypeLayoutVsChecking  = schema.VerificationTypeLayoutVsChecking
+	VerificationTypePreviousVsCurrent = schema.VerificationTypePreviousVsCurrent
+)
 
-// InitResponse matches the desired output schema
+// Verification status constants - using constants from schema package
+const (
+	StatusVerificationRequested  = schema.StatusVerificationRequested
+	StatusVerificationInitialized = schema.StatusVerificationInitialized
+	StatusFetchingImages         = schema.StatusFetchingImages
+	StatusImagesFetched          = schema.StatusImagesFetched
+	StatusPromptPrepared         = schema.StatusPromptPrepared
+	StatusTurn1PromptReady       = schema.StatusTurn1PromptReady
+	StatusTurn1Completed         = schema.StatusTurn1Completed
+	StatusTurn1Processed         = schema.StatusTurn1Processed
+	StatusTurn2PromptReady       = schema.StatusTurn2PromptReady
+	StatusTurn2Completed         = schema.StatusTurn2Completed
+	StatusTurn2Processed         = schema.StatusTurn2Processed
+	StatusResultsFinalized       = schema.StatusResultsFinalized
+	StatusResultsStored          = schema.StatusResultsStored
+	StatusNotificationSent       = schema.StatusNotificationSent
+	StatusCompleted              = schema.StatusCompleted
+	
+	// Error states
+	StatusInitializationFailed    = schema.StatusInitializationFailed
+	StatusHistoricalFetchFailed   = schema.StatusHistoricalFetchFailed
+	StatusImageFetchFailed        = schema.StatusImageFetchFailed
+	StatusBedrockProcessingFailed = schema.StatusBedrockProcessingFailed
+	StatusVerificationFailed      = schema.StatusVerificationFailed
+)
+
+// Using SchemaVersion from schema package
+const SchemaVersion = schema.SchemaVersion
+
+// InitResponse matches the standardized output schema
 type InitResponse struct {
-    VerificationContext *VerificationContext `json:"verificationContext"`
-    Message             string               `json:"message"`
+	SchemaVersion       string                    `json:"schemaVersion"`
+	VerificationContext *schema.VerificationContext `json:"verificationContext"`
+	Message             string                    `json:"message,omitempty"`
 }
 
-// VerificationContext represents the output returned from the Lambda function
-type VerificationContext struct {
-    VerificationId        string               `json:"verificationId"`
-    VerificationAt        string               `json:"verificationAt"`
-    Status                string               `json:"status"`
-    VerificationType      string               `json:"verificationType"`
-    ConversationType      string               `json:"conversationType,omitempty"`
-    VendingMachineId      string               `json:"vendingMachineId,omitempty"`
-    LayoutId              int                  `json:"layoutId,omitempty"`
-    LayoutPrefix          string               `json:"layoutPrefix,omitempty"`
-    PreviousVerificationId string              `json:"previousVerificationId"`
-    ReferenceImageUrl     string               `json:"referenceImageUrl"`
-    CheckingImageUrl      string               `json:"checkingImageUrl"`
-    TurnConfig            *TurnConfig          `json:"turnConfig,omitempty"`
-    TurnTimestamps        *TurnTimestamps      `json:"turnTimestamps,omitempty"`
-    RequestMetadata       *RequestMetadata     `json:"requestMetadata,omitempty"`
-    ResourceValidation    *ResourceValidation  `json:"resourceValidation,omitempty"`
-    NotificationEnabled   bool                 `json:"notificationEnabled"`
-}
+// Legacy model type aliases for backward compatibility
+type TurnConfig = schema.TurnConfig
+type TurnTimestamps = schema.TurnTimestamps
+type RequestMetadata = schema.RequestMetadata
+type ResourceValidation = schema.ResourceValidation
 
-// -------------------------
-// Conversation Models
-// -------------------------
-
-type ConversationConfig struct {
-    Type     string `json:"type"`
-    MaxTurns int    `json:"maxTurns"`
-}
-
-type TurnConfig struct {
-    MaxTurns           int `json:"maxTurns"`
-    ReferenceImageTurn int `json:"referenceImageTurn"`
-    CheckingImageTurn  int `json:"checkingImageTurn"`
-}
-
-type TurnTimestamps struct {
-    Initialized string  `json:"initialized"`
-    Turn1       *string `json:"turn1"`
-    Turn2       *string `json:"turn2"`
-    Completed   *string `json:"completed"`
-}
-
-type RequestMetadata struct {
-    RequestId         string `json:"requestId"`
-    RequestTimestamp  string `json:"requestTimestamp"`
-    ProcessingStarted string `json:"processingStarted"`
-}
-
-// -------------------------
-// Validation Models
-// -------------------------
-
-type ResourceValidation struct {
-    LayoutExists         bool   `json:"layoutExists,omitempty"`
-    ReferenceImageExists bool   `json:"referenceImageExists"`
-    CheckingImageExists  bool   `json:"checkingImageExists"`
-    ValidationTimestamp  string `json:"validationTimestamp"`
-}
-
-// -------------------------
-// Historical Context Models
-// -------------------------
-
-type HistoricalContext struct {
-    PreviousVerificationId     string               `json:"previousVerificationId"`
-    PreviousVerificationAt     string               `json:"previousVerificationAt"`
-    PreviousVerificationStatus string               `json:"previousVerificationStatus"`
-    HoursSinceLastVerification float64              `json:"hoursSinceLastVerification"`
-    MachineStructure           *MachineStructure    `json:"machineStructure,omitempty"`
-    VerificationSummary        *VerificationSummary `json:"verificationSummary,omitempty"`
-    CheckingStatus             map[string]string    `json:"checkingStatus,omitempty"`
-}
-
-type MachineStructure struct {
-    RowCount      int      `json:"rowCount"`
-    ColumnsPerRow int      `json:"columnsPerRow"`
-    RowOrder      []string `json:"rowOrder"`
-    ColumnOrder   []string `json:"columnOrder"`
-}
-
-type VerificationSummary struct {
-    TotalPositionsChecked  int     `json:"totalPositionsChecked"`
-    CorrectPositions       int     `json:"correctPositions"`
-    DiscrepantPositions    int     `json:"discrepantPositions"`
-    MissingProducts        int     `json:"missingProducts"`
-    IncorrectProductTypes  int     `json:"incorrectProductTypes"`
-    UnexpectedProducts     int     `json:"unexpectedProducts"`
-    EmptyPositionsCount    int     `json:"emptyPositionsCount"`
-    OverallAccuracy        float64 `json:"overallAccuracy"`
-    OverallConfidence      float64 `json:"overallConfidence"`
-    VerificationStatus     string  `json:"verificationStatus"`
-    VerificationOutcome    string  `json:"verificationOutcome"`
-}
-
-// -------------------------
-// Storage Models
-// -------------------------
-
-type DynamoDBVerificationItem struct {
-    VerificationId         string `dynamodbav:"verificationId"`
-    VerificationAt         string `dynamodbav:"verificationAt"`
-    Status                 string `dynamodbav:"status"`
-    VerificationType       string `dynamodbav:"verificationType"`
-    VendingMachineId       string `dynamodbav:"vendingMachineId,omitempty"`
-    LayoutId               int    `dynamodbav:"layoutId,omitempty"`
-    LayoutPrefix           string `dynamodbav:"layoutPrefix,omitempty"`
-    PreviousVerificationId string `dynamodbav:"previousVerificationId,omitempty"`
-    ReferenceImageUrl      string `dynamodbav:"referenceImageUrl"`
-    CheckingImageUrl       string `dynamodbav:"checkingImageUrl"`
-    RequestId              string `dynamodbav:"requestId,omitempty"`
-    NotificationEnabled    bool   `dynamodbav:"notificationEnabled"`
-    TTL                    int64  `dynamodbav:"ttl,omitempty"`
-}
-
-// -------------------------
-// Utility Models & Helpers
-// -------------------------
-
-type S3URL struct {
-    Bucket string
-    Key    string
-}
-
-// Status constants
-const (
-    StatusInitialized   = "INITIALIZED"
-    StatusProcessing    = "PROCESSING"
-    StatusImagesFetched = "IMAGES_FETCHED"
-    StatusCompleted     = "COMPLETED"
-    StatusFailed        = "FAILED"
-)
-
-// FormatISO8601 returns now in RFC3339
+// FormatISO8601 returns now in RFC3339 - using schema implementation
 func FormatISO8601() string {
-    return time.Now().UTC().Format(time.RFC3339)
+	return schema.FormatISO8601()
 }
 
-// GetCurrentTimestamp returns time formatted for IDs
+// GetCurrentTimestamp returns time formatted for IDs - legacy API compatibility
 func GetCurrentTimestamp() string {
-    return time.Now().UTC().Format("20060102150405")
+	return time.Now().UTC().Format("20060102150405")
 }

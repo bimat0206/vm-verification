@@ -5,6 +5,51 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2025-05-14
+
+### Fixed
+- Removed duplicate type declarations for `HistoricalContext`, `MachineStructure`, and `VerificationSummary` that were defined in both models.go and service.go
+- Added clear documentation to indicate canonical type definitions in service.go
+- Added section heading comments to improve code organization
+
+## [1.4.0] - 2025-05-14
+
+### Changed
+- Migrated to using shared package components with local imports
+- Updated to use shared logger package for standardized logging
+- Integrated shared s3utils package for S3 operations
+- Integrated shared dbutils package for DynamoDB operations
+- Removed custom logger implementation in favor of shared version
+- Updated Docker build process to work with local imports
+
+## [1.3.0] - 2025-05-14
+
+### Changed
+- Updated imports to use local module paths instead of GitHub dependencies
+- Changed schema import from GitHub to `workflow-function/shared/schema`
+- Updated Dockerfile to support local module imports
+- Simplified build process by only copying necessary directories
+
+## [1.2.0] - 2025-05-14
+
+### Added
+- Integration with shared schema package for standardized data models
+- Support for standardized status transitions managed by Step Functions
+- Explicit schema version handling (1.0.0)
+- Standardized error handling with error info structure
+- Backward compatibility with legacy format requests
+
+### Changed
+- Updated DynamoDBUtils to work with the standardized schema
+- Modified validation logic to use schema validation functions
+- Refactored code to support both new and legacy formats
+- Improved error messages with standardized codes and formats
+- Added schema version to DynamoDB records
+
+### Removed
+- Status management code (now handled by Step Functions)
+- Manual verification context creation (now uses schema package)
+
 ## [1.1.3] - 2025-05-11
 
 ### Fixed

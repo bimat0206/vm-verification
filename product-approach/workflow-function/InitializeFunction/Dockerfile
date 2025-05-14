@@ -10,12 +10,16 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
+# Copy only necessary directories
+COPY ../shared/schema/ /app/workflow-function/shared/schema/
+COPY . /app/workflow-function/InitializeFunction/
+
+# Build from the function directory
+WORKDIR /app/workflow-function/InitializeFunction
+
 # Build the application for AWS Lambda ARM64 (Graviton)
 # Use build flags to create a statically linked binary
-RUN --mount=type=cache,target=/root/.cache \
-    --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=bind,target=. \
-    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
+RUN GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64

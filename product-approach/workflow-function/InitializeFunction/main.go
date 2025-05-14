@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	//"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"workflow-function/shared/schema"
 )
 
 // ConfigVars holds environment configuration
@@ -32,10 +32,33 @@ type WrappedRequest struct {
 	Query   map[string]string `json:"query"`
 }
 
+// InitRequest represents the input payload to the Lambda function
+// This struct continues to support legacy format for backwards compatibility
+type InitRequest struct {
+	// Either coming from a wrapper or direct fields
+	SchemaVersion         string                  `json:"schemaVersion,omitempty"`
+	VerificationContext   *schema.VerificationContext `json:"verificationContext,omitempty"`
+	
+	// Direct fields (legacy format)
+	VerificationType      string              `json:"verificationType"`
+	ReferenceImageUrl     string              `json:"referenceImageUrl"`
+	CheckingImageUrl      string              `json:"checkingImageUrl"`
+	VendingMachineId      string              `json:"vendingMachineId,omitempty"`
+	LayoutId              int                 `json:"layoutId,omitempty"`
+	LayoutPrefix          string              `json:"layoutPrefix,omitempty"`
+	PreviousVerificationId string             `json:"previousVerificationId,omitempty"`
+	ConversationConfig    *ConversationConfig `json:"conversationConfig,omitempty"`
+	RequestId             string              `json:"requestId,omitempty"`
+	RequestTimestamp      string              `json:"requestTimestamp,omitempty"`
+	NotificationEnabled   bool                `json:"notificationEnabled"`
+}
 
+// ConversationConfig defines configuration for the conversation
+type ConversationConfig struct {
+	Type     string `json:"type"`
+	MaxTurns int    `json:"maxTurns"`
+}
 
-// Handler is the Lambda handler function
-// Handler is the Lambda handler function
 // Handler is the Lambda handler function
 func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 	// 1) Initialize dependencies
@@ -44,6 +67,17 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		log.Printf("Failed to initialize dependencies: %v", err)
 		return nil, err
 	}
+	
+	// Configure the DB utils with environment values
+	config := ConfigVars{
+		LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
+		VerificationTable:  os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
+		VerificationPrefix: getEnvWithDefault("VERIFICATION_PREFIX", "verif-"),
+		ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
+		CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
+	}
+	deps.ConfigureDbUtils(config)
+	
 	logger := deps.GetLogger()
 	logger.Info("Received event", map[string]interface{}{
 		"eventType": fmt.Sprintf("%T", event),
@@ -91,133 +125,167 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 
 	var request InitRequest
 	
-	// Check if this is a Step Functions invocation (by checking for specific parameters pattern)
-	_, hasVerificationType := raw["verificationType"]
-	_, hasReferenceImageUrl := raw["referenceImageUrl"]
-	_, hasCheckingImageUrl := raw["checkingImageUrl"]
-	
-	// Step Functions invocation will have these parameters directly
-	isStepFunctions := hasVerificationType && hasReferenceImageUrl && hasCheckingImageUrl
-	
-	if vc, exist := raw["verificationContext"]; exist {
-		// If there's a verificationContext wrapper, extract fields from it
-		vcBytes, err := json.Marshal(vc)
-		if err != nil {
-			logger.Error("Failed to marshal verificationContext", map[string]interface{}{
-				"error": err.Error(),
-			})
-			return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
-		}
-		if err := json.Unmarshal(vcBytes, &request); err != nil {
-			logger.Error("Failed to unmarshal verificationContext", map[string]interface{}{
-				"error": err.Error(),
-				"jsonBytes": string(vcBytes),
-			})
-			return nil, fmt.Errorf("failed to parse verificationContext detail: %w", err)
-		}
-		
-		// Extract top-level requestId and requestTimestamp if present
-		if requestId, ok := raw["requestId"].(string); ok && requestId != "" {
-			request.RequestId = requestId
-		}
-		if requestTimestamp, ok := raw["requestTimestamp"].(string); ok && requestTimestamp != "" {
-			request.RequestTimestamp = requestTimestamp
-		}
-		
-		logger.Info("Parsed request with verificationContext wrapper", map[string]interface{}{
-			"requestId": request.RequestId,
-			"requestTimestamp": request.RequestTimestamp,
+	// Check for schema version to determine format
+	if schemaVersion, ok := raw["schemaVersion"].(string); ok && schemaVersion != "" {
+		// This is the new standardized format
+		logger.Info("Detected standardized schema format", map[string]interface{}{
+			"schemaVersion": schemaVersion,
 		})
-	} else if isStepFunctions {
-		// Direct parameters from Step Functions (no wrapper)
-		if err := json.Unmarshal(jsonBytes, &request); err != nil {
-			logger.Error("Failed to unmarshal direct Step Functions input", map[string]interface{}{
-				"error": err.Error(),
-				"eventJson": string(jsonBytes),
-			})
-			return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
+		
+		// Extract verification context
+		if vc, exist := raw["verificationContext"]; exist {
+			vcBytes, err := json.Marshal(vc)
+			if err != nil {
+				logger.Error("Failed to marshal verificationContext", map[string]interface{}{
+					"error": err.Error(),
+				})
+				return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
+			}
+			
+			// Unmarshal into the appropriate struct
+			var verificationContext schema.VerificationContext
+			if err := json.Unmarshal(vcBytes, &verificationContext); err != nil {
+				logger.Error("Failed to unmarshal verificationContext", map[string]interface{}{
+					"error": err.Error(),
+					"jsonBytes": string(vcBytes),
+				})
+				return nil, fmt.Errorf("failed to parse verificationContext detail: %w", err)
+			}
+			
+			// Populate request with verification context
+			request.SchemaVersion = schemaVersion
+			request.VerificationContext = &verificationContext
+			
+			// Extract request metadata
+			if requestId, ok := raw["requestId"].(string); ok && requestId != "" {
+				request.RequestId = requestId
+			}
+			if requestTimestamp, ok := raw["requestTimestamp"].(string); ok && requestTimestamp != "" {
+				request.RequestTimestamp = requestTimestamp
+			}
 		}
-		logger.Info("Parsed direct Step Functions request", map[string]interface{}{
-			"verificationType": request.VerificationType,
-		})
 	} else {
-		// API Gateway or direct Lambda invocation without wrapper
-		if err := json.Unmarshal(jsonBytes, &request); err != nil {
-			logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
-				"error": err.Error(),
-				"eventJson": string(jsonBytes),
+		// First check if this is a Step Functions invocation (by checking for specific parameters pattern)
+		_, hasVerificationType := raw["verificationType"]
+		_, hasReferenceImageUrl := raw["referenceImageUrl"]
+		_, hasCheckingImageUrl := raw["checkingImageUrl"]
+		
+		// Step Functions invocation will have these parameters directly
+		isStepFunctions := hasVerificationType && hasReferenceImageUrl && hasCheckingImageUrl
+		
+		if vc, exist := raw["verificationContext"]; exist {
+			// If there's a verificationContext wrapper (legacy format), extract fields from it
+			vcBytes, err := json.Marshal(vc)
+			if err != nil {
+				logger.Error("Failed to marshal verificationContext", map[string]interface{}{
+					"error": err.Error(),
+				})
+				return nil, fmt.Errorf("failed to parse verificationContext: %w", err)
+			}
+			if err := json.Unmarshal(vcBytes, &request); err != nil {
+				logger.Error("Failed to unmarshal verificationContext", map[string]interface{}{
+					"error": err.Error(),
+					"jsonBytes": string(vcBytes),
+				})
+				return nil, fmt.Errorf("failed to parse verificationContext detail: %w", err)
+			}
+			
+			// Extract top-level requestId and requestTimestamp if present
+			if requestId, ok := raw["requestId"].(string); ok && requestId != "" {
+				request.RequestId = requestId
+			}
+			if requestTimestamp, ok := raw["requestTimestamp"].(string); ok && requestTimestamp != "" {
+				request.RequestTimestamp = requestTimestamp
+			}
+			
+			logger.Info("Parsed request with verificationContext wrapper", map[string]interface{}{
+				"requestId": request.RequestId,
+				"requestTimestamp": request.RequestTimestamp,
 			})
-			return nil, fmt.Errorf("failed to parse event detail: %w", err)
+		} else if isStepFunctions {
+			// Direct parameters from Step Functions (no wrapper)
+			if err := json.Unmarshal(jsonBytes, &request); err != nil {
+				logger.Error("Failed to unmarshal direct Step Functions input", map[string]interface{}{
+					"error": err.Error(),
+					"eventJson": string(jsonBytes),
+				})
+				return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
+			}
+			logger.Info("Parsed direct Step Functions request", map[string]interface{}{
+				"verificationType": request.VerificationType,
+			})
+		} else {
+			// API Gateway or direct Lambda invocation without wrapper
+			if err := json.Unmarshal(jsonBytes, &request); err != nil {
+				logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
+					"error": err.Error(),
+					"eventJson": string(jsonBytes),
+				})
+				return nil, fmt.Errorf("failed to parse event detail: %w", err)
+			}
 		}
 	}
 
 	// 4) Default verificationType if missing
-	if request.VerificationType == "" {
+	if request.VerificationContext == nil &&
+	   request.VerificationType == "" {
 		logger.Info("VerificationType not provided, defaulting to LAYOUT_VS_CHECKING", nil)
-		request.VerificationType = VerificationTypeLayoutVsChecking
+		request.VerificationType = schema.VerificationTypeLayoutVsChecking
 	}
 
 	// 5) Log parsed request
-	logDetails := map[string]interface{}{
-		"verificationType":    request.VerificationType,
-		"referenceImageUrl":   request.ReferenceImageUrl,
-		"checkingImageUrl":    request.CheckingImageUrl,
-		"vendingMachineId":    request.VendingMachineId,
-		"notificationEnabled": request.NotificationEnabled,
-	}
-	if request.VerificationType == VerificationTypeLayoutVsChecking {
-		logDetails["layoutId"] = request.LayoutId
-		logDetails["layoutPrefix"] = request.LayoutPrefix
+	logDetails := map[string]interface{}{}
+	
+	if request.VerificationContext != nil {
+		// Log from verification context
+		logDetails["verificationType"] = request.VerificationContext.VerificationType
+		logDetails["referenceImageUrl"] = request.VerificationContext.ReferenceImageUrl
+		logDetails["checkingImageUrl"] = request.VerificationContext.CheckingImageUrl
+		logDetails["vendingMachineId"] = request.VerificationContext.VendingMachineId
+		logDetails["notificationEnabled"] = request.VerificationContext.NotificationEnabled
+		
+		if request.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+			logDetails["layoutId"] = request.VerificationContext.LayoutId
+			logDetails["layoutPrefix"] = request.VerificationContext.LayoutPrefix
+		} else {
+			logDetails["previousVerificationId"] = request.VerificationContext.PreviousVerificationId
+		}
 	} else {
-		logDetails["previousVerificationId"] = request.PreviousVerificationId
+		// Log from direct fields
+		logDetails["verificationType"] = request.VerificationType
+		logDetails["referenceImageUrl"] = request.ReferenceImageUrl
+		logDetails["checkingImageUrl"] = request.CheckingImageUrl
+		logDetails["vendingMachineId"] = request.VendingMachineId
+		logDetails["notificationEnabled"] = request.NotificationEnabled
+		
+		if request.VerificationType == schema.VerificationTypeLayoutVsChecking {
+			logDetails["layoutId"] = request.LayoutId
+			logDetails["layoutPrefix"] = request.LayoutPrefix
+		} else {
+			logDetails["previousVerificationId"] = request.PreviousVerificationId
+		}
 	}
+	
 	logger.Info("Parsed request", logDetails)
 
-	// 6) Load config from environment
-	config := ConfigVars{
-		LayoutTable:        os.Getenv("DYNAMODB_LAYOUT_TABLE"),
-		VerificationTable:  os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
-		VerificationPrefix: getEnvWithDefault("VERIFICATION_PREFIX", "verif-"),
-		ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
-		CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
-	}
+	// Log configuration
 	logger.Info("Using configuration", map[string]interface{}{
 		"layoutTable":        config.LayoutTable,
 		"verificationTable":  config.VerificationTable,
 		"verificationPrefix": config.VerificationPrefix,
 	})
 
-	// 7) Run business logic
+	// 6) Run business logic
 	service := NewInitService(deps, config)
 	result, err := service.Process(ctx, request)
 	if err != nil {
 		logger.Error("Failed to process request", map[string]interface{}{
-			"error":            err.Error(),
-			"verificationType": request.VerificationType,
+			"error": err.Error(),
 		})
 		return nil, err
 	}
-	// Serialize the result to JSON for logging
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		logger.Error("Failed to marshal result to JSON", map[string]interface{}{
-			"error": err.Error(),
-		})
-	} else {
-		logger.Info("Result JSON", map[string]interface{}{
-			"json": string(resultJSON),
-		})
-	}
-
-	logger.Info("Successfully processed request", map[string]interface{}{
-		"verificationId":          result.VerificationId,
-		"verificationType":        result.VerificationType,
-		"status":                  result.Status,
-		"hasPreviousVerification": result.PreviousVerificationId != "",
-		"previousVerificationId":  result.PreviousVerificationId,
-	})
-
-	// 8) Return result
+	
+	// 7) Return result
 	// Always return just the VerificationContext for Step Functions
 	// This prevents nesting and follows the state machine design
 	return result, nil

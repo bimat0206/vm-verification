@@ -1,6 +1,6 @@
-module initialize-function
+module workflow-function/InitializeFunction
 
-go 1.24.0
+go 1.24
 
 require (
 	github.com/aws/aws-lambda-go v1.48.0
@@ -8,8 +8,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.12
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.4
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	github.com/google/uuid v1.6.0
+	workflow-function/shared/dbutils v0.0.0
+	workflow-function/shared/logger v0.0.0
+	workflow-function/shared/s3utils v0.0.0
+	workflow-function/shared/schema v0.0.0
 )
 
 require (
@@ -22,7 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 // indirect
@@ -31,3 +35,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
 	github.com/aws/smithy-go v1.22.2 // indirect
 )
+
+replace workflow-function/shared/schema => ../shared/schema
+
+replace workflow-function/shared/logger => ../shared/logger
+
+replace workflow-function/shared/s3utils => ../shared/s3utils
+
+replace workflow-function/shared/dbutils => ../shared/dbutils

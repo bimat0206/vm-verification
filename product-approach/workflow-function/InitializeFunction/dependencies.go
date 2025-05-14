@@ -4,43 +4,74 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"workflow-function/shared/dbutils"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/s3utils"
 )
 
 // Dependencies contains all external dependencies required by the service
 type Dependencies struct {
-	Logger       Logger
-	S3Client     *s3.Client
-	DynamoClient *dynamodb.Client
+	logger    logger.Logger
+	s3Client  *s3.Client
+	dbClient  *dynamodb.Client
+	s3Utils   *s3utils.S3Utils
+	dbUtils   *dbutils.DynamoDBUtils
 }
 
 // NewDependencies creates a new Dependencies instance with all required dependencies
 func NewDependencies(awsConfig aws.Config) *Dependencies {
 	// Initialize clients
 	s3Client := s3.NewFromConfig(awsConfig)
-	dynamoClient := dynamodb.NewFromConfig(awsConfig)
-	logger := NewStructuredLogger()
-
-	// Return dependencies container
+	dbClient := dynamodb.NewFromConfig(awsConfig)
+	
+	// Create logger
+	log := logger.New("kootoro-verification", "InitializeFunction")
+	
+	// Create utility instances
+	s3Util := s3utils.New(s3Client, log)
+	
+	// Return dependencies without configuring dbUtils yet
+	// It will be configured once config is available
 	return &Dependencies{
-		Logger:       logger,
-		S3Client:     s3Client,
-		DynamoClient: dynamoClient,
+		logger:    log,
+		s3Client:  s3Client,
+		dbClient:  dbClient,
+		s3Utils:   s3Util,
 	}
 }
 
-// GetS3Util returns an instance of S3Utils
-func (d *Dependencies) GetS3Util() *S3Utils {
-	s3Util := NewS3Utils(d.S3Client, d.Logger)
-	return s3Util
+// ConfigureDbUtils sets up the DynamoDB utilities with config
+func (d *Dependencies) ConfigureDbUtils(config ConfigVars) {
+	dbConfig := dbutils.Config{
+		VerificationTable: config.VerificationTable,
+		LayoutTable:       config.LayoutTable,
+		DefaultTTLDays:    30, // 30 days default TTL
+	}
+	
+	d.dbUtils = dbutils.New(d.dbClient, d.logger, dbConfig)
 }
 
-// GetDynamoUtil returns an instance of DynamoDBUtils
-func (d *Dependencies) GetDynamoUtil() *DynamoDBUtils {
-	dbUtil := NewDynamoDBUtils(d.DynamoClient, d.Logger)
-	return dbUtil
+// GetLogger returns the logger
+func (d *Dependencies) GetLogger() logger.Logger {
+	return d.logger
 }
 
-// GetLogger returns the logger instance
-func (d *Dependencies) GetLogger() Logger {
-	return d.Logger
+// GetS3Util returns the S3 utilities
+func (d *Dependencies) GetS3Util() *s3utils.S3Utils {
+	return d.s3Utils
+}
+
+// GetDynamoUtil returns the DynamoDB utilities
+func (d *Dependencies) GetDynamoUtil() *dbutils.DynamoDBUtils {
+	return d.dbUtils
+}
+
+// For backward compatibility
+func (d *Dependencies) GetS3Client() *s3.Client {
+	return d.s3Client
+}
+
+// For backward compatibility
+func (d *Dependencies) GetDBClient() *dynamodb.Client {
+	return d.dbClient
 }

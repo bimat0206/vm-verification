@@ -1,0 +1,52 @@
+{
+  "verificationContext": {
+    "verificationId": "verif-20250514123456",
+    "verificationAt": "2025-05-14T12:34:56Z",
+    "status": "INITIATED",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-123456",
+    "layoutId": 12345,
+    "layoutPrefix": "layout_standard",
+    "referenceImageUrl": "s3://reference-bucket/layouts/layout_standard_12345.png",
+    "checkingImageUrl": "s3://checking-bucket/verifications/verif-20250514123456.jpg"
+  },
+  "layoutMetadata": {
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    },
+    "productPositionMap": {
+      "A1": {"productId": 1001, "productName": "Cola Classic"},
+      "A2": {"productId": 1002, "productName": "Diet Cola"},
+      "A3": {"productId": 1003, "productName": "Orange Soda"},
+      "A4": {"productId": 1004, "productName": "Lemon Soda"},
+      "A5": {"productId": 1005, "productName": "Energy Drink Blue"},
+      "A6": {"productId": 1006, "productName": "Energy Drink Red"},
+      "A7": {"productId": 1007, "productName": "Sparkling Water"},
+      "A8": {"productId": 1008, "productName": "Mineral Water"},
+      "A9": {"productId": 1009, "productName": "Iced Tea"},
+      "A10": {"productId": 1010, "productName": "Green Tea"},
+      "B1": {"productId": 2001, "productName": "Potato Chips Original"},
+      "B2": {"productId": 2002, "productName": "Potato Chips Cheese"},
+      "B3": {"productId": 2003, "productName": "Potato Chips BBQ"},
+      "B4": {"productId": 2004, "productName": "Corn Chips"},
+      "B5": {"productId": 2005, "productName": "Pretzels"},
+      "B6": {"productId": 2006, "productName": "Crackers"},
+      "B7": {"productId": 2007, "productName": "Peanuts"},
+      "B8": {"productId": 2008, "productName": "Trail Mix"},
+      "B9": {"productId": 2009, "productName": "Popcorn"},
+      "B10": {"productId": 2010, "productName": "Rice Cakes"}
+    },
+    "location": "Main Office Building, Floor 3"
+  },
+  "bedrockConfig": {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 24000,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 16000
+    }
+  }
+}
