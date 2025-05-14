@@ -13,15 +13,6 @@ import (
 	"workflow-function/shared/schema"
 )
 
-// ConfigVars holds environment configuration
-type ConfigVars struct {
-	LayoutTable        string
-	VerificationTable  string
-	VerificationPrefix string
-	ReferenceBucket    string
-	CheckingBucket     string
-}
-
 // WrappedRequest represents the structure API Gateway sends to Lambda
 // with non-proxy integration
 type WrappedRequest struct {

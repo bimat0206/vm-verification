@@ -3,9 +3,8 @@
 package main
 
 import (
-	"context"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"workflow-function/shared/dbutils"
-	"workflow-function/shared/schema"
 )
 
 // ConfigVars holds environment configuration for legacy compatibility
@@ -45,11 +44,13 @@ type DynamoDBVerificationItem struct {
 	SchemaVersion          string `dynamodbav:"schemaVersion,omitempty"`
 }
 
-// DynamoDBUtils type alias for backward compatibility
-type DynamoDBUtils = dbutils.DynamoDBUtils
+// DynamoDBUtilsWrapper wraps the shared package for local extension methods
+type DynamoDBUtilsWrapper struct {
+	*dbutils.DynamoDBUtils
+}
 
-// Wrapper function for backward compatibility
-func NewDynamoDBUtils(client interface{}, logger Logger) *DynamoDBUtils {
+// NewDynamoDBUtils creates a new DynamoDBUtilsWrapper instance
+func NewDynamoDBUtils(client *dynamodb.Client, logger Logger) *dbutils.DynamoDBUtils {
 	// Create a temporary config - it will be replaced when SetConfig is called
 	config := dbutils.Config{
 		VerificationTable: "",
@@ -57,12 +58,6 @@ func NewDynamoDBUtils(client interface{}, logger Logger) *DynamoDBUtils {
 		DefaultTTLDays:    30,
 	}
 	
-	// Use the dynamic client from dependencies.go
+	// Return the dbutils instance directly, we don't need to wrap it in most cases
 	return dbutils.New(client, logger, config)
-}
-
-// SetConfig is a compatibility method that will update the dbutils config
-func (d *DynamoDBUtils) SetConfig(config ConfigVars) {
-	// This is just a stub for backward compatibility
-	// The actual config setting is handled in dependencies.go
 }

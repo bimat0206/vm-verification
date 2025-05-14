@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	//"path/filepath"
 	"strconv"
 	"strings"
+
+	"workflow-function/shared/schema"
 )
 
 // Bedrock model constants
@@ -45,8 +46,8 @@ type BedrockMessage struct {
 
 // MessagePart represents a part of a message (text or image)
 type MessagePart struct {
-	Type    string      `json:"type"`
-	Text    string      `json:"text,omitempty"`
+	Type    string       `json:"type"`
+	Text    string       `json:"text,omitempty"`
 	Source  *ImageSource `json:"source,omitempty"`
 }
 
@@ -60,20 +61,20 @@ type ImageSource struct {
 
 // BedrockThinking configures Claude's thinking behavior
 type BedrockThinking struct {
-	Type        string `json:"type"`
-	BudgetTokens int   `json:"budget_tokens,omitempty"`
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
 }
 
 // BedrockResponse represents a response from Bedrock
 type BedrockResponse struct {
-	ID          string          `json:"id"`
-	Type        string          `json:"type"`
-	Role        string          `json:"role"`
-	Content     []MessagePart   `json:"content"`
-	Model       string          `json:"model"`
-	StopReason  string          `json:"stop_reason"`
-	StopSequence string         `json:"stop_sequence"`
-	Usage       BedrockUsage    `json:"usage"`
+	ID           string        `json:"id"`
+	Type         string        `json:"type"`
+	Role         string        `json:"role"`
+	Content      []MessagePart `json:"content"`
+	Model        string        `json:"model"`
+	StopReason   string        `json:"stop_reason"`
+	StopSequence string        `json:"stop_sequence"`
+	Usage        BedrockUsage  `json:"usage"`
 }
 
 // BedrockUsage represents token usage information
@@ -83,22 +84,40 @@ type BedrockUsage struct {
 }
 
 // ConfigureBedrockSettings creates a Bedrock configuration object based on environment settings
-func ConfigureBedrockSettings() BedrockConfig {
-	return BedrockConfig{
-		AnthropicVersion: getEnv("ANTHROPIC_VERSION", DefaultAnthropicVersion),
-		MaxTokens:        getIntEnv("MAX_TOKENS", DefaultMaxTokens),
-		Thinking: ThinkingConfig{
-			Type:         getEnv("THINKING_TYPE", "enabled"),
-			BudgetTokens: getIntEnv("BUDGET_TOKENS", DefaultBudgetTokens),
+func ConfigureBedrockSettings() *schema.BedrockConfig {
+	// Get environment variables
+	anthropicVersion := getEnv("ANTHROPIC_VERSION", DefaultAnthropicVersion)
+	maxTokens := getIntEnv("MAX_TOKENS", DefaultMaxTokens)
+	thinkingType := getEnv("THINKING_TYPE", "enabled")
+	budgetTokens := getIntEnv("BUDGET_TOKENS", DefaultBudgetTokens)
+	
+	// Create default temperature and topP if not provided
+	temperature := getFloatEnv("TEMPERATURE", 0.7)
+	topP := getFloatEnv("TOP_P", 0.9)
+	
+	// Create shared schema BedrockConfig
+	return &schema.BedrockConfig{
+		AnthropicVersion: anthropicVersion,
+		MaxTokens:        maxTokens,
+		Temperature:      temperature,
+		TopP:             topP,
+		Thinking: &schema.Thinking{
+			Type:         thinkingType,
+			BudgetTokens: budgetTokens,
 		},
 	}
 }
 
 // PrepareBedrockRequest creates a BedrockRequest object for system prompt
-func PrepareBedrockRequest(systemPrompt string, bedrockConfig BedrockConfig) (BedrockRequest, error) {
+func PrepareBedrockRequest(systemPrompt string, bedrockConfig *schema.BedrockConfig) (BedrockRequest, error) {
 	// Validate system prompt
 	if systemPrompt == "" {
 		return BedrockRequest{}, fmt.Errorf("system prompt cannot be empty")
+	}
+	
+	// Validate config
+	if bedrockConfig == nil {
+		return BedrockRequest{}, fmt.Errorf("bedrock config cannot be nil")
 	}
 	
 	// Create request
@@ -107,15 +126,25 @@ func PrepareBedrockRequest(systemPrompt string, bedrockConfig BedrockConfig) (Be
 		MaxTokens:        bedrockConfig.MaxTokens,
 		System:           systemPrompt,
 		Messages:         []BedrockMessage{},
-		Thinking: BedrockThinking{
-			Type:         bedrockConfig.Thinking.Type,
-			BudgetTokens: bedrockConfig.Thinking.BudgetTokens,
-		},
-		Temperature:   0.7, // Default temperature for deterministic outputs
-		TopP:          0.9, // Default topP for deterministic outputs
+		Temperature:      bedrockConfig.Temperature,
+		TopP:             bedrockConfig.TopP,
 	}
 	
-	// Add metadata if available
+	// Set thinking if available
+	if bedrockConfig.Thinking != nil {
+		request.Thinking = BedrockThinking{
+			Type:         bedrockConfig.Thinking.Type,
+			BudgetTokens: bedrockConfig.Thinking.BudgetTokens,
+		}
+	} else {
+		// Default thinking settings
+		request.Thinking = BedrockThinking{
+			Type:         "enabled",
+			BudgetTokens: DefaultBudgetTokens,
+		}
+	}
+	
+	// Add metadata
 	request.Meta = map[string]string{
 		"usage":      "vending_machine_verification",
 		"version":    getEnv("PROMPT_VERSION", "1.0.0"),
@@ -126,7 +155,7 @@ func PrepareBedrockRequest(systemPrompt string, bedrockConfig BedrockConfig) (Be
 }
 
 // PrepareBedrockTurnRequest creates a BedrockRequest for a specific turn
-func PrepareBedrockTurnRequest(systemPrompt string, userMessage BedrockMessage, bedrockConfig BedrockConfig) (BedrockRequest, error) {
+func PrepareBedrockTurnRequest(systemPrompt string, userMessage BedrockMessage, bedrockConfig *schema.BedrockConfig) (BedrockRequest, error) {
 	// Get base request
 	request, err := PrepareBedrockRequest(systemPrompt, bedrockConfig)
 	if err != nil {
@@ -187,8 +216,6 @@ func ValidateImageMediaType(mediaType string) bool {
 	return supportedImageMediaTypes[mediaType]
 }
 
-
-
 // EstimateTokenUsage estimates token usage for a system prompt
 func EstimateTokenUsage(systemPrompt string) int {
 	// Rough estimate: average of 4 characters per token for English text
@@ -242,4 +269,19 @@ func getIntEnv(key string, defaultValue int) int {
 	}
 	
 	return intValue
+}
+
+// getFloatEnv retrieves a float environment variable with a default value
+func getFloatEnv(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	
+	floatValue, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue
+	}
+	
+	return floatValue
 }

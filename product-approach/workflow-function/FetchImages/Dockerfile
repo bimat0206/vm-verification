@@ -1,24 +1,30 @@
-# Build stage
-FROM golang:1.24-alpine AS build
+FROM golang:1.24-alpine AS builder
 
-# Set working directory
-WORKDIR /app
+# Install necessary packages
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata && \
+    update-ca-certificates
 
-# Copy go.mod and go.sum files to download dependencies
-COPY go.mod go.sum ./
-RUN go mod download
+# Set up working directory
+WORKDIR /go/src
 
-# Copy source code
+# Copy the prepared application code (already organized by the build script)
 COPY . .
 
-# Build the Go app for ARM64 (Graviton) with static linking
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bootstrap
+# Build the application for AWS Lambda ARM64 (Graviton)
+WORKDIR /go/src/workflow-function/FetchImages
+RUN --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
-# Copy the bootstrap executable
-COPY --from=build /app/bootstrap ${LAMBDA_TASK_ROOT}
+# Copy compiled binary from builder stage
+COPY --from=builder /main /var/task/main
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Set the binary as the Lambda handler
-ENTRYPOINT ["/var/task/bootstrap"]
+ENTRYPOINT ["/var/task/main"]

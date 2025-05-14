@@ -28,4 +28,4 @@ aws lambda update-function-code \
  		--image-uri "$ECR_REPO:latest" \
  		--region "$AWS_REGION" > /dev/null 2>&1
 
-echo "Docker image built and pushed successfully to $ECR_REPO:latest"
+echo "Done! Lambda function $FUNCTION_NAME has been updated with the latest code."

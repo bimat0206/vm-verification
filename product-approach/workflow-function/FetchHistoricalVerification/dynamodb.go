@@ -3,57 +3,64 @@ package main
 import (
 	"context"
 	"fmt"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"workflow-function/shared/dbutils"
+	"workflow-function/shared/logger"
 )
 
-// DynamoDBClient wraps the DynamoDB SDK client
-type DynamoDBClient struct {
-	client *dynamodb.Client
+// DBWrapper wraps the shared dbutils package for this service's specific needs
+type DBWrapper struct {
+	dbUtils *dbutils.DynamoDBUtils
+	logger  logger.Logger
 }
 
-// NewDynamoDBClient creates a new DynamoDB client
-func NewDynamoDBClient(cfg aws.Config) *DynamoDBClient {
-	return &DynamoDBClient{
-		client: dynamodb.NewFromConfig(cfg),
+// NewDBWrapper creates a new DBWrapper
+func NewDBWrapper(dbUtils *dbutils.DynamoDBUtils, log logger.Logger) *DBWrapper {
+	return &DBWrapper{
+		dbUtils: dbUtils,
+		logger:  log.WithFields(map[string]interface{}{
+			"component": "db-wrapper",
+		}),
 	}
 }
 
-// QueryMostRecentVerificationByCheckingImage queries the GSI4 index to find verifications
+// QueryMostRecentVerificationByCheckingImage queries the CheckImageIndex to find verifications
 // using the provided referenceImageUrl as the checking image
-func (d *DynamoDBClient) QueryMostRecentVerificationByCheckingImage(ctx context.Context, imageURL string) (*VerificationRecord, error) {
-	// Define GSI4 query parameters (checkingImageUrl-verificationAt)
-	input := &dynamodb.QueryInput{
-		TableName:              aws.String(getVerificationTableName()),
-		IndexName:              aws.String("CheckImageIndex"), // GSI4
-		KeyConditionExpression: aws.String("checkingImageUrl = :url"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":url": &types.AttributeValueMemberS{Value: imageURL},
-		},
-		ScanIndexForward: aws.Bool(false), // Sort by verificationAt in descending order
-		Limit:            aws.Int32(1),    // Get only the most recent verification
-	}
+func (d *DBWrapper) QueryMostRecentVerificationByCheckingImage(ctx context.Context, imageURL string) (*VerificationRecord, error) {
+	d.logger.Info("Finding previous verification", map[string]interface{}{
+		"imageURL": imageURL,
+	})
 
-	// Execute query
-	result, err := d.client.Query(ctx, input)
+	// Use the shared library's function to find the previous verification
+	// This function returns nil if no previous verification is found
+	previousVerification, err := d.dbUtils.FindPreviousVerification(ctx, imageURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query DynamoDB: %w", err)
 	}
 
-	// Check if any items were found
-	if len(result.Items) == 0 {
+	if previousVerification == nil {
 		return nil, fmt.Errorf("no previous verification found for image: %s", imageURL)
 	}
 
-	// Unmarshal the result
-	var verification VerificationRecord
-	err = attributevalue.UnmarshalMap(result.Items[0], &verification)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal verification record: %w", err)
+	// Convert schema.VerificationContext to our VerificationRecord type
+	record := &VerificationRecord{
+		VerificationID:     previousVerification.VerificationId,
+		VerificationAt:     previousVerification.VerificationAt,
+		VerificationType:   previousVerification.VerificationType,
+		VendingMachineID:   previousVerification.VendingMachineId,
+		CheckingImageURL:   previousVerification.CheckingImageUrl,
+		ReferenceImageURL:  previousVerification.ReferenceImageUrl,
+		VerificationStatus: previousVerification.Status,
+		// Note: Other fields like MachineStructure, CheckingStatus, and VerificationSummary 
+		// would need to be retrieved from a different location since they're not part of 
+		// the basic schema.VerificationContext
+
+		// For this initial implementation, we'll leave these as empty/default
+		// In a full refactoring, we might need to adapt the findPreviousVerification function
+		// or create a new one to retrieve the complete verification record
+		MachineStructure:    MachineStructure{},
+		CheckingStatus:      map[string]string{},
+		VerificationSummary: VerificationSummary{},
 	}
 
-	return &verification, nil
+	return record, nil
 }

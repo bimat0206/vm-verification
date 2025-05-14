@@ -1,0 +1,36 @@
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "INITIALIZED",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-3245",
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+  },
+  "layoutMetadata": {
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    },
+    "productPositionMap": {
+      "A01": {
+        "productId": 3486,
+        "productName": "Mì Hảo Hảo"
+      },
+      "A02": {
+        "productId": 3487,
+        "productName": "Mì Lẩu Thái"
+      },
+      "A03": {
+        "productId": 3488,
+        "productName": "Mì Omachi"
+      }
+    },
+    "location": "Office Building A, Floor 3"
+  }
+}

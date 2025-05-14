@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"text/template"
+	//"text/template"
 	"time"
 )
 
@@ -119,31 +119,7 @@ func FormatArrayToString(arr []string) string {
 }
 
 // FormatProductMappings converts a product position map to a formatted array
-func FormatProductMappings(positionMap map[string]ProductInfo) []ProductMapping {
-	if positionMap == nil {
-		return []ProductMapping{}
-	}
-	
-	mappings := make([]ProductMapping, 0, len(positionMap))
-	for position, info := range positionMap {
-		mappings = append(mappings, ProductMapping{
-			Position:    position,
-			ProductID:   info.ProductID,
-			ProductName: info.ProductName,
-		})
-	}
-	
-	return mappings
-}
-
 // ProcessTemplate renders a template with the provided data
-func ProcessTemplate(tmpl *template.Template, data TemplateData) (string, error) {
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("template execution failed: %w", err)
-	}
-	return buf.String(), nil
-}
 
 // CleanS3URL cleans and normalizes an S3 URL
 func CleanS3URL(s3URL string) string {
@@ -505,11 +481,7 @@ func ListLocalTemplates(templateBasePath string) (map[string][]string, error) {
 	return result, nil
 }
 
-// MapVerificationTypeToTemplateType converts a verification type to a template type
-func MapVerificationTypeToTemplateType(verificationType string) string {
-	// Convert to lowercase and replace underscores with hyphens
-	return strings.ReplaceAll(strings.ToLower(verificationType), "_", "-")
-}
+
 
 // StripHTMLTags removes HTML tags from a string
 func StripHTMLTags(input string) string {

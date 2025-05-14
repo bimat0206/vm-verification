@@ -1,35 +1,76 @@
 # FetchHistoricalVerification Lambda Function
 
-This AWS Lambda function is designed to retrieve historical verification data from DynamoDB for use in the "PREVIOUS_VS_CURRENT" verification workflow. It's specifically used when comparing a current vending machine image against a previous verification.
+This Lambda function is part of the vending machine verification workflow. It retrieves historical verification data for "PREVIOUS_VS_CURRENT" verification type. It's used when comparing a current vending machine image against a previous verification.
 
-## Features
+## Overview
 
-- **Retrieves historical verification data** from DynamoDB based on the previous verification ID
-- **Calculates time elapsed** since the previous verification
-- **Validates input parameters** to ensure proper workflow execution
-- **Structured error handling** with detailed error messages
-- **Configurable via environment variables**
+The FetchHistoricalVerification Lambda:
+1. Receives a verification context with verification ID and reference image URL
+2. Queries DynamoDB to find the most recent verification where the current reference image was used as a checking image
+3. Calculates the time elapsed since the previous verification
+4. Returns a structured historical context to be used in the subsequent verification steps
 
-## Project Structure
+## Architecture
 
+This function is part of a Step Functions workflow:
+
+**Initialize Function** → **FetchHistoricalVerification** → **FetchImages**
+
+## Components
+
+- **main.go**: Lambda handler and initialization
+- **service.go**: Core business logic for fetching historical verification data
+- **dynamodb.go**: DynamoDB client operations wrapper
+- **types.go**: Data structures specific to this function
+- **errors.go**: Standardized error handling
+- **dependencies.go**: Dependency initialization and configuration
+- **config.go**: Environment variable management
+
+## Shared Packages
+
+This Lambda uses the following shared packages:
+- **schema**: Core data structures and constants
+- **logger**: Structured JSON logging
+- **dbutils**: DynamoDB operations
+
+## Building and Deploying
+
+### Local Development
+
+```bash
+# Build the binary
+go build -o FetchHistoricalVerification
+
+# Run tests
+go test ./...
+
+# Format code
+go fmt ./...
+
+# Check for issues
+go vet ./...
 ```
-fetchhistoricalverification/
-├── main.go               # Lambda handler and initialization
-├── service.go            # Core business logic
-├── dynamodb.go           # DynamoDB client and query operations
-├── types.go              # Data structures and models
-├── validation.go         # Input validation
-├── errors.go             # Error handling
-├── config.go             # Environment variable management
-├── go.mod                # Go module definition
+
+### Docker Build
+
+```bash
+# Build Docker image
+docker build -t fetchhistoricalverification .
+```
+
+### AWS Deployment
+
+```bash
+# Deploy using the retry-docker-build.sh script
+./retry-docker-build.sh
 ```
 
 ## Environment Variables
 
-- `AWS_REGION` - AWS region for the service
-- `DYNAMODB_VERIFICATION_TABLE` - Name of the DynamoDB table containing verification results
-- `CHECKING_BUCKET` - Name of the S3 bucket containing checking images
-- `LOG_LEVEL` - Logging level (INFO, DEBUG, ERROR)
+- `AWS_REGION`: AWS region for the service
+- `DYNAMODB_VERIFICATION_TABLE`: DynamoDB table containing verification results
+- `CHECKING_BUCKET`: S3 bucket containing checking images
+- `LOG_LEVEL`: Logging level (INFO, DEBUG, ERROR)
 
 ## Input Format
 
@@ -77,11 +118,7 @@ The function returns the historical verification data in the following format:
     },
     "checkingStatus": {
       "A": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
-      "B": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
-      "C": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
-      "D": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
-      "E": "Current: 7 GREEN 'Mi Cung Đình' cup noodles visible. Status: Changed Product.",
-      "F": "Current: 7 GREEN 'Mi Cung Đình' cup noodles visible. Status: Filled."
+      "B": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change."
     },
     "verificationSummary": {
       "totalPositionsChecked": 42,
@@ -94,146 +131,31 @@ The function returns the historical verification data in the following format:
       "overallAccuracy": 66.7,
       "overallConfidence": 97,
       "verificationStatus": "INCORRECT",
-      "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+      "verificationOutcome": "Discrepancies Detected"
     }
   }
 }
 ```
 
-## Step Functions Integration
+## Testing
 
-### Data Flow Diagram
+Set necessary environment variables and run the Lambda locally:
 
+```bash
+export DYNAMODB_VERIFICATION_TABLE=VerificationResults
+export CHECKING_BUCKET=kootoro-checking-bucket
+export AWS_REGION=us-east-1
+
+go run *.go
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│                 │     │                 │     │                 │
-│ Initialize      │────▶│ FetchHistorical │────▶│ FetchImages     │
-│ Function        │     │ Verification    │     │ Function        │
-│                 │     │                 │     │                 │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       │                       │
-        ▼                       ▼                       ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│verificationContext    │historicalContext│     │images           │
-│- verificationId │     │- previousVerif..│     │- referenceMeta  │
-│- verificationType     │- machineStructure     │- checkingMeta   │
-│- referenceImageUrl    │- checkingStatus │     │                 │
-│- checkingImageUrl     │- verifSummary   │     │                 │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-### Step Function State Definition
-
-In the Step Functions state machine, this Lambda is invoked after the InitializePreviousCurrent state and before the FetchImages state:
-
-```json
-"FetchHistoricalVerification": {
-  "Type": "Task",
-  "Resource": "${function_arns["fetch_historical_verification"]}",
-  "Parameters": {
-    "verificationId.$": "$.verificationContext.verificationId",
-    "verificationType.$": "$.verificationContext.verificationType",
-    "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-    "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-    "previousVerificationId.$": "$.verificationContext.previousVerificationId",
-    "vendingMachineId.$": "$.verificationContext.vendingMachineId"
-  },
-  "ResultPath": "$.historicalContext",
-  "Retry": [
-    {
-      "ErrorEquals": ["States.TaskFailed"],
-      "IntervalSeconds": 2,
-      "MaxAttempts": 3,
-      "BackoffRate": 2.0
-    }
-  ],
-  "Catch": [
-    {
-      "ErrorEquals": ["States.ALL"],
-      "ResultPath": "$.error",
-      "Next": "HandleHistoricalFetchError"
-    }
-  ],
-  "Next": "FetchImages"
-}
-```
-
-### Integration with FetchImages
-
-The output of this function (historicalContext) is stored at the top level of the Step Functions execution state and is passed to the FetchImages function. The FetchImages function then uses this historical context to provide additional information for the verification process.
 
 ## Error Handling
 
-Errors are returned as structured messages with details for debugging:
+The function uses structured error responses:
+- `ValidationError`: For input validation failures
+- `ResourceNotFoundError`: When previous verification is not found
+- `InternalError`: For internal server errors
 
-```json
-{
-  "code": "ResourceNotFoundError",
-  "message": "Verification not found: verif-2025042010000000",
-  "details": {
-    "resourceType": "Verification",
-    "resourceId": "verif-2025042010000000"
-  }
-}
-```
+## Recent Changes
 
-Common error types:
-- `ValidationError` - Input validation failed
-- `ResourceNotFoundError` - Previous verification not found
-- `InternalError` - Internal server error
-
-## Local Testing
-
-You can test the handler locally using the AWS Lambda Go SDK or by simulating events:
-
-```go
-package main
-
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"log"
-	"os"
-)
-
-func main() {
-	// Set environment variables for local testing
-	os.Setenv("DYNAMODB_VERIFICATION_TABLE", "VerificationResults")
-	os.Setenv("CHECKING_BUCKET", "kootoro-checking-bucket")
-
-	// Create test event
-	event := map[string]interface{}{
-		"verificationContext": map[string]interface{}{
-			"verificationId":        "verif-2025042115302500",
-			"verificationAt":        "2025-04-21T15:30:25Z",
-			"verificationType":      "PREVIOUS_VS_CURRENT",
-			"referenceImageUrl":     "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
-			"checkingImageUrl":      "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
-			"previousVerificationId": "verif-2025042010000000",
-			"vendingMachineId":      "VM-3245",
-		},
-	}
-
-	// Convert to JSON
-	eventJSON, _ := json.Marshal(event)
-	fmt.Println(string(eventJSON))
-
-	// Call handler
-	result, err := handler(context.Background(), event)
-	if err != nil {
-		log.Fatalf("Error: %v", err)
-	}
-
-	// Print result
-	resultJSON, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(resultJSON))
-}
-```
-
-## Extending
-
-- Add more detailed error handling
-- Implement caching for frequently accessed verifications
-- Add metrics and tracing
-- Add unit tests with mocked AWS SDK clients
+See [CHANGELOG.md](./CHANGELOG.md) for details about recent updates and changes to this Lambda function.

@@ -14,21 +14,78 @@ This AWS Lambda function is designed to fetch image metadata (not the image byte
 
 ## Project Structure
 
-fetchimages/
+FetchImages/
 ├── main.go               # Lambda handler and orchestration
-├── models.go             # Data structures and validation
-├── s3_utils.go           # S3 URI parsing and metadata retrieval
-├── dynamodb_utils.go     # DynamoDB fetch helpers
+├── models.go             # Function-specific data structures and validation
+├── s3wrapper.go          # S3 wrapper for shared s3utils package
+├── dbwrapper.go          # DynamoDB wrapper for shared dbutils package
 ├── parallel.go           # Parallel/concurrent fetch logic
-├── config.go             # Environment variable management
-├── logger.go             # Structured logging
+├── dependencies.go       # Dependency management and configuration
 ├── go.mod
+└── Dockerfile
+
+../shared/
+├── schema/               # Shared data models and constants
+├── logger/               # Standardized logging package
+├── s3utils/              # Common S3 operations
+└── dbutils/              # Common DynamoDB operations
 
 
 ## Environment Variables
 
 - `DYNAMODB_LAYOUT_TABLE` (default: `LayoutMetadata`) - Name of the DynamoDB table containing layout metadata
 - `DYNAMODB_VERIFICATION_TABLE` (default: `VerificationResults`) - Name of the DynamoDB table containing verification results
+
+## Building and Deployment
+
+The function uses shared packages, which requires a specialized build process. The recommended way to build the function is to use the included `build.sh` script:
+
+```bash
+# Navigate to the FetchImages directory
+cd /path/to/workflow-function/FetchImages
+
+# Make the script executable if needed
+chmod +x build.sh
+
+# Edit the script to update AWS_REGION and AWS_ACCOUNT_ID variables
+# Then run the script
+./build.sh
+```
+
+### How the Build Process Works
+
+The build script:
+1. Creates a temporary directory with the correct module structure
+2. Copies both the function code and shared code with the right paths
+3. Sets up proper Go module references
+4. Builds the Docker image
+5. Pushes the image to ECR
+6. Updates the Lambda function
+
+This approach ensures that the Go module resolution works correctly with the shared packages during the build.
+
+### Automated Build Script
+
+A build script `build.sh` has been provided that handles all the steps automatically:
+
+```bash
+# Make the script executable if needed
+chmod +x build.sh
+
+# Update the AWS_REGION and AWS_ACCOUNT_ID in the script
+# Then run it from the FetchImages directory
+./build.sh
+```
+
+The script:
+1. Creates a temporary build environment with both function and shared code
+2. Builds the Docker image
+3. Logs in to ECR
+4. Tags and pushes the image
+5. Updates the Lambda function
+6. Cleans up temporary files
+
+You'll need to update the `AWS_REGION` and `AWS_ACCOUNT_ID` variables in the script before running it.
 
 ## Input Examples
 
@@ -171,6 +228,17 @@ fetchimages/
 ```
 
 ## Step Functions Integration
+
+### Important Note on Response Format
+
+The response always includes the following top-level fields to ensure compatibility with Step Functions:
+
+- `verificationContext`: Contains the updated verification context with status
+- `images`: Contains metadata for both reference and checking images
+- `layoutMetadata`: Contains layout information (may be empty for PREVIOUS_VS_CURRENT)
+- `historicalContext`: Contains historical verification data (always present but may be empty for LAYOUT_VS_CHECKING)
+
+This consistent response structure ensures that Step Functions JSONPath expressions can reliably access all fields.
 
 ### Data Flow Diagram
 

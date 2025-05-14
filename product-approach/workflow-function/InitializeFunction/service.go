@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"workflow-function/shared/dbutils"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/s3utils"
 	"workflow-function/shared/schema"
 )
 
@@ -27,7 +26,7 @@ var (
 type InitService struct {
 	deps    *Dependencies
 	config  ConfigVars
-	s3Utils *s3utils.S3Utils
+	s3Utils *S3UtilsWrapper
 	dbUtils *dbutils.DynamoDBUtils
 	logger  logger.Logger
 }
@@ -82,10 +81,9 @@ func (s *InitService) Process(ctx context.Context, request InitRequest) (*schema
 		// Update the verification context with resource validation
 		request.VerificationContext.ResourceValidation = resourceValidation
 		
-		// Update the verification ID if not already set
-		if request.VerificationContext.VerificationId == "" {
-			request.VerificationContext.VerificationId = s.generateVerificationId()
-		}
+		// Always replace the verification ID with our standard format
+		// This ensures any UUID from Step Functions is replaced
+		request.VerificationContext.VerificationId = s.generateVerificationId()
 		
 		// Store in DynamoDB
 		if err := s.dbUtils.StoreVerificationRecord(ctx, request.VerificationContext); err != nil {
@@ -224,9 +222,6 @@ func (s *InitService) validateRequest(request InitRequest) error {
 		if request.LayoutPrefix == "" {
 			return fmt.Errorf("%w: layoutPrefix required for %s", ErrMissingRequiredField, schema.VerificationTypeLayoutVsChecking)
 		}
-	} else if request.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		// For PREVIOUS_VS_CURRENT, both previousVerificationId and vendingMachineId are optional
-		// No additional validation needed here
 	}
 
 	// Validate S3 URLs format
@@ -298,7 +293,8 @@ func (s *InitService) verifyResources(ctx context.Context, request InitRequest) 
 	// Verify reference image existence in parallel
 	go func() {
 		defer wg.Done()
-		exists, err := s.s3Utils.ValidateImageExists(ctx, referenceImageUrl, maxImageSize)
+		// The adapter wrapper ValidateImageExistsWithSize calls through to the shared package
+		exists, err := s.s3Utils.ValidateImageExistsWithSize(ctx, referenceImageUrl, maxImageSize)
 		if err != nil {
 			errChan <- fmt.Errorf("reference image verification failed: %w", err)
 			return
@@ -310,7 +306,8 @@ func (s *InitService) verifyResources(ctx context.Context, request InitRequest) 
 	// Verify checking image existence in parallel
 	go func() {
 		defer wg.Done()
-		exists, err := s.s3Utils.ValidateImageExists(ctx, checkingImageUrl, maxImageSize)
+		// The adapter wrapper ValidateImageExistsWithSize calls through to the shared package
+		exists, err := s.s3Utils.ValidateImageExistsWithSize(ctx, checkingImageUrl, maxImageSize)
 		if err != nil {
 			errChan <- fmt.Errorf("checking image verification failed: %w", err)
 			return

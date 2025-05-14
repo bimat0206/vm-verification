@@ -3,37 +3,36 @@ package main
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"workflow-function/shared/dbutils"
 	"workflow-function/shared/logger"
 )
 
+// ConfigVars contains environment configuration values
+type ConfigVars struct {
+	VerificationTable  string
+	CheckingBucket     string
+	Region             string
+	LogLevel           string
+}
+
 // Dependencies contains all external dependencies required by the service
 type Dependencies struct {
-	logger    logger.Logger
-	s3Client  *s3.Client
-	dbClient  *dynamodb.Client
-	s3Utils   *S3UtilsWrapper
-	dbUtils   *dbutils.DynamoDBUtils
+	logger   logger.Logger
+	dbClient *dynamodb.Client
+	dbUtils  *dbutils.DynamoDBUtils
 }
 
 // NewDependencies creates a new Dependencies instance with all required dependencies
 func NewDependencies(awsConfig aws.Config) *Dependencies {
-	// Initialize clients
-	s3Client := s3.NewFromConfig(awsConfig)
+	// Initialize DynamoDB client
 	dbClient := dynamodb.NewFromConfig(awsConfig)
 	
 	// Create logger
-	log := logger.New("kootoro-verification", "InitializeFunction")
-	
-	// Create utility instances - we'll configure dbUtils later when we have the config
-	s3Util := NewS3Utils(s3Client, log)
+	log := logger.New("kootoro-verification", "FetchHistoricalVerification")
 	
 	return &Dependencies{
-		logger:    log,
-		s3Client:  s3Client,
-		dbClient:  dbClient,
-		s3Utils:   s3Util,
+		logger:   log,
+		dbClient: dbClient,
 	}
 }
 
@@ -42,7 +41,6 @@ func (d *Dependencies) ConfigureDbUtils(config ConfigVars) {
 	// Convert our ConfigVars to the format expected by dbutils
 	dbConfig := dbutils.Config{
 		VerificationTable: config.VerificationTable,
-		LayoutTable:       config.LayoutTable,
 		DefaultTTLDays:    30, // 30 days default TTL
 	}
 	
@@ -54,22 +52,31 @@ func (d *Dependencies) GetLogger() logger.Logger {
 	return d.logger
 }
 
-// GetS3Util returns the S3 utilities
-func (d *Dependencies) GetS3Util() *S3UtilsWrapper {
-	return d.s3Utils
-}
-
 // GetDynamoUtil returns the DynamoDB utilities
 func (d *Dependencies) GetDynamoUtil() *dbutils.DynamoDBUtils {
 	return d.dbUtils
 }
 
-// For backward compatibility
-func (d *Dependencies) GetS3Client() *s3.Client {
-	return d.s3Client
-}
-
-// For backward compatibility
+// GetDBClient returns the raw DynamoDB client (for backward compatibility)
 func (d *Dependencies) GetDBClient() *dynamodb.Client {
 	return d.dbClient
+}
+
+// LoadConfig loads configuration from environment variables
+func LoadConfig() ConfigVars {
+	return ConfigVars{
+		VerificationTable: getEnvWithDefault("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
+		CheckingBucket:    getEnvWithDefault("CHECKING_BUCKET", "kootoro-checking-bucket"),
+		Region:            getEnvWithDefault("AWS_REGION", "us-east-1"),
+		LogLevel:          getEnvWithDefault("LOG_LEVEL", "INFO"),
+	}
+}
+
+// getEnvWithDefault gets an environment variable with a default value
+func getEnvWithDefault(key, defaultValue string) string {
+	value := getEnv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

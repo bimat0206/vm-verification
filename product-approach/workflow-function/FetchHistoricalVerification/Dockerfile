@@ -1,25 +1,35 @@
-# Build stage
-# Use Go 1.24 or newer
-FROM golang:1.24-alpine AS build
+FROM golang:1.24-alpine AS builder
 
-# Set working directory
-WORKDIR /app
+# Install necessary packages
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata && \
+    update-ca-certificates
 
-# Copy go.mod and go.sum files to download dependencies
-COPY go.mod go.sum ./
-RUN go mod download
+# Set up working directory structure
+WORKDIR /go/src/workflow-function/
 
-# Copy source code
-COPY . .
+# Copy the shared packages from the build context
+COPY shared/schema/ ./shared/schema/
+COPY shared/logger/ ./shared/logger/
+COPY shared/dbutils/ ./shared/dbutils/
 
-# Build the Go app for ARM64 (Graviton) with static linking
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o /main
+# Copy the function code
+COPY FetchHistoricalVerification/ ./FetchHistoricalVerification/
 
-# Final stage using AWS Lambda ARM64 base image
+# Build from the function directory
+WORKDIR /go/src/workflow-function/FetchHistoricalVerification
+
+# Build the application for AWS Lambda ARM64 (Graviton)
+RUN GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
+
+# Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
-# Copy the binary from the build stage
-COPY --from=build /main /var/task/main
+# Copy compiled binary from builder stage
+COPY --from=builder /main /var/task/main
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Set the Lambda handler
-CMD [ "/var/task/main" ]
+# Set the binary as the Lambda handler
+ENTRYPOINT ["/var/task/main"]

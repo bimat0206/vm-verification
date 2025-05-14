@@ -10,26 +10,29 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"prepare-sys/internal"
-)
+	"workflow-function/shared/schema"
 
-var (
-	templateManager *internal.TemplateManager
+	"workflow-function/PrepareSystemPrompt/internal"
 )
 
 func init() {
-	// Initialize template manager with base path from environment or default
+	// Initialize template loader with base path from environment or default
 	templateBasePath := os.Getenv("TEMPLATE_BASE_PATH")
 	if templateBasePath == "" {
 		templateBasePath = "/opt/templates" // Default in container
 	}
 	
-	templateManager = internal.NewTemplateManager(templateBasePath)
-	log.Printf("Initialized template manager with base path: %s", templateBasePath)
+	// Initialize shared template loader
+	err := internal.InitializeTemplateLoader(templateBasePath)
+	if err != nil {
+		log.Fatalf("Failed to initialize template loader: %v", err)
+	}
+	
+	log.Printf("Initialized template loader with base path: %s", templateBasePath)
 }
 
 // HandleRequest is the Lambda handler function
-func HandleRequest(ctx context.Context, event json.RawMessage) (internal.Response, error) {
+func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage, error) {
 	start := time.Now()
 	log.Printf("Received event: %s", string(event))
 	
@@ -37,13 +40,13 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (internal.Respons
 	var input internal.Input
 	if err := json.Unmarshal(event, &input); err != nil {
 		log.Printf("Error parsing input: %v", err)
-		return internal.Response{}, fmt.Errorf("invalid input format: %w", err)
+		return nil, fmt.Errorf("invalid input format: %w", err)
 	}
 	
 	// Validate input
 	if err := internal.ValidateInput(&input); err != nil {
 		log.Printf("Validation error: %v", err)
-		return internal.Response{}, fmt.Errorf("input validation failed: %w", err)
+		return nil, fmt.Errorf("input validation failed: %w", err)
 	}
 	
 	// Extract verification type
@@ -51,53 +54,66 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (internal.Respons
 	log.Printf("Processing verification type: %s", verificationType)
 	
 	// Get appropriate template
-	tmpl, err := templateManager.GetTemplate(verificationType)
+	tmpl, err := internal.GetTemplate(verificationType)
 	if err != nil {
 		log.Printf("Error getting template: %v", err)
-		return internal.Response{}, fmt.Errorf("template error: %w", err)
+		return nil, fmt.Errorf("template error: %w", err)
 	}
 	
 	// Create template data context
 	templateData, err := internal.BuildTemplateData(&input)
 	if err != nil {
 		log.Printf("Error building template data: %v", err)
-		return internal.Response{}, fmt.Errorf("context preparation failed: %w", err)
+		return nil, fmt.Errorf("context preparation failed: %w", err)
 	}
 	
 	// Generate system prompt
 	systemPrompt, err := internal.ProcessTemplate(tmpl, templateData)
 	if err != nil {
 		log.Printf("Error processing template: %v", err)
-		return internal.Response{}, fmt.Errorf("prompt generation failed: %w", err)
+		return nil, fmt.Errorf("prompt generation failed: %w", err)
 	}
 	
 	// Configure Bedrock
 	bedrockConfig := internal.ConfigureBedrockSettings()
 	
 	// Update verification context status
-	input.VerificationContext.Status = "SYSTEM_PROMPT_READY"
+	input.VerificationContext.Status = schema.StatusPromptPrepared
 	
-	// Prepare response
+	// Create shared schema SystemPrompt
+	sysPrompt := &schema.SystemPrompt{
+		SystemPrompt: systemPrompt,
+		BedrockConfig: bedrockConfig,
+	}
+	
+	// Update workflow state
+	if input.State != nil {
+		input.State.SystemPrompt = sysPrompt
+		input.State.VerificationContext.Status = schema.StatusPromptPrepared
+	}
+	
+	// Create response
 	response := internal.Response{
 		VerificationContext: input.VerificationContext,
-		SystemPrompt: internal.SystemPrompt{
-			Content:       systemPrompt,
-			PromptID:      fmt.Sprintf("prompt-%s-system", input.VerificationContext.VerificationID),
-			CreatedAt:     time.Now().UTC().Format(time.RFC3339),
-			PromptVersion: templateManager.GetLatestVersion(verificationType),
-		},
+		SystemPrompt: sysPrompt,
 		BedrockConfig: bedrockConfig,
 	}
 	
 	// Include appropriate metadata based on verification type
-	if verificationType == "LAYOUT_VS_CHECKING" && input.LayoutMetadata != nil {
+	if verificationType == schema.VerificationTypeLayoutVsChecking && input.LayoutMetadata != nil {
 		response.LayoutMetadata = input.LayoutMetadata
-	} else if verificationType == "PREVIOUS_VS_CURRENT" && input.HistoricalContext != nil {
+	} else if verificationType == schema.VerificationTypePreviousVsCurrent && input.HistoricalContext != nil {
 		response.HistoricalContext = input.HistoricalContext
 	}
 	
+	// Convert to JSON for return
+	respJson, err := json.Marshal(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize response: %w", err)
+	}
+	
 	log.Printf("Completed in %v", time.Since(start))
-	return response, nil
+	return respJson, nil
 }
 
 func main() {

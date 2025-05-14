@@ -1,49 +1,109 @@
 package internal
 
 import (
+	"encoding/json"
 	"text/template"
+	
+	"workflow-function/shared/schema"
 )
 
-// Input represents the Lambda input event
+// Input adapts the Lambda input event to our internal structures
 type Input struct {
-	VerificationContext *VerificationContext `json:"verificationContext"`
-	LayoutMetadata      *LayoutMetadata      `json:"layoutMetadata,omitempty"`
-	HistoricalContext   *HistoricalContext   `json:"historicalContext,omitempty"`
-	Images              *ImageData           `json:"images,omitempty"`
-	BedrockConfig       *BedrockConfig       `json:"bedrockConfig,omitempty"`
-	TurnNumber          int                  `json:"turnNumber,omitempty"`
-	IncludeImage        string               `json:"includeImage,omitempty"`
+	State              *schema.WorkflowState  `json:"-"`
+	VerificationContext *schema.VerificationContext `json:"verificationContext"`
+	LayoutMetadata      map[string]interface{} `json:"layoutMetadata,omitempty"`
+	HistoricalContext   map[string]interface{} `json:"historicalContext,omitempty"`
+	Images              *schema.ImageData     `json:"images,omitempty"`
+	TurnNumber          int                   `json:"turnNumber,omitempty"`
+	IncludeImage        string                `json:"includeImage,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Input
+func (i *Input) UnmarshalJSON(data []byte) error {
+	// First unmarshal into a temporary struct to get the verification context
+	var temp struct {
+		VerificationContext *schema.VerificationContext `json:"verificationContext"`
+		LayoutMetadata      json.RawMessage            `json:"layoutMetadata,omitempty"`
+		HistoricalContext   json.RawMessage            `json:"historicalContext,omitempty"`
+		Images              *schema.ImageData          `json:"images,omitempty"`
+		TurnNumber          int                        `json:"turnNumber,omitempty"`
+		IncludeImage        string                     `json:"includeImage,omitempty"`
+	}
+	
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+	
+	// Create a new workflow state
+	state := &schema.WorkflowState{
+		SchemaVersion:      "1.0.0",
+		VerificationContext: temp.VerificationContext,
+		Images:              temp.Images,
+	}
+	
+	// Parse layout metadata if present
+	if len(temp.LayoutMetadata) > 0 {
+		var layoutMetadata map[string]interface{}
+		if err := json.Unmarshal(temp.LayoutMetadata, &layoutMetadata); err != nil {
+			return err
+		}
+		state.LayoutMetadata = layoutMetadata
+		i.LayoutMetadata = layoutMetadata
+	}
+	
+	// Parse historical context if present
+	if len(temp.HistoricalContext) > 0 {
+		var historicalContext map[string]interface{}
+		if err := json.Unmarshal(temp.HistoricalContext, &historicalContext); err != nil {
+			return err
+		}
+		state.HistoricalContext = historicalContext
+		i.HistoricalContext = historicalContext
+	}
+	
+	// Set the state and other fields
+	i.State = state
+	i.VerificationContext = temp.VerificationContext
+	i.Images = temp.Images
+	i.TurnNumber = temp.TurnNumber
+	i.IncludeImage = temp.IncludeImage
+	
+	return nil
 }
 
 // Response represents the Lambda response
 type Response struct {
-	VerificationContext *VerificationContext `json:"verificationContext"`
-	LayoutMetadata      *LayoutMetadata      `json:"layoutMetadata,omitempty"`
-	HistoricalContext   *HistoricalContext   `json:"historicalContext,omitempty"`
-	SystemPrompt        SystemPrompt         `json:"systemPrompt"`
-	BedrockConfig       BedrockConfig        `json:"bedrockConfig"`
+	State              *schema.WorkflowState   `json:"-"`
+	VerificationContext *schema.VerificationContext `json:"verificationContext"`
+	LayoutMetadata      map[string]interface{} `json:"layoutMetadata,omitempty"`
+	HistoricalContext   map[string]interface{} `json:"historicalContext,omitempty"`
+	SystemPrompt        *schema.SystemPrompt   `json:"systemPrompt"`
+	BedrockConfig       *schema.BedrockConfig  `json:"bedrockConfig"`
 }
 
-// VerificationContext contains verification metadata
-type VerificationContext struct {
-	VerificationID     string `json:"verificationId"`
-	VerificationAt     string `json:"verificationAt"`
-	Status             string `json:"status"`
-	VerificationType   string `json:"verificationType"`
-	VendingMachineID   string `json:"vendingMachineId,omitempty"`
-	LayoutID           int    `json:"layoutId,omitempty"`
-	LayoutPrefix       string `json:"layoutPrefix,omitempty"`
-	ReferenceImageURL  string `json:"referenceImageUrl,omitempty"`
-	CheckingImageURL   string `json:"checkingImageUrl,omitempty"`
-	NotificationEnabled bool   `json:"notificationEnabled,omitempty"`
+// ToJSON converts the response to JSON
+func (r *Response) ToJSON() ([]byte, error) {
+	return json.Marshal(r)
 }
 
-// LayoutMetadata contains layout-specific information
-type LayoutMetadata struct {
-	MachineStructure    *MachineStructure        `json:"machineStructure"`
-	ProductPositionMap  map[string]ProductInfo   `json:"productPositionMap,omitempty"`
-	RowProductMapping   map[string]interface{}   `json:"rowProductMapping,omitempty"`
-	Location            string                   `json:"location,omitempty"`
+// FromWorkflowState creates a Response from a WorkflowState
+func ResponseFromWorkflowState(state *schema.WorkflowState) *Response {
+	resp := &Response{
+		State:              state,
+		VerificationContext: state.VerificationContext,
+		SystemPrompt:        state.SystemPrompt,
+		BedrockConfig:       state.SystemPrompt.BedrockConfig,
+	}
+	
+	if state.LayoutMetadata != nil {
+		resp.LayoutMetadata = state.LayoutMetadata
+	}
+	
+	if state.HistoricalContext != nil {
+		resp.HistoricalContext = state.HistoricalContext
+	}
+	
+	return resp
 }
 
 // MachineStructure describes the vending machine physical layout
@@ -54,6 +114,31 @@ type MachineStructure struct {
 	ColumnOrder   []string `json:"columnOrder"`
 }
 
+// ExtractMachineStructure extracts machine structure from layout metadata
+func ExtractMachineStructure(layoutMetadata map[string]interface{}) (*MachineStructure, error) {
+	if layoutMetadata == nil {
+		return nil, nil
+	}
+	
+	msData, ok := layoutMetadata["machineStructure"]
+	if !ok {
+		return nil, nil
+	}
+	
+	// Convert to JSON and then to struct
+	msBytes, err := json.Marshal(msData)
+	if err != nil {
+		return nil, err
+	}
+	
+	var ms MachineStructure
+	if err := json.Unmarshal(msBytes, &ms); err != nil {
+		return nil, err
+	}
+	
+	return &ms, nil
+}
+
 // ProductInfo contains product details for a specific position
 type ProductInfo struct {
 	ProductID    int    `json:"productId"`
@@ -61,15 +146,29 @@ type ProductInfo struct {
 	ProductImage string `json:"productImage,omitempty"`
 }
 
-// HistoricalContext contains previous verification data
-type HistoricalContext struct {
-	PreviousVerificationID     string            `json:"previousVerificationId"`
-	PreviousVerificationAt     string            `json:"previousVerificationAt"`
-	PreviousVerificationStatus string            `json:"previousVerificationStatus"`
-	HoursSinceLastVerification float64           `json:"hoursSinceLastVerification"`
-	MachineStructure           *MachineStructure `json:"machineStructure,omitempty"`
-	CheckingStatus             map[string]string `json:"checkingStatus,omitempty"`
-	VerificationSummary        *VerificationSummary `json:"verificationSummary,omitempty"`
+// ExtractProductPositionMap extracts product position map from layout metadata
+func ExtractProductPositionMap(layoutMetadata map[string]interface{}) (map[string]ProductInfo, error) {
+	if layoutMetadata == nil {
+		return nil, nil
+	}
+	
+	ppmData, ok := layoutMetadata["productPositionMap"]
+	if !ok {
+		return nil, nil
+	}
+	
+	// Convert to JSON and then to struct
+	ppmBytes, err := json.Marshal(ppmData)
+	if err != nil {
+		return nil, err
+	}
+	
+	var ppm map[string]ProductInfo
+	if err := json.Unmarshal(ppmBytes, &ppm); err != nil {
+		return nil, err
+	}
+	
+	return ppm, nil
 }
 
 // VerificationSummary contains summary statistics from a verification
@@ -87,31 +186,29 @@ type VerificationSummary struct {
 	VerificationOutcome    string  `json:"verificationOutcome"`
 }
 
-// ImageData contains image information
-type ImageData struct {
-	ReferenceImageBase64 string `json:"referenceImageBase64,omitempty"`
-	CheckingImageBase64  string `json:"checkingImageBase64,omitempty"`
-}
-
-// SystemPrompt represents the generated system prompt
-type SystemPrompt struct {
-	Content       string `json:"content"`
-	PromptID      string `json:"promptId"`
-	CreatedAt     string `json:"createdAt"`
-	PromptVersion string `json:"promptVersion"`
-}
-
-// BedrockConfig contains configuration for the Bedrock API
-type BedrockConfig struct {
-	AnthropicVersion string         `json:"anthropic_version"`
-	MaxTokens        int            `json:"max_tokens"`
-	Thinking         ThinkingConfig `json:"thinking"`
-}
-
-// ThinkingConfig configures Claude's thinking process
-type ThinkingConfig struct {
-	Type         string `json:"type"`
-	BudgetTokens int    `json:"budget_tokens"`
+// ExtractVerificationSummary extracts verification summary from historical context
+func ExtractVerificationSummary(historicalContext map[string]interface{}) (*VerificationSummary, error) {
+	if historicalContext == nil {
+		return nil, nil
+	}
+	
+	vsData, ok := historicalContext["verificationSummary"]
+	if !ok {
+		return nil, nil
+	}
+	
+	// Convert to JSON and then to struct
+	vsBytes, err := json.Marshal(vsData)
+	if err != nil {
+		return nil, err
+	}
+	
+	var vs VerificationSummary
+	if err := json.Unmarshal(vsBytes, &vs); err != nil {
+		return nil, err
+	}
+	
+	return &vs, nil
 }
 
 // ProductMapping represents a formatted product mapping for templates

@@ -5,7 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
+
+	//"strings"
+
+	"workflow-function/shared/s3utils"
+	"workflow-function/shared/schema"
+	"workflow-function/shared/schema/validation"
 )
 
 // Environment variable names for buckets
@@ -14,92 +19,28 @@ const (
 	ENV_CHECKING_BUCKET  = "CHECKING_BUCKET"
 )
 
-// ValidationError represents a structured validation error
-type ValidationError struct {
-	Field   string
-	Message string
-}
-
-func (e ValidationError) Error() string {
-	return fmt.Sprintf("validation error: %s - %s", e.Field, e.Message)
-}
-
 // ValidateInput performs comprehensive validation on the Lambda input
 func ValidateInput(input *Input) error {
-	// Basic verification context validation
-	if err := validateVerificationContext(input.VerificationContext); err != nil {
-		return err
+	if input == nil {
+		return fmt.Errorf("input is nil")
+	}
+	
+	if input.VerificationContext == nil {
+		return fmt.Errorf("verification context is required")
+	}
+	
+	// Validate verification context using shared schema validation
+	errs := schema.ValidateVerificationContext(input.VerificationContext)
+	if len(errs) > 0 {
+		// Return the first error
+		return errs[0]
 	}
 	
 	// Type-specific validation
-	if input.VerificationContext.VerificationType == "LAYOUT_VS_CHECKING" {
+	if input.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
 		return validateLayoutVsChecking(input)
-	} else if input.VerificationContext.VerificationType == "PREVIOUS_VS_CURRENT" {
+	} else if input.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		return validatePreviousVsCurrent(input)
-	}
-	
-	return nil
-}
-
-// validateVerificationContext checks basic verification context properties
-func validateVerificationContext(ctx *VerificationContext) error {
-	if ctx == nil {
-		return &ValidationError{
-			Field:   "verificationContext",
-			Message: "verification context is required",
-		}
-	}
-	
-	// Validate verification ID
-	if ctx.VerificationID == "" {
-		return &ValidationError{
-			Field:   "verificationId",
-			Message: "verification ID is required",
-		}
-	}
-	
-	// Validate verification ID format (verif-timestamp or similar pattern)
-	if !strings.HasPrefix(ctx.VerificationID, "verif-") {
-		return &ValidationError{
-			Field:   "verificationId",
-			Message: "verification ID should start with 'verif-'",
-		}
-	}
-	
-	// Validate verification type
-	if ctx.VerificationType == "" {
-		return &ValidationError{
-			Field:   "verificationType",
-			Message: "verification type is required",
-		}
-	}
-	
-	// Ensure verification type is one of the supported types
-	if ctx.VerificationType != "LAYOUT_VS_CHECKING" && ctx.VerificationType != "PREVIOUS_VS_CURRENT" {
-		return &ValidationError{
-			Field:   "verificationType",
-			Message: "verification type must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT",
-		}
-	}
-	
-	// Validate timestamp if present
-	if ctx.VerificationAt != "" {
-		if !isValidISO8601(ctx.VerificationAt) {
-			return &ValidationError{
-				Field:   "verificationAt",
-				Message: "verification timestamp must be in ISO8601 format",
-			}
-		}
-	}
-	
-	// Validate vending machine ID if present
-	if ctx.VendingMachineID != "" {
-		if !isValidVendingMachineID(ctx.VendingMachineID) {
-			return &ValidationError{
-				Field:   "vendingMachineId",
-				Message: "invalid vending machine ID format",
-			}
-		}
 	}
 	
 	return nil
@@ -110,31 +51,31 @@ func validateLayoutVsChecking(input *Input) error {
 	ctx := input.VerificationContext
 	
 	// Layout ID is required
-	if ctx.LayoutID <= 0 {
-		return &ValidationError{
-			Field:   "layoutId",
-			Message: "layout ID is required and must be positive",
-		}
+	if ctx.LayoutId <= 0 {
+		return schema.ValidationError{Field: "layoutId", Message: "layout ID is required and must be positive"}
 	}
 	
 	// LayoutPrefix is required
 	if ctx.LayoutPrefix == "" {
-		return &ValidationError{
-			Field:   "layoutPrefix",
-			Message: "layout prefix is required",
-		}
+		return schema.ValidationError{Field: "layoutPrefix", Message: "layout prefix is required"}
 	}
 	
 	// Validate layout metadata
 	if input.LayoutMetadata == nil {
-		return &ValidationError{
-			Field:   "layoutMetadata",
-			Message: "layout metadata is required for LAYOUT_VS_CHECKING",
-		}
+		return schema.ValidationError{Field: "layoutMetadata", Message: "layout metadata is required for LAYOUT_VS_CHECKING"}
 	}
 	
-	// Validate machine structure
-	if err := validateMachineStructure(input.LayoutMetadata.MachineStructure); err != nil {
+	// Extract and validate machine structure
+	ms, err := ExtractMachineStructure(input.LayoutMetadata)
+	if err != nil {
+		return schema.ValidationError{Field: "layoutMetadata", Message: fmt.Sprintf("failed to extract machine structure: %v", err)}
+	}
+	
+	if ms == nil {
+		return schema.ValidationError{Field: "machineStructure", Message: "machine structure is required"}
+	}
+	
+	if err := validateMachineStructure(ms); err != nil {
 		return err
 	}
 	
@@ -143,86 +84,58 @@ func validateLayoutVsChecking(input *Input) error {
 	checkingBucket := os.Getenv(ENV_CHECKING_BUCKET)
 	
 	if referenceBucket == "" {
-		return &ValidationError{
-			Field:   ENV_REFERENCE_BUCKET,
-			Message: "reference bucket environment variable is not set",
-		}
+		return schema.ValidationError{Field: ENV_REFERENCE_BUCKET, Message: "reference bucket environment variable is not set"}
 	}
 	
 	if checkingBucket == "" {
-		return &ValidationError{
-			Field:   ENV_CHECKING_BUCKET,
-			Message: "checking bucket environment variable is not set",
-		}
+		return schema.ValidationError{Field: ENV_CHECKING_BUCKET, Message: "checking bucket environment variable is not set"}
 	}
 	
 	// Validate reference image URL if present
-	if ctx.ReferenceImageURL != "" {
-		if !isValidS3URL(ctx.ReferenceImageURL) {
-			return &ValidationError{
-				Field:   "referenceImageUrl",
-				Message: "invalid S3 URL format for reference image",
-			}
-		}
+	if ctx.ReferenceImageUrl != "" {
+		// Create a simple S3Utils instance for validation
+		s3Util := &s3utils.S3Utils{}
 		
-		// Extract bucket from S3 URL and verify it points to reference bucket
-		bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
+		// Parse S3 URL using shared S3Utils
+		parsed, err := s3Util.ParseS3URL(ctx.ReferenceImageUrl)
 		if err != nil {
-			return &ValidationError{
-				Field:   "referenceImageUrl",
-				Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-			}
+			return schema.ValidationError{Field: "referenceImageUrl", Message: fmt.Sprintf("invalid S3 URL: %v", err)}
 		}
 		
-		if bucket != referenceBucket {
-			return &ValidationError{
-				Field:   "referenceImageUrl",
-				Message: fmt.Sprintf("reference image must be in the reference bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-					referenceBucket, bucket, referenceBucket, key),
-			}
+		if parsed.Bucket != referenceBucket {
+			return schema.ValidationError{Field: "referenceImageUrl", 
+				Message: fmt.Sprintf("reference image must be in the reference bucket (%s), found bucket (%s) instead", 
+					referenceBucket, parsed.Bucket)}
 		}
 		
-		// Validate image format (Bedrock only supports JPEG and PNG)
-		if !hasValidImageExtension(ctx.ReferenceImageURL) {
-			return &ValidationError{
-				Field:   "referenceImageUrl",
-				Message: "image format must be JPEG or PNG (supported by Bedrock)",
-			}
+		// Validate image format
+		if !s3Util.IsValidImageExtension(filepath.Ext(parsed.Key)) {
+			return schema.ValidationError{Field: "referenceImageUrl", 
+				Message: "image format must be JPEG or PNG (supported by Bedrock)"}
 		}
 	}
 	
 	// Validate checking image URL if present
-	if ctx.CheckingImageURL != "" {
-		if !isValidS3URL(ctx.CheckingImageURL) {
-			return &ValidationError{
-				Field:   "checkingImageUrl",
-				Message: "invalid S3 URL format for checking image",
-			}
-		}
+	if ctx.CheckingImageUrl != "" {
+		// Create a simple S3Utils instance for validation
+		s3Util := &s3utils.S3Utils{}
 		
-		// Extract bucket from S3 URL and verify it points to checking bucket
-		bucket, key, err := extractS3BucketAndKey(ctx.CheckingImageURL)
+		// Parse S3 URL using shared S3Utils
+		parsed, err := s3Util.ParseS3URL(ctx.CheckingImageUrl)
 		if err != nil {
-			return &ValidationError{
-				Field:   "checkingImageUrl",
-				Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-			}
-		}
-
-		if bucket != checkingBucket {
-			return &ValidationError{
-				Field:   "checkingImageUrl",
-				Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-					checkingBucket, bucket, checkingBucket, key),
-			}
+			return schema.ValidationError{Field: "checkingImageUrl", Message: fmt.Sprintf("invalid S3 URL: %v", err)}
 		}
 		
-		// Validate image format (Bedrock only supports JPEG and PNG)
-		if !hasValidImageExtension(ctx.CheckingImageURL) {
-			return &ValidationError{
-				Field:   "checkingImageUrl",
-				Message: "image format must be JPEG or PNG (supported by Bedrock)",
-			}
+		if parsed.Bucket != checkingBucket {
+			return schema.ValidationError{Field: "checkingImageUrl", 
+				Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead", 
+					checkingBucket, parsed.Bucket)}
+		}
+		
+		// Validate image format
+		if !s3Util.IsValidImageExtension(filepath.Ext(parsed.Key)) {
+			return schema.ValidationError{Field: "checkingImageUrl", 
+				Message: "image format must be JPEG or PNG (supported by Bedrock)"}
 		}
 	}
 	
@@ -234,135 +147,107 @@ func validatePreviousVsCurrent(input *Input) error {
 	ctx := input.VerificationContext
 	
 	// LayoutID should not be set
-	if ctx.LayoutID != 0 {
-		return &ValidationError{
-			Field:   "layoutId",
-			Message: "layout ID should not be set for PREVIOUS_VS_CURRENT",
-		}
+	if ctx.LayoutId != 0 {
+		return schema.ValidationError{Field: "layoutId", Message: "layout ID should not be set for PREVIOUS_VS_CURRENT"}
 	}
 	
 	// LayoutPrefix should not be set
 	if ctx.LayoutPrefix != "" {
-		return &ValidationError{
-			Field:   "layoutPrefix",
-			Message: "layout prefix should not be set for PREVIOUS_VS_CURRENT",
-		}
+		return schema.ValidationError{Field: "layoutPrefix", Message: "layout prefix should not be set for PREVIOUS_VS_CURRENT"}
 	}
 	
 	// Get bucket names from environment variables
 	checkingBucket := os.Getenv(ENV_CHECKING_BUCKET)
 	
 	if checkingBucket == "" {
-		return &ValidationError{
-			Field:   ENV_CHECKING_BUCKET,
-			Message: "checking bucket environment variable is not set",
-		}
+		return schema.ValidationError{Field: ENV_CHECKING_BUCKET, Message: "checking bucket environment variable is not set"}
 	}
 	
 	// Reference image URL is required and should point to checking bucket
-	if ctx.ReferenceImageURL == "" {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "reference image URL is required for PREVIOUS_VS_CURRENT",
-		}
+	if ctx.ReferenceImageUrl == "" {
+		return schema.ValidationError{Field: "referenceImageUrl", Message: "reference image URL is required for PREVIOUS_VS_CURRENT"}
 	}
 	
-	if !isValidS3URL(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "invalid S3 URL format for reference image",
-		}
-	}
+	// Create a simple S3Utils instance for validation
+	s3Util := &s3utils.S3Utils{}
 	
-	// Extract bucket from S3 URL and verify it points to checking bucket
-	bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
+	// Parse S3 URL using shared S3Utils
+	parsed, err := s3Util.ParseS3URL(ctx.ReferenceImageUrl)
 	if err != nil {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-		}
-	}
-
-	if bucket != checkingBucket {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("for PREVIOUS_VS_CURRENT, reference image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-				checkingBucket, bucket, checkingBucket, key),
-		}
+		return schema.ValidationError{Field: "referenceImageUrl", Message: fmt.Sprintf("invalid S3 URL: %v", err)}
 	}
 	
-	// Validate image format (Bedrock only supports JPEG and PNG)
-	if !hasValidImageExtension(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "image format must be JPEG or PNG (supported by Bedrock)",
-		}
+	if parsed.Bucket != checkingBucket {
+		return schema.ValidationError{Field: "referenceImageUrl", 
+			Message: fmt.Sprintf("for PREVIOUS_VS_CURRENT, reference image must be in the checking bucket (%s), found bucket (%s) instead", 
+				checkingBucket, parsed.Bucket)}
+	}
+	
+	// Validate image format
+	if !s3Util.IsValidImageExtension(filepath.Ext(parsed.Key)) {
+		return schema.ValidationError{Field: "referenceImageUrl", 
+			Message: "image format must be JPEG or PNG (supported by Bedrock)"}
 	}
 	
 	// Validate checking image URL
-	if ctx.CheckingImageURL == "" {
-		return &ValidationError{
-			Field:   "checkingImageUrl",
-			Message: "checking image URL is required",
-		}
+	if ctx.CheckingImageUrl == "" {
+		return schema.ValidationError{Field: "checkingImageUrl", Message: "checking image URL is required"}
 	}
 	
-	if !isValidS3URL(ctx.CheckingImageURL) {
-		return &ValidationError{
-			Field:   "checkingImageUrl",
-			Message: "invalid S3 URL format for checking image",
-		}
-	}
-	
-	// Extract bucket from S3 URL and verify it points to checking bucket
-	bucket, key, err = extractS3BucketAndKey(ctx.CheckingImageURL)
+	// Parse S3 URL using shared S3Utils
+	parsed2, err := s3Util.ParseS3URL(ctx.CheckingImageUrl)
 	if err != nil {
-		return &ValidationError{
-			Field:   "checkingImageUrl",
-			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-		}
-	}
-
-	if bucket != checkingBucket {
-		return &ValidationError{
-			Field:   "checkingImageUrl",
-			Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-				checkingBucket, bucket, checkingBucket, key),
-		}
+		return schema.ValidationError{Field: "checkingImageUrl", Message: fmt.Sprintf("invalid S3 URL: %v", err)}
 	}
 	
-	// Validate image format (Bedrock only supports JPEG and PNG)
-	if !hasValidImageExtension(ctx.CheckingImageURL) {
-		return &ValidationError{
-			Field:   "checkingImageUrl",
-			Message: "image format must be JPEG or PNG (supported by Bedrock)",
-		}
+	if parsed2.Bucket != checkingBucket {
+		return schema.ValidationError{Field: "checkingImageUrl", 
+			Message: fmt.Sprintf("checking image must be in the checking bucket (%s), found bucket (%s) instead", 
+				checkingBucket, parsed2.Bucket)}
+	}
+	
+	// Validate image format
+	if !s3Util.IsValidImageExtension(filepath.Ext(parsed2.Key)) {
+		return schema.ValidationError{Field: "checkingImageUrl", 
+			Message: "image format must be JPEG or PNG (supported by Bedrock)"}
 	}
 	
 	// Validate historical context if present
 	if input.HistoricalContext != nil {
-		hCtx := input.HistoricalContext
+		var prevVerificationId string
+		var prevVerificationAt string
 		
-		// Validate previous verification ID
-		if hCtx.PreviousVerificationID == "" {
-			return &ValidationError{
-				Field:   "historicalContext.previousVerificationId",
-				Message: "previous verification ID is required when historical context is provided",
+		// Extract previous verification ID
+		if idVal, ok := input.HistoricalContext["previousVerificationId"]; ok {
+			if idStr, ok := idVal.(string); ok {
+				prevVerificationId = idStr
 			}
 		}
 		
-		// Validate previous verification timestamp
-		if hCtx.PreviousVerificationAt != "" && !isValidISO8601(hCtx.PreviousVerificationAt) {
-			return &ValidationError{
-				Field:   "historicalContext.previousVerificationAt",
-				Message: "previous verification timestamp must be in ISO8601 format",
+		if prevVerificationId == "" {
+			return schema.ValidationError{Field: "historicalContext.previousVerificationId", 
+				Message: "previous verification ID is required when historical context is provided"}
+		}
+		
+		// Extract and validate previous verification timestamp
+		if atVal, ok := input.HistoricalContext["previousVerificationAt"]; ok {
+			if atStr, ok := atVal.(string); ok {
+				prevVerificationAt = atStr
+				if !isValidISO8601(prevVerificationAt) {
+					return schema.ValidationError{Field: "historicalContext.previousVerificationAt", 
+						Message: "previous verification timestamp must be in ISO8601 format"}
+				}
 			}
 		}
 		
-		// Validate machine structure if present
-		if hCtx.MachineStructure != nil {
-			if err := validateMachineStructure(hCtx.MachineStructure); err != nil {
-				return err
+		// Extract and validate machine structure if present
+		if msVal, ok := input.HistoricalContext["machineStructure"]; ok {
+			// Convert to JSON and extract machine structure
+			msData, err := ExtractMachineStructure(map[string]interface{}{"machineStructure": msVal})
+			if err == nil && msData != nil {
+				if err := validateMachineStructure(msData); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -373,67 +258,42 @@ func validatePreviousVsCurrent(input *Input) error {
 // validateMachineStructure checks machine structure validity
 func validateMachineStructure(ms *MachineStructure) error {
 	if ms == nil {
-		return &ValidationError{
-			Field:   "machineStructure",
-			Message: "machine structure is required",
-		}
+		return validation.NewValidationError("machineStructure", "machine structure is required")
 	}
 	
 	// Validate row count
 	if ms.RowCount <= 0 {
-		return &ValidationError{
-			Field:   "machineStructure.rowCount",
-			Message: "row count must be positive",
-		}
+		return validation.NewValidationError("machineStructure.rowCount", "row count must be positive")
 	}
 	
 	// Validate column count
 	if ms.ColumnsPerRow <= 0 {
-		return &ValidationError{
-			Field:   "machineStructure.columnsPerRow",
-			Message: "columns per row must be positive",
-		}
+		return validation.NewValidationError("machineStructure.columnsPerRow", "columns per row must be positive")
 	}
 	
 	// Validate row order array
 	if len(ms.RowOrder) == 0 {
-		return &ValidationError{
-			Field:   "machineStructure.rowOrder",
-			Message: "row order array cannot be empty",
-		}
+		return validation.NewValidationError("machineStructure.rowOrder", "row order array cannot be empty")
 	}
 	
 	if len(ms.RowOrder) != ms.RowCount {
-		return &ValidationError{
-			Field:   "machineStructure.rowOrder",
-			Message: fmt.Sprintf("row order array length (%d) does not match row count (%d)", 
-				len(ms.RowOrder), ms.RowCount),
-		}
+		return validation.NewValidationError("machineStructure.rowOrder",
+			fmt.Sprintf("row order array length (%d) does not match row count (%d)", 
+				len(ms.RowOrder), ms.RowCount))
 	}
 	
 	// Validate column order array
 	if len(ms.ColumnOrder) == 0 {
-		return &ValidationError{
-			Field:   "machineStructure.columnOrder",
-			Message: "column order array cannot be empty",
-		}
+		return validation.NewValidationError("machineStructure.columnOrder", "column order array cannot be empty")
 	}
 	
 	if len(ms.ColumnOrder) != ms.ColumnsPerRow {
-		return &ValidationError{
-			Field:   "machineStructure.columnOrder",
-			Message: fmt.Sprintf("column order array length (%d) does not match columns per row (%d)", 
-				len(ms.ColumnOrder), ms.ColumnsPerRow),
-		}
+		return validation.NewValidationError("machineStructure.columnOrder",
+			fmt.Sprintf("column order array length (%d) does not match columns per row (%d)", 
+				len(ms.ColumnOrder), ms.ColumnsPerRow))
 	}
 	
 	return nil
-}
-
-// hasValidImageExtension checks if an S3 URL has a valid image extension (JPEG or PNG only for Bedrock)
-func hasValidImageExtension(url string) bool {
-	ext := strings.ToLower(filepath.Ext(url))
-	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
 }
 
 // isValidISO8601 checks if a string is a valid ISO8601 timestamp
@@ -441,44 +301,5 @@ func isValidISO8601(timestamp string) bool {
 	// This is a simplified pattern that matches common ISO8601 formats
 	pattern := `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?$`
 	match, _ := regexp.MatchString(pattern, timestamp)
-	return match
-}
-
-// isValidS3URL checks if a string is a valid S3 URL
-func isValidS3URL(url string) bool {
-	// This pattern matches s3://bucket-name/path/to/object format
-	// Allow alphanumeric, dots, hyphens, spaces, underscores, and other common characters in the path
-	pattern := `^s3://[\w.\-]+/[\w.\-/ _+%()]+$`
-	match, _ := regexp.MatchString(pattern, url)
-	return match
-}
-
-// extractS3BucketAndKey extracts bucket and key from an S3 URL
-func extractS3BucketAndKey(s3URL string) (string, string, error) {
-	// Clean URL first
-	s3URL = strings.TrimSpace(s3URL)
-	
-	// Ensure s3:// prefix
-	if !strings.HasPrefix(s3URL, "s3://") {
-		return "", "", fmt.Errorf("not a valid S3 URL: %s", s3URL)
-	}
-	
-	// Remove prefix
-	s3Path := strings.TrimPrefix(s3URL, "s3://")
-	
-	// Split into bucket and key
-	parts := strings.SplitN(s3Path, "/", 2)
-	if len(parts) < 2 {
-		return parts[0], "", nil // No key, just bucket
-	}
-	
-	return parts[0], parts[1], nil
-}
-
-// isValidVendingMachineID checks if a string is a valid vending machine ID
-func isValidVendingMachineID(id string) bool {
-	// This pattern matches VM-XXXX format
-	pattern := `^VM-\d+$`
-	match, _ := regexp.MatchString(pattern, id)
 	return match
 }

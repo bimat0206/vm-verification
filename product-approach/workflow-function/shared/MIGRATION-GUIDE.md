@@ -19,6 +19,7 @@ require (
     workflow-function/shared/logger v0.0.0
     workflow-function/shared/s3utils v0.0.0
     workflow-function/shared/dbutils v0.0.0
+    workflow-function/shared/templateloader v0.0.0 // If needed
 )
 
 // Add replace directives
@@ -26,6 +27,7 @@ replace workflow-function/shared/schema => ../shared/schema
 replace workflow-function/shared/logger => ../shared/logger
 replace workflow-function/shared/s3utils => ../shared/s3utils
 replace workflow-function/shared/dbutils => ../shared/dbutils
+replace workflow-function/shared/templateloader => ../shared/templateloader // If needed
 ```
 
 ### 2. Replace Custom Logger Implementation
@@ -130,7 +132,41 @@ context := &schema.VerificationContext{
 }
 ```
 
-### 6. Update Dockerfile
+### 6. Implement Template Loader (if needed)
+
+If your function needs to load and render templates (e.g., for prompt generation), use the shared template loader:
+
+```go
+// Before:
+templateText, err := ioutil.ReadFile(filepath.Join("templates", "system_prompt.tmpl"))
+tmpl, err := template.New("system_prompt").Parse(string(templateText))
+var buf strings.Builder
+err = tmpl.Execute(&buf, data)
+result := buf.String()
+
+// After:
+import "workflow-function/shared/templateloader"
+
+config := templateloader.Config{
+    BasePath: "/opt/templates", // Or use environment variable
+    CacheEnabled: true,
+}
+loader, err := templateloader.New(config)
+if err != nil {
+    // Handle error
+}
+
+// Render template with data
+result, err := loader.RenderTemplate("system-prompt", data)
+```
+
+Features of the templateloader package:
+- Automatic version management (latest or specific versions)
+- Template caching for improved performance
+- Standardized template functions
+- Error handling and validation
+
+### 7. Update Dockerfile
 
 Modify your Dockerfile to include shared packages in the build context:
 
@@ -143,7 +179,7 @@ COPY workflow-function/shared/ /app/workflow-function/shared/
 COPY workflow-function/YourFunctionName/ /app/workflow-function/YourFunctionName/
 ```
 
-### 7. Update Build Script
+### 8. Update Build Script
 
 Update your `retry-docker-build.sh` script to include shared packages:
 
@@ -156,6 +192,7 @@ mkdir -p "$TEMP_DIR/workflow-function/shared/schema"
 mkdir -p "$TEMP_DIR/workflow-function/shared/logger" 
 mkdir -p "$TEMP_DIR/workflow-function/shared/s3utils"
 mkdir -p "$TEMP_DIR/workflow-function/shared/dbutils"
+mkdir -p "$TEMP_DIR/workflow-function/shared/templateloader"  # If needed
 mkdir -p "$TEMP_DIR/workflow-function/YourFunctionName"
 
 # Copy files
@@ -163,12 +200,13 @@ cp -r "$PARENT_DIR/shared/schema"/* "$TEMP_DIR/workflow-function/shared/schema/"
 cp -r "$PARENT_DIR/shared/logger"/* "$TEMP_DIR/workflow-function/shared/logger/"
 cp -r "$PARENT_DIR/shared/s3utils"/* "$TEMP_DIR/workflow-function/shared/s3utils/"
 cp -r "$PARENT_DIR/shared/dbutils"/* "$TEMP_DIR/workflow-function/shared/dbutils/"
+cp -r "$PARENT_DIR/shared/templateloader"/* "$TEMP_DIR/workflow-function/shared/templateloader/"  # If needed
 cp -r "$CURRENT_DIR"/* "$TEMP_DIR/workflow-function/YourFunctionName/"
 
 # Continue with Docker build...
 ```
 
-### 8. Update Function Documentation
+### 9. Update Function Documentation
 
 Update your function's README.md and CHANGELOG.md files to document the migration to shared packages:
 
@@ -180,6 +218,7 @@ Update your function's README.md and CHANGELOG.md files to document the migratio
 - Updated logger to use standardized shared logger
 - Updated S3 and DynamoDB utilities to use shared implementations
 - Added schema version handling with shared schema package
+- Implemented template loader for prompt generation (if applicable)
 ```
 
 ## Testing Your Migration
@@ -219,3 +258,7 @@ If Docker build fails with "package not found" errors, check that your build con
 ### Interface Mismatches
 
 If function signatures have changed slightly in the shared packages, you may need to update your function calls. Refer to the package documentation for the current interfaces.
+
+### Template Path Resolution
+
+When using the templateloader package, ensure the template base path is correctly configured and that templates follow the expected naming convention and directory structure.

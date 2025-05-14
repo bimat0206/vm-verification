@@ -1,12 +1,61 @@
-# CHANGELOG.md
-
-```markdown
 # Changelog
 
 PrepareSystemPrompt function will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.3.0] - 2025-05-20
+
+### Changed
+- Updated to Go 1.24
+- Fixed compatibility issues with AWS SDK Go v2
+- Added validation package to schema module
+- Updated status constants to use schema.StatusPromptPrepared
+- Fixed template loader interface compatibility issues
+- Updated Dockerfile to include internal package
+
+### Added
+- New validation utilities in schema/validation package
+- Improved error handling for template loading
+- Better compatibility with AWS SDK Go v2
+
+### Fixed
+- Fixed "undefined: schema.VerificationStatusSystemPromptReady" error
+- Fixed template loader method compatibility issues
+- Fixed unused imports in main.go
+
+## [1.2.0] - 2025-05-15
+
+### Changed
+- Complete refactoring to use granular shared packages instead of monolithic promptutils
+- Migrated to shared/schema for type definitions
+- Migrated to shared/templateloader for template management
+- Migrated to shared/s3utils for S3 operations
+- Added MIGRATION.md with detailed migration approach documentation
+- Updated interfaces to match shared package standards
+- Modified internal types to adapt shared schema to function-specific needs
+
+### Added
+- Support for schema.WorkflowState for consistent data handling
+- Enhanced error handling through shared validation library
+- Better type safety with shared schema types
+- Improved maintainability through shared code
+
+## [1.1.0] - 2025-05-14
+
+### Changed
+- Migrated to shared package structure for code reuse across lambda functions
+- Refactored main.go to use the shared/promptutils package
+- Deprecated internal package in favor of the shared/promptutils package
+- Modified build process to exclude internal package
+- Updated build process to handle shared package dependencies
+- Enhanced documentation to reflect architectural changes
+- Added COMPONENT_NAME environment variable for standardized logging
+
+### Security
+- Improved security through standardized code patterns
+- Better error handling with shared validation logic
 
 ## [1.0.1] - 2025-05-11
 

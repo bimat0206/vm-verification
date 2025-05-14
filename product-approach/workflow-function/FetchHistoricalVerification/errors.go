@@ -7,9 +7,9 @@ import (
 
 // StandardError represents a standardized error response
 type StandardError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details any    `json:"details,omitempty"`
+	Code    string            `json:"code"`
+	Message string            `json:"message"`
+	Details map[string]string `json:"details,omitempty"`
 }
 
 // Error returns the error message
@@ -20,9 +20,9 @@ func (e StandardError) Error() string {
 // MarshalJSON marshals the error to JSON
 func (e StandardError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-		Details any    `json:"details,omitempty"`
+		Code    string            `json:"code"`
+		Message string            `json:"message"`
+		Details map[string]string `json:"details,omitempty"`
 	}{
 		Code:    e.Code,
 		Message: e.Message,

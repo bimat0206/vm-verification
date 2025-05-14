@@ -1,25 +1,17 @@
 package main
 
+import (
+	"workflow-function/shared/schema"
+)
+
 // InputEvent represents the Lambda function input event
 type InputEvent struct {
-	VerificationContext VerificationContext `json:"verificationContext"`
+	VerificationContext schema.VerificationContext `json:"verificationContext"`
 }
 
 // OutputEvent represents the Lambda function output event
 type OutputEvent struct {
 	HistoricalContext HistoricalContext `json:"historicalContext"`
-}
-
-// VerificationContext contains the verification details
-type VerificationContext struct {
-	VerificationID    string `json:"verificationId"`
-	VerificationAt    string `json:"verificationAt"`
-	VerificationType  string `json:"verificationType"`
-	ReferenceImageURL string `json:"referenceImageUrl"`
-	CheckingImageURL  string `json:"checkingImageUrl"`
-	VendingMachineID  string `json:"vendingMachineId"`
-	LayoutID          int    `json:"layoutId,omitempty"`
-	LayoutPrefix      string `json:"layoutPrefix,omitempty"`
 }
 
 // HistoricalContext represents the historical verification data

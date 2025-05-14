@@ -5,6 +5,22 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-05-15
+
+### Changed
+- Refactored codebase to use shared packages
+- Moved logger implementation to shared/logger package
+- Moved dbutils implementation to shared/dbutils package
+- Moved s3utils implementation to shared/s3utils package
+- Created wrapper classes for backward compatibility
+- Updated imports and dependencies to use shared modules
+- Improved type safety and code organization
+
+### Fixed
+- Fixed type compatibility issues with shared packages
+- Resolved dependency conflicts with shared modules
+- Added proper wrapper types for shared package interfaces
+
 ## [1.4.1] - 2025-05-14
 
 ### Fixed

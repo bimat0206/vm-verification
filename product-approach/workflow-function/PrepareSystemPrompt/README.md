@@ -18,20 +18,29 @@ The PrepareSystemPrompt function is a critical component in the Kootoro vending 
 
 ![System Architecture](docs/images/architecture.png)
 
-The function follows a modular architecture with the following components:
+The function follows a modular architecture that leverages shared components:
 
-- **main.go**: Lambda handler and core execution logic
-- **types.go**: Type definitions for all data structures
-- **validator.go**: Input validation logic
-- **templates.go**: Template loading and management
-- **bedrock.go**: Bedrock configuration and integration
-- **utils.go**: Helper functions for various operations
+- **cmd/main.go**: Lambda handler and core execution logic
+- **internal/**: Function-specific components that adapt shared packages
+  - **internal/types.go**: Adaptation of shared types to function-specific needs
+  - **internal/templates.go**: Integration with shared template loader
+  - **internal/validator.go**: Custom validation using shared validation framework
+  - **internal/processor.go**: Template data preparation
+  - **internal/bedrock.go**: Bedrock configuration and integration
+- **shared/**: Shared packages used across multiple functions
+  - **shared/schema**: Common data structures and constants
+  - **shared/schema/validation**: Validation utilities for schema objects
+  - **shared/templateloader**: Template loading, caching, and rendering
+  - **shared/s3utils**: S3 utilities and validation
+  - **shared/logger**: Structured logging utilities
+
+> **Note:** The function uses granular shared packages (schema, templateloader, s3utils, logger) instead of the monolithic promptutils package, providing better modularity and maintainability.
 
 ## Installation
 
 ### Prerequisites
 
-- Go 1.19+
+- Go 1.24+
 - Docker
 - AWS CLI configured with appropriate permissions
 
@@ -40,7 +49,12 @@ The function follows a modular architecture with the following components:
 Build and deploy the Lambda function as a container:
 
 ```bash
-# Build the container
+# Use the alternative build script for easier shared package handling
+./retry-docker-build.sh
+
+# Or build manually:
+
+# Build the container (includes shared packages)
 docker build -t kootoro-prepare-system-prompt:v1.0.0 .
 
 # Tag for ECR
@@ -55,11 +69,24 @@ aws lambda create-function \
   --package-type Image \
   --code ImageUri=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepare-system-prompt:v1.0.0 \
   --role arn:aws:iam::${AWS_ACCOUNT_ID}:role/KootoroLambdaExecutionRole \
-  --environment "Variables={REFERENCE_BUCKET=your-reference-bucket,CHECKING_BUCKET=your-checking-bucket,TEMPLATE_BASE_PATH=/opt/templates}"
+  --environment "Variables={REFERENCE_BUCKET=your-reference-bucket,CHECKING_BUCKET=your-checking-bucket,TEMPLATE_BASE_PATH=/opt/templates,COMPONENT_NAME=PrepareSystemPrompt}"
 
-  Configuration
-Environment Variables
-VariableDescriptionDefaultRequiredREFERENCE_BUCKETS3 bucket for reference layout images-YesCHECKING_BUCKETS3 bucket for checking images-YesTEMPLATE_BASE_PATHPath to template directory/opt/templatesNoANTHROPIC_VERSIONAnthropic API version for Bedrockbedrock-2023-05-31NoMAX_TOKENSMaximum tokens for response24000NoBUDGET_TOKENSTokens for Claude's thinking process16000NoTHINKING_TYPEClaude's thinking modeenabledNoPROMPT_VERSIONDefault prompt version1.0.0NoDEBUGEnable debug loggingfalseNo
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| REFERENCE_BUCKET | S3 bucket for reference layout images | - | Yes |
+| CHECKING_BUCKET | S3 bucket for checking images | - | Yes |
+| TEMPLATE_BASE_PATH | Path to template directory | /opt/templates | No |
+| COMPONENT_NAME | Component name for logging | PrepareSystemPrompt | No |
+| ANTHROPIC_VERSION | Anthropic API version for Bedrock | bedrock-2023-05-31 | No |
+| MAX_TOKENS | Maximum tokens for response | 24000 | No |
+| BUDGET_TOKENS | Tokens for Claude's thinking process | 16000 | No |
+| THINKING_TYPE | Claude's thinking mode | enabled | No |
+| PROMPT_VERSION | Default prompt version | 1.0.0 | No |
+| DEBUG | Enable debug logging | false | No |
 IAM Permissions
 The Lambda function requires the following permissions:
 
@@ -173,7 +200,7 @@ Example Output
   "verificationContext": {
     "verificationId": "verif-2025042115302500",
     "verificationAt": "2025-04-21T15:30:25Z",
-    "status": "SYSTEM_PROMPT_READY",
+    "status": "PROMPT_PREPARED",
     "verificationType": "LAYOUT_VS_CHECKING",
     "vendingMachineId": "VM-3245",
     "layoutId": 23591,
@@ -202,9 +229,12 @@ Example Output
     }
   }
 }
-Development
-Local Development
-bash# Setup local environment
+## Development
+
+### Local Development
+
+```bash
+# Setup local environment
 go mod download
 
 # Run tests
@@ -213,8 +243,31 @@ go test ./...
 # Build locally
 go build -o main cmd/main.go
 
+# Local testing 
+./main < events/layout-vs-checking.json
+
 # Local testing with AWS SAM
 sam local invoke PrepareSystemPromptFunction --event events/layout-vs-checking.json
+```
+
+### Working with Shared Packages
+
+The function uses specific shared packages from the `../shared` directory:
+
+1. **Schema**: `../shared/schema` - Core data structures and constants
+   - **Validation**: `../shared/schema/validation` - Validation utilities
+2. **TemplateLoader**: `../shared/templateloader` - Template management
+3. **S3Utils**: `../shared/s3utils` - S3 operations and validation
+4. **Logger**: `../shared/logger` - Structured logging utilities
+
+When making changes:
+
+1. For function-specific logic, modify the files in the `internal/` directory
+2. For shared components, update the relevant shared package
+3. Update the `go.mod` file if adding or removing shared package dependencies
+4. Use the `retry-docker-build.sh` script which handles shared package inclusion
+5. See the `MIGRATION.md` file for details on the shared package architecture
+6. Test thoroughly before deploying as changes to shared packages affect multiple functions
 Adding New Templates
 
 Create a new template file in the appropriate directory

@@ -7,18 +7,22 @@ RUN apk add --no-cache \
     tzdata && \
     update-ca-certificates
 
-# Set working directory
-WORKDIR /app
+# Set up working directory structure
+WORKDIR /go/src/workflow-function/
 
-# Copy only necessary directories
-COPY ../shared/schema/ /app/workflow-function/shared/schema/
-COPY . /app/workflow-function/InitializeFunction/
+# First copy the shared packages to ensure they're available for the build
+COPY ../shared/schema/ ./shared/schema/
+COPY ../shared/logger/ ./shared/logger/
+COPY ../shared/dbutils/ ./shared/dbutils/
+COPY ../shared/s3utils/ ./shared/s3utils/
+
+# Now copy the function code
+COPY ./ ./InitializeFunction/
 
 # Build from the function directory
-WORKDIR /app/workflow-function/InitializeFunction
+WORKDIR /go/src/workflow-function/InitializeFunction
 
 # Build the application for AWS Lambda ARM64 (Graviton)
-# Use build flags to create a statically linked binary
 RUN GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
 
 # Use AWS Lambda provided base image for ARM64

@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.0.2] - 2025-05-14
+
+### Fixed
+- Fixed Step Functions integration with missing historicalContext field
+- Made historicalContext parameter optional in Step Functions state machine definition
+- Updated both the local state_machine_definition.json and terraform template 
+- Preserved empty historicalContext object generation in Lambda function for backward compatibility
+
+## [2.0.1] - 2025-05-14
+
+### Fixed
+- Fixed Step Functions integration issue with missing historicalContext field
+- Ensured response always includes historicalContext field even when empty (LAYOUT_VS_CHECKING type)
+- Initialized map fields in ParallelFetchResults to prevent nil maps in response
+- Updated models to always include historicalContext in JSON output (removed omitempty tag)
+- Added documentation on response structure compatibility with Step Functions
+
+## [2.0.0] - 2025-05-14
+
+### Changed
+- Migrated to use shared package structure for better consistency across lambda functions
+- Moved common code to shared modules:
+  - logger: Standardized logging across all lambda functions
+  - s3utils: Common S3 operations and utilities
+  - dbutils: Common DynamoDB operations and utilities
+  - schema: Standardized data models and constants
+
+### Refactored
+- Reorganized code structure to leverage dependency injection pattern
+- Replaced individual utility implementations with shared package usage
+- Updated models to use schema package for standardized types
+- Enhanced parallel execution to maintain compatibility with shared packages
+
+### Added
+- Added S3UtilsWrapper to adapt shared s3utils package for function-specific use
+- Added DBUtilsWrapper to adapt shared dbutils package for function-specific use
+- Improved dependency management through ConfigVars struct
+- Created specialized build script for handling shared package dependencies
+- Updated Docker build process to work with shared package structure
+
 ## [1.0.6] - 2025-05-11
 
 ### Fixed
