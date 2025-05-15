@@ -3,14 +3,15 @@ package bedrock
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 )
 
 // BedrockClient handles Bedrock API interactions using the Converse API
@@ -58,135 +59,97 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 	log.Printf("Using Converse API for model: %s", bc.modelID)
 
-	// Convert messages to AWS SDK format manually to ensure correct structure
-	messages := make([]map[string]interface{}, len(request.Messages))
+	// Convert messages to AWS SDK format
+	messages := make([]types.Message, len(request.Messages))
 	for i, msg := range request.Messages {
 		// Convert content blocks
-		contentBlocks := make([]map[string]interface{}, len(msg.Content))
+		contentBlocks := make([]types.ContentBlock, len(msg.Content))
 		for j, content := range msg.Content {
 			switch content.Type {
 			case "text":
-				contentBlocks[j] = map[string]interface{}{
-					"type": "text",
-					"text": content.Text,
+				contentBlocks[j] = &types.ContentBlockMemberText{
+					Value: content.Text,
 				}
 			case "image":
-				if content.Image == nil {
-					return nil, 0, fmt.Errorf("image content cannot be nil")
-				}
-				
-				// Validate image format (Bedrock only supports jpeg and png)
-				if content.Image.Format != "jpeg" && content.Image.Format != "png" {
-					return nil, 0, fmt.Errorf("unsupported image format: %s (only jpeg and png are supported)", content.Image.Format)
-				}
-				
-				// Manually construct the image block to ensure proper structure
-				imageBlock := map[string]interface{}{
-					"type": "image",
-					"image": map[string]interface{}{
-						"format": content.Image.Format,
-						"source": map[string]interface{}{
-							"s3Location": map[string]interface{}{
-								"uri":         content.Image.Source.S3Location.URI,
-								"bucketOwner": content.Image.Source.S3Location.BucketOwner,
+				if content.Image != nil {
+					// Validate image format (Bedrock only supports jpeg and png for Converse API)
+					if content.Image.Format != "jpeg" && content.Image.Format != "png" {
+						return nil, 0, fmt.Errorf("unsupported image format: %s (only jpeg and png are supported)", content.Image.Format)
+					}
+					
+					contentBlocks[j] = &types.ContentBlockMemberImage{
+						Value: types.ImageBlock{
+							Format: types.ImageFormat(content.Image.Format),
+							Source: &types.ImageSourceMemberS3Location{
+								Value: types.S3Location{
+									Uri:         aws.String(content.Image.Source.S3Location.URI),
+									BucketOwner: aws.String(content.Image.Source.S3Location.BucketOwner),
+								},
 							},
 						},
-					},
+					}
+					
+					// Log the structure for debugging
+					log.Printf("Added image content block for format: %s, URI: %s", content.Image.Format, content.Image.Source.S3Location.URI)
 				}
-				
-				contentBlocks[j] = imageBlock
-				
-				// Log the structure for debugging
-				logBytes, _ := json.Marshal(imageBlock)
-				log.Printf("Image content block: %s", string(logBytes))
 			default:
 				return nil, 0, fmt.Errorf("unsupported content type: %s", content.Type)
 			}
 		}
 		
-		messages[i] = map[string]interface{}{
-			"role":    msg.Role,
-			"content": contentBlocks,
+		messages[i] = types.Message{
+			Role:    types.ConversationRole(msg.Role),
+			Content: contentBlocks,
 		}
 	}
 	
 	// Create inference config
-	inferenceConfig := map[string]interface{}{
-		"maxTokens": request.InferenceConfig.MaxTokens,
+	inferenceConfig := &types.InferenceConfiguration{
+		MaxTokens: aws.Int32(int32(request.InferenceConfig.MaxTokens)),
 	}
 	
 	if request.InferenceConfig.Temperature != nil {
-		inferenceConfig["temperature"] = *request.InferenceConfig.Temperature
+		inferenceConfig.Temperature = aws.Float32(float32(*request.InferenceConfig.Temperature))
 	}
 	
 	if request.InferenceConfig.TopP != nil {
-		inferenceConfig["topP"] = *request.InferenceConfig.TopP
+		inferenceConfig.TopP = aws.Float32(float32(*request.InferenceConfig.TopP))
 	}
 	
 	if len(request.InferenceConfig.StopSequences) > 0 {
-		inferenceConfig["stopSequences"] = request.InferenceConfig.StopSequences
+		inferenceConfig.StopSequences = request.InferenceConfig.StopSequences
 	}
 	
-	// Create request body
-	requestBody := map[string]interface{}{
-		"modelId":         bc.modelID,
-		"messages":        messages,
-		"inferenceConfig": inferenceConfig,
-	}
-	
-	// Add system prompt if provided
-	if request.System != "" {
-		requestBody["system"] = request.System
-	}
-	
-	// Add guardrail config if provided
-	if request.GuardrailConfig != nil {
-		requestBody["guardrailConfig"] = map[string]interface{}{
-			"guardrailIdentifier": request.GuardrailConfig.GuardrailIdentifier,
-		}
-		
-		if request.GuardrailConfig.GuardrailVersion != "" {
-			requestBody["guardrailConfig"].(map[string]interface{})["guardrailVersion"] = request.GuardrailConfig.GuardrailVersion
-		}
-	}
-	
-	// Marshal request to JSON
-	requestJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to marshal request: %w", err)
-	}
-	
-	// Log the full request for debugging
-	log.Printf("Full Bedrock request: %s", string(requestJSON))
-	
-	// Use the proper Bedrock Converse API instead of InvokeModel
+	// Create Converse input
 	converseInput := &bedrockruntime.ConverseInput{
-		ModelId: aws.String(bc.modelID),
-		Messages: convertToBedrockMessages(request.Messages),
-		InferenceConfig: &bedrockruntime.InferenceConfiguration{
-			MaxTokens: aws.Int32(int32(request.InferenceConfig.MaxTokens)),
-		},
+		ModelId:         aws.String(bc.modelID),
+		Messages:        messages,
+		InferenceConfig: inferenceConfig,
 	}
 	
 	// Add system prompt if provided
 	if request.System != "" {
-		converseInput.System = []bedrockruntime.SystemContentBlock{
-			{
-				Text: aws.String(request.System),
+		converseInput.System = []types.SystemContentBlock{
+			&types.SystemContentBlockMemberText{
+				Value: request.System,
 			},
 		}
 	}
 	
-	// Add temperature and topP if provided
-	if request.InferenceConfig.Temperature != nil {
-		converseInput.InferenceConfig.Temperature = aws.Float32(float32(*request.InferenceConfig.Temperature))
+	// Add guardrail config if provided
+	if request.GuardrailConfig != nil {
+		guardrailConfig := &types.GuardrailConfiguration{
+			GuardrailIdentifier: aws.String(request.GuardrailConfig.GuardrailIdentifier),
+		}
+		
+		if request.GuardrailConfig.GuardrailVersion != "" {
+			guardrailConfig.GuardrailVersion = aws.String(request.GuardrailConfig.GuardrailVersion)
+		}
+		
+		converseInput.GuardrailConfig = guardrailConfig
 	}
 	
-	if request.InferenceConfig.TopP != nil {
-		converseInput.InferenceConfig.TopP = aws.Float32(float32(*request.InferenceConfig.TopP))
-	}
-	
-	// Call Bedrock Converse API (not InvokeModel)
+	// Call Bedrock Converse API
 	result, err := bc.client.Converse(ctx, converseInput)
 	if err != nil {
 		return nil, 0, bc.handleBedrockError(err)
@@ -205,52 +168,6 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 	return response, latency.Milliseconds(), nil
 }
 
-// convertToBedrockMessages converts our messages to Bedrock SDK format
-func convertToBedrockMessages(messages []MessageWrapper) []bedrockruntime.Message {
-	bedrockMessages := make([]bedrockruntime.Message, len(messages))
-	
-	for i, msg := range messages {
-		content := make([]bedrockruntime.ContentBlock, len(msg.Content))
-		
-		for j, c := range msg.Content {
-			switch c.Type {
-			case "text":
-				content[j] = &bedrockruntime.ContentBlockMemberText{
-					Value: c.Text,
-				}
-			case "image":
-				if c.Image != nil {
-					// Extract bucket and key from S3 URI
-					bucket, key, err := parseS3URI(c.Image.Source.S3Location.URI)
-					if err != nil {
-						log.Printf("Error parsing S3 URI: %v", err)
-						continue
-					}
-					
-					content[j] = &bedrockruntime.ContentBlockMemberImage{
-						Value: bedrockruntime.ImageBlock{
-							Format: (*bedrockruntime.ImageFormat)(&c.Image.Format),
-							Source: &bedrockruntime.ImageSourceMemberS3Location{
-								Value: bedrockruntime.S3Location{
-									Uri:         aws.String(c.Image.Source.S3Location.URI),
-									BucketOwner: aws.String(c.Image.Source.S3Location.BucketOwner),
-								},
-							},
-						},
-					}
-				}
-			}
-		}
-		
-		bedrockMessages[i] = bedrockruntime.Message{
-			Role:    (*bedrockruntime.ConversationRole)(&msg.Role),
-			Content: content,
-		}
-	}
-	
-	return bedrockMessages
-}
-
 // convertFromBedrockResponse converts Bedrock SDK response to our format
 func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.ConverseOutput, modelID string) (*ConverseResponse, error) {
 	var content []ContentBlock
@@ -258,10 +175,10 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 	// Extract content from the response
 	if result.Output != nil {
 		switch v := result.Output.(type) {
-		case *bedrockruntime.ConverseOutputMemberMessage:
+		case *types.ConverseOutputMemberMessage:
 			for _, contentBlock := range v.Value.Content {
 				switch cb := contentBlock.(type) {
-				case *bedrockruntime.ContentBlockMemberText:
+				case *types.ContentBlockMemberText:
 					content = append(content, ContentBlock{
 						Type: "text",
 						Text: cb.Value,
@@ -275,16 +192,16 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 	var usage *TokenUsage
 	if result.Usage != nil {
 		usage = &TokenUsage{
-			InputTokens:  int(result.Usage.InputTokens),
-			OutputTokens: int(result.Usage.OutputTokens),
-			TotalTokens:  int(result.Usage.TotalTokens),
+			InputTokens:  int(*result.Usage.InputTokens),
+			OutputTokens: int(*result.Usage.OutputTokens),
+			TotalTokens:  int(*result.Usage.TotalTokens),
 		}
 	}
 	
 	// Extract stop reason
 	var stopReason string
-	if result.StopReason != nil {
-		stopReason = string(*result.StopReason)
+	if result.StopReason != "" {
+		stopReason = string(result.StopReason)
 	}
 	
 	// Extract metrics
@@ -320,86 +237,6 @@ func parseS3URI(uri string) (bucket, key string, err error) {
 	return parts[0], parts[1], nil
 }
 
-// parseConverseResponse parses the Converse API response
-func (bc *BedrockClient) parseConverseResponse(responseBody map[string]interface{}, modelID string) (*ConverseResponse, error) {
-	// Extract output
-	output, ok := responseBody["output"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("missing output in response")
-	}
-	
-	// Extract message
-	message, ok := output["message"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("missing message in output")
-	}
-	
-	// Extract content
-	contentRaw, ok := message["content"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("missing content in message")
-	}
-	
-	// Parse content blocks
-	var content []ContentBlock
-	for _, blockRaw := range contentRaw {
-		block, ok := blockRaw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		
-		// Check for text content
-		if textRaw, ok := block["text"].(string); ok {
-			content = append(content, ContentBlock{
-				Type: "text",
-				Text: textRaw,
-			})
-		}
-	}
-	
-	// Extract usage
-	var usage *TokenUsage
-	if usageRaw, ok := responseBody["usage"].(map[string]interface{}); ok {
-		inputTokens, _ := usageRaw["inputTokens"].(float64)
-		outputTokens, _ := usageRaw["outputTokens"].(float64)
-		totalTokens, _ := usageRaw["totalTokens"].(float64)
-		
-		usage = &TokenUsage{
-			InputTokens:  int(inputTokens),
-			OutputTokens: int(outputTokens),
-			TotalTokens:  int(totalTokens),
-		}
-	}
-	
-	// Extract stop reason
-	var stopReason string
-	if stopReasonRaw, ok := responseBody["stopReason"].(string); ok {
-		stopReason = stopReasonRaw
-	}
-	
-	// Extract metrics
-	var metrics *ResponseMetrics
-	if metricsRaw, ok := responseBody["metrics"].(map[string]interface{}); ok {
-		if latencyRaw, ok := metricsRaw["latencyMs"].(float64); ok {
-			metrics = &ResponseMetrics{
-				LatencyMs: int64(latencyRaw),
-			}
-		}
-	}
-	
-	// Create response
-	response := &ConverseResponse{
-		RequestID:  "", // Not available in the response body
-		ModelID:    modelID,
-		StopReason: stopReason,
-		Content:    content,
-		Usage:      usage,
-		Metrics:    metrics,
-	}
-	
-	return response, nil
-}
-
 // handleBedrockError converts AWS SDK errors to our error types
 func (bc *BedrockClient) handleBedrockError(err error) error {
 	log.Printf("Bedrock API error: %v", err)
@@ -413,17 +250,17 @@ func (bc *BedrockClient) ValidateModel(ctx context.Context) error {
 	// Create a minimal validation using the proper Converse API
 	converseInput := &bedrockruntime.ConverseInput{
 		ModelId: aws.String(bc.modelID),
-		Messages: []bedrockruntime.Message{
+		Messages: []types.Message{
 			{
-				Role: (*bedrockruntime.ConversationRole)(aws.String("user")),
-				Content: []bedrockruntime.ContentBlock{
-					&bedrockruntime.ContentBlockMemberText{
+				Role: types.ConversationRole("user"),
+				Content: []types.ContentBlock{
+					&types.ContentBlockMemberText{
 						Value: "Test",
 					},
 				},
 			},
 		},
-		InferenceConfig: &bedrockruntime.InferenceConfiguration{
+		InferenceConfig: &types.InferenceConfiguration{
 			MaxTokens: aws.Int32(10),
 		},
 	}
