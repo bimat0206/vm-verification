@@ -39,8 +39,8 @@ type ImageBlock struct {
 }
 
 // ImageSource represents the source of an image
+// Note: No Type field - it's not used in Converse API
 type ImageSource struct {
-	Type       string     `json:"type"`
 	S3Location S3Location `json:"s3Location"`
 }
 

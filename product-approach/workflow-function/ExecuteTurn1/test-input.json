@@ -22,6 +22,7 @@
               "image": {
                 "format": "png",
                 "source": {
+                  "type": "s3",
                   "s3Location": {
                     "uri": "s3://amzn-s3-demo-bucket/myImage",
                     "bucketOwner": "111122223333"

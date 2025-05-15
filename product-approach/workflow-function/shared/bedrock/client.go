@@ -58,17 +58,15 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 	log.Printf("Using Converse API for model: %s", bc.modelID)
 
-	// Convert messages to AWS SDK format
+	// Convert messages to AWS SDK format manually to ensure correct structure
 	messages := make([]map[string]interface{}, len(request.Messages))
 	for i, msg := range request.Messages {
 		// Convert content blocks
 		contentBlocks := make([]map[string]interface{}, len(msg.Content))
 		for j, content := range msg.Content {
-			var contentBlock map[string]interface{}
-			
 			switch content.Type {
 			case "text":
-				contentBlock = map[string]interface{}{
+				contentBlocks[j] = map[string]interface{}{
 					"type": "text",
 					"text": content.Text,
 				}
@@ -77,14 +75,17 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					return nil, 0, fmt.Errorf("image content cannot be nil")
 				}
 				
-				// Ensure we're correctly nested as per Bedrock API requirements
-				// The API needs: {type:"image", image:{format:"png", source:{type:"s3", s3Location:{uri:"...", bucketOwner:"..."}}}}
-				contentBlock = map[string]interface{}{
+				// Validate image format (Bedrock only supports jpeg and png)
+				if content.Image.Format != "jpeg" && content.Image.Format != "png" {
+					return nil, 0, fmt.Errorf("unsupported image format: %s (only jpeg and png are supported)", content.Image.Format)
+				}
+				
+				// Manually construct the image block to ensure proper structure
+				imageBlock := map[string]interface{}{
 					"type": "image",
 					"image": map[string]interface{}{
 						"format": content.Image.Format,
 						"source": map[string]interface{}{
-							"type": "s3",
 							"s3Location": map[string]interface{}{
 								"uri":         content.Image.Source.S3Location.URI,
 								"bucketOwner": content.Image.Source.S3Location.BucketOwner,
@@ -93,14 +94,14 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					},
 				}
 				
+				contentBlocks[j] = imageBlock
+				
 				// Log the structure for debugging
-				logBytes, _ := json.Marshal(contentBlock)
+				logBytes, _ := json.Marshal(imageBlock)
 				log.Printf("Image content block: %s", string(logBytes))
 			default:
 				return nil, 0, fmt.Errorf("unsupported content type: %s", content.Type)
 			}
-			
-			contentBlocks[j] = contentBlock
 		}
 		
 		messages[i] = map[string]interface{}{
@@ -158,16 +159,35 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 	// Log the full request for debugging
 	log.Printf("Full Bedrock request: %s", string(requestJSON))
 	
-	// Create InvokeModel input
-	invokeInput := &bedrockruntime.InvokeModelInput{
-		ModelId:     aws.String(bc.modelID),
-		Body:        requestJSON,
-		ContentType: aws.String("application/json"),
-		Accept:      aws.String("application/json"),
+	// Use the proper Bedrock Converse API instead of InvokeModel
+	converseInput := &bedrockruntime.ConverseInput{
+		ModelId: aws.String(bc.modelID),
+		Messages: convertToBedrockMessages(request.Messages),
+		InferenceConfig: &bedrockruntime.InferenceConfiguration{
+			MaxTokens: aws.Int32(int32(request.InferenceConfig.MaxTokens)),
+		},
 	}
 	
-	// Call InvokeModel API
-	result, err := bc.client.InvokeModel(ctx, invokeInput)
+	// Add system prompt if provided
+	if request.System != "" {
+		converseInput.System = []bedrockruntime.SystemContentBlock{
+			{
+				Text: aws.String(request.System),
+			},
+		}
+	}
+	
+	// Add temperature and topP if provided
+	if request.InferenceConfig.Temperature != nil {
+		converseInput.InferenceConfig.Temperature = aws.Float32(float32(*request.InferenceConfig.Temperature))
+	}
+	
+	if request.InferenceConfig.TopP != nil {
+		converseInput.InferenceConfig.TopP = aws.Float32(float32(*request.InferenceConfig.TopP))
+	}
+	
+	// Call Bedrock Converse API (not InvokeModel)
+	result, err := bc.client.Converse(ctx, converseInput)
 	if err != nil {
 		return nil, 0, bc.handleBedrockError(err)
 	}
@@ -175,20 +195,129 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 	// Calculate latency
 	latency := time.Since(startTime)
 	
-	// Parse response
-	var responseBody map[string]interface{}
-	if err := json.Unmarshal(result.Body, &responseBody); err != nil {
-		return nil, latency.Milliseconds(), fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-	
-	// Extract response data
-	response, err := bc.parseConverseResponse(responseBody, bc.modelID)
+	// Convert response to our format
+	response, err := bc.convertFromBedrockResponse(result, bc.modelID)
 	if err != nil {
-		return nil, latency.Milliseconds(), fmt.Errorf("failed to parse response: %w", err)
+		return nil, latency.Milliseconds(), fmt.Errorf("failed to convert response: %w", err)
 	}
 	
 	log.Printf("Bedrock API call completed in %v", latency)
 	return response, latency.Milliseconds(), nil
+}
+
+// convertToBedrockMessages converts our messages to Bedrock SDK format
+func convertToBedrockMessages(messages []MessageWrapper) []bedrockruntime.Message {
+	bedrockMessages := make([]bedrockruntime.Message, len(messages))
+	
+	for i, msg := range messages {
+		content := make([]bedrockruntime.ContentBlock, len(msg.Content))
+		
+		for j, c := range msg.Content {
+			switch c.Type {
+			case "text":
+				content[j] = &bedrockruntime.ContentBlockMemberText{
+					Value: c.Text,
+				}
+			case "image":
+				if c.Image != nil {
+					// Extract bucket and key from S3 URI
+					bucket, key, err := parseS3URI(c.Image.Source.S3Location.URI)
+					if err != nil {
+						log.Printf("Error parsing S3 URI: %v", err)
+						continue
+					}
+					
+					content[j] = &bedrockruntime.ContentBlockMemberImage{
+						Value: bedrockruntime.ImageBlock{
+							Format: (*bedrockruntime.ImageFormat)(&c.Image.Format),
+							Source: &bedrockruntime.ImageSourceMemberS3Location{
+								Value: bedrockruntime.S3Location{
+									Uri:         aws.String(c.Image.Source.S3Location.URI),
+									BucketOwner: aws.String(c.Image.Source.S3Location.BucketOwner),
+								},
+							},
+						},
+					}
+				}
+			}
+		}
+		
+		bedrockMessages[i] = bedrockruntime.Message{
+			Role:    (*bedrockruntime.ConversationRole)(&msg.Role),
+			Content: content,
+		}
+	}
+	
+	return bedrockMessages
+}
+
+// convertFromBedrockResponse converts Bedrock SDK response to our format
+func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.ConverseOutput, modelID string) (*ConverseResponse, error) {
+	var content []ContentBlock
+	
+	// Extract content from the response
+	if result.Output != nil {
+		switch v := result.Output.(type) {
+		case *bedrockruntime.ConverseOutputMemberMessage:
+			for _, contentBlock := range v.Value.Content {
+				switch cb := contentBlock.(type) {
+				case *bedrockruntime.ContentBlockMemberText:
+					content = append(content, ContentBlock{
+						Type: "text",
+						Text: cb.Value,
+					})
+				}
+			}
+		}
+	}
+	
+	// Extract usage information
+	var usage *TokenUsage
+	if result.Usage != nil {
+		usage = &TokenUsage{
+			InputTokens:  int(result.Usage.InputTokens),
+			OutputTokens: int(result.Usage.OutputTokens),
+			TotalTokens:  int(result.Usage.TotalTokens),
+		}
+	}
+	
+	// Extract stop reason
+	var stopReason string
+	if result.StopReason != nil {
+		stopReason = string(*result.StopReason)
+	}
+	
+	// Extract metrics
+	var metrics *ResponseMetrics
+	if result.Metrics != nil && result.Metrics.LatencyMs != nil {
+		metrics = &ResponseMetrics{
+			LatencyMs: int64(*result.Metrics.LatencyMs),
+		}
+	}
+	
+	return &ConverseResponse{
+		RequestID:  "", // Not available in SDK response
+		ModelID:    modelID,
+		StopReason: stopReason,
+		Content:    content,
+		Usage:      usage,
+		Metrics:    metrics,
+	}, nil
+}
+
+// parseS3URI parses an S3 URI and returns bucket and key
+func parseS3URI(uri string) (bucket, key string, err error) {
+	if len(uri) < 5 || uri[:5] != "s3://" {
+		return "", "", fmt.Errorf("invalid S3 URI: %s", uri)
+	}
+	
+	path := uri[5:]
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid S3 URI format: %s", uri)
+	}
+	
+	return parts[0], parts[1], nil
 }
 
 // parseConverseResponse parses the Converse API response
@@ -281,45 +410,30 @@ func (bc *BedrockClient) handleBedrockError(err error) error {
 func (bc *BedrockClient) ValidateModel(ctx context.Context) error {
 	log.Printf("Validating model %s with Bedrock API", bc.modelID)
 	
-	// Create a minimal request
-	requestBody := map[string]interface{}{
-		"modelId": bc.modelID,
-		"messages": []map[string]interface{}{
+	// Create a minimal validation using the proper Converse API
+	converseInput := &bedrockruntime.ConverseInput{
+		ModelId: aws.String(bc.modelID),
+		Messages: []bedrockruntime.Message{
 			{
-				"role": "user",
-				"content": []map[string]interface{}{
-					{
-						"type": "text",
-						"text": "Test",
+				Role: (*bedrockruntime.ConversationRole)(aws.String("user")),
+				Content: []bedrockruntime.ContentBlock{
+					&bedrockruntime.ContentBlockMemberText{
+						Value: "Test",
 					},
 				},
 			},
 		},
-		"inferenceConfig": map[string]interface{}{
-			"maxTokens": 10,
+		InferenceConfig: &bedrockruntime.InferenceConfiguration{
+			MaxTokens: aws.Int32(10),
 		},
-	}
-	
-	// Marshal request to JSON
-	requestJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal validation request: %w", err)
-	}
-	
-	// Create InvokeModel input
-	invokeInput := &bedrockruntime.InvokeModelInput{
-		ModelId:     aws.String(bc.modelID),
-		Body:        requestJSON,
-		ContentType: aws.String("application/json"),
-		Accept:      aws.String("application/json"),
 	}
 	
 	// Create a timeout context for the validation
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	
-	// Call InvokeModel API
-	_, err = bc.client.InvokeModel(ctx, invokeInput)
+	// Call Converse API
+	_, err := bc.client.Converse(ctx, converseInput)
 	if err != nil {
 		return fmt.Errorf("model validation failed: %w", err)
 	}
@@ -359,7 +473,6 @@ func CreateClientConfig(region, anthropicVersion string, maxTokens int, thinking
 		BudgetTokens:     budgetTokens,
 	}
 }
-
 
 // GetTextFromResponse is a convenience method to extract text from a response
 func (bc *BedrockClient) GetTextFromResponse(response *ConverseResponse) string {
