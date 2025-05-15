@@ -7,6 +7,7 @@ import (
 
 	"product-approach/workflow-function/shared/logger"
 	"product-approach/workflow-function/shared/schema"
+	"product-approach/workflow-function/ProcessTurn1Response/internal/parser"  // Add this import
 )
 
 // ProcessingResult represents the result of Turn 1 response processing
@@ -71,8 +72,7 @@ func NewDependencies(log logger.Logger) *Dependencies {
 
 // NewParser creates a new Parser instance
 func NewParser(log logger.Logger) Parser {
-	// This is a placeholder implementation
-	return nil
+	return parser.NewParser(log)
 }
 
 // NewValidator creates a new Validator instance

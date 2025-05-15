@@ -26,23 +26,18 @@ COPY workflow-function/ProcessTurn1Response/ ./product-approach/workflow-functio
 # Set working directory to the function directory
 WORKDIR /go/src/product-approach/workflow-function/ProcessTurn1Response
 
-# Debug: Show the directory structure
-RUN pwd
-RUN ls -la
-RUN cat go.mod
-
 # Build the function with optimizations
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o main ./cmd
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bootstrap ./cmd
 
 # Runtime stage
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
-# Copy the binary from builder
-COPY --from=builder /go/src/product-approach/workflow-function/ProcessTurn1Response/main /var/task/main
+# Copy the binary as bootstrap (required by Lambda runtime)
+COPY --from=builder /go/src/product-approach/workflow-function/ProcessTurn1Response/bootstrap /var/runtime/bootstrap
 
 # Set environment variables
 ENV LOG_LEVEL=info
 
-# Set the CMD to the handler
-CMD ["main"]
+# The CMD should be the handler name for provided runtime
+CMD ["bootstrap"]
