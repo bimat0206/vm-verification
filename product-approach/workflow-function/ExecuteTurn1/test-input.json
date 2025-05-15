@@ -1,0 +1,46 @@
+{
+  "verificationContext": {
+    "verificationId": "test-verification",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "status": "INITIATED",
+    "turnConfig": {
+      "maxTurns": 3
+    }
+  },
+  "currentPrompt": {
+    "currentPrompt": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Test message"
+            },
+            {
+              "type": "image",
+              "image": {
+                "format": "png",
+                "source": {
+                  "s3Location": {
+                    "uri": "s3://amzn-s3-demo-bucket/myImage",
+                    "bucketOwner": "111122223333"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "turnNumber": 1,
+      "promptId": "test-prompt",
+      "createdAt": "2025-05-15T09:30:00Z",
+      "promptVersion": "1.0",
+      "imageIncluded": "true"
+    }
+  },
+  "bedrockConfig": {
+    "temperature": 0.7,
+    "topP": 0.9
+  }
+}

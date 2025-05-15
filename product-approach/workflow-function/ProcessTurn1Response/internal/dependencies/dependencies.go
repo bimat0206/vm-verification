@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
-	"product-approach/workflow-function/shared/dbutils"
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/shared/s3utils"
+	"workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/shared/dbutils"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/s3utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"

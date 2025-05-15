@@ -3,7 +3,7 @@ package types
 
 import (
 	"time"
-	"product-approach/workflow-function/shared/schema"
+	"workflow-function/shared/schema"
 )
 
 // ProcessingConfig defines configuration for Turn 1 response processing

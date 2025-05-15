@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 	
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // parseMachineStructureFromSection parses machine structure from a specific section

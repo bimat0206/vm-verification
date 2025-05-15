@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/shared/schema"
-	"product-approach/workflow-function/ProcessTurn1Response/internal/processor"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/schema"
+	"workflow-function/ProcessTurn1Response/internal/processor"
 )
 
 func main() {

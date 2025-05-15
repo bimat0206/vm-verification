@@ -5,6 +5,17 @@ PrepareSystemPrompt function will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-05-22
+
+### Changed
+- Moved bedrockConfig field to top level in the response structure
+- Updated shared schema package to include bedrockConfig at top level
+- Fixed systemPrompt structure to use "content" field instead of nested "systemPrompt"
+- Removed duplicate BedrockConfig field in Response struct to prevent JSON duplication
+
+### Breaking Changes
+- SystemPrompt structure in shared schema now separates bedrockConfig to top level
+
 ## [1.3.0] - 2025-05-20
 
 ### Changed

@@ -86,7 +86,7 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 	
 	// Create system prompt object with the new fields
 	sysPrompt := &schema.SystemPrompt{
-		SystemPrompt:  systemPrompt,  // The actual prompt string
+		Content:       systemPrompt,  // The actual prompt string
 		BedrockConfig: bedrockConfig,
 		PromptId:      promptId,
 		PromptVersion: promptVersion,
@@ -95,13 +95,19 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 	// Update workflow state
 	if input.State != nil {
 		input.State.SystemPrompt = sysPrompt
+		input.State.BedrockConfig = sysPrompt.BedrockConfig
 		input.State.VerificationContext.Status = schema.StatusPromptPrepared
 	}
 	
-	// Create response without duplicate BedrockConfig
+	// Create response with BedrockConfig at top level
 	response := internal.Response{
 		VerificationContext: input.VerificationContext,
-		SystemPrompt:        sysPrompt,
+		SystemPrompt:        &internal.SystemPromptContent{
+			Content:       sysPrompt.Content,
+			PromptId:      sysPrompt.PromptId,
+			PromptVersion: sysPrompt.PromptVersion,
+		},
+		BedrockConfig:       sysPrompt.BedrockConfig,
 	}
 	
 	// Include appropriate metadata based on verification type

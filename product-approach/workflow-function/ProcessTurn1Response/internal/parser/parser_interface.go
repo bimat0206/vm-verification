@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/shared/logger"
+	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // Parser interface defines the methods needed by the Processor

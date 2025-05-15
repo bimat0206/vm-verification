@@ -1,4 +1,3 @@
-// Package s3utils provides utilities for S3 operations
 package s3utils
 
 import (
@@ -12,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"product-approach/workflow-function/shared/logger"
+	"workflow-function/shared/logger"
 )
 
 // S3URL represents a parsed S3 URL

@@ -3,19 +3,26 @@ FROM golang:1.24-alpine AS build
 
 WORKDIR /app
 
-# Copy go.mod and go.sum first to leverage caching
+# Create shared directory for module replacements
+RUN mkdir -p /app/shared/bedrock /app/shared/errors /app/shared/schema
+
+# Copy the main module files
 COPY go.mod go.sum ./
 
-# Download dependencies using cache mounts
-RUN --mount=type=cache,target=/root/.cache \
-    --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
-# Copy the rest of the application source code
+# Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /main ./cmd/main.go
+# Copy shared modules (these must be included in the build context)
+COPY shared/bedrock/ /app/shared/bedrock/
+COPY shared/errors/ /app/shared/errors/
+COPY shared/schema/ /app/shared/schema/
+
+# Build the application with shared packages
+# We're using the workdir path for module replacements
+RUN go mod edit -replace workflow-function/shared/bedrock=./shared/bedrock \
+    -replace workflow-function/shared/errors=./shared/errors \
+    -replace workflow-function/shared/schema=./shared/schema \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /main ./cmd/main.go
 
 FROM public.ecr.aws/lambda/provided:al2-arm64
 

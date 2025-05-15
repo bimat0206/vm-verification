@@ -6,6 +6,8 @@ import (
 	"log"
 	"math"
 	"time"
+	
+	"workflow-function/shared/errors"
 )
 
 // RetryManager manages retry logic with exponential backoff
@@ -94,10 +96,13 @@ type RetryPolicy struct {
 
 // GetRetryPolicy returns the retry policy for different error types
 func GetRetryPolicy(err error) RetryPolicy {
-	if execErr, ok := err.(*ExecuteTurn1Error); ok {
-		switch execErr.Type {
-		case ErrorTypeBedrock:
-			switch execErr.Code {
+	errorType := errors.GetErrorType(err)
+	
+	switch errorType {
+	case errors.ErrorTypeBedrock:
+		// Get error code from WorkflowError
+		if workflowErr, ok := err.(*errors.WorkflowError); ok {
+			switch workflowErr.Code {
 			case "THROTTLING":
 				return RetryPolicy{
 					ShouldRetry:    true,
@@ -120,8 +125,10 @@ func GetRetryPolicy(err error) RetryPolicy {
 					MaxBackoffTime: 0,
 				}
 			}
-		case ErrorTypeS3:
-			switch execErr.Code {
+		}
+	case errors.ErrorTypeS3:
+		if workflowErr, ok := err.(*errors.WorkflowError); ok {
+			switch workflowErr.Code {
 			case "S3_OPERATION_FAILED":
 				return RetryPolicy{
 					ShouldRetry:    true,
@@ -137,27 +144,27 @@ func GetRetryPolicy(err error) RetryPolicy {
 					MaxBackoffTime: 0,
 				}
 			}
-		case ErrorTypeDynamoDB:
-			return RetryPolicy{
-				ShouldRetry:    true,
-				MaxAttempts:    3,
-				BackoffFactor:  1.5,
-				MaxBackoffTime: 15 * time.Second,
-			}
-		case ErrorTypeTimeout:
-			return RetryPolicy{
-				ShouldRetry:    true,
-				MaxAttempts:    2,
-				BackoffFactor:  1.0,
-				MaxBackoffTime: 10 * time.Second,
-			}
-		case ErrorTypeValidation, ErrorTypeInternal:
-			return RetryPolicy{
-				ShouldRetry:    false,
-				MaxAttempts:    0,
-				BackoffFactor:  0,
-				MaxBackoffTime: 0,
-			}
+		}
+	case errors.ErrorTypeDynamoDB:
+		return RetryPolicy{
+			ShouldRetry:    true,
+			MaxAttempts:    3,
+			BackoffFactor:  1.5,
+			MaxBackoffTime: 15 * time.Second,
+		}
+	case errors.ErrorTypeTimeout:
+		return RetryPolicy{
+			ShouldRetry:    true,
+			MaxAttempts:    2,
+			BackoffFactor:  1.0,
+			MaxBackoffTime: 10 * time.Second,
+		}
+	case errors.ErrorTypeValidation, errors.ErrorTypeInternal:
+		return RetryPolicy{
+			ShouldRetry:    false,
+			MaxAttempts:    0,
+			BackoffFactor:  0,
+			MaxBackoffTime: 0,
 		}
 	}
 
@@ -272,7 +279,7 @@ func (cb *CircuitBreaker) Execute(operation func() error) error {
 		if time.Since(cb.lastFailureTime) > cb.resetTimeout {
 			cb.state = StateHalfOpen
 		} else {
-			return NewBedrockError("Circuit breaker is open", "CIRCUIT_BREAKER_OPEN", false)
+			return errors.NewBedrockError("Circuit breaker is open", "CIRCUIT_BREAKER_OPEN", false)
 		}
 	}
 

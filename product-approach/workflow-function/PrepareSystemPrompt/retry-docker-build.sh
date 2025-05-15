@@ -32,10 +32,8 @@ fi
 echo "Logging into ECR..."
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$ECR_REPO"
 
-# Create build context with shared modules
+# Create build context
 echo "Preparing build context..."
-
-# Create temporary directory for build context
 BUILD_CONTEXT=$(mktemp -d)
 trap "rm -rf $BUILD_CONTEXT" EXIT
 
@@ -49,24 +47,28 @@ cp *.md "$BUILD_CONTEXT/" 2>/dev/null || true
 # Create shared modules directory in build context
 mkdir -p "$BUILD_CONTEXT/shared"
 
-# Copy shared modules
-echo "Copying shared modules..."
+# Copy shared modules and fix import paths
+echo "Copying shared modules and fixing import paths..."
 for module in schema s3utils templateloader logger; do
     if [ -d "../shared/$module" ]; then
         cp -r "../shared/$module" "$BUILD_CONTEXT/shared/"
         echo "  ✓ Copied shared/$module"
+        
+        # Fix import paths in the copied module
+        find "$BUILD_CONTEXT/shared/$module" -name "*.go" -exec sed -i 's|product-approach/workflow-function/shared/|workflow-function/shared/|g' {} \;
     else
         echo "  ✗ Warning: shared/$module not found"
     fi
 done
 
-# Create Dockerfile for build
+# Create optimized Dockerfile
 cat > "$BUILD_CONTEXT/Dockerfile" << 'EOF'
 # syntax=docker/dockerfile:1.4
 FROM golang:1.24-alpine AS build
 
 WORKDIR /app
 ENV GO111MODULE=on
+ENV CGO_ENABLED=0
 
 # Install required tools
 RUN apk add --no-cache git
@@ -90,7 +92,7 @@ RUN go mod edit -replace=workflow-function/shared/schema=./shared/schema \
 
 # Download dependencies and build
 RUN go mod download && go mod tidy
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /main cmd/main.go
+RUN GOOS=linux GOARCH=arm64 go build -o /main cmd/main.go
 
 # Final stage
 FROM public.ecr.aws/lambda/provided:al2-arm64
@@ -132,9 +134,10 @@ aws lambda get-function \
     --function-name "$FUNCTION_NAME" \
     --region "$AWS_REGION" \
     --query 'Code.ImageUri' \
-    --output text   > /dev/null 2>&1
+    --output text > /dev/null 2>&1
 
 echo "=== Build and Deployment Complete ==="
 echo "Image: $ECR_REPO:$IMAGE_TAG"
 echo "Function: $FUNCTION_NAME"
 echo "========================================="
+

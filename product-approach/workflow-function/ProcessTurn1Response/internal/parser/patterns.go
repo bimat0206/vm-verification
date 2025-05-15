@@ -3,7 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // ParsingPatterns contains configurable patterns for parsing

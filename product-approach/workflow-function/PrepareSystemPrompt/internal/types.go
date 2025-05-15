@@ -77,8 +77,15 @@ type Response struct {
 	VerificationContext *schema.VerificationContext `json:"verificationContext"`
 	LayoutMetadata      map[string]interface{} `json:"layoutMetadata,omitempty"`
 	HistoricalContext   map[string]interface{} `json:"historicalContext,omitempty"`
-	SystemPrompt        *schema.SystemPrompt   `json:"systemPrompt"`
+	SystemPrompt        *SystemPromptContent   `json:"systemPrompt"`
 	BedrockConfig       *schema.BedrockConfig  `json:"bedrockConfig"`
+}
+
+// SystemPromptContent represents the content of the system prompt without BedrockConfig
+type SystemPromptContent struct {
+	Content       string `json:"content"`
+	PromptId      string `json:"promptId,omitempty"`
+	PromptVersion string `json:"promptVersion,omitempty"`
 }
 
 // ToJSON converts the response to JSON
@@ -91,7 +98,11 @@ func ResponseFromWorkflowState(state *schema.WorkflowState) *Response {
 	resp := &Response{
 		State:              state,
 		VerificationContext: state.VerificationContext,
-		SystemPrompt:        state.SystemPrompt,
+		SystemPrompt:        &SystemPromptContent{
+			Content:       state.SystemPrompt.Content,
+			PromptId:      state.SystemPrompt.PromptId,
+			PromptVersion: state.SystemPrompt.PromptVersion,
+		},
 		BedrockConfig:       state.SystemPrompt.BedrockConfig,
 	}
 	

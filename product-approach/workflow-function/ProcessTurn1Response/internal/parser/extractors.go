@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 	
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // extractObservations extracts general observations using keywords from configuration

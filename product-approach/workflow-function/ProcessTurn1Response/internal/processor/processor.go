@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/shared/schema"
-	"product-approach/workflow-function/ProcessTurn1Response/internal/parser"  // Add this import
+	"workflow-function/shared/logger"
+	"workflow-function/shared/schema"
+	"workflow-function/ProcessTurn1Response/internal/parser"  // Add this import
 )
 
 // ProcessingResult represents the result of Turn 1 response processing

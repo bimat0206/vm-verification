@@ -15,16 +15,14 @@ COPY ./cmd ./cmd
 COPY ./internal ./internal
 COPY *.md ./
 
-# Create shared directory structure
+# Create shared directory structure and copy shared modules
 RUN mkdir -p shared/schema shared/s3utils shared/templateloader shared/logger
+COPY ./shared/schema ./shared/schema
+COPY ./shared/s3utils ./shared/s3utils  
+COPY ./shared/templateloader ./shared/templateloader
+COPY ./shared/logger ./shared/logger
 
-# Copy shared modules with proper structure
-COPY ../shared/schema shared/schema/
-COPY ../shared/s3utils shared/s3utils/
-COPY ../shared/templateloader shared/templateloader/
-COPY ../shared/logger shared/logger/
-
-# Update go.mod to use local shared modules
+# Update go.mod to use correct paths
 RUN go mod edit -replace=workflow-function/shared/schema=./shared/schema \
     && go mod edit -replace=workflow-function/shared/s3utils=./shared/s3utils \
     && go mod edit -replace=workflow-function/shared/templateloader=./shared/templateloader \

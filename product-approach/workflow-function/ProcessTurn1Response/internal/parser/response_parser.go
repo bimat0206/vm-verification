@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 	
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/shared/logger"
+	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
 // ResponseParser handles parsing of Bedrock responses

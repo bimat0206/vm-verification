@@ -127,10 +127,9 @@ type ConversationState struct {
 }
 
 // SystemPrompt contains the system prompt configuration
-// SystemPrompt contains the system prompt configuration
 type SystemPrompt struct {
-	SystemPrompt  string        `json:"systemPrompt"`
-	BedrockConfig *BedrockConfig `json:"bedrockConfig"`
+	Content       string        `json:"content"`
+	BedrockConfig *BedrockConfig `json:"-"` // Marked as ignored in JSON as it will be at top level
 	PromptId      string        `json:"promptId,omitempty"`
 	PromptVersion string        `json:"promptVersion,omitempty"`
 }
@@ -183,6 +182,7 @@ type WorkflowState struct {
 	VerificationContext *VerificationContext   `json:"verificationContext"`
 	Images              *ImageData             `json:"images,omitempty"`
 	SystemPrompt        *SystemPrompt          `json:"systemPrompt,omitempty"`
+	BedrockConfig       *BedrockConfig         `json:"bedrockConfig,omitempty"`
 	CurrentPrompt       *CurrentPrompt         `json:"currentPrompt,omitempty"`
 	ConversationState   *ConversationState     `json:"conversationState,omitempty"`
 	HistoricalContext   map[string]interface{} `json:"historicalContext,omitempty"`

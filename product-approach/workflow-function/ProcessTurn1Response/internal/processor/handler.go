@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"product-approach/workflow-function/shared/logger"
-	"product-approach/workflow-function/shared/schema"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/schema"
 )
 
 // Handler handles the ProcessTurn1Response Lambda function
