@@ -1,3 +1,3 @@
-module workflow-function/shared/schema
+module product-approach/workflow-function/shared/schema
 
-go 1.20
+go 1.24.0

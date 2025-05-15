@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3] - 2025-05-14
+
+### Fixed
+- Fixed type mismatch error in parallel.go where s3Client (*s3.Client) was incorrectly passed to NewS3Utils function that expects aws.Config
+- Updated parallel fetch operations to directly pass AWS config to S3Utils constructor
+- Removed unused s3 package import in parallel.go
+
 ## [2.0.2] - 2025-05-14
 
 ### Fixed

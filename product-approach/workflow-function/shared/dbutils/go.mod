@@ -1,13 +1,13 @@
-module workflow-function/shared/dbutils
+module product-approach/workflow-function/shared/dbutils
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.12
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.4
-	workflow-function/shared/logger v0.0.0
-	workflow-function/shared/schema v0.0.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
+	product-approach/workflow-function/shared/logger v0.0.0
+	product-approach/workflow-function/shared/schema v0.0.0
 )
 
 require (
@@ -19,5 +19,6 @@ require (
 	github.com/aws/smithy-go v1.22.2 // indirect
 )
 
-replace workflow-function/shared/logger => ../logger
-replace workflow-function/shared/schema => ../schema
+replace product-approach/workflow-function/shared/logger => ../logger
+
+replace product-approach/workflow-function/shared/schema => ../schema

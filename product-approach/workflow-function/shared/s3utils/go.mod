@@ -1,13 +1,12 @@
-module workflow-function/shared/s3utils
+module product-approach/workflow-function/shared/s3utils
 
-go 1.22
-
-toolchain go1.24.0
+go 1.24.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
-	workflow-function/shared/logger v0.0.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
+	product-approach/workflow-function/shared/logger v0.0.0
 )
 
 require (
@@ -20,7 +19,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 // indirect
 	github.com/aws/smithy-go v1.22.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
 )
 
-replace workflow-function/shared/logger => ../logger
+replace product-approach/workflow-function/shared/logger => ../logger

@@ -7,6 +7,7 @@ require (
 	workflow-function/shared/s3utils v0.0.0
 	workflow-function/shared/schema v0.0.0
 	workflow-function/shared/templateloader v0.0.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
 )
 
 require (

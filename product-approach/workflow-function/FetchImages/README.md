@@ -12,6 +12,15 @@ This AWS Lambda function is designed to fetch image metadata (not the image byte
 - **Configurable** via environment variables.
 - **Flexible input handling** supporting both direct Step Function invocations and Function URL requests.
 
+## Recent Updates
+
+### Version 2.0.3 (2025-05-14)
+- Fixed type mismatch error in parallel.go where s3Client (*s3.Client) was incorrectly passed to NewS3Utils function that expects aws.Config
+- Updated parallel fetch operations to directly pass AWS config to S3Utils constructor
+- Removed unused s3 package import in parallel.go
+
+See the [CHANGELOG.md](CHANGELOG.md) for a complete history of changes.
+
 ## Project Structure
 
 FetchImages/

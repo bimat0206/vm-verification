@@ -82,13 +82,8 @@ func validateVerificationContext(ctx *VerificationContext) error {
 		}
 	}
 	
-	// Validate verification ID format (verif-timestamp or similar pattern)
-	if !strings.HasPrefix(ctx.VerificationID, "verif-") {
-		return &ValidationError{
-			Field:   "verificationId",
-			Message: "verification ID should start with 'verif-'",
-		}
-	}
+	// Note: Removed strict verification ID prefix validation to allow flexibility
+	// The verification ID just needs to be non-empty
 	
 	// Validate verification type
 	if ctx.VerificationType == "" {

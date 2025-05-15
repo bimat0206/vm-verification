@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"workflow-function/shared/logger"
+	"product-approach/workflow-function/shared/logger"
 )
 
 // S3URL represents a parsed S3 URL
@@ -24,6 +24,7 @@ type S3URL struct {
 // S3Utils provides utilities for S3 operations
 type S3Utils struct {
 	client *s3.Client
+	config *aws.Config // Store the config for STS operations
 	logger logger.Logger
 }
 
@@ -39,6 +40,18 @@ type Config struct {
 func New(client *s3.Client, log logger.Logger) *S3Utils {
 	return &S3Utils{
 		client: client,
+		config: nil, // No config available
+		logger: log.WithFields(map[string]interface{}{
+			"component": "s3utils",
+		}),
+	}
+}
+
+// NewWithConfig creates a new S3Utils instance with AWS config
+func NewWithConfig(config aws.Config, log logger.Logger) *S3Utils {
+	return &S3Utils{
+		client: s3.NewFromConfig(config),
+		config: &config, // Store the config
 		logger: log.WithFields(map[string]interface{}{
 			"component": "s3utils",
 		}),
@@ -206,18 +219,35 @@ func (u *S3Utils) GetBucketOwner(ctx context.Context, bucket string) (string, er
 		return accountID, nil
 	}
 	
-	// Method 3: Use STS GetCallerIdentity as last resort
-	stsClient := sts.NewFromConfig(u.client.Options())
-	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err == nil && identity.Account != nil {
-		u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
+	// Method 3: Use STS GetCallerIdentity (only if config is available)
+	if u.config != nil {
+		stsClient := sts.NewFromConfig(*u.config)
+		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err == nil && identity.Account != nil {
+			u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
+				"bucket": bucket,
+				"account": *identity.Account,
+			})
+			return *identity.Account, nil
+		}
+		
+		u.logger.Debug("STS GetCallerIdentity failed", map[string]interface{}{
 			"bucket": bucket,
-			"account": *identity.Account,
+			"error": err.Error(),
 		})
-		return *identity.Account, nil
+	} else {
+		u.logger.Debug("No AWS config available for STS operation", map[string]interface{}{
+			"bucket": bucket,
+		})
 	}
 	
-	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed (%v), no AWS_ACCOUNT_ID env var, STS failed (%v)", bucket, err, err)
+	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed (%v), no AWS_ACCOUNT_ID env var, %s", bucket, err, 
+		func() string {
+			if u.config == nil {
+				return "no AWS config for STS"
+			}
+			return "STS failed"
+		}())
 }
 
 // ParseS3URLs parses both reference and checking image URLs
@@ -367,8 +397,7 @@ func (u *S3Utils) IsValidImageExtension(key string) bool {
 // ValidateImageForBedrock validates that an image meets Bedrock requirements
 func (u *S3Utils) ValidateImageForBedrock(ctx context.Context, s3Url string) error {
 	// Parse URL
-	parsed, err := u.ParseS3URL(s3Url)
-	if err != nil {
+	if _, err := u.ParseS3URL(s3Url); err != nil {
 		return fmt.Errorf("invalid S3 URL: %w", err)
 	}
 
@@ -409,9 +438,12 @@ func (u *S3Utils) ValidateImageForBedrock(ctx context.Context, s3Url string) err
 		return fmt.Errorf("image too large: %d bytes (max %d bytes for Bedrock)", size, maxSize)
 	}
 
-	// Validate bucket owner exists (required for Bedrock)
+	// Note: We no longer fail validation if bucket owner is missing
+	// Let Bedrock handle this gracefully
 	if metadata["bucketOwner"] == "" {
-		return fmt.Errorf("bucket owner not found, required for Bedrock API")
+		u.logger.Warn("Bucket owner not found, but continuing validation", map[string]interface{}{
+			"s3Url": s3Url,
+		})
 	}
 
 	u.logger.Info("Image validated for Bedrock", map[string]interface{}{

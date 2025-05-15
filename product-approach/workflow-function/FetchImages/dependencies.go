@@ -24,6 +24,7 @@ type Dependencies struct {
 	dbClient  *dynamodb.Client
 	s3Utils   *s3utils.S3Utils
 	dbUtils   *dbutils.DynamoDBUtils
+	awsConfig aws.Config // Store the AWS config for creating services
 }
 
 // NewDependencies creates a new Dependencies instance with all required dependencies
@@ -35,14 +36,15 @@ func NewDependencies(awsConfig aws.Config) *Dependencies {
 	// Create logger
 	log := logger.New("kootoro-verification", "FetchImagesFunction")
 	
-	// Create S3Utils instance
-	s3Util := s3utils.New(s3Client, log)
+	// Create S3Utils instance with config
+	s3Util := s3utils.NewWithConfig(awsConfig, log)
 	
 	return &Dependencies{
 		logger:    log,
 		s3Client:  s3Client,
 		dbClient:  dbClient,
 		s3Utils:   s3Util,
+		awsConfig: awsConfig, // Store the config
 	}
 }
 
@@ -81,6 +83,11 @@ func (d *Dependencies) GetS3Utils() *s3utils.S3Utils {
 // GetDbUtils returns the DynamoDB utilities
 func (d *Dependencies) GetDbUtils() *dbutils.DynamoDBUtils {
 	return d.dbUtils
+}
+
+// GetAWSConfig returns the AWS config
+func (d *Dependencies) GetAWSConfig() aws.Config {
+	return d.awsConfig
 }
 
 // LoadConfig loads configuration from environment variables

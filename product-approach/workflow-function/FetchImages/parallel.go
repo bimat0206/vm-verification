@@ -41,7 +41,8 @@ func ParallelFetch(
 	go func() {
 		defer wg.Done()
 		fetchStart := time.Now()
-		s3Wrapper := NewS3Utils(deps.GetS3Client(), deps.GetLogger())
+		// Use the config-aware constructor with correct parameters
+		s3Wrapper := NewS3Utils(deps.GetAWSConfig(), deps.GetLogger())
 		
 		// Validate image for Bedrock first
 		if err := s3Wrapper.ValidateImageForBedrock(ctx, referenceUrl); err != nil {
@@ -84,7 +85,8 @@ func ParallelFetch(
 	go func() {
 		defer wg.Done()
 		fetchStart := time.Now()
-		s3Wrapper := NewS3Utils(deps.GetS3Client(), deps.GetLogger())
+		// Use the config-aware constructor with correct parameters
+		s3Wrapper := NewS3Utils(deps.GetAWSConfig(), deps.GetLogger())
 		
 		// Validate image for Bedrock first
 		if err := s3Wrapper.ValidateImageForBedrock(ctx, checkingUrl); err != nil {

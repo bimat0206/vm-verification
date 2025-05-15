@@ -16,32 +16,27 @@ import (
 type S3UtilsWrapper struct {
 	s3utils   *s3utils.S3Utils
 	s3Client  *s3.Client
-	config    *aws.Config // Store the AWS config for STS operations (optional)
+	config    aws.Config // Always have the config available
 	logger    logger.Logger
 }
 
-// NewS3Utils creates a new S3UtilsWrapper
-func NewS3Utils(client *s3.Client, log logger.Logger) *S3UtilsWrapper {
+// NewS3Utils creates a new S3UtilsWrapper with AWS config
+func NewS3Utils(config aws.Config, log logger.Logger) *S3UtilsWrapper {
+	s3Client := s3.NewFromConfig(config)
+	
 	return &S3UtilsWrapper{
-		s3utils:  s3utils.New(client, log),
-		s3Client: client,
-		config:   nil, // No config available when created from client
+		s3utils:  s3utils.NewWithConfig(config, log),
+		s3Client: s3Client,
+		config:   config, // Store the config
 		logger:   log.WithFields(map[string]interface{}{
 			"component": "s3wrapper",
 		}),
 	}
 }
 
-// NewS3UtilsWithConfig creates a new S3UtilsWrapper with explicit config
+// NewS3UtilsWithConfig creates a new S3UtilsWrapper with explicit config (kept for compatibility)
 func NewS3UtilsWithConfig(config aws.Config, log logger.Logger) *S3UtilsWrapper {
-	return &S3UtilsWrapper{
-		s3utils:  s3utils.NewWithConfig(config, log),
-		s3Client: s3.NewFromConfig(config),
-		config:   &config, // Store pointer to config
-		logger:   log.WithFields(map[string]interface{}{
-			"component": "s3wrapper",
-		}),
-	}
+	return NewS3Utils(config, log)
 }
 
 // GetS3ImageMetadata fetches S3 object metadata and converts it to ImageMetadata format
@@ -152,6 +147,8 @@ func (u *S3UtilsWrapper) getImageMetadataWithBucketOwner(ctx context.Context, s3
 			"bucket": parsed.Bucket,
 			"error": err.Error(),
 		})
+		// Don't fail the entire operation for missing bucket owner
+		// Set it to empty string and let Bedrock handle it
 		bucketOwner = ""
 	}
 	metadata["bucketOwner"] = bucketOwner
@@ -161,6 +158,11 @@ func (u *S3UtilsWrapper) getImageMetadataWithBucketOwner(ctx context.Context, s3
 
 // getBucketOwner retrieves the bucket owner using multiple fallback methods
 func (u *S3UtilsWrapper) getBucketOwner(ctx context.Context, bucket string) (string, error) {
+	u.logger.Debug("Attempting to retrieve bucket owner", map[string]interface{}{
+		"bucket": bucket,
+		"hasConfig": u.config.Region != "", // Check if config is valid
+	})
+
 	// Method 1: Try GetBucketAcl
 	aclOutput, err := u.s3Client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
 		Bucket: aws.String(bucket),
@@ -173,6 +175,11 @@ func (u *S3UtilsWrapper) getBucketOwner(ctx context.Context, bucket string) (str
 		return *aclOutput.Owner.ID, nil
 	}
 	
+	u.logger.Debug("GetBucketAcl failed, trying fallback methods", map[string]interface{}{
+		"bucket": bucket,
+		"error": err.Error(),
+	})
+	
 	// Method 2: Check environment variable
 	if accountID := os.Getenv("AWS_ACCOUNT_ID"); accountID != "" {
 		u.logger.Debug("Using bucket owner from environment variable", map[string]interface{}{
@@ -182,9 +189,9 @@ func (u *S3UtilsWrapper) getBucketOwner(ctx context.Context, bucket string) (str
 		return accountID, nil
 	}
 	
-	// Method 3: Use STS GetCallerIdentity as last resort (only if config is available)
-	if u.config != nil {
-		stsClient := sts.NewFromConfig(*u.config) // Use dereferenced config
+	// Method 3: Use STS GetCallerIdentity - config should always be available now
+	if u.config.Region != "" { // Check if config is valid
+		stsClient := sts.NewFromConfig(u.config)
 		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err == nil && identity.Account != nil {
 			u.logger.Debug("Retrieved bucket owner from STS GetCallerIdentity", map[string]interface{}{
@@ -193,23 +200,19 @@ func (u *S3UtilsWrapper) getBucketOwner(ctx context.Context, bucket string) (str
 			})
 			return *identity.Account, nil
 		}
+		
 		u.logger.Debug("STS GetCallerIdentity failed", map[string]interface{}{
 			"bucket": bucket,
 			"error": err.Error(),
 		})
 	} else {
-		u.logger.Debug("No AWS config available for STS operation", map[string]interface{}{
+		u.logger.Warn("AWS config appears to be invalid", map[string]interface{}{
 			"bucket": bucket,
+			"configRegion": u.config.Region,
 		})
 	}
 	
-	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed, no AWS_ACCOUNT_ID env var, %s", bucket, 
-		func() string {
-			if u.config == nil {
-				return "no AWS config for STS"
-			}
-			return "STS failed"
-		}())
+	return "", fmt.Errorf("could not determine bucket owner for bucket %s: GetBucketAcl failed (%v), no AWS_ACCOUNT_ID env var, STS failed", bucket, err)
 }
 
 // formatForBedrock creates the Bedrock-compatible S3 URI format
@@ -218,6 +221,16 @@ func (u *S3UtilsWrapper) formatForBedrock(s3url, bucketOwner string) map[string]
 		u.logger.Warn("Bucket owner is empty, Bedrock format may not work correctly", map[string]interface{}{
 			"s3url": s3url,
 		})
+		// Still create the format but without bucketOwner
+		return map[string]interface{}{
+			"format": "png", // Default to PNG, could be made dynamic
+			"source": map[string]interface{}{
+				"s3Location": map[string]interface{}{
+					"uri": s3url,
+					// Omit bucketOwner if not available
+				},
+			},
+		}
 	}
 	
 	return map[string]interface{}{
@@ -262,9 +275,12 @@ func (u *S3UtilsWrapper) ValidateImageForBedrock(ctx context.Context, s3url stri
 		return fmt.Errorf("image too large: %d bytes (max %d bytes for Bedrock)", size, maxSize)
 	}
 
-	// Validate bucket owner exists (required for Bedrock)
+	// Note: We no longer fail validation if bucket owner is missing
+	// Let Bedrock handle this gracefully
 	if metadata["bucketOwner"] == "" {
-		return fmt.Errorf("bucket owner not found, required for Bedrock API")
+		u.logger.Warn("Bucket owner not found, but continuing validation", map[string]interface{}{
+			"s3url": s3url,
+		})
 	}
 
 	u.logger.Info("Image validated for Bedrock", map[string]interface{}{

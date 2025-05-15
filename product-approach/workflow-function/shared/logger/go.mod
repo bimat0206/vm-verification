@@ -1,3 +1,3 @@
-module workflow-function/shared/logger
+module product-approach/workflow-function/shared/logger
 
-go 1.21
+go 1.24.0
