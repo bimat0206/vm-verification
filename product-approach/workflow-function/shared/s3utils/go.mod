@@ -1,4 +1,4 @@
-module product-approach/workflow-function/shared/s3utils
+module workflow-function/shared/s3utils
 
 go 1.24.0
 
@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
-	product-approach/workflow-function/shared/logger v0.0.0
+	workflow-function/shared/logger v0.0.0
 )
 
 require (
@@ -21,4 +21,4 @@ require (
 	github.com/aws/smithy-go v1.22.2 // indirect
 )
 
-replace product-approach/workflow-function/shared/logger => ../logger
+replace workflow-function/shared/logger => ../logger

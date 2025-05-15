@@ -127,9 +127,12 @@ type ConversationState struct {
 }
 
 // SystemPrompt contains the system prompt configuration
+// SystemPrompt contains the system prompt configuration
 type SystemPrompt struct {
 	SystemPrompt  string        `json:"systemPrompt"`
 	BedrockConfig *BedrockConfig `json:"bedrockConfig"`
+	PromptId      string        `json:"promptId,omitempty"`
+	PromptVersion string        `json:"promptVersion,omitempty"`
 }
 
 // CurrentPrompt contains the user prompt for a specific turn

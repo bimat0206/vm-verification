@@ -1,19 +1,67 @@
 #!/bin/bash
 set -e  # Exit immediately if a command fails
 
-# Manually set the ECR repository URL if terraform output isn't working
-# Replace this with your actual ECR repository URL from the AWS console
+# Configuration
 ECR_REPO="879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-prepare-system-prompt-f6d3xl"
 FUNCTION_NAME="kootoro-dev-lambda-prepare-system-prompt-f6d3xl"
 AWS_REGION="us-east-1"
+IMAGE_TAG="latest"
 
-echo "Using ECR repository: $ECR_REPO"
+echo "=== Kootoro PrepareSystemPrompt Docker Build ==="
+echo "ECR Repository: $ECR_REPO"
+echo "AWS Region: $AWS_REGION"
+echo "=============================================="
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check required tools
+if ! command_exists docker; then
+    echo "Error: Docker is not installed or not in PATH"
+    exit 1
+fi
+
+if ! command_exists aws; then
+    echo "Error: AWS CLI is not installed or not in PATH"
+    exit 1
+fi
 
 # Log in to ECR
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REPO"
+echo "Logging into ECR..."
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$ECR_REPO"
 
-# Create Dockerfile.local
-cat > Dockerfile.local << 'EOF'
+# Create build context with shared modules
+echo "Preparing build context..."
+
+# Create temporary directory for build context
+BUILD_CONTEXT=$(mktemp -d)
+trap "rm -rf $BUILD_CONTEXT" EXIT
+
+# Copy function code
+cp -r ./cmd "$BUILD_CONTEXT/"
+cp -r ./internal "$BUILD_CONTEXT/"
+cp -r ./templates "$BUILD_CONTEXT/"
+cp go.mod go.sum "$BUILD_CONTEXT/"
+cp *.md "$BUILD_CONTEXT/" 2>/dev/null || true
+
+# Create shared modules directory in build context
+mkdir -p "$BUILD_CONTEXT/shared"
+
+# Copy shared modules
+echo "Copying shared modules..."
+for module in schema s3utils templateloader logger; do
+    if [ -d "../shared/$module" ]; then
+        cp -r "../shared/$module" "$BUILD_CONTEXT/shared/"
+        echo "  ✓ Copied shared/$module"
+    else
+        echo "  ✗ Warning: shared/$module not found"
+    fi
+done
+
+# Create Dockerfile for build
+cat > "$BUILD_CONTEXT/Dockerfile" << 'EOF'
 # syntax=docker/dockerfile:1.4
 FROM golang:1.24-alpine AS build
 
@@ -23,38 +71,37 @@ ENV GO111MODULE=on
 # Install required tools
 RUN apk add --no-cache git
 
-# Create directories for shared modules
-COPY ./cmd ./cmd
-COPY ./internal ./internal
-COPY ./templates ./templates
-COPY ./events ./events
-COPY *.md ./
+# Copy go module files first for better caching
 COPY go.mod go.sum ./
 
-# Create vendor directory
-RUN go mod edit -replace=workflow-function/shared/schema=/app/shared/schema \
-    && go mod edit -replace=workflow-function/shared/s3utils=/app/shared/s3utils \
-    && go mod edit -replace=workflow-function/shared/templateloader=/app/shared/templateloader \
-    && go mod edit -replace=workflow-function/shared/logger=/app/shared/logger
+# Copy source code
+COPY ./cmd ./cmd
+COPY ./internal ./internal
+COPY *.md ./
 
 # Copy shared modules
-COPY ./shared/schema /app/shared/schema
-COPY ./shared/s3utils /app/shared/s3utils
-COPY ./shared/templateloader /app/shared/templateloader
-COPY ./shared/logger /app/shared/logger
+COPY ./shared ./shared
 
-# Build the application
+# Update go.mod to use local shared modules
+RUN go mod edit -replace=workflow-function/shared/schema=./shared/schema \
+    && go mod edit -replace=workflow-function/shared/s3utils=./shared/s3utils \
+    && go mod edit -replace=workflow-function/shared/templateloader=./shared/templateloader \
+    && go mod edit -replace=workflow-function/shared/logger=./shared/logger
+
+# Download dependencies and build
 RUN go mod download && go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /main cmd/main.go
 
+# Final stage
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
 WORKDIR /
 
+# Copy the binary
 COPY --from=build /main /main
 
+# Create templates directory and copy templates
 RUN mkdir -p /opt/templates
-
 COPY templates/ /opt/templates/
 
 # Set component name for logging
@@ -63,32 +110,31 @@ ENV COMPONENT_NAME="PrepareSystemPrompt"
 ENTRYPOINT ["/main"]
 EOF
 
-# Create a temporary directory for the build
-mkdir -p ./shared
-echo "Copying shared modules..."
-
-# Copy shared modules 
-cp -r ../shared/logger ./shared/
-cp -r ../shared/s3utils ./shared/
-cp -r ../shared/schema ./shared/
-cp -r ../shared/templateloader ./shared/
-
-# Build the image using the local Dockerfile
-docker build -f Dockerfile.local -t "$ECR_REPO:latest" .
+# Build the Docker image
+echo "Building Docker image..."
+docker build -t "$ECR_REPO:$IMAGE_TAG" "$BUILD_CONTEXT"
 
 # Push the image
-docker push "$ECR_REPO:latest"
+echo "Pushing image to ECR..."
+docker push "$ECR_REPO:$IMAGE_TAG"
 
-# Deploy to AWS Lambda (requires AWS CLI and proper IAM permissions) - commented out as per instructions
-echo "Deploying to AWS Lambda..."
+# Update Lambda function
+echo "Updating Lambda function..."
 aws lambda update-function-code \
- 		--function-name "$FUNCTION_NAME" \
- 		--image-uri "$ECR_REPO:latest" \
- 		--region "$AWS_REGION" > /dev/null 2>&1
+    --function-name "$FUNCTION_NAME" \
+    --image-uri "$ECR_REPO:$IMAGE_TAG" \
+    --region "$AWS_REGION" \
+    --no-cli-pager
 
-# Clean up
-echo "Cleaning up temporary files"
-rm -rf ./shared
-rm -f Dockerfile.local
+# Verify the update
+echo "Verifying Lambda function update..."
+aws lambda get-function \
+    --function-name "$FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --query 'Code.ImageUri' \
+    --output text   > /dev/null 2>&1
 
-echo "Docker image built and pushed successfully to $ECR_REPO:latest"
+echo "=== Build and Deployment Complete ==="
+echo "Image: $ECR_REPO:$IMAGE_TAG"
+echo "Function: $FUNCTION_NAME"
+echo "========================================="

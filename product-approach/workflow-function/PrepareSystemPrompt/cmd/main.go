@@ -67,7 +67,7 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 		return nil, fmt.Errorf("context preparation failed: %w", err)
 	}
 	
-	// Generate system prompt
+	// Generate system prompt (this returns a string)
 	systemPrompt, err := internal.ProcessTemplate(tmpl, templateData)
 	if err != nil {
 		log.Printf("Error processing template: %v", err)
@@ -80,10 +80,16 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 	// Update verification context status
 	input.VerificationContext.Status = schema.StatusPromptPrepared
 	
-	// Create shared schema SystemPrompt
+	// Generate prompt ID and get version
+	promptId := generatePromptId(input.VerificationContext.VerificationId)
+	promptVersion := internal.GetLatestVersion(verificationType)
+	
+	// Create system prompt object with the new fields
 	sysPrompt := &schema.SystemPrompt{
-		SystemPrompt: systemPrompt,
+		SystemPrompt:  systemPrompt,  // The actual prompt string
 		BedrockConfig: bedrockConfig,
+		PromptId:      promptId,
+		PromptVersion: promptVersion,
 	}
 	
 	// Update workflow state
@@ -92,11 +98,10 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 		input.State.VerificationContext.Status = schema.StatusPromptPrepared
 	}
 	
-	// Create response
+	// Create response without duplicate BedrockConfig
 	response := internal.Response{
 		VerificationContext: input.VerificationContext,
-		SystemPrompt: sysPrompt,
-		BedrockConfig: bedrockConfig,
+		SystemPrompt:        sysPrompt,
 	}
 	
 	// Include appropriate metadata based on verification type
@@ -114,6 +119,12 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (json.RawMessage,
 	
 	log.Printf("Completed in %v", time.Since(start))
 	return respJson, nil
+}
+
+// Helper function to generate prompt ID
+func generatePromptId(verificationId string) string {
+	timestamp := time.Now().UTC().Format("20060102-150405")
+	return fmt.Sprintf("prompt-%s-%s", verificationId, timestamp)
 }
 
 func main() {
