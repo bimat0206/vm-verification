@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -12,9 +13,9 @@ import (
 
 // ConfigVars contains configuration for the lambda function
 type ConfigVars struct {
-	LayoutTable        string
-	VerificationTable  string
-	MaxImageSize       int64
+	LayoutTable       string
+	VerificationTable string
+	MaxImageSize      int64  // Maximum image size in bytes
 }
 
 // Dependencies contains all external dependencies required by the service
@@ -24,7 +25,7 @@ type Dependencies struct {
 	dbClient  *dynamodb.Client
 	s3Utils   *s3utils.S3Utils
 	dbUtils   *dbutils.DynamoDBUtils
-	awsConfig aws.Config // Store the AWS config for creating services
+	awsConfig aws.Config
 }
 
 // NewDependencies creates a new Dependencies instance with all required dependencies
@@ -44,7 +45,7 @@ func NewDependencies(awsConfig aws.Config) *Dependencies {
 		s3Client:  s3Client,
 		dbClient:  dbClient,
 		s3Utils:   s3Util,
-		awsConfig: awsConfig, // Store the config
+		awsConfig: awsConfig,
 	}
 }
 
@@ -58,6 +59,11 @@ func (d *Dependencies) ConfigureDbUtils(config ConfigVars) {
 	}
 	
 	d.dbUtils = dbutils.New(d.dbClient, d.logger, dbConfig)
+}
+
+// NewS3WrapperWithSize creates a new S3UtilsWrapper with the configured max image size
+func (d *Dependencies) NewS3WrapperWithSize(maxImageSize int64) *S3UtilsWrapper {
+	return NewS3Utils(d.awsConfig, d.logger, maxImageSize)
 }
 
 // GetLogger returns the logger
@@ -92,10 +98,26 @@ func (d *Dependencies) GetAWSConfig() aws.Config {
 
 // LoadConfig loads configuration from environment variables
 func LoadConfig() ConfigVars {
+	// Parse max image size with default of 100MB
+	maxImageSizeStr := getEnvWithDefault("MAX_IMAGE_SIZE", "104857600")
+	maxImageSize, err := strconv.ParseInt(maxImageSizeStr, 10, 64)
+	if err != nil {
+		// Log error and use default
+		maxImageSize = 104857600 // 100MB default
+	}
+	
+	// Ensure reasonable limits (minimum 1MB, maximum 1GB)
+	if maxImageSize < 1048576 { // 1MB
+		maxImageSize = 1048576
+	}
+	if maxImageSize > 1073741824 { // 1GB
+		maxImageSize = 1073741824
+	}
+	
 	return ConfigVars{
 		LayoutTable:       getEnvWithDefault("DYNAMODB_LAYOUT_TABLE", "LayoutMetadata"),
 		VerificationTable: getEnvWithDefault("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
-		MaxImageSize:      10 * 1024 * 1024, // 10MB default
+		MaxImageSize:      maxImageSize,
 	}
 }
 

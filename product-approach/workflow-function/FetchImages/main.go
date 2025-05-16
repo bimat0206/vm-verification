@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	//"os"
-	//"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -21,8 +19,10 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 		return FetchImagesResponse{}, fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
 
-	// Configure dependencies with environment variables
+	// Load configuration early for image processing
 	cfg := LoadConfig()
+	
+	// Configure dependencies with environment variables
 	deps.ConfigureDbUtils(cfg)
 
 	logger := deps.GetLogger()
@@ -31,11 +31,14 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	var req FetchImagesRequest
 	var parseErr error
 
+// Replace the section around line 35 with:
+
 	// Log the incoming event for debugging
 	eventBytes, _ := json.Marshal(event)
-	logger.Info("Received event", map[string]interface{}{
-		"eventType": fmt.Sprintf("%T", event),
-		"body":      string(eventBytes),
+	logger.Info("Received event for Base64 image processing", map[string]interface{}{
+		"eventType":    fmt.Sprintf("%T", event),
+		"maxImageSize": cfg.MaxImageSize,
+		"eventBody":    string(eventBytes), // Use the eventBytes variable
 	})
 
 	// Handle different invocation types
@@ -99,8 +102,7 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	// Update status in verification context
 	verificationContext.Status = schema.StatusImagesFetched
 
-	// Fetch all data in parallel (metadata, DynamoDB context)
-	// Only pass previousVerificationId if verification type is PREVIOUS_VS_CURRENT
+	// Determine previousVerificationId for PREVIOUS_VS_CURRENT verification type
 	var prevVerificationId string
 	if verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		// Make sure previousVerificationId exists for PREVIOUS_VS_CURRENT
@@ -112,11 +114,19 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 		}
 		prevVerificationId = verificationContext.PreviousVerificationId
 	}
-	// For LAYOUT_VS_CHECKING, prevVerificationId remains empty string, so the historical context fetch will be skipped
+	// For LAYOUT_VS_CHECKING, prevVerificationId remains empty
 
+	logger.Info("Starting parallel fetch with Base64 encoding", map[string]interface{}{
+		"verificationId":   verificationContext.VerificationId,
+		"verificationType": verificationContext.VerificationType,
+		"maxImageSize":     cfg.MaxImageSize,
+	})
+
+	// Fetch all data in parallel (images with Base64 encoding, DynamoDB context)
 	results := ParallelFetch(
 		ctx,
 		deps,
+		cfg, // Pass configuration for image size limits
 		verificationContext.ReferenceImageUrl,
 		verificationContext.CheckingImageUrl,
 		verificationContext.LayoutId,
@@ -135,7 +145,15 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 		return FetchImagesResponse{}, NewNotFoundError("Failed to fetch required resources", results.Errors[0])
 	}
 
-	// Construct response with complete verification context
+	// Validate that we have Base64 data for both images
+	if !results.ReferenceMeta.HasBase64Data() {
+		return FetchImagesResponse{}, fmt.Errorf("reference image missing Base64 data")
+	}
+	if !results.CheckingMeta.HasBase64Data() {
+		return FetchImagesResponse{}, fmt.Errorf("checking image missing Base64 data")
+	}
+
+	// Construct response with complete verification context and Base64 images
 	resp := FetchImagesResponse{
 		VerificationContext: verificationContext,
 		Images: ImagesData{
@@ -150,22 +168,28 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	if resp.HistoricalContext == nil {
 		// Create an empty historical context to ensure field exists in JSON
 		resp.HistoricalContext = map[string]interface{}{
-			"previousVerificationId": "",
-			"previousVerificationAt": "",
-			"previousVerificationStatus": "",
-			"hoursSinceLastVerification": 0,
+			"previousVerificationId":      "",
+			"previousVerificationAt":      "",
+			"previousVerificationStatus":  "",
+			"hoursSinceLastVerification":  0,
 		}
 	}
 
-	// Optionally update status in DynamoDB
+	// Optionally update status in DynamoDB (commented out as per original)
 	// dbWrapper := NewDBUtils(deps.GetDbUtils())
 	// dbWrapper.UpdateVerificationStatus(ctx, verificationContext.VerificationId, string(schema.StatusImagesFetched))
 
-	logger.Info("Successfully processed images", map[string]interface{}{
-		"verificationId":     verificationContext.VerificationId,
-		"verificationType":   verificationContext.VerificationType,
-		"referenceImageSize": results.ReferenceMeta.Size,
-		"checkingImageSize":  results.CheckingMeta.Size,
+	logger.Info("Successfully processed images with Base64 encoding", map[string]interface{}{
+		"verificationId":       verificationContext.VerificationId,
+		"verificationType":     verificationContext.VerificationType,
+		"referenceImageSize":   results.ReferenceMeta.Size,
+		"checkingImageSize":    results.CheckingMeta.Size,
+		"referenceBase64Size":  len(results.ReferenceMeta.Base64Data),
+		"checkingBase64Size":   len(results.CheckingMeta.Base64Data),
+		"referenceFormat":      results.ReferenceMeta.ImageFormat,
+		"checkingFormat":       results.CheckingMeta.ImageFormat,
+		"layoutMetadataFound":  len(results.LayoutMeta) > 0,
+		"historicalDataFound":  len(results.HistoricalContext) > 0,
 	})
 
 	return resp, nil
@@ -175,13 +199,10 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 func initDependencies(ctx context.Context) (*Dependencies, error) {
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 	return NewDependencies(awsCfg), nil
 }
-
-// helper function to get environment variables with default values
-// getEnvWithDefault moved to dependencies.go
 
 func main() {
 	lambda.Start(Handler)
