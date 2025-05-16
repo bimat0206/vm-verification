@@ -82,3 +82,75 @@ func CreateConverseRequest(
 
 	return request
 }
+
+// CreateImageContentBlock creates an image content block for use in a Converse request
+// Either bytes or s3Location should be provided, but not both
+func CreateImageContentBlock(format string, bytes string, s3URI string, bucketOwner string) ContentBlock {
+	// Create image block
+	imageBlock := &ImageBlock{
+		Format: format,
+		Source: ImageSource{},
+	}
+
+	// Set source based on inputs
+	if bytes != "" {
+		imageBlock.Source.Type = "bytes"
+		imageBlock.Source.Bytes = bytes
+	} else if s3URI != "" {
+		imageBlock.Source.Type = "s3Location"
+		imageBlock.Source.S3Location = S3Location{
+			URI:         s3URI,
+			BucketOwner: bucketOwner,
+		}
+	}
+
+	return ContentBlock{
+		Type:  "image",
+		Image: imageBlock,
+	}
+}
+
+// CreateImageContentFromBytes creates an image content block directly from base64 encoded data
+func CreateImageContentFromBytes(format string, base64Data string) ContentBlock {
+	return CreateImageContentBlock(format, base64Data, "", "")
+}
+
+// CreateImageContentFromS3 creates an image content block from an S3 URI
+func CreateImageContentFromS3(format string, s3URI string, bucketOwner string) ContentBlock {
+	return CreateImageContentBlock(format, "", s3URI, bucketOwner)
+}
+
+// CreateUserMessageWithContent creates a user message with mixed content (text and/or images)
+func CreateUserMessageWithContent(text string, images []ContentBlock) MessageWrapper {
+	// Start with text content if provided
+	var content []ContentBlock
+	if text != "" {
+		content = append(content, ContentBlock{
+			Type: "text",
+			Text: text,
+		})
+	}
+	
+	// Add images if provided
+	if len(images) > 0 {
+		content = append(content, images...)
+	}
+	
+	return MessageWrapper{
+		Role:    "user",
+		Content: content,
+	}
+}
+
+// CreateAssistantMessageWithText creates an assistant message with text content
+func CreateAssistantMessageWithText(text string) MessageWrapper {
+	return MessageWrapper{
+		Role: "assistant",
+		Content: []ContentBlock{
+			{
+				Type: "text",
+				Text: text,
+			},
+		},
+	}
+}

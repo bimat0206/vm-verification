@@ -115,9 +115,38 @@ func ValidateImageBlock(img *ImageBlock) error {
 
 // ValidateImageSource validates an image source
 func ValidateImageSource(source ImageSource) error {
-	// Validate S3 location
-	if err := ValidateS3Location(source.S3Location); err != nil {
-		return err
+	// Check the type of source
+	switch source.Type {
+	case "s3Location":
+		// For S3 location type, validate URI but make BucketOwner optional
+		if source.S3Location.URI == "" {
+			return fmt.Errorf("S3 URI cannot be empty for s3Location type")
+		}
+		if err := ValidateS3URI(source.S3Location.URI); err != nil {
+			return err
+		}
+		// BucketOwner is optional, no validation needed
+	case "bytes":
+		// For bytes type, validate the base64 data
+		if source.Bytes == "" {
+			return fmt.Errorf("base64 data cannot be empty for bytes type")
+		}
+		// Additional base64 validation could be added here if needed
+	case "":
+		// If type is not specified, check if we can infer it
+		if source.Bytes != "" {
+			// Infer bytes type
+		} else if source.S3Location.URI != "" {
+			// Infer S3 location type, validate URI only
+			if err := ValidateS3URI(source.S3Location.URI); err != nil {
+				return err
+			}
+			// BucketOwner is optional, no validation needed
+		} else {
+			return fmt.Errorf("image source must have either bytes or S3 location")
+		}
+	default:
+		return fmt.Errorf("unsupported image source type: %s", source.Type)
 	}
 
 	return nil
@@ -133,9 +162,7 @@ func ValidateS3Location(loc S3Location) error {
 		return err
 	}
 
-	if loc.BucketOwner == "" {
-		return fmt.Errorf("bucket owner cannot be empty")
-	}
+	// BucketOwner is now optional, no validation needed
 
 	return nil
 }

@@ -77,20 +77,34 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 						return nil, 0, fmt.Errorf("unsupported image format: %s (only jpeg and png are supported)", content.Image.Format)
 					}
 					
-					contentBlocks[j] = &types.ContentBlockMemberImage{
-						Value: types.ImageBlock{
-							Format: types.ImageFormat(content.Image.Format),
-							Source: &types.ImageSourceMemberS3Location{
-								Value: types.S3Location{
-									Uri:         aws.String(content.Image.Source.S3Location.URI),
-									BucketOwner: aws.String(content.Image.Source.S3Location.BucketOwner),
-								},
-							},
-						},
+					// Create the image block with the appropriate source type
+					imageBlock := types.ImageBlock{
+						Format: types.ImageFormat(content.Image.Format),
 					}
 					
-					// Log the structure for debugging
-					log.Printf("Added image content block for format: %s, URI: %s", content.Image.Format, content.Image.Source.S3Location.URI)
+					// Determine the source type based on what's provided
+					if content.Image.Source.Bytes != "" {
+						// Use bytes source
+						imageBlock.Source = &types.ImageSourceMemberBytes{
+							Value: []byte(content.Image.Source.Bytes),
+						}
+						log.Printf("Added image content block for format: %s, with bytes source", content.Image.Format)
+					} else if content.Image.Source.S3Location.URI != "" {
+						// Use S3 location
+						imageBlock.Source = &types.ImageSourceMemberS3Location{
+							Value: types.S3Location{
+								Uri:         aws.String(content.Image.Source.S3Location.URI),
+								BucketOwner: aws.String(content.Image.Source.S3Location.BucketOwner),
+							},
+						}
+						log.Printf("Added image content block for format: %s, URI: %s", content.Image.Format, content.Image.Source.S3Location.URI)
+					} else {
+						return nil, 0, fmt.Errorf("image source must be either bytes or S3Location")
+					}
+					
+					contentBlocks[j] = &types.ContentBlockMemberImage{
+						Value: imageBlock,
+					}
 				}
 			default:
 				return nil, 0, fmt.Errorf("unsupported content type: %s", content.Type)

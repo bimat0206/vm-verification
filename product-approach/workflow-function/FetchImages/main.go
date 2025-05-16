@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
+	"workflow-function/shared/logger"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"workflow-function/shared/schema"
 )
 
-// Handler is the Lambda handler function
+// Handler is the Lambda handler function with hybrid Base64 storage support
 func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error) {
 	// Initialize dependencies
 	deps, err := initDependencies(ctx)
@@ -19,26 +19,37 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 		return FetchImagesResponse{}, fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
 
-	// Load configuration early for image processing
-	cfg := LoadConfig()
+	// Load configuration early for hybrid storage
+	cfg := deps.GetConfig()
 	
 	// Configure dependencies with environment variables
 	deps.ConfigureDbUtils(cfg)
 
 	logger := deps.GetLogger()
 
+	// Validate storage configuration for hybrid Base64 storage
+	if err := cfg.ValidateConfig(); err != nil {
+		logger.Warn("Storage configuration validation issues", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	// Log storage configuration for debugging
+	logger.Info("Hybrid storage configuration", cfg.GetStorageConfig())
+
 	// Parse input based on event type
 	var req FetchImagesRequest
 	var parseErr error
 
-// Replace the section around line 35 with:
-
-	// Log the incoming event for debugging
+	// Log the incoming event for debugging with storage info
 	eventBytes, _ := json.Marshal(event)
-	logger.Info("Received event for Base64 image processing", map[string]interface{}{
-		"eventType":    fmt.Sprintf("%T", event),
-		"maxImageSize": cfg.MaxImageSize,
-		"eventBody":    string(eventBytes), // Use the eventBytes variable
+	logger.Info("Received event for hybrid Base64 image processing", map[string]interface{}{
+		"eventType":            fmt.Sprintf("%T", event),
+		"maxImageSize":         cfg.MaxImageSize,
+		"maxInlineBase64Size":  cfg.MaxInlineBase64Size,
+		"tempBase64Bucket":     cfg.TempBase64Bucket,
+		"storageConfig":        cfg.GetStorageConfig(),
+		"eventBody":            string(eventBytes),
 	})
 
 	// Handle different invocation types
@@ -116,17 +127,20 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	}
 	// For LAYOUT_VS_CHECKING, prevVerificationId remains empty
 
-	logger.Info("Starting parallel fetch with Base64 encoding", map[string]interface{}{
-		"verificationId":   verificationContext.VerificationId,
-		"verificationType": verificationContext.VerificationType,
-		"maxImageSize":     cfg.MaxImageSize,
+	logger.Info("Starting parallel fetch with hybrid Base64 encoding", map[string]interface{}{
+		"verificationId":       verificationContext.VerificationId,
+		"verificationType":     verificationContext.VerificationType,
+		"maxImageSize":         cfg.MaxImageSize,
+		"maxInlineBase64Size":  cfg.MaxInlineBase64Size,
+		"tempBase64Bucket":     cfg.TempBase64Bucket,
+		"hybridStorageEnabled": cfg.TempBase64Bucket != "",
 	})
 
-	// Fetch all data in parallel (images with Base64 encoding, DynamoDB context)
+	// Fetch all data in parallel with hybrid Base64 encoding
 	results := ParallelFetch(
 		ctx,
 		deps,
-		cfg, // Pass configuration for image size limits
+		cfg, // Pass configuration for hybrid storage
 		verificationContext.ReferenceImageUrl,
 		verificationContext.CheckingImageUrl,
 		verificationContext.LayoutId,
@@ -137,23 +151,24 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	// Check for errors from parallel processing
 	if len(results.Errors) > 0 {
 		// Log all errors but return the first one
-		for _, fetchErr := range results.Errors {
+		for i, fetchErr := range results.Errors {
 			logger.Error("Error during parallel fetch", map[string]interface{}{
-				"error": fetchErr.Error(),
+				"errorIndex": i,
+				"error":      fetchErr.Error(),
 			})
 		}
 		return FetchImagesResponse{}, NewNotFoundError("Failed to fetch required resources", results.Errors[0])
 	}
 
-	// Validate that we have Base64 data for both images
-	if !results.ReferenceMeta.HasBase64Data() {
-		return FetchImagesResponse{}, fmt.Errorf("reference image missing Base64 data")
-	}
-	if !results.CheckingMeta.HasBase64Data() {
-		return FetchImagesResponse{}, fmt.Errorf("checking image missing Base64 data")
+	// Validate hybrid storage integrity for both images
+	if validationErr := validateHybridStorageResults(results, logger); validationErr != nil {
+		return FetchImagesResponse{}, validationErr
 	}
 
-	// Construct response with complete verification context and Base64 images
+	// Log storage method summary
+	logStorageMethodSummary(results, logger)
+
+	// Construct response with complete verification context and hybrid Base64 storage
 	resp := FetchImagesResponse{
 		VerificationContext: verificationContext,
 		Images: ImagesData{
@@ -179,20 +194,185 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	// dbWrapper := NewDBUtils(deps.GetDbUtils())
 	// dbWrapper.UpdateVerificationStatus(ctx, verificationContext.VerificationId, string(schema.StatusImagesFetched))
 
-	logger.Info("Successfully processed images with Base64 encoding", map[string]interface{}{
-		"verificationId":       verificationContext.VerificationId,
-		"verificationType":     verificationContext.VerificationType,
-		"referenceImageSize":   results.ReferenceMeta.Size,
-		"checkingImageSize":    results.CheckingMeta.Size,
-		"referenceBase64Size":  len(results.ReferenceMeta.Base64Data),
-		"checkingBase64Size":   len(results.CheckingMeta.Base64Data),
-		"referenceFormat":      results.ReferenceMeta.ImageFormat,
-		"checkingFormat":       results.CheckingMeta.ImageFormat,
-		"layoutMetadataFound":  len(results.LayoutMeta) > 0,
-		"historicalDataFound":  len(results.HistoricalContext) > 0,
+	// Log successful completion with hybrid storage details
+	logger.Info("Successfully processed images with hybrid Base64 encoding", map[string]interface{}{
+		"verificationId":            verificationContext.VerificationId,
+		"verificationType":          verificationContext.VerificationType,
+		"referenceImageSize":        results.ReferenceMeta.Size,
+		"checkingImageSize":         results.CheckingMeta.Size,
+		"referenceStorageMethod":    results.ReferenceMeta.StorageMethod,
+		"checkingStorageMethod":     results.CheckingMeta.StorageMethod,
+		"referenceFormat":           results.ReferenceMeta.ImageFormat,
+		"checkingFormat":            results.CheckingMeta.ImageFormat,
+		"referenceBase64Available":  results.ReferenceMeta.HasBase64Data(),
+		"checkingBase64Available":   results.CheckingMeta.HasBase64Data(),
+		"layoutMetadataFound":       len(results.LayoutMeta) > 0,
+		"historicalDataFound":       len(results.HistoricalContext) > 0,
+		"referenceStorageInfo":      results.ReferenceMeta.GetStorageInfo(),
+		"checkingStorageInfo":       results.CheckingMeta.GetStorageInfo(),
+		"hybridStorageUsed":         isHybridStorageUsed(results),
+		"bothImagesInline":          areBothImagesInline(results),
+		"anyImageInS3Temp":          isAnyImageInS3Temp(results),
 	})
 
 	return resp, nil
+}
+
+// validateHybridStorageResults validates that both images have proper Base64 data with hybrid storage
+func validateHybridStorageResults(results ParallelFetchResults, logger logger.Logger) error {
+	// Validate reference image Base64 availability
+	if !results.ReferenceMeta.HasBase64Data() {
+		err := fmt.Errorf("reference image missing Base64 data (storage method: %s)", 
+			results.ReferenceMeta.StorageMethod)
+		logger.Error("Reference image Base64 validation failed", map[string]interface{}{
+			"storageMethod":  results.ReferenceMeta.StorageMethod,
+			"hasInlineData":  results.ReferenceMeta.HasInlineData(),
+			"hasS3Storage":   results.ReferenceMeta.HasS3Storage(),
+			"storageInfo":    results.ReferenceMeta.GetStorageInfo(),
+		})
+		return err
+	}
+
+	// Validate checking image Base64 availability
+	if !results.CheckingMeta.HasBase64Data() {
+		err := fmt.Errorf("checking image missing Base64 data (storage method: %s)", 
+			results.CheckingMeta.StorageMethod)
+		logger.Error("Checking image Base64 validation failed", map[string]interface{}{
+			"storageMethod":  results.CheckingMeta.StorageMethod,
+			"hasInlineData":  results.CheckingMeta.HasInlineData(),
+			"hasS3Storage":   results.CheckingMeta.HasS3Storage(),
+			"storageInfo":    results.CheckingMeta.GetStorageInfo(),
+		})
+		return err
+	}
+
+	// Validate storage method consistency
+	if err := results.ReferenceMeta.ValidateStorageMethod(); err != nil {
+		logger.Error("Reference image storage method validation failed", map[string]interface{}{
+			"error": err.Error(),
+			"storageMethod": results.ReferenceMeta.StorageMethod,
+		})
+		return fmt.Errorf("reference image storage validation failed: %w", err)
+	}
+
+	if err := results.CheckingMeta.ValidateStorageMethod(); err != nil {
+		logger.Error("Checking image storage method validation failed", map[string]interface{}{
+			"error": err.Error(),
+			"storageMethod": results.CheckingMeta.StorageMethod,
+		})
+		return fmt.Errorf("checking image storage validation failed: %w", err)
+	}
+
+	logger.Info("Hybrid storage validation passed", map[string]interface{}{
+		"referenceStorageMethod": results.ReferenceMeta.StorageMethod,
+		"checkingStorageMethod":  results.CheckingMeta.StorageMethod,
+		"bothImagesHaveBase64":   true,
+	})
+
+	return nil
+}
+
+// logStorageMethodSummary logs a summary of storage methods used
+func logStorageMethodSummary(results ParallelFetchResults, logger logger.Logger) {
+	summary := map[string]interface{}{
+		"totalImages": 2,
+		"storageMethodDistribution": map[string]int{
+			StorageMethodInline:      0,
+			StorageMethodS3Temporary: 0,
+		},
+		"images": []map[string]interface{}{
+			{
+				"type":          "reference",
+				"storageMethod": results.ReferenceMeta.StorageMethod,
+				"size":          results.ReferenceMeta.Size,
+				"format":        results.ReferenceMeta.ImageFormat,
+			},
+			{
+				"type":          "checking",
+				"storageMethod": results.CheckingMeta.StorageMethod,
+				"size":          results.CheckingMeta.Size,
+				"format":        results.CheckingMeta.ImageFormat,
+			},
+		},
+	}
+
+	// Count storage methods
+	if results.ReferenceMeta.StorageMethod == StorageMethodInline {
+		summary["storageMethodDistribution"].(map[string]int)[StorageMethodInline]++
+	} else if results.ReferenceMeta.StorageMethod == StorageMethodS3Temporary {
+		summary["storageMethodDistribution"].(map[string]int)[StorageMethodS3Temporary]++
+	}
+
+	if results.CheckingMeta.StorageMethod == StorageMethodInline {
+		summary["storageMethodDistribution"].(map[string]int)[StorageMethodInline]++
+	} else if results.CheckingMeta.StorageMethod == StorageMethodS3Temporary {
+		summary["storageMethodDistribution"].(map[string]int)[StorageMethodS3Temporary]++
+	}
+
+	// Add efficiency metrics
+	summary["hybridStorageEfficiency"] = map[string]interface{}{
+		"hybridStorageUsed":     isHybridStorageUsed(results),
+		"bothImagesInline":      areBothImagesInline(results),
+		"anyImageInS3Temp":      isAnyImageInS3Temp(results),
+		"s3TemporaryPercentage": float64(summary["storageMethodDistribution"].(map[string]int)[StorageMethodS3Temporary]) / 2.0 * 100,
+	}
+
+	logger.Info("Storage method summary", summary)
+}
+
+// isHybridStorageUsed checks if different storage methods were used for the images
+func isHybridStorageUsed(results ParallelFetchResults) bool {
+	return results.ReferenceMeta.StorageMethod != results.CheckingMeta.StorageMethod
+}
+
+// areBothImagesInline checks if both images are stored inline
+func areBothImagesInline(results ParallelFetchResults) bool {
+	return results.ReferenceMeta.StorageMethod == StorageMethodInline &&
+		   results.CheckingMeta.StorageMethod == StorageMethodInline
+}
+
+// isAnyImageInS3Temp checks if any image is stored in S3 temporary storage
+func isAnyImageInS3Temp(results ParallelFetchResults) bool {
+	return results.ReferenceMeta.StorageMethod == StorageMethodS3Temporary ||
+		   results.CheckingMeta.StorageMethod == StorageMethodS3Temporary
+}
+
+// validateStorageConfiguration validates the storage configuration at runtime
+func validateStorageConfiguration(cfg ConfigVars, logger logger.Logger) error {
+	errors := []string{}
+
+	// Check if temp bucket is configured for production workloads
+	if cfg.TempBase64Bucket == "" {
+		logger.Warn("No temporary Base64 bucket configured", map[string]interface{}{
+			"impact": "Large images (>2MB Base64) will fail to process",
+			"recommendation": "Set TEMP_BASE64_BUCKET environment variable",
+		})
+	}
+
+	// Validate size thresholds
+	if cfg.MaxInlineBase64Size > cfg.MaxImageSize {
+		errors = append(errors, "MaxInlineBase64Size is larger than MaxImageSize")
+	}
+
+	// Validate bucket accessibility (if configured)
+	if cfg.TempBase64Bucket != "" {
+		// Note: Actual bucket validation would require S3 operations
+		// For now, we just log the configuration
+		logger.Info("Temporary Base64 bucket configured", map[string]interface{}{
+			"bucket": cfg.TempBase64Bucket,
+			"note":   "Bucket accessibility will be validated during actual operations",
+		})
+	}
+
+	if len(errors) > 0 {
+		errMsg := fmt.Sprintf("Storage configuration issues: %v", errors)
+		logger.Error("Storage configuration validation failed", map[string]interface{}{
+			"errors": errors,
+		})
+		return fmt.Errorf(errMsg)
+	}
+
+	return nil
 }
 
 // initDependencies initializes all required dependencies
@@ -201,7 +381,24 @@ func initDependencies(ctx context.Context) (*Dependencies, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
-	return NewDependencies(awsCfg), nil
+	
+	deps := NewDependencies(awsCfg)
+	
+	// Validate storage configuration
+	if err := validateStorageConfiguration(deps.GetConfig(), deps.GetLogger()); err != nil {
+		deps.GetLogger().Warn("Storage configuration validation issues", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Don't fail initialization for configuration issues, just warn
+	}
+	
+	return deps, nil
+}
+
+// logEnvironmentInfo logs environment information for debugging
+func logEnvironmentInfo(logger logger.Logger) {
+	envInfo := GetEnvironmentInfo()
+	logger.Info("Environment information", envInfo)
 }
 
 func main() {

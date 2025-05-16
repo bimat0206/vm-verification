@@ -39,9 +39,11 @@ type ImageBlock struct {
 }
 
 // ImageSource represents the source of an image
-// Note: No Type field - it's not used in Converse API
+// Can be either S3Location or Bytes (base64 encoded data)
 type ImageSource struct {
-	S3Location S3Location `json:"s3Location"`
+	Type       string     `json:"type,omitempty"` // "s3Location" or "bytes"
+	S3Location S3Location `json:"s3Location,omitempty"`
+	Bytes      string     `json:"bytes,omitempty"` // base64 encoded image data
 }
 
 // S3Location represents an S3 location
