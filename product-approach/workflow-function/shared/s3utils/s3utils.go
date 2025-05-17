@@ -305,12 +305,22 @@ func (u *S3Utils) ParseS3URL(s3Url string) (S3URL, error) {
 // GetPresignedURL generates a presigned URL for an S3 object
 func (u *S3Utils) GetPresignedURL(ctx context.Context, bucket, key string, expireSeconds int) (string, error) {
 	// This function is stubbed for now - actual implementation would use the AWS SDK presigner
+	// In a real implementation, you would use github.com/aws/aws-sdk-go-v2/service/s3/s3presigner
+	// But for now, we'll return a placeholder URL
 	u.logger.Debug("Getting presigned URL", map[string]interface{}{
 		"bucket":        bucket,
 		"key":           key,
 		"expireSeconds": expireSeconds,
 	})
 	
+	// In a real implementation, you would use:
+	// presigner := s3presigner.NewPresigner(u.client)
+	// presignedReq, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+	//     Bucket: aws.String(bucket),
+	//     Key:    aws.String(key),
+	// }, s3presigner.WithPresignExpires(time.Duration(expireSeconds) * time.Second))
+	
+	// For now, return a placeholder URL
 	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s?presigned=true", bucket, key), nil
 }
 

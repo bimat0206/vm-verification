@@ -39,6 +39,8 @@ type Logger interface {
 	Info(message string, details map[string]interface{})
 	Warn(message string, details map[string]interface{})
 	Error(message string, details map[string]interface{})
+	LogReceivedEvent(event interface{}) 
+	LogOutputEvent(event interface{})
 	WithCorrelationId(correlationId string) Logger
 	WithFields(fields map[string]interface{}) Logger
 }
@@ -104,6 +106,46 @@ func (l *StructuredLogger) Warn(message string, details map[string]interface{}) 
 // Error logs an error message
 func (l *StructuredLogger) Error(message string, details map[string]interface{}) {
 	l.log(LogLevelError, message, details)
+}
+
+// LogReceivedEvent logs an incoming event at INFO level
+func (l *StructuredLogger) LogReceivedEvent(event interface{}) {
+	var details map[string]interface{}
+	
+	// If we can marshal the event to JSON, include it in the details
+	// Otherwise, use a simpler string representation
+	eventJSON, err := json.Marshal(event)
+	if err == nil {
+		details = map[string]interface{}{
+			"event": json.RawMessage(eventJSON),
+		}
+	} else {
+		details = map[string]interface{}{
+			"event": fmt.Sprintf("%+v", event),
+		}
+	}
+	
+	l.log(LogLevelInfo, "Received event", details)
+}
+
+// LogOutputEvent logs an outgoing event at INFO level
+func (l *StructuredLogger) LogOutputEvent(event interface{}) {
+	var details map[string]interface{}
+	
+	// If we can marshal the event to JSON, include it in the details
+	// Otherwise, use a simpler string representation
+	eventJSON, err := json.Marshal(event)
+	if err == nil {
+		details = map[string]interface{}{
+			"response": json.RawMessage(eventJSON),
+		}
+	} else {
+		details = map[string]interface{}{
+			"response": fmt.Sprintf("%+v", event),
+		}
+	}
+	
+	l.log(LogLevelInfo, "Output event", details)
 }
 
 // log creates and outputs a log entry

@@ -39,17 +39,10 @@ type ImageBlock struct {
 }
 
 // ImageSource represents the source of an image
-// Can be either S3Location or Bytes (base64 encoded data)
+// Only supports bytes (base64 encoded data)
 type ImageSource struct {
-	Type       string     `json:"type,omitempty"` // "s3Location" or "bytes"
-	S3Location S3Location `json:"s3Location,omitempty"`
-	Bytes      string     `json:"bytes,omitempty"` // base64 encoded image data
-}
-
-// S3Location represents an S3 location
-type S3Location struct {
-	URI         string `json:"uri"`
-	BucketOwner string `json:"bucketOwner,omitempty"`
+	Type  string `json:"type,omitempty"` // "bytes"
+	Bytes string `json:"bytes,omitempty"` // base64 encoded image data
 }
 
 // InferenceConfig represents configuration for inference
@@ -99,6 +92,20 @@ type Turn1Response struct {
 	AnalysisStage   string           `json:"analysisStage"`
 	BedrockMetadata BedrockMetadata  `json:"bedrockMetadata"`
 	APIType         string           `json:"apiType"`
+}
+
+// Turn2Response represents the response from Turn 2
+type Turn2Response struct {
+	TurnID          int              `json:"turnId"`
+	Timestamp       string           `json:"timestamp"`
+	Prompt          string           `json:"prompt"`
+	Response        TextResponse     `json:"response"`
+	LatencyMs       int64            `json:"latencyMs"`
+	TokenUsage      TokenUsage       `json:"tokenUsage"`
+	AnalysisStage   string           `json:"analysisStage"`
+	BedrockMetadata BedrockMetadata  `json:"bedrockMetadata"`
+	APIType         string           `json:"apiType"`
+	PreviousTurn    *Turn1Response   `json:"previousTurn,omitempty"`
 }
 
 // TextResponse represents the text response portion

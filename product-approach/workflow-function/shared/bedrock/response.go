@@ -42,7 +42,7 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 
 	// Create Turn1Response
 	turn1Response := &Turn1Response{
-		TurnID:        1,
+		TurnID:        ExpectedTurn1Number,
 		Timestamp:     timestamp.Format(time.RFC3339),
 		Prompt:        promptText,
 		Response: TextResponse{
@@ -51,7 +51,7 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 		},
 		LatencyMs:     latencyMs,
 		TokenUsage:    tokenUsage,
-		AnalysisStage: "TURN1",
+		AnalysisStage: AnalysisStageTurn1,
 		BedrockMetadata: BedrockMetadata{
 			ModelID:        response.ModelID,
 			RequestID:      response.RequestID,
@@ -62,6 +62,59 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 	}
 
 	return turn1Response, nil
+}
+
+// ProcessTurn2Response processes a response for Turn 2
+func (rp *ResponseProcessor) ProcessTurn2Response(
+	response *ConverseResponse,
+	promptText string,
+	latencyMs int64,
+	timestamp time.Time,
+	previousTurn *Turn1Response,
+) (*Turn2Response, error) {
+	// Extract text from response
+	responseText := ExtractTextFromResponse(response)
+	if responseText == "" {
+		return nil, fmt.Errorf("no text content in response")
+	}
+
+	// Create token usage
+	tokenUsage := TokenUsage{
+		InputTokens:  0,
+		OutputTokens: 0,
+		TotalTokens:  0,
+	}
+
+	// Copy token usage if available
+	if response.Usage != nil {
+		tokenUsage.InputTokens = response.Usage.InputTokens
+		tokenUsage.OutputTokens = response.Usage.OutputTokens
+		tokenUsage.TotalTokens = response.Usage.TotalTokens
+	}
+
+	// Create Turn2Response
+	turn2Response := &Turn2Response{
+		TurnID:        ExpectedTurn2Number,
+		Timestamp:     timestamp.Format(time.RFC3339),
+		Prompt:        promptText,
+		Response: TextResponse{
+			Content: responseText,
+			StopReason: response.StopReason,
+		},
+		LatencyMs:     latencyMs,
+		TokenUsage:    tokenUsage,
+		AnalysisStage: AnalysisStageTurn2,
+		BedrockMetadata: BedrockMetadata{
+			ModelID:        response.ModelID,
+			RequestID:      response.RequestID,
+			InvokeLatencyMs: latencyMs,
+			APIType:        APITypeConverse,
+		},
+		APIType:       APITypeConverse,
+		PreviousTurn:  previousTurn,
+	}
+
+	return turn2Response, nil
 }
 
 // CreateConverseRequest creates a request for the Converse API
@@ -84,24 +137,15 @@ func CreateConverseRequest(
 }
 
 // CreateImageContentBlock creates an image content block for use in a Converse request
-// Either bytes or s3Location should be provided, but not both
-func CreateImageContentBlock(format string, bytes string, s3URI string, bucketOwner string) ContentBlock {
+// Only bytes should be provided
+func CreateImageContentBlock(format string, bytes string) ContentBlock {
 	// Create image block
 	imageBlock := &ImageBlock{
 		Format: format,
-		Source: ImageSource{},
-	}
-
-	// Set source based on inputs
-	if bytes != "" {
-		imageBlock.Source.Type = "bytes"
-		imageBlock.Source.Bytes = bytes
-	} else if s3URI != "" {
-		imageBlock.Source.Type = "s3Location"
-		imageBlock.Source.S3Location = S3Location{
-			URI:         s3URI,
-			BucketOwner: bucketOwner,
-		}
+		Source: ImageSource{
+			Type: "bytes",
+			Bytes: bytes,
+		},
 	}
 
 	return ContentBlock{
@@ -112,12 +156,7 @@ func CreateImageContentBlock(format string, bytes string, s3URI string, bucketOw
 
 // CreateImageContentFromBytes creates an image content block directly from base64 encoded data
 func CreateImageContentFromBytes(format string, base64Data string) ContentBlock {
-	return CreateImageContentBlock(format, base64Data, "", "")
-}
-
-// CreateImageContentFromS3 creates an image content block from an S3 URI
-func CreateImageContentFromS3(format string, s3URI string, bucketOwner string) ContentBlock {
-	return CreateImageContentBlock(format, "", s3URI, bucketOwner)
+	return CreateImageContentBlock(format, base64Data)
 }
 
 // CreateUserMessageWithContent creates a user message with mixed content (text and/or images)
@@ -153,4 +192,82 @@ func CreateAssistantMessageWithText(text string) MessageWrapper {
 			},
 		},
 	}
+}
+
+// CreateTurn2ConversationHistory creates a conversation history for Turn 2 based on Turn 1 response
+func CreateTurn2ConversationHistory(turn1Response *Turn1Response) []MessageWrapper {
+	if turn1Response == nil {
+		return nil
+	}
+
+	// Create conversation history with user prompt and assistant response from Turn 1
+	messages := []MessageWrapper{
+		// User message from Turn 1
+		{
+			Role: "user",
+			Content: []ContentBlock{
+				{
+					Type: "text",
+					Text: turn1Response.Prompt,
+				},
+			},
+		},
+		// Assistant response from Turn 1
+		{
+			Role: "assistant",
+			Content: []ContentBlock{
+				{
+					Type: "text",
+					Text: turn1Response.Response.Content,
+				},
+			},
+		},
+	}
+
+	return messages
+}
+
+// CreateConverseRequestForTurn2 creates a request for Turn 2 based on Turn 1 response and new prompt
+func CreateConverseRequestForTurn2(
+	modelID string,
+	turn1Response *Turn1Response,
+	turn2Prompt string,
+	systemPrompt string,
+	maxTokens int,
+) *ConverseRequest {
+	// Get conversation history from Turn 1
+	messages := CreateTurn2ConversationHistory(turn1Response)
+	
+	// Add the new user message for Turn 2
+	messages = append(messages, MessageWrapper{
+		Role: "user",
+		Content: []ContentBlock{
+			{
+				Type: "text",
+				Text: turn2Prompt,
+			},
+		},
+	})
+	
+	// Create the request
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens)
+}
+
+// CreateConverseRequestForTurn2WithImages creates a request for Turn 2 with images
+func CreateConverseRequestForTurn2WithImages(
+	modelID string,
+	turn1Response *Turn1Response,
+	turn2Prompt string,
+	images []ContentBlock,
+	systemPrompt string,
+	maxTokens int,
+) *ConverseRequest {
+	// Get conversation history from Turn 1
+	messages := CreateTurn2ConversationHistory(turn1Response)
+	
+	// Add the new user message for Turn 2 with images
+	messages = append(messages, CreateUserMessageWithContent(turn2Prompt, images))
+	
+	// Create the request
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens)
 }

@@ -2,24 +2,25 @@ package bedrock
 
 import (
 	"fmt"
-	"net/url"
-	"regexp"
+	//"regexp"
 	"strings"
 )
 
 // Validation constants
 const (
-	// Expected turn number for Turn 1
-	ExpectedTurnNumber = 1
+	// Expected turn numbers
+	ExpectedTurn1Number = 1
+	ExpectedTurn2Number = 2
 
 	// Expected image included value for Turn 1
 	ExpectedImageIncluded = "reference"
+	
+	// Analysis stage identifiers
+	AnalysisStageTurn1 = "TURN1"
+	AnalysisStageTurn2 = "TURN2"
 )
 
 var (
-	// S3 URI regex pattern
-	s3URIPattern = regexp.MustCompile(`^s3://([^/]+)/(.+)$`)
-
 	// Supported image formats
 	supportedImageFormats = []string{"png", "jpeg", "jpg", "gif", "webp"}
 )
@@ -117,15 +118,6 @@ func ValidateImageBlock(img *ImageBlock) error {
 func ValidateImageSource(source ImageSource) error {
 	// Check the type of source
 	switch source.Type {
-	case "s3Location":
-		// For S3 location type, validate URI but make BucketOwner optional
-		if source.S3Location.URI == "" {
-			return fmt.Errorf("S3 URI cannot be empty for s3Location type")
-		}
-		if err := ValidateS3URI(source.S3Location.URI); err != nil {
-			return err
-		}
-		// BucketOwner is optional, no validation needed
 	case "bytes":
 		// For bytes type, validate the base64 data
 		if source.Bytes == "" {
@@ -136,51 +128,11 @@ func ValidateImageSource(source ImageSource) error {
 		// If type is not specified, check if we can infer it
 		if source.Bytes != "" {
 			// Infer bytes type
-		} else if source.S3Location.URI != "" {
-			// Infer S3 location type, validate URI only
-			if err := ValidateS3URI(source.S3Location.URI); err != nil {
-				return err
-			}
-			// BucketOwner is optional, no validation needed
 		} else {
-			return fmt.Errorf("image source must have either bytes or S3 location")
+			return fmt.Errorf("image source must have bytes data")
 		}
 	default:
 		return fmt.Errorf("unsupported image source type: %s", source.Type)
-	}
-
-	return nil
-}
-
-// ValidateS3Location validates an S3 location
-func ValidateS3Location(loc S3Location) error {
-	if loc.URI == "" {
-		return fmt.Errorf("S3 URI cannot be empty")
-	}
-
-	if err := ValidateS3URI(loc.URI); err != nil {
-		return err
-	}
-
-	// BucketOwner is now optional, no validation needed
-
-	return nil
-}
-
-// ValidateS3URI validates an S3 URI format
-func ValidateS3URI(uri string) error {
-	if uri == "" {
-		return fmt.Errorf("S3 URI cannot be empty")
-	}
-
-	if !s3URIPattern.MatchString(uri) {
-		return fmt.Errorf("invalid S3 URI format, expected: s3://bucket/key")
-	}
-
-	// Parse as URL to ensure it's valid
-	_, err := url.Parse(uri)
-	if err != nil {
-		return fmt.Errorf("invalid S3 URI: %w", err)
 	}
 
 	return nil
@@ -199,33 +151,6 @@ func isValidImageFormat(format string) bool {
 	return false
 }
 
-// ExtractBucketFromS3URI extracts the bucket name from an S3 URI
-func ExtractBucketFromS3URI(uri string) (string, error) {
-	matches := s3URIPattern.FindStringSubmatch(uri)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("invalid S3 URI format")
-	}
-	return matches[1], nil
-}
-
-// ExtractKeyFromS3URI extracts the key from an S3 URI
-func ExtractKeyFromS3URI(uri string) (string, error) {
-	matches := s3URIPattern.FindStringSubmatch(uri)
-	if len(matches) < 3 {
-		return "", fmt.Errorf("invalid S3 URI format")
-	}
-	return matches[2], nil
-}
-
-// ParseS3URI parses an S3 URI and returns bucket and key
-func ParseS3URI(uri string) (bucket, key string, err error) {
-	matches := s3URIPattern.FindStringSubmatch(uri)
-	if len(matches) < 3 {
-		return "", "", fmt.Errorf("invalid S3 URI format: %s", uri)
-	}
-	return matches[1], matches[2], nil
-}
-
 // ExtractAndValidateCurrentPrompt extracts the current prompt from the input
 func ExtractAndValidateCurrentPrompt(messages []MessageWrapper) error {
 	if len(messages) == 0 {
@@ -235,6 +160,57 @@ func ExtractAndValidateCurrentPrompt(messages []MessageWrapper) error {
 	// Validate the first (and should be only) message
 	if err := ValidateMessageWrapper(messages[0]); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// ValidateTurn1Response validates a Turn 1 response
+func ValidateTurn1Response(turn1Response *Turn1Response) error {
+	if turn1Response == nil {
+		return fmt.Errorf("turn 1 response cannot be nil")
+	}
+
+	if turn1Response.TurnID != ExpectedTurn1Number {
+		return fmt.Errorf("unexpected turn ID: got %d, expected %d", turn1Response.TurnID, ExpectedTurn1Number)
+	}
+
+	if turn1Response.AnalysisStage != AnalysisStageTurn1 {
+		return fmt.Errorf("unexpected analysis stage: got %s, expected %s", turn1Response.AnalysisStage, AnalysisStageTurn1)
+	}
+
+	if turn1Response.Response.Content == "" {
+		return fmt.Errorf("response content cannot be empty")
+	}
+
+	return nil
+}
+
+// ValidateTurn2Response validates a Turn 2 response
+func ValidateTurn2Response(turn2Response *Turn2Response) error {
+	if turn2Response == nil {
+		return fmt.Errorf("turn 2 response cannot be nil")
+	}
+
+	if turn2Response.TurnID != ExpectedTurn2Number {
+		return fmt.Errorf("unexpected turn ID: got %d, expected %d", turn2Response.TurnID, ExpectedTurn2Number)
+	}
+
+	if turn2Response.AnalysisStage != AnalysisStageTurn2 {
+		return fmt.Errorf("unexpected analysis stage: got %s, expected %s", turn2Response.AnalysisStage, AnalysisStageTurn2)
+	}
+
+	if turn2Response.Response.Content == "" {
+		return fmt.Errorf("response content cannot be empty")
+	}
+
+	if turn2Response.PreviousTurn == nil {
+		return fmt.Errorf("previous turn cannot be nil for turn 2 response")
+	}
+
+	// Validate the previous turn 1 response
+	if err := ValidateTurn1Response(turn2Response.PreviousTurn); err != nil {
+		return fmt.Errorf("invalid previous turn: %w", err)
 	}
 
 	return nil

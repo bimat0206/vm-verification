@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -89,17 +88,8 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 							Value: []byte(content.Image.Source.Bytes),
 						}
 						log.Printf("Added image content block for format: %s, with bytes source", content.Image.Format)
-					} else if content.Image.Source.S3Location.URI != "" {
-						// Use S3 location
-						imageBlock.Source = &types.ImageSourceMemberS3Location{
-							Value: types.S3Location{
-								Uri:         aws.String(content.Image.Source.S3Location.URI),
-								BucketOwner: aws.String(content.Image.Source.S3Location.BucketOwner),
-							},
-						}
-						log.Printf("Added image content block for format: %s, URI: %s", content.Image.Format, content.Image.Source.S3Location.URI)
 					} else {
-						return nil, 0, fmt.Errorf("image source must be either bytes or S3Location")
+						return nil, 0, fmt.Errorf("image source must be provided as bytes")
 					}
 					
 					contentBlocks[j] = &types.ContentBlockMemberImage{
@@ -234,21 +224,6 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		Usage:      usage,
 		Metrics:    metrics,
 	}, nil
-}
-
-// parseS3URI parses an S3 URI and returns bucket and key
-func parseS3URI(uri string) (bucket, key string, err error) {
-	if len(uri) < 5 || uri[:5] != "s3://" {
-		return "", "", fmt.Errorf("invalid S3 URI: %s", uri)
-	}
-	
-	path := uri[5:]
-	parts := strings.SplitN(path, "/", 2)
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid S3 URI format: %s", uri)
-	}
-	
-	return parts[0], parts[1], nil
 }
 
 // handleBedrockError converts AWS SDK errors to our error types
