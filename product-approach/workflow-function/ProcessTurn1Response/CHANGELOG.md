@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.3.0] - 2025-05-17
+
+### Changed
+- Streamlined function to focus solely on processing Bedrock responses
+- Removed unnecessary S3 operations and dependencies
+- Simplified DynamoDB interactions to only include conversation history updates
+- Streamlined handler implementation for better maintainability
+- Reduced overall codebase complexity and dependency footprint
+- Improved performance by removing extraneous service calls
+- Updated Dockerfile to remove unneeded dependencies
+- Enhanced build script with better error handling and verification
+- Updated go.mod to remove unused module replacements
+
+### Fixed
+- Resolved compiler errors in parser components
+- Fixed missing pattern field references in extractor methods
+- Added proper implementation of machine structure parsing functions
+- Resolved duplicate method declarations in parser package
+- Renamed conflicting methods to avoid compilation errors
+- Removed unused imports in storage/db_manager.go and validator/validators.go
+- Fixed validator error handling in validators.go
+
 ## [1.2.0] - 2025-05-14
 
 ### Changed

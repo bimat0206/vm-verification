@@ -9,8 +9,9 @@ import (
 	"workflow-function/ProcessTurn1Response/internal/types"
 )
 
-// parseMachineStructureFromSection parses machine structure from a specific section
-func (p *ResponseParser) parseMachineStructureFromSection(section string) *types.MachineStructure {
+// parseMachineStructureSectionAdvanced parses machine structure from a specific section
+// This is an advanced version with multiple parsing approaches
+func (p *ResponseParser) parseMachineStructureSectionAdvanced(section string) *types.MachineStructure {
 	// Try different parsing approaches
 	parsers := []func(string) *types.MachineStructure{
 		p.parseStructuredFormat,
@@ -121,8 +122,9 @@ func (p *ResponseParser) parseNumberSequenceFormat(section string) *types.Machin
 	return nil
 }
 
-// extractRowOrder extracts the row order dynamically
-func (p *ResponseParser) extractRowOrder(content string, expectedCount int) []string {
+// extractRowOrderAdvanced provides a more sophisticated implementation
+// with explicit pattern searching for row identifiers
+func (p *ResponseParser) extractRowOrderAdvanced(content string, expectedCount int) []string {
 	// Try to find explicit row order information
 	patterns := []string{
 		`(?i)rows?\s+([A-Z](?:[-,\s]*[A-Z])*)`,
@@ -140,20 +142,13 @@ func (p *ResponseParser) extractRowOrder(content string, expectedCount int) []st
 		}
 	}
 	
-	// Generate default alphabetical sequence
-	if expectedCount > 0 && expectedCount <= 26 {
-		order := make([]string, expectedCount)
-		for i := 0; i < expectedCount; i++ {
-			order[i] = string(rune('A' + i))
-		}
-		return order
-	}
-	
-	return []string{}
+	// Fall back to simple implementation
+	return p.extractRowOrder(content, expectedCount)
 }
 
-// extractColumnOrder extracts the column order dynamically
-func (p *ResponseParser) extractColumnOrder(content string, expectedCount int) []string {
+// extractColumnOrderAdvanced provides a more sophisticated implementation
+// with explicit pattern searching for column identifiers
+func (p *ResponseParser) extractColumnOrderAdvanced(content string, expectedCount int) []string {
 	// Try to find explicit column order information
 	patterns := []string{
 		`(?i)columns?\s+([\d-,\s]+)`,
@@ -172,16 +167,8 @@ func (p *ResponseParser) extractColumnOrder(content string, expectedCount int) [
 		}
 	}
 	
-	// Generate default numerical sequence
-	if expectedCount > 0 {
-		order := make([]string, expectedCount)
-		for i := 0; i < expectedCount; i++ {
-			order[i] = fmt.Sprintf("%d", i+1)
-		}
-		return order
-	}
-	
-	return []string{}
+	// Fall back to simple implementation
+	return p.extractColumnOrder(content, expectedCount)
 }
 
 // parseSequence parses sequence strings like "A-F" or "1-10"

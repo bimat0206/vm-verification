@@ -13,14 +13,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	//"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // Dependencies holds all AWS service clients and utilities
 type Dependencies struct {
-	S3Client     *s3.Client
 	DynamoClient *dynamodb.Client
-	S3Manager    *storage.S3Manager
 	DBManager    *storage.DBManager
 	Logger       logger.Logger
 	Config       *AppConfig
@@ -32,19 +30,11 @@ type AppConfig struct {
 	AWSRegion string `json:"awsRegion"`
 	
 	// DynamoDB Tables
-	VerificationTable  string `json:"verificationTable"`
-	LayoutTable        string `json:"layoutTable"`
 	ConversationTable  string `json:"conversationTable"`
-	
-	// S3 Buckets
-	ReferenceBucket string `json:"referenceBucket"`
-	CheckingBucket  string `json:"checkingBucket"`
-	ResultsBucket   string `json:"resultsBucket"`
 	
 	// Processing Configuration
 	MaxResponseSize    int64         `json:"maxResponseSize"`
 	ProcessingTimeout  time.Duration `json:"processingTimeout"`
-	EnableCaching      bool          `json:"enableCaching"`
 	ValidateResponses  bool          `json:"validateResponses"`
 	
 	// Logging Configuration
@@ -56,7 +46,6 @@ type AppConfig struct {
 	// Feature Flags
 	EnableFallbackParsing  bool `json:"enableFallbackParsing"`
 	EnableStrictValidation bool `json:"enableStrictValidation"`
-	EnableMetrics          bool `json:"enableMetrics"`
 }
 
 // NewDependencies creates a new Dependencies instance
@@ -83,19 +72,11 @@ func LoadConfig() *AppConfig {
 		AWSRegion: getEnvOrDefault("AWS_REGION", "us-east-1"),
 		
 		// DynamoDB Tables
-		VerificationTable: getEnvOrDefault("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
-		LayoutTable:       getEnvOrDefault("DYNAMODB_LAYOUT_TABLE", "LayoutMetadata"),
 		ConversationTable: getEnvOrDefault("DYNAMODB_CONVERSATION_TABLE", "ConversationHistory"),
-		
-		// S3 Buckets  
-		ReferenceBucket: getEnvOrDefault("REFERENCE_BUCKET", "kootoro-reference-bucket"),
-		CheckingBucket:  getEnvOrDefault("CHECKING_BUCKET", "kootoro-checking-bucket"),
-		ResultsBucket:   getEnvOrDefault("RESULTS_BUCKET", "kootoro-results-bucket"),
 		
 		// Processing Configuration
 		MaxResponseSize:   getEnvAsInt64("MAX_RESPONSE_SIZE", 1024*1024), // 1MB default
 		ProcessingTimeout: getEnvAsDuration("PROCESSING_TIMEOUT", "60s"),
-		EnableCaching:     getEnvAsBool("ENABLE_CACHING", true),
 		ValidateResponses: getEnvAsBool("VALIDATE_RESPONSES", true),
 		
 		// Logging Configuration
@@ -107,7 +88,6 @@ func LoadConfig() *AppConfig {
 		// Feature Flags
 		EnableFallbackParsing:  getEnvAsBool("ENABLE_FALLBACK_PARSING", true),
 		EnableStrictValidation: getEnvAsBool("ENABLE_STRICT_VALIDATION", false),
-		EnableMetrics:          getEnvAsBool("ENABLE_METRICS", true),
 	}
 }
 
@@ -123,7 +103,7 @@ func InitializeDependencies(ctx context.Context) (*Dependencies, error) {
 		"region":           appConfig.AWSRegion,
 		"functionName":     appConfig.FunctionName,
 		"logLevel":         appConfig.LogLevel,
-		"verificationTable": appConfig.VerificationTable,
+		"conversationTable": appConfig.ConversationTable,
 	})
 	
 	// Load AWS configuration
@@ -135,23 +115,11 @@ func InitializeDependencies(ctx context.Context) (*Dependencies, error) {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 	
-	// Initialize AWS service clients
-	s3Client := s3.NewFromConfig(cfg)
+	// Initialize DynamoDB client
 	dynamoClient := dynamodb.NewFromConfig(cfg)
-	
-	// Initialize utility clients
-	s3Config := storage.S3Config{
-		ReferenceBucket: appConfig.ReferenceBucket,
-		CheckingBucket:  appConfig.CheckingBucket,
-		ResultsBucket:   appConfig.ResultsBucket,
-		MaxImageSize:    appConfig.MaxResponseSize,
-	}
-	s3Manager := storage.NewS3Manager(s3Client, log, s3Config)
 	
 	// Configure DynamoDB utils
 	dbConfig := storage.DBConfig{
-		VerificationTable: appConfig.VerificationTable,
-		LayoutTable:       appConfig.LayoutTable,
 		ConversationTable: appConfig.ConversationTable,
 		DefaultTTLDays:    30,
 	}
@@ -159,18 +127,14 @@ func InitializeDependencies(ctx context.Context) (*Dependencies, error) {
 	
 	// Create dependencies struct
 	deps := &Dependencies{
-		S3Client:     s3Client,
 		DynamoClient: dynamoClient,
-		S3Manager:    s3Manager,
 		DBManager:    dbManager,
 		Logger:       log,
 		Config:       appConfig,
 	}
 	
 	log.Info("Dependencies initialized successfully", map[string]interface{}{
-		"s3ClientReady":     deps.S3Client != nil,
 		"dynamoClientReady": deps.DynamoClient != nil,
-		"s3ManagerReady":    deps.S3Manager != nil,
 		"dbManagerReady":    deps.DBManager != nil,
 	})
 	
@@ -183,9 +147,7 @@ func (deps *Dependencies) ValidateConfiguration() error {
 	
 	// Required environment variables
 	required := map[string]string{
-		"DYNAMODB_VERIFICATION_TABLE": config.VerificationTable,
-		"REFERENCE_BUCKET":            config.ReferenceBucket,
-		"CHECKING_BUCKET":             config.CheckingBucket,
+		"DYNAMODB_CONVERSATION_TABLE": config.ConversationTable,
 	}
 	
 	for name, value := range required {
@@ -213,7 +175,6 @@ func (deps *Dependencies) ValidateConfiguration() error {
 		"region":              config.AWSRegion,
 		"processingTimeout":   config.ProcessingTimeout,
 		"maxResponseSize":     config.MaxResponseSize,
-		"enableCaching":       config.EnableCaching,
 		"validateResponses":   config.ValidateResponses,
 	})
 	
@@ -224,8 +185,8 @@ func (deps *Dependencies) ValidateConfiguration() error {
 func (deps *Dependencies) TestConnections(ctx context.Context) error {
 	log := deps.Logger
 	
-	// Skip tests if clients are nil (graceful degradation)
-	if deps.DynamoClient == nil || deps.S3Client == nil {
+	// Skip tests if client is nil (graceful degradation)
+	if deps.DynamoClient == nil {
 		log.Warn("Skipping connection tests due to missing clients", nil)
 		return nil
 	}
@@ -233,40 +194,20 @@ func (deps *Dependencies) TestConnections(ctx context.Context) error {
 	// Test DynamoDB connection
 	log.Debug("Testing DynamoDB connection", nil)
 	_, err := deps.DynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(deps.Config.VerificationTable),
+		TableName: aws.String(deps.Config.ConversationTable),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to DynamoDB table %s: %w", 
-			deps.Config.VerificationTable, err)
+			deps.Config.ConversationTable, err)
 	}
 	
-	// Test S3 connection
-	log.Debug("Testing S3 connection", nil)
-	_, err = deps.S3Client.HeadBucket(ctx, &s3.HeadBucketInput{
-		Bucket: aws.String(deps.Config.ReferenceBucket),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to connect to S3 bucket %s: %w", 
-			deps.Config.ReferenceBucket, err)
-	}
-	
-	log.Info("All service connections tested successfully", nil)
+	log.Info("Service connection tested successfully", nil)
 	return nil
-}
-
-// GetS3Client returns the S3 client
-func (deps *Dependencies) GetS3Client() *s3.Client {
-	return deps.S3Client
 }
 
 // GetDynamoDBClient returns the DynamoDB client
 func (deps *Dependencies) GetDynamoDBClient() *dynamodb.Client {
 	return deps.DynamoClient
-}
-
-// GetS3Manager returns the S3 utilities
-func (deps *Dependencies) GetS3Manager() *storage.S3Manager {
-	return deps.S3Manager
 }
 
 // GetDBManager returns the DynamoDB utilities

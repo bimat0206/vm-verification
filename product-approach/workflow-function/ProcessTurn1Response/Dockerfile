@@ -17,8 +17,10 @@ COPY workflow-function/ProcessTurn1Response/go.mod workflow-function/ProcessTurn
 # Copy shared packages (required by the replace directives in go.mod)
 COPY workflow-function/shared/schema/ ./product-approach/workflow-function/shared/schema/
 COPY workflow-function/shared/logger/ ./product-approach/workflow-function/shared/logger/
-COPY workflow-function/shared/s3utils/ ./product-approach/workflow-function/shared/s3utils/
-COPY workflow-function/shared/dbutils/ ./product-approach/workflow-function/shared/dbutils/
+# Skip s3utils since we've removed this dependency
+# COPY workflow-function/shared/s3utils/ ./product-approach/workflow-function/shared/s3utils/
+# Skip dbutils since we've removed this dependency
+# COPY workflow-function/shared/dbutils/ ./product-approach/workflow-function/shared/dbutils/
 
 # Copy the rest of the application code
 COPY workflow-function/ProcessTurn1Response/ ./product-approach/workflow-function/ProcessTurn1Response/

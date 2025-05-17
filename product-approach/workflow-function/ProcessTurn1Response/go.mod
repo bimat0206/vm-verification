@@ -1,13 +1,11 @@
 module workflow-function/ProcessTurn1Response
 
 replace (
-	workflow-function/shared/dbutils => ../shared/dbutils
 	workflow-function/shared/logger => ../shared/logger
-	workflow-function/shared/s3utils => ../shared/s3utils
 	workflow-function/shared/schema => ../shared/schema
 )
 
-go 1.22
+go 1.24
 
 toolchain go1.24.0
 
@@ -15,18 +13,16 @@ require (
 	github.com/aws/aws-lambda-go v1.48.0
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
-	workflow-function/shared/dbutils v0.0.0-00010101000000-000000000000
 	workflow-function/shared/logger v0.0.0-00010101000000-000000000000
-	workflow-function/shared/s3utils v0.0.0-00010101000000-000000000000
 	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
 )
 
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.10 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.67 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect

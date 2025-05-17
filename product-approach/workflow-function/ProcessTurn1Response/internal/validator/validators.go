@@ -7,7 +7,6 @@ import (
 
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
 )
 
 // Validator provides validation logic for processed responses
@@ -118,9 +117,10 @@ func (v *Validator) ValidateMachineStructure(structure map[string]interface{}) e
 	}
 
 	if len(errors) > 0 {
-		return errors.NewValidationError("machine structure validation failed", map[string]interface{}{
+		errDetails := map[string]interface{}{
 			"errors": v.formatValidationErrors(errors),
-		})
+		}
+		return fmt.Errorf("machine structure validation failed: %v", errDetails)
 	}
 
 	return nil

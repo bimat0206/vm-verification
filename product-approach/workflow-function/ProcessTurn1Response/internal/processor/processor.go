@@ -80,7 +80,7 @@ type Processor struct {
 func NewProcessor(log logger.Logger, deps *storage.Dependencies) *Processor {
 	return &Processor{
 		log:    log,
-		deps:   deps,
+		deps:   deps, // Only needed for minimal conversation history updates
 		parser: NewParser(log),
 	}
 }

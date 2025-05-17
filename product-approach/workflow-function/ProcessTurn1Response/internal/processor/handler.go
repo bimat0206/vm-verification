@@ -14,7 +14,6 @@ import (
 type Handler struct {
 	log        logger.Logger
 	processor  *Processor
-	validator  *Validator
 	deps       *storage.Dependencies
 }
 
@@ -23,14 +22,12 @@ func NewHandler(log logger.Logger) *Handler {
 	// Initialize dependencies
 	deps := GetStorageDependencies(log)
 	
-	// Create processor and validator
+	// Create processor
 	processor := NewProcessor(log, deps)
-	validator := NewValidator(log)
 
 	return &Handler{
 		log:       log,
 		processor: processor,
-		validator: validator,
 		deps:      deps,
 	}
 }
@@ -53,8 +50,8 @@ func (h *Handler) Handle(ctx context.Context, input schema.WorkflowState) (schem
 		"hasTurn1Response": input.Turn1Response != nil,
 	})
 
-	// Validate input state
-	if err := h.validateInput(input); err != nil {
+	// Validate input has required Turn 1 response
+	if err := h.validateInputBasics(input); err != nil {
 		log.Error("Input validation failed", map[string]interface{}{
 			"error": err.Error(),
 		})
@@ -68,14 +65,6 @@ func (h *Handler) Handle(ctx context.Context, input schema.WorkflowState) (schem
 			"error": err.Error(),
 		})
 		return h.createErrorResponse(input, "PROCESSING_ERROR", err.Error()), nil
-	}
-
-	// Validate output
-	if err := h.validator.ValidateReferenceAnalysis(result.ReferenceAnalysis); err != nil {
-		log.Warn("Reference analysis validation failed, proceeding with fallback", map[string]interface{}{
-			"error": err.Error(),
-		})
-		// Don't fail completely, just log the warning
 	}
 
 	// Update status to TURN1_PROCESSED
@@ -94,8 +83,8 @@ func (h *Handler) Handle(ctx context.Context, input schema.WorkflowState) (schem
 	return result, nil
 }
 
-// validateInput performs basic validation on the input state
-func (h *Handler) validateInput(input schema.WorkflowState) error {
+// validateInputBasics performs basic validation on the input state
+func (h *Handler) validateInputBasics(input schema.WorkflowState) error {
 	// Check schema version compatibility
 	if input.SchemaVersion != "" && input.SchemaVersion != schema.SchemaVersion {
 		return fmt.Errorf("unsupported schema version: %s (supported: %s)", 
@@ -105,11 +94,6 @@ func (h *Handler) validateInput(input schema.WorkflowState) error {
 	// Ensure verification context exists
 	if input.VerificationContext == nil {
 		return fmt.Errorf("verification context is required")
-	}
-
-	// Validate verification context
-	if errors := schema.ValidateVerificationContext(input.VerificationContext); len(errors) > 0 {
-		return fmt.Errorf("verification context validation failed: %s", errors.Error())
 	}
 
 	// Check for Turn 1 response

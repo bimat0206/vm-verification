@@ -17,10 +17,9 @@ func GetStorageDependencies(log logger.Logger) *storage.Dependencies {
 		dependencies.GlobalDependencies = deps
 	}
 	
-	// Create storage dependencies
+	// Create simplified storage dependencies - only include DBManager for conversation history
 	return &storage.Dependencies{
 		Logger:    log,
-		S3Manager: deps.S3Manager,
 		DBManager: deps.DBManager,
 	}
 }
