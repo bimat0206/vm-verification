@@ -74,9 +74,9 @@ func (p *ResponseParser) parseNaturalLanguageFormat(section string) *types.Machi
 				context += " " + words[i+1]
 			}
 			
-			if strings.Contains(context, "row") && rowCount == 0 {
+			if contains(context, "row") && rowCount == 0 {
 				rowCount = num
-			} else if (strings.Contains(context, "column") || strings.Contains(context, "slot")) && colCount == 0 {
+			} else if (contains(context, "column") || contains(context, "slot")) && colCount == 0 {
 				colCount = num
 			}
 		}
@@ -189,12 +189,12 @@ func (p *ResponseParser) parseSequence(rangeStr string, expectedCount int, seque
 	rangeStr = strings.TrimSpace(rangeStr)
 	
 	// Handle range format (e.g., "A-F" or "1-10")
-	if strings.Contains(rangeStr, "-") {
+	if contains(rangeStr, "-") {
 		return p.parseRangeSequence(rangeStr, sequenceType)
 	}
 	
 	// Handle comma-separated format (e.g., "A, B, C" or "1, 2, 3")
-	if strings.Contains(rangeStr, ",") {
+	if contains(rangeStr, ",") {
 		return p.parseCommaSequence(rangeStr)
 	}
 	

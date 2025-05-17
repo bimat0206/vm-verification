@@ -29,9 +29,9 @@ func (p *ParserImpl) ParseValidationResponse(response map[string]interface{}) ma
 	
 	// Extract validation indicators from content
 	content := strings.ToLower(parsed.MainContent)
-	result["layoutMatches"] = strings.Contains(content, "confirmed") || strings.Contains(content, "verified")
+	result["layoutMatches"] = contains(content, "confirmed") || contains(content, "verified")
 	result["productTypesConfirmed"] = p.countProductTypes(parsed.MainContent)
-	result["fullyStocked"] = strings.Contains(content, "full") && !strings.Contains(content, "empty")
+	result["fullyStocked"] = contains(content, "full") && !contains(content, "empty")
 	
 	return result
 }
@@ -55,7 +55,7 @@ func (p *ParserImpl) ParseVisualAnalysis(response map[string]interface{}) map[st
 	
 	// Extract confirmations
 	content := strings.ToLower(parsed.MainContent)
-	result["matchesHistorical"] = strings.Contains(content, "matches") || strings.Contains(content, "confirms")
+	result["matchesHistorical"] = contains(content, "matches") || contains(content, "confirms")
 	result["newObservations"] = p.extractNewObservations(parsed.MainContent)
 	
 	return result
@@ -173,7 +173,7 @@ func (p *ParserImpl) countProductTypes(content string) int {
 	content = strings.ToLower(content)
 	
 	for _, indicator := range productIndicators {
-		if strings.Contains(content, indicator) {
+		if contains(content, indicator) {
 			count++
 		}
 	}
@@ -194,7 +194,7 @@ func (p *ParserImpl) extractNewObservations(content string) []string {
 		lowerSentence := strings.ToLower(sentence)
 		
 		for _, keyword := range keywords {
-			if strings.Contains(lowerSentence, keyword) && len(sentence) > 10 {
+			if contains(lowerSentence, keyword) && len(sentence) > 10 {
 				observations = append(observations, sentence)
 				break
 			}
@@ -244,7 +244,7 @@ func (p *ParserImpl) extractGeneralObservations(content string) string {
 		
 		lowerSentence := strings.ToLower(sentence)
 		for _, keyword := range keywords {
-			if strings.Contains(lowerSentence, keyword) {
+			if contains(lowerSentence, keyword) {
 				observations = append(observations, sentence)
 				break
 			}

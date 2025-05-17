@@ -3,11 +3,11 @@ package processor
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	"workflow-function/ProcessTurn1Response/internal/parser"
+	"workflow-function/ProcessTurn1Response/internal/storage"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
-	"workflow-function/ProcessTurn1Response/internal/parser"  // Add this import
 )
 
 // ProcessingResult represents the result of Turn 1 response processing
@@ -23,12 +23,6 @@ type ProcessingResult struct {
 	
 	// ProcessingPath indicates which processing path was used
 	ProcessingPath string
-}
-
-// Dependencies is an alias for dependencies.Dependencies
-type Dependencies struct {
-	// Placeholder for dependencies
-	Logger logger.Logger
 }
 
 // Parser is an alias for parser.Parser
@@ -63,13 +57,6 @@ func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) e
 	return nil
 }
 
-// NewDependencies creates a new Dependencies instance
-func NewDependencies(log logger.Logger) *Dependencies {
-	return &Dependencies{
-		Logger: log,
-	}
-}
-
 // NewParser creates a new Parser instance
 func NewParser(log logger.Logger) Parser {
 	return parser.NewParser(log)
@@ -85,12 +72,12 @@ func NewValidator(log logger.Logger) *Validator {
 // Processor handles the core processing logic for Turn 1 responses
 type Processor struct {
 	log    logger.Logger
-	deps   *Dependencies
+	deps   *storage.Dependencies
 	parser Parser
 }
 
 // NewProcessor creates a new processor instance
-func NewProcessor(log logger.Logger, deps *Dependencies) *Processor {
+func NewProcessor(log logger.Logger, deps *storage.Dependencies) *Processor {
 	return &Processor{
 		log:    log,
 		deps:   deps,
@@ -302,10 +289,10 @@ func (p *Processor) extractKnownIssues(context map[string]interface{}) map[strin
 	if summary, ok := context["verificationSummary"].(map[string]interface{}); ok {
 		// Convert summary fields to known issues format
 		for key, value := range summary {
-			if strings.Contains(strings.ToLower(key), "empty") ||
-			   strings.Contains(strings.ToLower(key), "incorrect") ||
-			   strings.Contains(strings.ToLower(key), "missing") ||
-			   strings.Contains(strings.ToLower(key), "discrepant") {
+			if contains(key, "empty") ||
+			   contains(key, "incorrect") ||
+			   contains(key, "missing") ||
+			   contains(key, "discrepant") {
 				issues[key] = value
 			}
 		}
@@ -322,9 +309,9 @@ func (p *Processor) identifyFocusAreas(context map[string]interface{}) []string 
 	if checkingStatus, ok := context["checkingStatus"].(map[string]interface{}); ok {
 		for key, value := range checkingStatus {
 			if status, ok := value.(string); ok {
-				if strings.Contains(strings.ToLower(status), "empty") ||
-				   strings.Contains(strings.ToLower(status), "incorrect") ||
-				   strings.Contains(strings.ToLower(status), "changed") {
+				if contains(status, "empty") ||
+				   contains(status, "incorrect") ||
+				   contains(status, "changed") {
 					focusAreas = append(focusAreas, key)
 				}
 			}
@@ -342,10 +329,10 @@ func (p *Processor) extractKnownIssuesList(context map[string]interface{}) []str
 		if status, ok := summary["verificationStatus"].(string); ok && status != "CORRECT" {
 			// Parse outcome for issue types
 			if outcome, ok := summary["verificationOutcome"].(string); ok {
-				if strings.Contains(strings.ToLower(outcome), "empty") {
+				if contains(outcome, "empty") {
 					issues = append(issues, "empty_rows")
 				}
-				if strings.Contains(strings.ToLower(outcome), "incorrect") {
+				if contains(outcome, "incorrect") {
 					issues = append(issues, "incorrect_products")
 				}
 			}

@@ -5,9 +5,10 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"workflow-function/ProcessTurn1Response/internal/dependencies"
+	"workflow-function/ProcessTurn1Response/internal/processor"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
-	"workflow-function/ProcessTurn1Response/internal/processor"
 )
 
 func main() {
@@ -19,6 +20,9 @@ func main() {
 		"schemaVersion": schema.SchemaVersion,
 		"goVersion":     os.Getenv("GO_VERSION"),
 	})
+
+	// Initialize global dependencies
+	dependencies.GlobalDependencies = dependencies.NewDependencies(log)
 
 	// Create handler with dependencies
 	handler := processor.NewHandler(log)

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
+	"workflow-function/shared/schema"
 )
 
 // Validator provides validation logic for processed responses
@@ -46,7 +48,7 @@ func NewValidator(log logger.Logger) *Validator {
 // ValidateReferenceAnalysis validates the extracted reference analysis
 func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) error {
 	if analysis == nil || len(analysis) == 0 {
-		return fmt.Errorf("reference analysis is empty or nil")
+		return errors.NewValidationError("reference analysis is empty or nil", nil)
 	}
 
 	result := v.performComprehensiveValidation(analysis)
@@ -59,7 +61,9 @@ func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) e
 	})
 
 	if !result.IsValid {
-		return fmt.Errorf("validation failed: %s", v.formatValidationErrors(result.Errors))
+		return errors.NewValidationError("validation failed", map[string]interface{}{
+			"errors": v.formatValidationErrors(result.Errors),
+		})
 	}
 
 	// Log warnings even if validation passes
@@ -75,7 +79,7 @@ func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) e
 // ValidateMachineStructure validates machine structure data
 func (v *Validator) ValidateMachineStructure(structure map[string]interface{}) error {
 	if structure == nil {
-		return fmt.Errorf("machine structure is nil")
+		return errors.NewValidationError("machine structure is nil", nil)
 	}
 
 	errors := []ValidationError{}
@@ -114,7 +118,9 @@ func (v *Validator) ValidateMachineStructure(structure map[string]interface{}) e
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf("machine structure validation failed: %s", v.formatValidationErrors(errors))
+		return errors.NewValidationError("machine structure validation failed", map[string]interface{}{
+			"errors": v.formatValidationErrors(errors),
+		})
 	}
 
 	return nil

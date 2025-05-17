@@ -142,18 +142,18 @@ func (p *ResponseParser) isStructuredResponse(content string) bool {
 	// Check for configured structured markers
 	content = strings.ToUpper(content)
 	for _, marker := range p.patterns.StructuredMarkers {
-		if strings.Contains(content, strings.ToUpper(marker)) {
+		if contains(content, strings.ToUpper(marker)) {
 			return true
 		}
 	}
 	
 	// Check for JSON-like structure
-	if strings.Contains(content, "{") && strings.Contains(content, "}") {
+	if contains(content, "{") && contains(content, "}") {
 		return true
 	}
 	
 	// Check for markdown-like structure
-	if strings.Contains(content, "**") || strings.Contains(content, "##") {
+	if contains(content, "**") || contains(content, "##") {
 		return true
 	}
 	

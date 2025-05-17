@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"workflow-function/ProcessTurn1Response/internal/storage"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 )
@@ -14,13 +15,13 @@ type Handler struct {
 	log        logger.Logger
 	processor  *Processor
 	validator  *Validator
-	deps       *Dependencies
+	deps       *storage.Dependencies
 }
 
 // NewHandler creates a new handler instance with all dependencies
 func NewHandler(log logger.Logger) *Handler {
 	// Initialize dependencies
-	deps := NewDependencies(log)
+	deps := GetStorageDependencies(log)
 	
 	// Create processor and validator
 	processor := NewProcessor(log, deps)

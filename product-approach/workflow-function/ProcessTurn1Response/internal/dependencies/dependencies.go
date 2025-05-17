@@ -6,10 +6,9 @@ import (
 	"os"
 	"time"
 
+	"workflow-function/ProcessTurn1Response/internal/storage"
 	"workflow-function/ProcessTurn1Response/internal/types"
-	"workflow-function/shared/dbutils"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/s3utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,8 +20,8 @@ import (
 type Dependencies struct {
 	S3Client     *s3.Client
 	DynamoClient *dynamodb.Client
-	S3Utils      *s3utils.S3Utils
-	DBUtils      *dbutils.DynamoDBUtils
+	S3Manager    *storage.S3Manager
+	DBManager    *storage.DBManager
 	Logger       logger.Logger
 	Config       *AppConfig
 }
@@ -141,23 +140,29 @@ func InitializeDependencies(ctx context.Context) (*Dependencies, error) {
 	dynamoClient := dynamodb.NewFromConfig(cfg)
 	
 	// Initialize utility clients
-	s3Utils := s3utils.New(s3Client, log)
+	s3Config := storage.S3Config{
+		ReferenceBucket: appConfig.ReferenceBucket,
+		CheckingBucket:  appConfig.CheckingBucket,
+		ResultsBucket:   appConfig.ResultsBucket,
+		MaxImageSize:    appConfig.MaxResponseSize,
+	}
+	s3Manager := storage.NewS3Manager(s3Client, log, s3Config)
 	
 	// Configure DynamoDB utils
-	dbConfig := dbutils.Config{
+	dbConfig := storage.DBConfig{
 		VerificationTable: appConfig.VerificationTable,
 		LayoutTable:       appConfig.LayoutTable,
 		ConversationTable: appConfig.ConversationTable,
 		DefaultTTLDays:    30,
 	}
-	dbUtils := dbutils.New(dynamoClient, log, dbConfig)
+	dbManager := storage.NewDBManager(dynamoClient, log, dbConfig)
 	
 	// Create dependencies struct
 	deps := &Dependencies{
 		S3Client:     s3Client,
 		DynamoClient: dynamoClient,
-		S3Utils:      s3Utils,
-		DBUtils:      dbUtils,
+		S3Manager:    s3Manager,
+		DBManager:    dbManager,
 		Logger:       log,
 		Config:       appConfig,
 	}
@@ -165,8 +170,8 @@ func InitializeDependencies(ctx context.Context) (*Dependencies, error) {
 	log.Info("Dependencies initialized successfully", map[string]interface{}{
 		"s3ClientReady":     deps.S3Client != nil,
 		"dynamoClientReady": deps.DynamoClient != nil,
-		"s3UtilsReady":      deps.S3Utils != nil,
-		"dbUtilsReady":      deps.DBUtils != nil,
+		"s3ManagerReady":    deps.S3Manager != nil,
+		"dbManagerReady":    deps.DBManager != nil,
 	})
 	
 	return deps, nil
@@ -259,14 +264,14 @@ func (deps *Dependencies) GetDynamoDBClient() *dynamodb.Client {
 	return deps.DynamoClient
 }
 
-// GetS3Utils returns the S3 utilities
-func (deps *Dependencies) GetS3Utils() *s3utils.S3Utils {
-	return deps.S3Utils
+// GetS3Manager returns the S3 utilities
+func (deps *Dependencies) GetS3Manager() *storage.S3Manager {
+	return deps.S3Manager
 }
 
-// GetDBUtils returns the DynamoDB utilities
-func (deps *Dependencies) GetDBUtils() *dbutils.DynamoDBUtils {
-	return deps.DBUtils
+// GetDBManager returns the DynamoDB utilities
+func (deps *Dependencies) GetDBManager() *storage.DBManager {
+	return deps.DBManager
 }
 
 // GetLogger returns the logger

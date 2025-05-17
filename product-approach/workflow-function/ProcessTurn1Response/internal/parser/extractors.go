@@ -25,7 +25,7 @@ func (p *ResponseParser) extractObservations(content string) string {
 		
 		lowerSentence := strings.ToLower(sentence)
 		for _, keyword := range p.patterns.Observations {
-			if strings.Contains(lowerSentence, strings.ToLower(keyword)) {
+			if contains(lowerSentence, keyword) {
 				observations = append(observations, sentence)
 				break
 			}
@@ -140,15 +140,15 @@ func (p *ResponseParser) parseRowStatus(text string) string {
 	}
 	
 	for keyword, status := range statusKeywords {
-		if strings.Contains(text, keyword) {
+		if contains(text, keyword) {
 			return status
 		}
 	}
 	
 	// Heuristic analysis
-	if strings.Contains(text, "visible") && !strings.Contains(text, "coil") {
+	if contains(text, "visible") && !contains(text, "coil") {
 		return "Partial"
-	} else if strings.Contains(text, "coil") {
+	} else if contains(text, "coil") {
 		return "Empty"
 	}
 	
