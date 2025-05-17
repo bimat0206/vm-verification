@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"context"
@@ -9,14 +9,14 @@ import (
 
 // HistoricalVerificationService handles fetching historical verification data
 type HistoricalVerificationService struct {
-	db     *DBWrapper
+	repo   *DynamoDBRepository
 	logger logger.Logger
 }
 
 // NewHistoricalVerificationService creates a new service instance
-func NewHistoricalVerificationService(db *DBWrapper, log logger.Logger) *HistoricalVerificationService {
+func NewHistoricalVerificationService(repo *DynamoDBRepository, log logger.Logger) *HistoricalVerificationService {
 	return &HistoricalVerificationService{
-		db:     db,
+		repo:   repo,
 		logger: log.WithFields(map[string]interface{}{
 			"component": "historical-verification-service",
 		}),
@@ -31,7 +31,7 @@ func (s *HistoricalVerificationService) FetchHistoricalVerification(ctx context.
 	})
 
 	// Query DynamoDB to find most recent verification using referenceImageUrl as checking image
-	verification, err := s.db.QueryMostRecentVerificationByCheckingImage(ctx, verificationCtx.ReferenceImageUrl)
+	verification, err := s.repo.FindPreviousVerification(ctx, verificationCtx.ReferenceImageUrl)
 	if err != nil {
 		s.logger.Error("Failed to fetch historical verification", map[string]interface{}{
 			"error": err.Error(),
@@ -48,8 +48,8 @@ func (s *HistoricalVerificationService) FetchHistoricalVerification(ctx context.
 	prevTime, err := time.Parse(time.RFC3339, verification.VerificationAt)
 	if err != nil {
 		s.logger.Warn("Could not parse previous verification time", map[string]interface{}{
-			"error":              err.Error(),
-			"verificationTime":   verification.VerificationAt,
+			"error":            err.Error(),
+			"verificationTime": verification.VerificationAt,
 		})
 		prevTime = time.Now() // Fallback to current time
 	}

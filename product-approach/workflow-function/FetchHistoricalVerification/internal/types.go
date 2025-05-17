@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"workflow-function/shared/schema"
@@ -50,14 +50,14 @@ type VerificationSummary struct {
 
 // VerificationRecord represents the DynamoDB record for verification results
 type VerificationRecord struct {
-	VerificationID         string              `json:"verificationId"`
-	VerificationAt         string              `json:"verificationAt"`
-	VerificationType       string              `json:"verificationType"`
-	VendingMachineID       string              `json:"vendingMachineId"`
-	CheckingImageURL       string              `json:"checkingImageUrl"`
-	ReferenceImageURL      string              `json:"referenceImageUrl"`
-	VerificationStatus     string              `json:"verificationStatus"`
-	MachineStructure       MachineStructure    `json:"machineStructure"`
-	CheckingStatus         map[string]string   `json:"checkingStatus"`
-	VerificationSummary    VerificationSummary `json:"verificationSummary"`
+	VerificationID         string              `json:"verificationId" dynamodbav:"VerificationId"`
+	VerificationAt         string              `json:"verificationAt" dynamodbav:"VerificationAt"`
+	VerificationType       string              `json:"verificationType" dynamodbav:"VerificationType"`
+	VendingMachineID       string              `json:"vendingMachineId" dynamodbav:"VendingMachineId"`
+	CheckingImageURL       string              `json:"checkingImageUrl" dynamodbav:"CheckingImageUrl"`
+	ReferenceImageURL      string              `json:"referenceImageUrl" dynamodbav:"ReferenceImageUrl"`
+	VerificationStatus     string              `json:"verificationStatus" dynamodbav:"VerificationStatus"`
+	MachineStructure       MachineStructure    `json:"machineStructure" dynamodbav:"MachineStructure"`
+	CheckingStatus         map[string]string   `json:"checkingStatus" dynamodbav:"CheckingStatus"`
+	VerificationSummary    VerificationSummary `json:"verificationSummary" dynamodbav:"VerificationSummary"`
 }

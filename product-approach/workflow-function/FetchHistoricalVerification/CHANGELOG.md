@@ -2,6 +2,22 @@
 
 All notable changes to the FetchHistoricalVerification Lambda function will be documented in this file.
 
+## [1.1.0] - 2025-05-17
+
+### Changed
+- Restructured code to follow standard cmd/internal pattern
+- Replaced shared dbutils package with direct DynamoDB calls
+- Maintained use of shared schema and logger packages
+- Improved error handling for DynamoDB operations
+- Updated dependency management
+
+### Added
+- DynamoDBRepository for direct DynamoDB interactions
+- Exported utility functions for better package integration
+
+### Removed
+- Dependency on shared dbutils package
+
 ## [1.0.0] - 2025-05-14
 
 ### Changed

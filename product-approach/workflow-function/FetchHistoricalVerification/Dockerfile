@@ -13,7 +13,6 @@ WORKDIR /go/src/workflow-function/
 # Copy the shared packages from the build context
 COPY shared/schema/ ./shared/schema/
 COPY shared/logger/ ./shared/logger/
-COPY shared/dbutils/ ./shared/dbutils/
 
 # Copy the function code
 COPY FetchHistoricalVerification/ ./FetchHistoricalVerification/
@@ -22,7 +21,8 @@ COPY FetchHistoricalVerification/ ./FetchHistoricalVerification/
 WORKDIR /go/src/workflow-function/FetchHistoricalVerification
 
 # Build the application for AWS Lambda ARM64 (Graviton)
-RUN GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main
+# Build from the cmd directory which contains the main package
+RUN GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main ./cmd
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
