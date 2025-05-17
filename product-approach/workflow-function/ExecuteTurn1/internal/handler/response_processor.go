@@ -1,158 +1,159 @@
 package handler
 
 import (
-	//"encoding/json"
 	//"fmt"
 	"regexp"
 	"strings"
+	"time"
 
-	"workflow-function/ExecuteTurn1/internal/models"
+	"workflow-function/shared/schema"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/errors"
+	//"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
-// ResponseProcessor handles processing of Bedrock responses
+// ResponseProcessor handles all Bedrock Turn response processing and workflow state updates.
 type ResponseProcessor struct {
+	logger         logger.Logger
 	enableThinking bool
 	thinkingBudget int
 }
 
-// NewResponseProcessor creates a new ResponseProcessor
-func NewResponseProcessor(enableThinking bool, thinkingBudget int) *ResponseProcessor {
+// NewResponseProcessor constructs a new ResponseProcessor.
+func NewResponseProcessor(log logger.Logger, enableThinking bool, thinkingBudget int) *ResponseProcessor {
 	return &ResponseProcessor{
+		logger:         log.WithFields(map[string]interface{}{"component": "ResponseProcessor"}),
 		enableThinking: enableThinking,
 		thinkingBudget: thinkingBudget,
 	}
 }
 
-// ProcessResponse processes a raw Bedrock response into a structured TurnResponse
+// ProcessResponse parses Bedrock API response and produces a TurnResponse.
 func (p *ResponseProcessor) ProcessResponse(
-	response models.BedrockResponse,
+	bedrockResp schema.BedrockApiResponse,
 	latencyMs int64,
 	stage string,
-) (*models.TurnResponse, error) {
-	// Extract text content from the response
-	_, thinking := p.extractContent(response)
-	
-	// Create the turn response
-	turnResponse := &models.TurnResponse{
-		TurnID:     1, // This is always 1 for ExecuteTurn1
-		Timestamp:  models.FormatISO8601(),
-		Response:   response,
+	prompt string,
+	imageUrls map[string]string,
+	tokenUsage *schema.TokenUsage,
+) (*schema.TurnResponse, error) {
+	p.logger.Info("Processing Bedrock response", map[string]interface{}{
+		"stage":     stage,
+		"latencyMs": latencyMs,
+	})
+
+	thinking := ""
+	if p.enableThinking && bedrockResp.Thinking != "" {
+		thinking = bedrockResp.Thinking
+	} else if p.enableThinking {
+		// Optionally extract <thinking>...</thinking> from content if not already parsed
+		thinking = extractThinkingContent(bedrockResp.Content)
+	}
+
+	// Create the basic response structure
+	turnResponse := &schema.TurnResponse{
+		TurnId:     1, // Always 1 for Turn1
+		Timestamp:  schema.FormatISO8601(),
+		Prompt:     prompt,
+		ImageUrls:  imageUrls,
+		Response:   bedrockResp,
 		LatencyMs:  latencyMs,
-		TokenUsage: extractTokenUsage(response.Usage),
+		TokenUsage: normalizeTokenUsage(tokenUsage),
 		Stage:      stage,
 	}
 	
-	// Add thinking content if enabled and available
-	if p.enableThinking && thinking != "" {
-		turnResponse.Thinking = thinking
+	// Add the thinking content to the response metadata if it's not a direct field
+	if thinking != "" {
+		if turnResponse.Metadata == nil {
+			turnResponse.Metadata = make(map[string]interface{})
+		}
+		turnResponse.Metadata["thinking"] = thinking
 	}
 	
 	return turnResponse, nil
 }
 
-// extractContent extracts the text content and thinking content from the response
-func (p *ResponseProcessor) extractContent(response models.BedrockResponse) (string, string) {
-	var responseText, thinking string
-	
-	// Extract text content from all message contents
-	for _, content := range response.Content {
-		if content.Type == "text" {
-			responseText += content.Text
+// UpdateWorkflowState updates the workflow state after processing Turn1.
+func (p *ResponseProcessor) UpdateWorkflowState(
+	state *schema.WorkflowState,
+	turnResponse *schema.TurnResponse,
+) *schema.WorkflowState {
+	p.logger.Info("Updating WorkflowState with Turn1 response", map[string]interface{}{
+		"turnId":    turnResponse.TurnId,
+		"latencyMs": turnResponse.LatencyMs,
+	})
+
+	// Add Turn1 to conversation history
+	if state.ConversationState == nil {
+		state.ConversationState = &schema.ConversationState{
+			CurrentTurn: 1,
+			MaxTurns:    2,
+			History:     []interface{}{},
 		}
 	}
-	
-	// If thinking is enabled, try to extract thinking content
-	if p.enableThinking {
-		thinking = p.extractThinkingContent(responseText)
-	}
-	
-	return responseText, thinking
-}
+	state.ConversationState.History = append(state.ConversationState.History, *turnResponse)
+	state.ConversationState.CurrentTurn = 1
 
-// extractThinkingContent attempts to extract thinking content from a response
-// Looks for <thinking>...</thinking> tags in the response
-func (p *ResponseProcessor) extractThinkingContent(text string) string {
-	thinkingRegex := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
-	matches := thinkingRegex.FindStringSubmatch(text)
-	
-	if len(matches) > 1 {
-		// Return the content inside the thinking tags
-		return strings.TrimSpace(matches[1])
-	}
-	
-	return ""
-}
+	// Set Turn1Response field
+	state.Turn1Response = map[string]interface{}{"turnResponse": turnResponse}
+	state.VerificationContext.Status = schema.StatusTurn1Completed
+	state.VerificationContext.Error = nil
+	state.VerificationContext.VerificationAt = schema.FormatISO8601()
 
-// extractTokenUsage extracts token usage information from the Bedrock response
-func extractTokenUsage(usage models.TokenUsage) models.TokenUsage {
-	return models.TokenUsage{
-		InputTokens:  usage.InputTokens,
-		OutputTokens: usage.OutputTokens,
-		TotalTokens:  usage.InputTokens + usage.OutputTokens,
-	}
-}
-
-// UpdateWorkflowState updates the workflow state with the results of the turn
-func (p *ResponseProcessor) UpdateWorkflowState(
-	state *models.WorkflowState,
-	turnResponse *models.TurnResponse,
-) *models.WorkflowState {
-	// Add the turn response to the history
-	state.TurnHistory = append(state.TurnHistory, *turnResponse)
-	
-	// Update workflow state with timestamp
-	state.Timestamp = models.FormatISO8601()
-	
-	// Update stage to indicate that Turn1 is complete
-	state.Stage = "TURN1_COMPLETE"
-	
-	// Update status to indicate progress
-	state.Status = "IN_PROGRESS"
-	
 	return state
 }
 
-// ExtractBedrockError attempts to extract a structured error from a Bedrock error
-func ExtractBedrockError(err error) *models.Error {
-	// Check if it's already a structured error
-	if structErr, ok := err.(*models.Error); ok {
-		return structErr
+// ExtractBedrockError converts a generic Bedrock error to a WorkflowError (Step Functions-friendly).
+func (p *ResponseProcessor) ExtractBedrockError(err error) *errors.WorkflowError {
+	// Already a WorkflowError
+	if wfErr, ok := err.(*errors.WorkflowError); ok {
+		return wfErr
 	}
-	
-	// Simple parsing based on common Bedrock error patterns
+	// Simple error pattern mapping
 	errStr := err.Error()
-	
-	// Check for quota exceeded
-	if strings.Contains(errStr, "quota exceeded") || strings.Contains(errStr, "Rate exceeded") {
-		return models.NewError(
-			"BEDROCK_QUOTA_EXCEEDED",
-			"Bedrock API quota exceeded",
-			true, // This is retryable
-		).WithContext("error", errStr)
+	switch {
+	case strings.Contains(errStr, "quota exceeded") || strings.Contains(errStr, "Rate exceeded"):
+		return errors.NewBedrockError("Bedrock API quota exceeded", "BEDROCK_QUOTA_EXCEEDED", true).
+			WithContext("rawError", errStr)
+	case strings.Contains(errStr, "validation"):
+		return errors.NewBedrockError("Bedrock API validation error", "BEDROCK_VALIDATION_ERROR", false).
+			WithContext("rawError", errStr)
+	case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded"):
+		return errors.NewTimeoutError("Bedrock Converse", 30*time.Second).
+			WithContext("rawError", errStr)
+	default:
+		return errors.NewBedrockError("Bedrock API error", "BEDROCK_ERROR", true).
+			WithContext("rawError", errStr)
 	}
-	
-	// Check for validation errors
-	if strings.Contains(errStr, "validation") {
-		return models.NewError(
-			"BEDROCK_VALIDATION_ERROR",
-			"Bedrock API validation error",
-			false, // Not retryable
-		).WithContext("error", errStr)
-	}
-	
-	// Check for timeout errors
-	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded") {
-		return models.NewError(
-			"BEDROCK_TIMEOUT",
-			"Bedrock API call timed out",
-			true, // This is retryable
-		).WithContext("error", errStr)
-	}
-	
-	// Default to generic error
-	return models.NewError(
-		"BEDROCK_ERROR",
-		"Error calling Bedrock API",
-		true, // Default to retryable
-	).WithContext("error", errStr)
 }
+
+// --- Helpers ---
+
+// extractThinkingContent pulls out <thinking>...</thinking> tags from text, if present.
+func extractThinkingContent(text string) string {
+	thinkingRegex := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
+	matches := thinkingRegex.FindStringSubmatch(text)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
+// normalizeTokenUsage normalizes token usage accounting from Bedrock or schema.
+func normalizeTokenUsage(usage *schema.TokenUsage) *schema.TokenUsage {
+	if usage == nil {
+		return &schema.TokenUsage{}
+	}
+	return &schema.TokenUsage{
+		InputTokens:   usage.InputTokens,
+		OutputTokens:  usage.OutputTokens,
+		ThinkingTokens: usage.ThinkingTokens,
+		TotalTokens:   usage.TotalTokens,
+	}
+}
+
+// FormatISO8601 helper returns UTC now in RFC3339.
+func FormatISO8601() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
+

@@ -2,385 +2,327 @@ package handler
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
+	"encoding/json"  
 	"fmt"
-	"io"
-	//"log"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	//"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	//"github.com/google/uuid"
 
-	"workflow-function/ExecuteTurn1/internal/config"
-	"workflow-function/ExecuteTurn1/internal/dependencies"
-	"workflow-function/ExecuteTurn1/internal/models"
+	"workflow-function/shared/schema"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/errors"
 )
 
-// Handler is the main handler for ExecuteTurn1
+// Handler provides the core logic for ExecuteTurn1
 type Handler struct {
-	bedrockClient    *bedrockruntime.Client
-	s3Client         *s3.Client
-	config           *config.Config
-	responseProcessor *ResponseProcessor
+	bedrockClient *bedrockruntime.Client
+	s3Client      *s3.Client
+	logger        logger.Logger
+	hybridConfig  *schema.HybridStorageConfig
 }
 
-// NewHandler creates a new ExecuteTurn1 handler
-func NewHandler(clients *dependencies.Clients) *Handler {
+// NewHandler constructs the ExecuteTurn1 handler with injected dependencies.
+func NewHandler(bedrockClient *bedrockruntime.Client, s3Client *s3.Client, hybridConfig *schema.HybridStorageConfig, logger logger.Logger) *Handler {
 	return &Handler{
-		bedrockClient:    clients.BedrockClient,
-		s3Client:         clients.S3Client,
-		config:           clients.Config,
-		responseProcessor: NewResponseProcessor(
-			clients.Config.ThinkingType != "",
-			clients.Config.ThinkingBudgetTokens,
-		),
+		bedrockClient: bedrockClient,
+		s3Client:      s3Client,
+		hybridConfig:  hybridConfig,
+		logger:        logger,
 	}
 }
 
-// HandleRequest handles the Lambda function request
-func (h *Handler) HandleRequest(ctx context.Context, request models.ExecuteTurn1Request) (*models.ExecuteTurn1Response, error) {
-	// Validate input
-	if err := validateInput(request); err != nil {
-		return createErrorResponse(request.WorkflowState, err, false), nil
+// HandleRequest executes Turn 1: validates input, invokes Bedrock, updates WorkflowState.
+func (h *Handler) HandleRequest(ctx context.Context, state *schema.WorkflowState) (*schema.WorkflowState, error) {
+	log := h.logger.WithFields(map[string]interface{}{
+		"verificationId": state.VerificationContext.VerificationId,
+		"step":           "ExecuteTurn1",
+	})
+
+	log.Info("Begin ExecuteTurn1 - validating input", nil)
+
+	// Ensure schema version is set to the latest supported version
+	if state.SchemaVersion == "" || state.SchemaVersion != schema.SchemaVersion {
+		log.Info("Updating schema version", map[string]interface{}{
+			"from": state.SchemaVersion, 
+			"to": schema.SchemaVersion,
+		})
+		state.SchemaVersion = schema.SchemaVersion
 	}
 
-	// Create a hybrid Base64 retriever if enabled
-	var retriever hybridBase64Retriever
-	if h.config.EnableHybridStorage {
-		retriever = &s3HybridBase64Retriever{
-			client: h.s3Client,
-			bucket: h.config.TempBase64Bucket,
-			timeout: h.config.Base64RetrievalTimeout,
-		}
-	} else {
-		retriever = &inlineBase64Retriever{}
+	// Validate core workflow state, image data, prompt, and Bedrock config
+	if errs := schema.ValidateWorkflowState(state); len(errs) > 0 {
+		wfErr := errors.NewValidationError("Invalid WorkflowState", map[string]interface{}{"validationErrors": errs.Error()})
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+	if errs := schema.ValidateImageData(state.Images, true); len(errs) > 0 {
+		wfErr := errors.NewValidationError("Invalid ImageData", map[string]interface{}{"validationErrors": errs.Error()})
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+	if errs := schema.ValidateCurrentPrompt(state.CurrentPrompt, true); len(errs) > 0 {
+		wfErr := errors.NewValidationError("Invalid CurrentPrompt", map[string]interface{}{"validationErrors": errs.Error()})
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+	if errs := schema.ValidateBedrockConfig(state.BedrockConfig); len(errs) > 0 {
+		wfErr := errors.NewValidationError("Invalid BedrockConfig", map[string]interface{}{"validationErrors": errs.Error()})
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
 	}
 
-	// Call Bedrock and process response
-	turnResponse, err := h.callBedrock(ctx, request.WorkflowState, retriever)
+	// Prepare hybrid Base64 retriever for reference image
+	retriever := schema.NewHybridBase64Retriever(h.s3Client, h.hybridConfig)
+
+	// Ensure Base64 for images (hybrid logic handled in schema)
+	err := schema.HybridImageProcessor(retriever, nil).EnsureHybridBase64Generated(state.Images)
 	if err != nil {
-		structErr := ExtractBedrockError(err)
-		return createErrorResponse(request.WorkflowState, structErr, structErr.Retryable), nil
+		wfErr := errors.NewInternalError("HybridBase64Generation", err)
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+
+	// Build Bedrock InvokeModel input using shared schema
+	modelInput, err := h.buildConverseInput(ctx, state, retriever)
+	if err != nil {
+		wfErr := errors.NewBedrockError("Failed to build Bedrock model input", "BEDROCK_BUILD_INPUT", false).
+			WithContext("detail", err.Error())
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+
+	// Invoke Bedrock Model API
+	log.Info("Invoking Bedrock Model API", map[string]interface{}{
+		"modelId":   aws.ToString(modelInput.ModelId),
+		"promptId":  state.CurrentPrompt.PromptId,
+	})
+
+	start := time.Now()
+	resp, err := h.bedrockClient.InvokeModel(ctx, modelInput)
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		wfErr := errors.NewBedrockError("Bedrock Model API failed", "BEDROCK_API_FAILURE", true).
+			WithContext("bedrockError", err.Error())
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+
+	// Parse Bedrock response into Turn1Response
+	modelId := aws.ToString(modelInput.ModelId)
+	turn1Response, err := h.buildTurn1Response(state, resp, latencyMs, modelId)
+	if err != nil {
+		wfErr := errors.NewParsingError("Bedrock Model API response", err)
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
 	}
 
 	// Update workflow state
-	updatedState := h.responseProcessor.UpdateWorkflowState(
-		&request.WorkflowState,
-		turnResponse,
-	)
+	state.Turn1Response = map[string]interface{}{"turnResponse": turn1Response}
+	state.VerificationContext.Status = schema.StatusTurn1Completed
+	state.ConversationState = h.updateConversationState(state, turn1Response)
+	state.VerificationContext.Error = nil // clear error on success
 
-	// Return successful response
-	return &models.ExecuteTurn1Response{
-		WorkflowState: *updatedState,
-	}, nil
+	log.Info("Turn1 completed", map[string]interface{}{
+		"latencyMs":  latencyMs,
+		"turnId":     turn1Response.TurnId,
+		"tokens":     turn1Response.TokenUsage,
+		"status":     state.VerificationContext.Status,
+	})
+
+	return state, nil
 }
 
-// callBedrock calls the Bedrock API with the prepared prompt
-func (h *Handler) callBedrock(
-	ctx context.Context,
-	state models.WorkflowState,
-	retriever hybridBase64Retriever,
-) (*models.TurnResponse, error) {
-	startTime := time.Now()
+// --- Helper Methods ---
 
-	// Prepare the Bedrock request
-	bedrockRequest, err := h.prepareBedrockRequest(state, retriever)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare Bedrock request: %w", err)
+// setErrorAndLog centralizes error logging and state update.
+func (h *Handler) setErrorAndLog(state *schema.WorkflowState, err error, log logger.Logger, status string) {
+	log.Error("Error in ExecuteTurn1", map[string]interface{}{"error": err.Error()})
+	var wfErr *errors.WorkflowError
+	if e, ok := err.(*errors.WorkflowError); ok {
+		wfErr = e
+	} else {
+		wfErr = errors.WrapError(err, errors.ErrorTypeInternal, "Unexpected error", false)
 	}
-
-	// Marshal the request to JSON
-	requestBytes, err := json.Marshal(bedrockRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Bedrock request: %w", err)
+	
+	// Convert WorkflowError to schema.ErrorInfo
+	state.VerificationContext.Error = &schema.ErrorInfo{
+		Code:      wfErr.Code,
+		Message:   wfErr.Message,
+		Details:   wfErr.Context,
+		Timestamp: schema.FormatISO8601(),
 	}
-
-	// Prepare the invoke model input
-	input := &bedrockruntime.InvokeModelInput{
-		ModelId:     aws.String(h.config.BedrockModelID),
-		Accept:      aws.String("application/json"),
-		ContentType: aws.String("application/json"),
-		Body:        requestBytes,
-	}
-
-	// Set a context timeout for the Bedrock API call
-	bedrockCtx, cancel := context.WithTimeout(ctx, h.config.BedrockTimeout)
-	defer cancel()
-
-	// Call the Bedrock API
-	output, err := h.bedrockClient.InvokeModel(bedrockCtx, input)
-	if err != nil {
-		// Handle error conditions
-		return nil, err
-	}
-
-	// Calculate latency
-	latencyMs := time.Since(startTime).Milliseconds()
-
-	// Parse the response
-	var bedrockResponse models.BedrockResponse
-	if err := json.Unmarshal(output.Body, &bedrockResponse); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Bedrock response: %w", err)
-	}
-
-	// Process the response
-	turnResponse, err := h.responseProcessor.ProcessResponse(
-		bedrockResponse,
-		latencyMs,
-		state.Stage,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process Bedrock response: %w", err)
-	}
-
-	return turnResponse, nil
+	state.VerificationContext.Status = status
 }
 
-// prepareBedrockRequest prepares a request to the Bedrock API
-func (h *Handler) prepareBedrockRequest(
-	state models.WorkflowState,
-	retriever hybridBase64Retriever,
-) (*models.BedrockRequest, error) {
-	// Get current prompt
-	prompt := state.CurrentPrompt
-
-	// Handle different types of prompts (text vs messages)
-	if len(prompt.Messages) > 0 {
-		return h.prepareBedrockMessagesRequest(prompt, state.ImageData, retriever)
-	} else if prompt.PromptText != "" {
-		return h.prepareBedrockTextRequest(prompt, state.ImageData, retriever)
+// buildConverseInput prepares a simplified JSON-based input for the Bedrock Converse API
+func (h *Handler) buildConverseInput(ctx context.Context, state *schema.WorkflowState, retriever *schema.HybridBase64Retriever) (*bedrockruntime.InvokeModelInput, error) {
+	// Ensure prompt messages exist
+	if len(state.CurrentPrompt.Messages) == 0 {
+		return nil, fmt.Errorf("no Bedrock messages found in current prompt")
 	}
 
-	return nil, fmt.Errorf("no prompt text or messages found in CurrentPrompt")
-}
+	// Build simplified payload structure
+	type Message struct {
+		Role    string                   `json:"role"`
+		Content []map[string]interface{} `json:"content"`
+	}
 
-// prepareBedrockMessagesRequest prepares a Bedrock request using the messages format
-func (h *Handler) prepareBedrockMessagesRequest(
-	prompt models.PromptDetails,
-	imageData models.ImageDetails,
-	retriever hybridBase64Retriever,
-) (*models.BedrockRequest, error) {
-	// Clone the messages to avoid modifying the original
-	messages := make([]models.BedrockMessage, len(prompt.Messages))
-	copy(messages, prompt.Messages)
+	type RequestPayload struct {
+		ModelID         string    `json:"model_id"`
+		Messages        []Message `json:"messages"`
+		MaxTokens       int       `json:"max_tokens"`
+		Temperature     float64   `json:"temperature"`
+		AnthropicVersion string   `json:"anthropic_version"`
+	}
 
-	// Process any image message content
-	for i := range messages {
-		for j := range messages[i].Content {
-			content := &messages[i].Content[j]
-			if content.Type == "image" && content.Source != nil && content.Source.Type == "base64" {
-				// If image data is inline in the message, no need to retrieve
-				if content.Source.Data != "" {
-					continue
-				}
+	// Prepare messages in the appropriate format
+	var messages []Message
+	for _, msg := range state.CurrentPrompt.Messages {
+		var contentBlocks []map[string]interface{}
 
-				// Get the Base64 data from the image details
-				base64Data, err := retriever.retrieveBase64(imageData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to retrieve base64 data: %w", err)
-				}
-
-				// Add the data to the message content
-				content.Source.Data = base64Data
-				if content.Source.MediaType == "" {
-					content.Source.MediaType = determineMediaType(imageData.ContentType)
+		for _, content := range msg.Content {
+			switch content.Type {
+			case "text":
+				contentBlocks = append(contentBlocks, map[string]interface{}{
+					"type": "text",
+					"text": content.Text,
+				})
+			case "image":
+				if content.Image != nil {
+					base64Data, err := retriever.RetrieveBase64Data(h.getReferenceImageInfo(state.Images))
+					if err != nil {
+						return nil, fmt.Errorf("failed to retrieve image Base64: %w", err)
+					}
+					
+					contentBlocks = append(contentBlocks, map[string]interface{}{
+						"type": "image",
+						"source": map[string]interface{}{
+							"type":   "base64",
+							"media_type": content.Image.Format,
+							"data": base64Data,
+						},
+					})
 				}
 			}
 		}
-	}
 
-	// Create the Bedrock request
-	return &models.BedrockRequest{
-		AnthropicVersion: h.config.AnthropicVersion,
-		Messages:         messages,
-		MaxTokens:        h.config.MaxTokens,
-		Temperature:      h.config.Temperature,
-		// No system message for messages format
-	}, nil
-}
-
-// prepareBedrockTextRequest prepares a Bedrock request using the legacy text format
-func (h *Handler) prepareBedrockTextRequest(
-	prompt models.PromptDetails,
-	imageData models.ImageDetails,
-	retriever hybridBase64Retriever,
-) (*models.BedrockRequest, error) {
-	// Get the Base64 data
-	base64Data, err := retriever.retrieveBase64(imageData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve base64 data: %w", err)
-	}
-
-	// Create a user message with text and image
-	userMessage := models.BedrockMessage{
-		Role: "user",
-		Content: []models.MessageContent{
-			{
-				Type: "image",
-				Source: &models.ImageSource{
-					Type:      "base64",
-					MediaType: determineMediaType(imageData.ContentType),
-					Data:      base64Data,
-				},
-			},
-			{
-				Type: "text",
-				Text: prompt.PromptText,
-			},
-		},
-	}
-
-	// Create the Bedrock request
-	return &models.BedrockRequest{
-		AnthropicVersion: h.config.AnthropicVersion,
-		Messages:         []models.BedrockMessage{userMessage},
-		MaxTokens:        h.config.MaxTokens,
-		Temperature:      h.config.Temperature,
-		// No system message for text format
-	}, nil
-}
-
-// hybridBase64Retriever is an interface for retrieving Base64 data
-type hybridBase64Retriever interface {
-	retrieveBase64(imageData models.ImageDetails) (string, error)
-}
-
-// inlineBase64Retriever retrieves Base64 data directly from the image details
-type inlineBase64Retriever struct{}
-
-// retrieveBase64 retrieves Base64 data from the image details
-func (r *inlineBase64Retriever) retrieveBase64(imageData models.ImageDetails) (string, error) {
-	if imageData.ImageBase64 != "" {
-		return imageData.ImageBase64, nil
-	}
-	return "", fmt.Errorf("no base64 data found in image details")
-}
-
-// s3HybridBase64Retriever retrieves Base64 data from S3
-type s3HybridBase64Retriever struct {
-	client  *s3.Client
-	bucket  string
-	timeout time.Duration
-}
-
-// retrieveBase64 retrieves Base64 data from S3 if available, otherwise from the image details
-func (r *s3HybridBase64Retriever) retrieveBase64(imageData models.ImageDetails) (string, error) {
-	// If inline Base64 is available, use it
-	if imageData.ImageBase64 != "" {
-		return imageData.ImageBase64, nil
-	}
-
-	// If S3 key is available, retrieve from S3
-	if imageData.ImageS3Key != "" {
-		s3Bucket := imageData.ImageS3Bucket
-		if s3Bucket == "" {
-			s3Bucket = r.bucket
-		}
-
-		// Create context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
-		defer cancel()
-
-		// Get object from S3
-		output, err := r.client.GetObject(ctx, &s3.GetObjectInput{
-			Bucket: aws.String(s3Bucket),
-			Key:    aws.String(imageData.ImageS3Key),
+		messages = append(messages, Message{
+			Role:    msg.Role,
+			Content: contentBlocks,
 		})
-		if err != nil {
-			return "", fmt.Errorf("failed to get object from S3: %w", err)
-		}
-		defer output.Body.Close()
-
-		// Read the object body
-		data, err := io.ReadAll(output.Body)
-		if err != nil {
-			return "", fmt.Errorf("failed to read object body: %w", err)
-		}
-
-		// Encode as Base64
-		return base64.StdEncoding.EncodeToString(data), nil
 	}
 
-	return "", fmt.Errorf("no base64 data or S3 key found in image details")
+	// Create the payload
+	payload := RequestPayload{
+		ModelID:    state.BedrockConfig.AnthropicVersion,
+		Messages:   messages,
+		MaxTokens:  state.BedrockConfig.MaxTokens,
+		Temperature: state.BedrockConfig.Temperature,
+		AnthropicVersion: state.BedrockConfig.AnthropicVersion,
+	}
+
+	// Marshal to JSON
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	// Create the InvokeModelInput using AnthropicVersion as the model ID
+	input := &bedrockruntime.InvokeModelInput{
+		ModelId:          aws.String(state.BedrockConfig.AnthropicVersion),
+		ContentType:      aws.String("application/json"),
+		Accept:           aws.String("application/json"),
+		Body:             payloadBytes,
+	}
+
+	return input, nil
 }
 
-// validateInput validates the incoming request
-func validateInput(request models.ExecuteTurn1Request) error {
-	state := request.WorkflowState
-
-	if state.VerificationID == "" {
-		return fmt.Errorf("verificationId is required")
+// buildTurn1Response parses the Bedrock response and builds a TurnResponse.
+func (h *Handler) buildTurn1Response(state *schema.WorkflowState, resp *bedrockruntime.InvokeModelOutput, latencyMs int64, modelId string) (*schema.TurnResponse, error) {
+	// Parse response JSON
+	var responseData struct {
+		Type      string `json:"type"`
+		Content   []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		StopReason string `json:"stop_reason"`
+		StopSequence string `json:"stop_sequence"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
 	}
 
-	if state.CurrentPrompt.PromptID == "" {
-		return fmt.Errorf("currentPrompt.promptId is required")
+	if err := json.Unmarshal(resp.Body, &responseData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Bedrock response: %w", err)
 	}
 
-	if state.CurrentPrompt.PromptText == "" && len(state.CurrentPrompt.Messages) == 0 {
-		return fmt.Errorf("either promptText or messages must be provided")
-	}
-
-	if state.ImageData.ImageID == "" {
-		return fmt.Errorf("imageData.imageId is required")
-	}
-
-	return nil
-}
-
-// createErrorResponse creates an error response
-func createErrorResponse(
-	state models.WorkflowState,
-	err error,
-	retryable bool,
-) *models.ExecuteTurn1Response {
-	var structErr *models.Error
-	if e, ok := err.(*models.Error); ok {
-		structErr = e
-	} else {
-		structErr = &models.Error{
-			Code:      "EXECUTION_ERROR",
-			Message:   err.Error(),
-			Retryable: retryable,
-			Context:   make(map[string]string),
+	// Extract content and thinking
+	var content, thinking string
+	for _, item := range responseData.Content {
+		if item.Type == "text" {
+			content += item.Text
 		}
 	}
 
-	// Update workflow state
-	state.Status = "ERROR"
-	state.Timestamp = models.FormatISO8601()
-
-	return &models.ExecuteTurn1Response{
-		WorkflowState: state,
-		Error:         structErr,
+	// Extract thinking from content if present
+	thinkingPattern := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
+	if matches := thinkingPattern.FindStringSubmatch(content); len(matches) > 1 {
+		thinking = matches[1]
 	}
+
+	// Build token usage
+	tokenUsage := &schema.TokenUsage{
+		InputTokens:  responseData.Usage.InputTokens,
+		OutputTokens: responseData.Usage.OutputTokens,
+		TotalTokens:  responseData.Usage.InputTokens + responseData.Usage.OutputTokens,
+	}
+
+	// Build the response
+	return &schema.TurnResponse{
+		TurnId:    1,
+		Timestamp: schema.FormatISO8601(),
+		Prompt:    state.CurrentPrompt.Text,
+		ImageUrls: map[string]string{
+			"reference": h.getReferenceImageInfo(state.Images).URL,
+		},
+		Response: schema.BedrockApiResponse{
+			Content:    content,
+			Thinking:   thinking,
+			StopReason: responseData.StopReason,
+			ModelId:    modelId,
+			RequestId:  "request-id-not-available", // Response metadata not accessible
+		},
+		LatencyMs:  latencyMs,
+		TokenUsage: tokenUsage,
+		Stage:      schema.StatusTurn1Completed,
+	}, nil
 }
 
-// determineMediaType determines the media type from a content type
-func determineMediaType(contentType string) string {
-	if contentType == "" {
-		return "image/jpeg" // Default to JPEG
+// updateConversationState updates the conversation state/history after Turn1.
+func (h *Handler) updateConversationState(state *schema.WorkflowState, turn1Response *schema.TurnResponse) *schema.ConversationState {
+	cs := state.ConversationState
+	if cs == nil {
+		cs = &schema.ConversationState{
+			CurrentTurn: 1,
+			MaxTurns:    2,
+			History:     []interface{}{},
+		}
 	}
+	cs.History = append(cs.History, *turn1Response)
+	cs.CurrentTurn = 1
+	return cs
+}
 
-	// Clean up content type
-	contentType = strings.TrimSpace(contentType)
-	contentType = strings.ToLower(contentType)
-
-	// Handle common content types
-	switch {
-	case strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg"):
-		return "image/jpeg"
-	case strings.Contains(contentType, "png"):
-		return "image/png"
-	case strings.Contains(contentType, "gif"):
-		return "image/gif"
-	case strings.Contains(contentType, "webp"):
-		return "image/webp"
-	default:
-		return contentType
+// getReferenceImageInfo returns the reference ImageInfo from ImageData.
+func (h *Handler) getReferenceImageInfo(images *schema.ImageData) *schema.ImageInfo {
+	if images.Reference != nil {
+		return images.Reference
 	}
+	return images.ReferenceImage // legacy fallback
 }

@@ -2,87 +2,64 @@ package dependencies
 
 import (
 	"context"
-	"fmt"
-	"time"
+	//"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	
-	appConfig "workflow-function/ExecuteTurn1/internal/config"
+
+	"workflow-function/shared/schema"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/errors"
+	"workflow-function/ExecuteTurn1/internal/config" // This is your local config wrapper
 )
 
-// Clients holds all AWS clients needed for the ExecuteTurn1 function
+// Clients centralizes all required AWS and hybrid storage clients/services.
 type Clients struct {
 	BedrockClient *bedrockruntime.Client
 	S3Client      *s3.Client
-	Config        *appConfig.Config
+	HybridConfig  *schema.HybridStorageConfig
+	Logger        logger.Logger
 }
 
-// New creates and initializes all needed AWS clients
-func New(ctx context.Context, cfg *appConfig.Config) (*Clients, error) {
-	// Set up AWS config with region
-	awsCfg, err := config.LoadDefaultConfig(ctx, 
-		config.WithRegion(cfg.AWSRegion),
-		config.WithRetryMode(aws.RetryModeAdaptive),
-		config.WithRetryMaxAttempts(3),
-	)
+// New initializes AWS clients and hybrid config, logs issues, returns errors.WorkflowError on failure.
+func New(ctx context.Context, cfg *config.Config, log logger.Logger) (*Clients, error) {
+	// AWS SDK v2 config loading
+	awsCfg, err := loadAWSConfig(ctx, cfg.AWSRegion)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS configuration: %w", err)
+		log.Error("Failed to load AWS config", map[string]interface{}{"error": err.Error()})
+		return nil, errors.NewInternalError("AWSConfig", err)
 	}
 
-	// Create Bedrock client with timeout
-	bedrockClientTimeout := cfg.BedrockTimeout
-	if bedrockClientTimeout <= 0 {
-		bedrockClientTimeout = 5 * time.Minute
-	}
-	
-	bedrockClient := bedrockruntime.NewFromConfig(awsCfg, func(o *bedrockruntime.Options) {
-		// Use the default retryer
-		o.ClientLogMode = aws.LogRetries | aws.LogRequest | aws.LogResponse
-	})
-	
-	// Create S3 client
+	// Bedrock client
+	bedrockClient := bedrockruntime.NewFromConfig(awsCfg)
+	// S3 client
 	s3Client := s3.NewFromConfig(awsCfg)
+
+	// Hybrid storage config as per shared schema (populate from your config)
+	hybridCfg := &schema.HybridStorageConfig{
+		TempBase64Bucket:       cfg.TempBase64Bucket,
+		Base64SizeThreshold:    cfg.Base64SizeThreshold,
+		Base64RetrievalTimeout: int(cfg.Base64RetrievalTimeout.Milliseconds()),
+		EnableHybridStorage:    cfg.EnableHybridStorage,
+	}
+
+	log.Info("AWS clients and hybrid config initialized", map[string]interface{}{
+		"region":              cfg.AWSRegion,
+		"hybridBase64Enabled": cfg.EnableHybridStorage,
+		"tempBase64Bucket":    cfg.TempBase64Bucket,
+	})
 
 	return &Clients{
 		BedrockClient: bedrockClient,
 		S3Client:      s3Client,
-		Config:        cfg,
+		HybridConfig:  hybridCfg,
+		Logger:        log,
 	}, nil
 }
 
-// BedrockService provides methods for interacting with the Bedrock service
-type BedrockService struct {
-	client *bedrockruntime.Client
-	modelID string
-	anthropicVersion string
-}
-
-// NewBedrockService creates a new BedrockService with the given client and configuration
-func NewBedrockService(client *bedrockruntime.Client, cfg *appConfig.Config) *BedrockService {
-	return &BedrockService{
-		client: client,
-		modelID: cfg.BedrockModelID,
-		anthropicVersion: cfg.AnthropicVersion,
-	}
-}
-
-// HybridBase64Service provides methods for handling hybrid Base64 storage
-type HybridBase64Service struct {
-	s3Client *s3.Client
-	bucket string
-	sizeThreshold int64
-	retrievalTimeout time.Duration
-}
-
-// NewHybridBase64Service creates a new HybridBase64Service with the given client and configuration
-func NewHybridBase64Service(s3Client *s3.Client, cfg *appConfig.Config) *HybridBase64Service {
-	return &HybridBase64Service{
-		s3Client: s3Client,
-		bucket: cfg.TempBase64Bucket,
-		sizeThreshold: cfg.Base64SizeThreshold,
-		retrievalTimeout: cfg.Base64RetrievalTimeout,
-	}
+// loadAWSConfig is a helper for AWS config loading with retries and defaults.
+func loadAWSConfig(ctx context.Context, region string) (aws.Config, error) {
+	return awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 }

@@ -1,6 +1,6 @@
 module workflow-function/ExecuteTurn1
 
-go 1.21
+go 1.22
 
 require (
 	github.com/aws/aws-lambda-go v1.46.0
@@ -9,6 +9,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.7.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.52.1
 	github.com/google/uuid v1.6.0
+	workflow-function/shared/errors v0.0.0
+	workflow-function/shared/logger v0.0.0
+	workflow-function/shared/schema v0.0.0
 )
 
 require (
@@ -27,4 +30,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.5 // indirect
 	github.com/aws/smithy-go v1.20.1 // indirect
+)
+
+replace (
+	workflow-function/shared/errors => ../shared/errors
+	workflow-function/shared/logger => ../shared/logger
+	workflow-function/shared/schema => ../shared/schema
 )

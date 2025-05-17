@@ -1,7 +1,7 @@
-FROM public.ecr.aws/lambda/provided:al2-x86_64 as builder
+FROM --platform=linux/arm64 golang:1.22-alpine AS builder
 
-# Install necessary build tools
-RUN yum install -y golang git
+# Install git for dependencies
+RUN apk add --no-cache git
 
 # Set up the working directory
 WORKDIR /app
@@ -15,14 +15,21 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the application with optimizations
-RUN go build -o main ./cmd/main.go
+# Build the application with enhanced error checking
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap -ldflags="-s -w" -trimpath ./cmd/main.go
 
 # Create the lambda runtime image
-FROM public.ecr.aws/lambda/provided:al2-x86_64
+FROM --platform=linux/arm64 public.ecr.aws/lambda/provided:al2-arm64
+
+# Add function version metadata
+LABEL function.version="1.3.0" 
+LABEL function.description="ExecuteTurn1 - Bedrock InvokeModel API implementation"
 
 # Copy the compiled binary
-COPY --from=builder /app/main ${LAMBDA_RUNTIME_DIR}
+COPY --from=builder /app/bootstrap /var/runtime/bootstrap
+
+# Make the bootstrap file executable
+RUN chmod +x /var/runtime/bootstrap
 
 # Set the entry point for AWS Lambda
-CMD ["main"]
+CMD ["bootstrap"]

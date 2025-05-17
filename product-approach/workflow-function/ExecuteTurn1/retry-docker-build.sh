@@ -121,10 +121,12 @@ echo "Copying shared packages..."
 cp -r "$SHARED_PACKAGES_DIR"/* "$TEMP_BUILD_DIR/workflow-function/shared/"
 
 # Verify shared packages were copied correctly
-if [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/bedrock" ] || \
-   [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/errors" ] || \
-   [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/schema" ]; then
+if [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/errors" ] || \
+   [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/schema" ] || \
+   [ ! -d "$TEMP_BUILD_DIR/workflow-function/shared/logger" ]; then
   echo "Error: Failed to copy shared packages correctly"
+  echo "Looking for: errors, schema, and logger packages"
+  echo "Found: $(ls -la $TEMP_BUILD_DIR/workflow-function/shared/)"
   rm -rf "$TEMP_BUILD_DIR"
   exit 1
 fi
@@ -141,13 +143,13 @@ fi
 
 # Create a temporary go.work file to help with local module resolution
 cat > "$TEMP_BUILD_DIR/go.work" << EOF
-go 1.24.0
+go 1.22.0
 
 use (
   .
-  ./workflow-function/shared/bedrock
   ./workflow-function/shared/errors
   ./workflow-function/shared/schema
+  ./workflow-function/shared/logger
 )
 EOF
 
@@ -167,7 +169,18 @@ if [[ "$NO_CACHE" == true ]]; then
   BUILD_ARGS="--no-cache"
 fi
 
-if ! docker build $BUILD_ARGS -t "${ECR_REPO}:${IMAGE_TAG}" "$TEMP_BUILD_DIR"; then
+# Get host architecture
+HOST_ARCH=$(uname -m)
+if [[ "$HOST_ARCH" == "arm64" ]]; then
+  echo "Building for ARM64 architecture..."
+  PLATFORM_ARG="--platform=linux/arm64"
+else
+  echo "Building for AMD64 architecture..."
+  # Auto-detect if we should use emulation
+  PLATFORM_ARG="--platform=linux/arm64"
+fi
+
+if ! docker build $PLATFORM_ARG $BUILD_ARGS -t "${ECR_REPO}:${IMAGE_TAG}" "$TEMP_BUILD_DIR"; then
   echo "Error: Docker build failed"
   exit 1
 fi

@@ -1,66 +1,90 @@
 # ExecuteTurn1 Lambda Function
 
-This Lambda function executes the first conversation turn with Amazon Bedrock, providing reference image analysis for the vending machine verification workflow.
+This Lambda executes the first conversation turn with Amazon Bedrock, analyzing the reference image for the vending machine verification workflow.  
+**Now fully standardized on a shared schema, logger, and error package for robust, auditable, and maintainable production use.**
+
+---
 
 ## Overview
 
-ExecuteTurn1 is a critical component in the verification workflow that:
+**ExecuteTurn1** is a core component in the AI-powered vending machine verification solution. It:
 
-1. Takes in the workflow state with prepared prompts
-2. Retrieves image data (either inline or from S3)
-3. Calls the Bedrock Converse API with the image and prompt
-4. Processes the response to extract relevant content
-5. Updates the workflow state with the results
+1. Accepts the canonical workflow state and system/user prompts (per shared schema).
+2. Retrieves image data via hybrid Base64 logic (inline or S3 as needed).
+3. Invokes the Bedrock InvokeModel API (Claude 3.7 Sonnet) using a standardized JSON payload.
+4. Processes and structures the response, including "thinking" content if enabled.
+5. Updates the workflow state, including full turn history, verification context, and standardized error surfaces.
 
-## Features
+---
 
-- Supports both legacy text prompts and new Bedrock messages format
-- Implements hybrid Base64 storage for efficient handling of large images
-- Extracts and processes "thinking" content when enabled
-- Comprehensive error handling with retryable errors
-- Structured logging with correlation IDs
+## Key Features
+
+- **Shared Schema**:  
+  - All requests, responses, prompts, and images use a common Go struct package, enabling strong validation and seamless Step Functions integration.
+- **Hybrid Base64 Storage**:  
+  - Images are handled as Base64 inline or via S3, based on size and configuration. S3 retrieval and embedding is automatic and fully abstracted.
+- **Bedrock InvokeModel API**:  
+  - Supports the Claude 3.7 Sonnet multimodal model via standardized JSON format.
+- **Centralized Logging**:  
+  - All logs are structured JSON, with service/function, severity, and correlation ID for distributed traceability.
+- **Comprehensive Error Handling**:  
+  - Every error (validation, AWS, Bedrock, etc.) is captured as a `WorkflowError` (typed, retryable, with context), and surfaced both in Lambda and in `VerificationContext.Error` for Step Functions.
+- **Step Functions Ready**:  
+  - All state transitions and output match the canonical shared schema for downstream workflow compatibility.
+
+---
 
 ## Directory Structure
 
-```
+
+
 ExecuteTurn1/
 ├── cmd/
-│   └── main.go                 # Lambda handler entry point
+│ └── main.go # Lambda handler entry point
 ├── internal/
-│   ├── handler/
-│   │   ├── execute_turn1.go    # Main business logic
-│   │   └── response_processor.go # Response processing logic
-│   ├── config/
-│   │   └── config.go           # Configuration management
-│   ├── dependencies/
-│   │   └── clients.go          # AWS client initialization
-│   └── models/
-│       └── request.go          # Request/response models
+│ ├── handler/
+│ │ ├── execute_turn1.go # Main business logic (uses schema/logger/errors)
+│ │ └── response_processor.go# Response processing logic
+│ ├── config/
+│ │ └── config.go # Centralized configuration
+│ ├── dependencies/
+│ │ └── clients.go # AWS client initialization
+│ └── request/
+│ └── request.go # Lambda input/output and validation helpers
+├── shared/ # Shared schema/logger/error packages
+│ ├── schema/
+│ ├── logger/
+│ └── errors/
 ├── Dockerfile
 ├── go.mod
 ├── go.sum
 └── README.md
-```
+
+
+---
 
 ## Configuration
 
-The function uses environment variables for configuration:
+The function uses environment variables for all settings.  
+**All values are strongly validated at startup.**
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| BEDROCK_MODEL_ID | Bedrock model identifier | anthropic.claude-3-7-sonnet-20250219-v1:0 |
-| AWS_REGION | AWS region for services | us-east-1 |
-| ANTHROPIC_VERSION | Anthropic API version | bedrock-2023-05-31 |
-| MAX_TOKENS | Maximum tokens for response | 4000 |
-| TEMPERATURE | Temperature for model sampling | 0.7 |
-| THINKING_TYPE | Type of thinking to extract | thoroughness |
-| THINKING_BUDGET_TOKENS | Token budget for thinking | 50000 |
-| ENABLE_HYBRID_STORAGE | Enable S3 storage for large Base64 | true |
-| TEMP_BASE64_BUCKET | S3 bucket for Base64 storage | temp-base64-bucket |
-| BASE64_SIZE_THRESHOLD | Size threshold for S3 storage | 2097152 (2MB) |
-| BASE64_RETRIEVAL_TIMEOUT | Timeout for S3 retrieval | 30000ms |
-| BEDROCK_TIMEOUT | Timeout for Bedrock API calls | 300000ms (5min) |
-| FUNCTION_TIMEOUT | Overall function timeout | 300000ms (5min) |
+| Variable                | Description                                | Default                                     |
+|-------------------------|--------------------------------------------|---------------------------------------------|
+| BEDROCK_MODEL_ID        | Bedrock model identifier                   | anthropic.claude-3-7-sonnet-20250219-v1:0   |
+| AWS_REGION              | AWS region for services                    | us-east-1                                   |
+| ANTHROPIC_VERSION       | Anthropic API version                      | bedrock-2023-05-31                          |
+| MAX_TOKENS              | Max tokens for Bedrock response            | 4000                                        |
+| TEMPERATURE             | Model sampling temperature                 | 0.7                                         |
+| THINKING_TYPE           | Type of thinking to extract                | thoroughness                                |
+| THINKING_BUDGET_TOKENS  | Token budget for thinking                  | 16000                                       |
+| ENABLE_HYBRID_STORAGE   | Enable S3 storage for large Base64         | true                                        |
+| TEMP_BASE64_BUCKET      | S3 bucket for Base64 storage               | temp-base64-bucket                          |
+| BASE64_SIZE_THRESHOLD   | Size threshold for S3 storage (bytes)      | 2097152 (2MB)                               |
+| BASE64_RETRIEVAL_TIMEOUT| Timeout for S3 retrieval (ms)              | 30000                                       |
+| BEDROCK_TIMEOUT         | Timeout for Bedrock API calls (ms)         | 120000                                      |
+| FUNCTION_TIMEOUT        | Overall function timeout (ms)              | 120000                                      |
+
+---
 
 ## Building and Deployment
 
@@ -68,7 +92,8 @@ The function uses environment variables for configuration:
 
 ```bash
 go build -o main ./cmd/main.go
-```
+
+
 
 ### Docker Build
 
