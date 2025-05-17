@@ -5,6 +5,15 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-05-17
+
+### Fixed
+- Fixed DynamoDB `ValidationException` error: "Missing the key verificationId in the item"
+- Added validation in verification_repo.go to ensure verificationId is present before DynamoDB operations
+- Added safeguard to set a default Status value when missing to satisfy DynamoDB schema requirements
+- Enhanced input validation in initialize_service.go to verify required fields exist before processing
+- Improved error handling for missing primary key fields in DynamoDB operations
+
 ## [2.0.0] - 2025-05-17
 
 ### Added

@@ -367,6 +367,15 @@ func (s *InitializeService) generateVerificationId() string {
 }
 
 // createVerificationContext creates the verification context with a unique ID
+
+// Logger returns the service logger
+func (s *InitializeService) Logger() logger.Logger {
+	return s.logger
+}
+// In internal/initialize_service.go
+// Update the createVerificationContext method to add additional safety
+
+// createVerificationContext creates the verification context with a unique ID
 func (s *InitializeService) createVerificationContext(
 	request ProcessRequest, 
 	resourceValidation *schema.ResourceValidation,
@@ -407,23 +416,38 @@ func (s *InitializeService) createVerificationContext(
 			"isEmpty": verificationContext.PreviousVerificationId == "",
 		})
 	}
+	
+	// Final verification - ensure required fields are not empty
+	if verificationContext.VerificationId == "" {
+		s.logger.Error("VerificationId is missing in the context", nil)
+		return nil, fmt.Errorf("required field verificationId is missing in the context")
+	}
+	
+	s.logger.Debug("Created verification context", map[string]interface{}{
+		"verificationId": verificationContext.VerificationId,
+		"verificationType": verificationContext.VerificationType,
+		"status": verificationContext.Status,
+	})
 
-	// Handle conversation configuration
-	if request.ConversationConfig.Type != "" {
-		verificationContext.ConversationType = request.ConversationConfig.Type
-		verificationContext.TurnConfig = &schema.TurnConfig{
-			MaxTurns:           request.ConversationConfig.MaxTurns,
-			ReferenceImageTurn: 1,
-			CheckingImageTurn:  2,
-		}
-	} else {
-		// Default to two-turn configuration
-		verificationContext.ConversationType = "two-turn"
-		verificationContext.TurnConfig = &schema.TurnConfig{
-			MaxTurns:           2,
-			ReferenceImageTurn: 1,
-			CheckingImageTurn:  2,
-		}
+	// Handle conversation configuration with safety checks
+	// Ensure we have valid values for the conversation configuration
+	conversationType := request.ConversationConfig.Type
+	maxTurns := request.ConversationConfig.MaxTurns
+	
+	// Apply defaults if values are not provided
+	if conversationType == "" {
+		conversationType = "two-turn"
+	}
+	if maxTurns <= 0 {
+		maxTurns = 2
+	}
+	
+	// Set the conversation configuration
+	verificationContext.ConversationType = conversationType
+	verificationContext.TurnConfig = &schema.TurnConfig{
+		MaxTurns:           maxTurns,
+		ReferenceImageTurn: 1,
+		CheckingImageTurn:  2,
 	}
 
 	// Initialize turn timestamps
@@ -444,9 +468,4 @@ func (s *InitializeService) createVerificationContext(
 	}
 
 	return verificationContext, nil
-}
-
-// Logger returns the service logger
-func (s *InitializeService) Logger() logger.Logger {
-	return s.logger
 }

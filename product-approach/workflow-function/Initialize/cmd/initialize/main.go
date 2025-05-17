@@ -275,6 +275,22 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 	})
 
 	// 7) Process the request with our internal service
+	// Build a ConversationConfig to pass to the service
+	var convConfig internal.ConversationConfig
+	if request.ConversationConfig != nil {
+		// If provided, use the values from the request
+		convConfig = internal.ConversationConfig{
+			Type:     request.ConversationConfig.Type,
+			MaxTurns: request.ConversationConfig.MaxTurns,
+		}
+	} else {
+		// Set default values when not provided
+		convConfig = internal.ConversationConfig{
+			Type:     "two-turn", // Default type
+			MaxTurns: 2,          // Default max turns
+		}
+	}
+	
 	result, err := svc.Process(ctx, internal.ProcessRequest{
 		SchemaVersion:         request.SchemaVersion,
 		VerificationContext:   request.VerificationContext,
@@ -288,10 +304,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		RequestId:             request.RequestId,
 		RequestTimestamp:      request.RequestTimestamp,
 		NotificationEnabled:   request.NotificationEnabled,
-		ConversationConfig: internal.ConversationConfig{
-			Type:     request.ConversationConfig.Type,
-			MaxTurns: request.ConversationConfig.MaxTurns,
-		},
+		ConversationConfig:    convConfig,
 	})
 	
 	if err != nil {

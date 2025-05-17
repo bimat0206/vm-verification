@@ -56,6 +56,25 @@ func (r *VerificationRepository) StoreVerificationRecord(ctx context.Context, ve
 		TTL: ttl,
 	}
 	
+	// Make sure the verificationId field is explicitly set
+	// We need to ensure it's included as the primary key in the DynamoDB item
+	if verificationWithTTL.VerificationId == "" {
+		r.logger.Error("VerificationId is missing", map[string]interface{}{
+			"verification": verification,
+		})
+		return fmt.Errorf("missing required field: verificationId")
+	}
+	
+	// For DynamoDB compatibility, if Status is not set, provide a default
+	// This ensures the DynamoDB schema validation passes
+	if verificationWithTTL.Status == "" {
+		verificationWithTTL.Status = schema.StatusVerificationRequested
+		r.logger.Warn("Status field was empty, setting default", map[string]interface{}{
+			"defaultStatus": verificationWithTTL.Status,
+			"verificationId": verificationWithTTL.VerificationId,
+		})
+	}
+	
 	item, err := attributevalue.MarshalMap(verificationWithTTL)
 	if err != nil {
 		r.logger.Error("Failed to marshal verification record", map[string]interface{}{
