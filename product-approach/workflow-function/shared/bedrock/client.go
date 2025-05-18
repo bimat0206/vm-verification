@@ -58,6 +58,11 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 	log.Printf("Using Converse API for model: %s", bc.modelID)
 
+	// Validate request
+	if err := ValidateConverseRequest(request); err != nil {
+		return nil, 0, fmt.Errorf("invalid request: %w", err)
+	}
+
 	// Convert messages to AWS SDK format
 	messages := make([]types.Message, len(request.Messages))
 	for i, msg := range request.Messages {
@@ -69,6 +74,7 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 				contentBlocks[j] = &types.ContentBlockMemberText{
 					Value: content.Text,
 				}
+				log.Printf("Added text content block: %d chars", len(content.Text))
 			case "image":
 				if content.Image != nil {
 					// Validate image format (Bedrock only supports jpeg and png for Converse API)
@@ -87,7 +93,8 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 						imageBlock.Source = &types.ImageSourceMemberBytes{
 							Value: []byte(content.Image.Source.Bytes),
 						}
-						log.Printf("Added image content block for format: %s, with bytes source", content.Image.Format)
+						log.Printf("Added image content block for format: %s, with bytes source (size: %d bytes)", 
+							content.Image.Format, len(content.Image.Source.Bytes))
 					} else {
 						return nil, 0, fmt.Errorf("image source must be provided as bytes")
 					}
@@ -95,10 +102,17 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					contentBlocks[j] = &types.ContentBlockMemberImage{
 						Value: imageBlock,
 					}
+				} else {
+					return nil, 0, fmt.Errorf("image content block has nil image field")
 				}
 			default:
 				return nil, 0, fmt.Errorf("unsupported content type: %s", content.Type)
 			}
+		}
+		
+		// Check for empty content
+		if len(contentBlocks) == 0 {
+			return nil, 0, fmt.Errorf("message must contain at least one content block")
 		}
 		
 		messages[i] = types.Message{
@@ -138,6 +152,7 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 				Value: request.System,
 			},
 		}
+		log.Printf("Added system prompt: %d chars", len(request.System))
 	}
 	
 	// Add guardrail config if provided
@@ -151,7 +166,11 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 		}
 		
 		converseInput.GuardrailConfig = guardrailConfig
+		log.Printf("Added guardrail config with identifier: %s", request.GuardrailConfig.GuardrailIdentifier)
 	}
+	
+	// Log request details
+	log.Printf("Sending Converse API request to model %s with %d messages", bc.modelID, len(messages))
 	
 	// Call Bedrock Converse API
 	result, err := bc.client.Converse(ctx, converseInput)
@@ -168,7 +187,9 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 		return nil, latency.Milliseconds(), fmt.Errorf("failed to convert response: %w", err)
 	}
 	
-	log.Printf("Bedrock API call completed in %v", latency)
+	log.Printf("Bedrock API call completed in %v with %d tokens total", 
+		latency, response.Usage.TotalTokens)
+	
 	return response, latency.Milliseconds(), nil
 }
 
@@ -187,8 +208,13 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 						Type: "text",
 						Text: cb.Value,
 					})
+				// Note: Image output is not supported by Bedrock currently
+				default:
+					log.Printf("Unknown content block type in response: %T", cb)
 				}
 			}
+		default:
+			log.Printf("Unknown output type in response: %T", v)
 		}
 	}
 	
@@ -198,7 +224,14 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		usage = &TokenUsage{
 			InputTokens:  int(*result.Usage.InputTokens),
 			OutputTokens: int(*result.Usage.OutputTokens),
-			TotalTokens:  int(*result.Usage.TotalTokens),
+			TotalTokens:  int(*result.Usage.InputTokens + *result.Usage.OutputTokens),
+		}
+	} else {
+		// Provide default usage if not available
+		usage = &TokenUsage{
+			InputTokens:  0,
+			OutputTokens: 0,
+			TotalTokens:  0,
 		}
 	}
 	
@@ -216,8 +249,11 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		}
 	}
 	
+	// Generate request ID if not available
+	requestID := "req-" + time.Now().Format("20060102-150405")
+	
 	return &ConverseResponse{
-		RequestID:  "", // Not available in SDK response
+		RequestID:  requestID,
 		ModelID:    modelID,
 		StopReason: stopReason,
 		Content:    content,
@@ -229,6 +265,8 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 // handleBedrockError converts AWS SDK errors to our error types
 func (bc *BedrockClient) handleBedrockError(err error) error {
 	log.Printf("Bedrock API error: %v", err)
+	
+	// Extract useful information from the error
 	return fmt.Errorf("bedrock API error: %w", err)
 }
 
@@ -276,6 +314,10 @@ func (bc *BedrockClient) GetModelInfo() map[string]interface{} {
 		"apiType":          "Converse",
 		"anthropicVersion": bc.config.AnthropicVersion,
 		"maxTokens":        bc.config.MaxTokens,
+		"temperature":      bc.config.Temperature,
+		"topP":             bc.config.TopP,
+		"thinkingType":     bc.config.ThinkingType,
+		"budgetTokens":     bc.config.BudgetTokens,
 	}
 }
 

@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -58,7 +59,6 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 			InvokeLatencyMs: latencyMs,
 			APIType:        APITypeConverse,
 		},
-		APIType:       APITypeConverse,
 	}
 
 	return turn1Response, nil
@@ -110,7 +110,6 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 			InvokeLatencyMs: latencyMs,
 			APIType:        APITypeConverse,
 		},
-		APIType:       APITypeConverse,
 		PreviousTurn:  previousTurn,
 	}
 
@@ -123,13 +122,18 @@ func CreateConverseRequest(
 	messages []MessageWrapper,
 	systemPrompt string,
 	maxTokens int,
+	temperature *float64,
+	topP *float64,
 ) *ConverseRequest {
 	request := &ConverseRequest{
 		ModelId:  modelID,
 		Messages: messages,
 		System:   systemPrompt,
 		InferenceConfig: InferenceConfig{
-			MaxTokens: maxTokens,
+			MaxTokens:     maxTokens,
+			Temperature:   temperature,
+			TopP:          topP,
+			StopSequences: []string{},
 		},
 	}
 
@@ -139,6 +143,18 @@ func CreateConverseRequest(
 // CreateImageContentBlock creates an image content block for use in a Converse request
 // Only bytes should be provided
 func CreateImageContentBlock(format string, bytes string) ContentBlock {
+	// Normalize image format
+	format = strings.ToLower(format)
+	if format == "jpg" {
+		format = "jpeg"
+	}
+	
+	// Validate format for Converse API
+	if format != "jpeg" && format != "png" {
+		// Log warning but allow creation - validation will happen at request time
+		fmt.Printf("Warning: Image format '%s' may not be supported by Bedrock Converse API. Only 'jpeg' and 'png' are guaranteed to work.\n", format)
+	}
+	
 	// Create image block
 	imageBlock := &ImageBlock{
 		Format: format,
@@ -154,7 +170,7 @@ func CreateImageContentBlock(format string, bytes string) ContentBlock {
 	}
 }
 
-// CreateImageContentFromBytes creates an image content block directly from base64 encoded data
+// CreateImupageContentFromBytes creates an image content block directly from base64 encoded data
 func CreateImageContentFromBytes(format string, base64Data string) ContentBlock {
 	return CreateImageContentBlock(format, base64Data)
 }
@@ -175,6 +191,11 @@ func CreateUserMessageWithContent(text string, images []ContentBlock) MessageWra
 		content = append(content, images...)
 	}
 	
+	// Validate that at least one content item is present
+	if len(content) == 0 {
+		panic("user message must contain at least text or image content")
+	}
+	
 	return MessageWrapper{
 		Role:    "user",
 		Content: content,
@@ -183,6 +204,10 @@ func CreateUserMessageWithContent(text string, images []ContentBlock) MessageWra
 
 // CreateAssistantMessageWithText creates an assistant message with text content
 func CreateAssistantMessageWithText(text string) MessageWrapper {
+	if text == "" {
+		panic("assistant message text cannot be empty")
+	}
+	
 	return MessageWrapper{
 		Role: "assistant",
 		Content: []ContentBlock{
@@ -234,6 +259,8 @@ func CreateConverseRequestForTurn2(
 	turn2Prompt string,
 	systemPrompt string,
 	maxTokens int,
+	temperature *float64,
+	topP *float64,
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
@@ -250,7 +277,7 @@ func CreateConverseRequestForTurn2(
 	})
 	
 	// Create the request
-	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens)
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
 }
 
 // CreateConverseRequestForTurn2WithImages creates a request for Turn 2 with images
@@ -261,6 +288,8 @@ func CreateConverseRequestForTurn2WithImages(
 	images []ContentBlock,
 	systemPrompt string,
 	maxTokens int,
+	temperature *float64,
+	topP *float64,
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
@@ -269,5 +298,54 @@ func CreateConverseRequestForTurn2WithImages(
 	messages = append(messages, CreateUserMessageWithContent(turn2Prompt, images))
 	
 	// Create the request
-	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens)
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
+}
+
+// ExtractThinkingContent extracts the thinking content from a response if present
+func ExtractThinkingContent(responseText string) (string, string) {
+	// Check if the response contains thinking content (Claude models often use a specific format)
+	// Common format: <thinking>...</thinking> or similar markers
+	
+	// Define potential thinking markers
+	thinkingStartMarkers := []string{"<thinking>", "THINKING:", "Let me think:"}
+	thinkingEndMarkers := []string{"</thinking>", "END THINKING", "\n\n"}
+	
+	// Initialize
+	thinkingContent := ""
+	cleanContent := responseText
+	
+	// Try to find thinking content
+	for _, startMarker := range thinkingStartMarkers {
+		startIdx := strings.Index(responseText, startMarker)
+		if startIdx >= 0 {
+			// Found a start marker
+			startPos := startIdx + len(startMarker)
+			
+			// Look for end marker
+			endPos := len(responseText)
+			for _, endMarker := range thinkingEndMarkers {
+				endIdx := strings.Index(responseText[startPos:], endMarker)
+				if endIdx >= 0 {
+					possibleEndPos := startPos + endIdx
+					if possibleEndPos < endPos {
+						endPos = possibleEndPos
+					}
+				}
+			}
+			
+			// Extract thinking content
+			thinkingContent = strings.TrimSpace(responseText[startPos:endPos])
+			
+			// Create clean content without thinking
+			cleanContent = strings.TrimSpace(responseText[:startIdx] + responseText[endPos:])
+			break
+		}
+	}
+	
+	return cleanContent, thinkingContent
+}
+
+// TokenizationFormats returns a list of available tokenization formats
+func TokenizationFormats() []string {
+	return []string{"converse"}
 }

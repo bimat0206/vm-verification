@@ -110,7 +110,7 @@ func ValidateVerificationContext(ctx *VerificationContext) Errors {
 func ValidateWorkflowState(state *WorkflowState) Errors {
 	var errors Errors
 
-	// Check schema version
+	// Check schema version - only support 1.2.0
 	if state.SchemaVersion == "" {
 		state.SchemaVersion = SchemaVersion
 	} else if state.SchemaVersion != SchemaVersion {

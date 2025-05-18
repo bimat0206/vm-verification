@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.2.0] - 2025-05-17
+
+### Added
+- Added support for Turn 2 in conversations
+- Added `Turn2Response` type for handling Turn 2 responses
+- Added `ProcessTurn2Response` function to process Turn 2 responses
+- Added `CreateTurn2ConversationHistory` helper function
+- Added `CreateConverseRequestForTurn2` function for Turn 2 requests
+- Added `CreateConverseRequestForTurn2WithImages` for Turn 2 with images
+- Added validation functions for Turn 1 and Turn 2 responses
+- Added constants for analysis stages (TURN1, TURN2)
+
+### Changed
+- Removed all S3 URI functionality, now exclusively using base64 encoding
+- Removed `parseS3URI` function from client.go
+- Removed `S3Location` handling from ImageSource struct
+- Removed `CreateImageContentFromS3` function
+- Simplified `CreateImageContentBlock` to only accept bytes
+- Removed S3 URI validation functions
+- Updated constants to support both Turn 1 and Turn 2
+- Removed support for legacy InvokeModel API, now Converse API only
+- Enhanced error handling in `Converse` method with input validation
+
+### Technical Details
+- Multi-turn conversation support with proper history management
+- Complete transition to base64-encoded image data
+- Simplified API surface focusing only on Converse API
+- Added PreviousTurn linking in Turn2Response for conversation context
+
 ## [1.1.0] - 2025-05-15
 
 ### Fixed
