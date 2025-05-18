@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	//"fmt"
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -16,6 +15,7 @@ import (
 	"workflow-function/ExecuteTurn1/internal/config"
 	"workflow-function/ExecuteTurn1/internal/dependencies"
 	"workflow-function/ExecuteTurn1/internal/handler"
+	"workflow-function/ExecuteTurn1/internal/models"  // Add this import
 )
 
 // Global handler for re-use between Lambda invocations
@@ -40,8 +40,8 @@ func init() {
 		os.Exit(1)
 	}
 
-	// Create handler
-	executeTurn1Handler = handler.NewHandler(clients.BedrockClient, clients.S3Client, clients.HybridConfig, log)
+	// Create handler with model ID from config
+	executeTurn1Handler = handler.NewHandler(clients.BedrockClient, clients.S3Client, clients.HybridConfig, log, cfg.BedrockModelID)
 }
 
 // LambdaHandler - main entrypoint for Lambda
@@ -52,46 +52,42 @@ func LambdaHandler(ctx context.Context, event json.RawMessage) (interface{}, err
 
 	log.Info("Starting ExecuteTurn1 Lambda invocation", nil)
 
-	// Parse the input event into schema.WorkflowState
-	var inputState schema.WorkflowState
-	if err := json.Unmarshal(event, &inputState); err != nil {
+	// Parse and validate the input event
+	request, err := models.NewRequestFromJSON(event, log)
+	if err != nil {
 		log.Error("Failed to parse input event", map[string]interface{}{"error": err.Error()})
 		return nil, errors.NewValidationError("Invalid input format", map[string]interface{}{"error": err.Error()})
 	}
-	
-	// Ensure schema version is set to the latest supported version
-	if inputState.SchemaVersion == "" || inputState.SchemaVersion != schema.SchemaVersion {
-		log.Info("Updating schema version", map[string]interface{}{
-			"from": inputState.SchemaVersion, 
-			"to": schema.SchemaVersion,
-		})
-		inputState.SchemaVersion = schema.SchemaVersion
+
+	// Validate and sanitize the request
+	if err := request.ValidateAndSanitize(log); err != nil {
+		log.Error("Request validation failed", map[string]interface{}{"error": err.Error()})
+		return models.NewErrorResponse(&request.WorkflowState, err.(*errors.WorkflowError), log, schema.StatusBedrockProcessingFailed), nil
 	}
 
-	// Validate workflow state
-	if valErrs := schema.ValidateWorkflowState(&inputState); len(valErrs) > 0 {
-		log.Error("WorkflowState validation failed", map[string]interface{}{"validationErrors": valErrs.Error()})
-		return map[string]interface{}{
-			"workflowState": inputState,
-			"error": errors.NewValidationError("WorkflowState validation failed", map[string]interface{}{"validationErrors": valErrs.Error()}),
-		}, nil
-	}
+	log.Info("Request validation passed", map[string]interface{}{
+		"verificationId": request.GetVerificationID(),
+		"promptId":       request.GetPromptID(),
+	})
 
 	// Handle the request
-	outputState, err := executeTurn1Handler.HandleRequest(ctx, &inputState)
+	outputState, err := executeTurn1Handler.HandleRequest(ctx, &request.WorkflowState)
 	if err != nil {
 		log.Error("Handler error", map[string]interface{}{"error": err.Error()})
-		return map[string]interface{}{
-			"workflowState": outputState,
-			"error":         err,
-		}, nil
+		if wfErr, ok := err.(*errors.WorkflowError); ok {
+			return models.NewErrorResponse(outputState, wfErr, log, schema.StatusBedrockProcessingFailed), nil
+		}
+		// Wrap unexpected errors
+		wfErr := errors.WrapError(err, errors.ErrorTypeInternal, "unexpected handler error", false)
+		return models.NewErrorResponse(outputState, wfErr, log, schema.StatusBedrockProcessingFailed), nil
 	}
 
 	log.Info("Successfully processed Turn1", map[string]interface{}{
 		"verificationId": outputState.VerificationContext.VerificationId,
 		"status":         outputState.VerificationContext.Status,
 	})
-	return map[string]interface{}{"workflowState": outputState}, nil
+
+	return models.NewResponse(outputState, log), nil
 }
 
 func main() {

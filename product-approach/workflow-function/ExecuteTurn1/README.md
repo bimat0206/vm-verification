@@ -1,7 +1,8 @@
 # ExecuteTurn1 Lambda Function
 
 This Lambda executes the first conversation turn with Amazon Bedrock, analyzing the reference image for the vending machine verification workflow.  
-**Now fully standardized on a shared schema, logger, and error package for robust, auditable, and maintainable production use.**
+**Now fully standardized on a shared schema, logger, and error package for robust, auditable, and maintainable production use.**  
+**Refactored with modular code organization for improved maintainability and easier troubleshooting.**
 
 ---
 
@@ -19,6 +20,8 @@ This Lambda executes the first conversation turn with Amazon Bedrock, analyzing 
 
 ## Key Features
 
+- **Modular Code Structure**:  
+  - Codebase is organized into focused modules with clear separation of concerns for better maintainability and troubleshooting.
 - **Shared Schema**:  
   - All requests, responses, prompts, and images use a common Go struct package, enabling strong validation and seamless Step Functions integration.
 - **Hybrid Base64 Storage**:  
@@ -43,8 +46,13 @@ ExecuteTurn1/
 │ └── main.go # Lambda handler entry point
 ├── internal/
 │ ├── handler/
-│ │ ├── execute_turn1.go # Main business logic (uses schema/logger/errors)
-│ │ └── response_processor.go# Response processing logic
+│ │ ├── handler.go # Core handler structure and main request handling
+│ │ ├── validation.go # Validation-related functions
+│ │ ├── image_processor.go # Image processing functionality
+│ │ ├── bedrock_client.go # Bedrock API interaction
+│ │ ├── error_handler.go # Error handling utilities
+│ │ ├── state_manager.go # State management functions
+│ │ └── response_processor.go # Response processing logic
 │ ├── config/
 │ │ └── config.go # Centralized configuration
 │ ├── dependencies/
