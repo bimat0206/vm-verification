@@ -4,6 +4,100 @@ All notable changes to this project are documented here.
 
 ---
 
+## [1.4.0] - 2025-05-20
+
+### Added
+
+* **Major Refactoring - Models Package Restructure:**
+  * Split large `internal/models/request.go` file into focused, single-responsibility modules
+  * Created modular architecture with better separation of concerns:
+    * `types.go` - Core type definitions and safe field access helpers
+    * `parser.go` - JSON parsing with nil pointer protection
+    * `validator.go` - Comprehensive validation logic
+    * `sanitizer.go` - Data normalization and cleanup
+    * `response_builder.go` - Response construction with error handling
+    * `models.go` - Package API and convenience functions
+
+### Fixed
+
+* **CRITICAL FIX: Nil Pointer Dereference (Runtime Panic)**
+  * Fixed runtime panic in `NewRequestFromJSON` at line 313 where code attempted to access `req.WorkflowState.VerificationContext.VerificationId` when `VerificationContext` was nil
+  * Implemented immediate post-unmarshal validation to catch nil pointers before they cause panics
+  * Replaced direct field access with safe helper methods throughout codebase
+  * Added defensive programming patterns to prevent future nil pointer dereferences
+
+* **Enhanced Error Handling:**
+  * Fixed undefined constant `wferrors.ErrorTypeParsing` - replaced with `wferrors.ErrorTypeInternal`
+  * Improved error type detection and logging in `determineErrorStatus` function
+  * Added graceful handling of malformed JSON that unmarshals with nil nested structures
+
+### Changed
+
+* **Code Organization:**
+  * Dramatically improved maintainability by splitting 800+ line file into 6 focused files (~150-200 lines each)
+  * Better testability with isolated components
+  * Clearer responsibilities and easier debugging
+  * Enhanced code readability and navigation
+
+* **Safety Improvements:**
+  * All field access now goes through nil-safe helper methods
+  * Added comprehensive debug information collection with `GetDebugInfo()`
+  * Implemented post-unmarshal structure validation to prevent runtime panics
+  * Enhanced logging with safe field access patterns
+
+* **API Enhancements:**
+  * Maintained full backward compatibility with existing API
+  * Added new convenience functions: `ParseAndValidateRequest()`, `BuildResponse()`
+  * Introduced optional `RequestProcessor` struct for stateful processing
+  * Improved response building with better error state management
+
+### Improved
+
+* **Error Reporting:**
+  * Better error context and structured error information
+  * Enhanced debugging capabilities with detailed validation reporting
+  * Improved error classification and status mapping
+  * More granular error handling for different failure scenarios
+
+* **Request Processing:**
+  * Streamlined request processing pipeline with clear stages
+  * Better sanitization of input data (schema version updates, timestamp normalization)
+  * Automatic initialization of optional structures like `ConversationState`
+  * String field cleanup and whitespace trimming
+
+* **Response Handling:**
+  * Robust response building that handles edge cases (nil state, nil errors)
+  * Intelligent error-to-status mapping based on error types
+  * Support for error responses with and without workflow state
+  * Consistent error information attachment to state
+
+### Technical Details
+
+* **New File Structure:**
+  ```
+  internal/models/
+  ├── types.go           # Core structs and safe helpers
+  ├── parser.go          # JSON parsing with panic prevention
+  ├── validator.go       # Request validation logic
+  ├── sanitizer.go       # Data normalization
+  ├── response_builder.go # Response construction
+  └── models.go          # Package API
+  ```
+
+* **Safety Features:**
+  * Nil-safe field access throughout (`GetVerificationID()`, `GetPromptID()`, etc.)
+  * Post-unmarshal validation prevents accessing nil nested structures
+  * Defensive programming patterns protect against malformed input
+  * Comprehensive error logging with safe operations
+
+* **Backward Compatibility:**
+  * All existing function signatures maintained
+  * Drop-in replacement for original `request.go`
+  * No breaking changes to external API
+  * Legacy functions preserved with deprecation notices
+
+---
+
 ## [1.3.5] - 2025-05-20
 
 ### Fixed
@@ -44,36 +138,14 @@ All notable changes to this project are documented here.
   * Improved code organization without changing functionality
   * Enhanced maintainability and troubleshooting capabilities
   
-  * **New File Structure
-* handler.go
-
-Core handler structure and main request handling flow
-Contains the main HandleRequest method that orchestrates the workflow
-
-* validation.go
-
-All validation-related functions
-Handles workflow state validation at different stages
-* image_processor.go
-
-Image processing functionality
-Manages Base64 encoding and image content preparation
-* bedrock_client.go
-
-Bedrock API interaction
-Handles request building, API calls with retry logic, and response parsing
-* error_handler.go
-
-Error handling utilities
-Centralizes error creation, logging, and state updates
-* state_manager.go
-
-State management functions
-Handles workflow state updates and conversation state management
-* response_processor.go (existing)
-
-Response processing functionality
-Already had good separation of concerns
+  * **New File Structure:**
+    * `handler.go` - Core handler structure and main request handling flow
+    * `validation.go` - All validation-related functions
+    * `image_processor.go` - Image processing functionality
+    * `bedrock_client.go` - Bedrock API interaction
+    * `error_handler.go` - Error handling utilities
+    * `state_manager.go` - State management functions
+    * `response_processor.go` - Response processing functionality (existing)
 
 ### Improved
 
@@ -191,12 +263,10 @@ Already had good separation of concerns
 ### Changed
 
 * **API Migration:**
-
   * Migrated from Bedrock Converse API to InvokeModel API for improved compatibility with AWS SDK
   * Restructured request/response handling to work with the newer API contract
   * Fixed type safety issues with error handling and schema compatibility
 * **Architecture Support:**
-
   * Migrated to ARM64/Graviton Lambda for improved cost and performance
   * Updated Go version from 1.21 to 1.22
   * Added platform-specific build flags
@@ -215,23 +285,18 @@ Already had good separation of concerns
 ### Changed
 
 * **Major migration:**
-
   * All workflow and Lambda modules now fully use shared `schema`, `logger`, and `errors` packages.
   * Removed all custom/request-specific type definitions for workflow state, prompt, images, and error contracts.
 * **Centralized AWS client initialization and config validation.**
 * **Bedrock integration:**
-
   * Now uses the Claude 3.7 Sonnet Converse API exclusively.
   * Bedrock messages are always constructed via the shared schema, supporting inline and S3-based Base64 image references.
 * **Hybrid Base64 support:**
-
   * Large images automatically use S3 temporary storage; retrieval and embedding for Bedrock handled via schema helpers.
 * **Logging overhaul:**
-
   * Replaced all raw log output with JSON-structured logs via the shared logger.
   * Correlation IDs and context fields now populate all logs for distributed traceability.
 * **Error handling overhaul:**
-
   * All errors are now `WorkflowError` types (typed, retryable, and with full context).
   * All errors surfaced in both Lambda error and within `VerificationContext.Error` for Step Functions compatibility.
 

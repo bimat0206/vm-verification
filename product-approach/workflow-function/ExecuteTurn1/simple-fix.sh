@@ -124,7 +124,7 @@ EOF
 
 # Create Dockerfile
 cat > $TEMP_DIR/Dockerfile << EOF
-FROM --platform=linux/arm64 golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install git and dependencies
 RUN apk add --no-cache git build-base 
@@ -139,7 +139,7 @@ COPY . .
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap ./cmd/main.go
 
 # Create the lambda runtime image
-FROM --platform=linux/arm64 public.ecr.aws/lambda/provided:al2-arm64
+FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Add function version metadata
 LABEL function.version="1.3.2" 
@@ -166,7 +166,7 @@ fi
 
 # Build Docker image with concise output
 echo "Building Docker image... (this may take a minute)"
-if ! DOCKER_BUILDKIT=1 docker build --quiet --platform=linux/arm64 -t "${REPO_NAME}:latest" $TEMP_DIR >/dev/null; then
+if ! DOCKER_BUILDKIT=1 docker build --quiet --platform=linux/arm64 -t "${REPO_NAME}:latest" $TEMP_DIR ; then
   echo "❌ Docker build failed"
   exit 1
 else
