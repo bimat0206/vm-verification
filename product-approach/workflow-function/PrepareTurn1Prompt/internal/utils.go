@@ -7,9 +7,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
+	
+	wflogger "workflow-function/shared/logger"
 )
 
 // LogLevel represents the logging level
@@ -303,6 +306,24 @@ func PrettyJSON(v interface{}) string {
 // HasValidPrefix checks if a string has a given prefix
 func HasValidPrefix(s, prefix string) bool {
 	return strings.HasPrefix(s, prefix)
+}
+
+// RecoverFromPanic provides a standardized way to recover from panics
+// It logs the error with stack trace and returns an appropriate error
+func RecoverFromPanic(log wflogger.Logger, verificationId string) {
+	if r := recover(); r != nil {
+		// Get stack trace
+		buf := make([]byte, 4096)
+		n := runtime.Stack(buf, false)
+		stackTrace := string(buf[:n])
+		
+		// Log the panic with stack trace
+		log.Error("Recovered from panic", map[string]interface{}{
+			"error":          fmt.Sprint(r),
+			"verificationId": verificationId,
+			"stackTrace":     stackTrace,
+		})
+	}
 }
 
 // ExtractFromJSON extracts a specific field from a JSON string
