@@ -1,0 +1,150 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+//input
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "images": {
+      "metadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/images/metadata.json"
+      }
+    },
+    "processing": {
+      "layoutMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/layout-metadata.json"
+      }
+    },
+    "prompts": {
+      "system": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/prompts/system-prompt.json"
+      }
+    }
+  },
+  "status": "SYSTEM_PROMPT_READY"
+}
+
+  //output
+  {
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        }
+      },
+      "processing": {
+        "layoutMetadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/layout-metadata.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        },
+        "turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/turn1-prompt.json",
+          "etag": "\"abc123def456\"",
+          "size": 2134
+        }
+      }
+    },
+    "status": "TURN1_PROMPT_READY",
+    "summary": {
+      "promptType": "LAYOUT_REFERENCE_ANALYSIS",
+      "messageStructureCreated": true,
+      "estimatedTokens": 1650,
+      "imageStructurePrepared": true,
+      "layoutContextIntegrated": true,
+      "generationTimeMs": 450
+    }
+  }
+
+
+//Use Case 2: PREVIOUS_VS_CURRENT
+//Input
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "images": {
+      "metadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/images/metadata.json"
+      }
+    },
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
+      }
+    },
+    "prompts": {
+      "system": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/prompts/system-prompt.json"
+      }
+    }
+  },
+  "status": "SYSTEM_PROMPT_READY"
+}
+
+//Output
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "images": {
+      "metadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/images/metadata.json"
+      }
+    },
+    "processing": {
+      "historicalContext": { // If available
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
+      }
+    },
+    "prompts": {
+      "system": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/prompts/system-prompt.json"
+      },
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/prompts/turn1-prompt.json",
+        "etag": "\"def456ghi789\"",
+        "size": 1876
+      }
+    }
+  },
+  "status": "TURN1_PROMPT_READY",
+  "summary": {
+    "promptType": "PREVIOUS_STATE_ANALYSIS | FRESH_STATE_ANALYSIS",
+    "messageStructureCreated": true,
+    "estimatedTokens": 1420,
+    "imageStructurePrepared": true,
+    "historicalContextIntegrated": true,
+    "generationTimeMs": 380
+  }
+}

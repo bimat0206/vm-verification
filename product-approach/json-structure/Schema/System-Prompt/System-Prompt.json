@@ -1,0 +1,229 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "System Prompt Configuration",
+    "type": "object",
+    "required": [
+      "verificationId",
+      "verificationType",
+      "promptContent",
+      "bedrockConfiguration",
+      "processingMetadata"
+    ],
+    "properties": {
+      "verificationId": {
+        "type": "string",
+        "pattern": "^verif-[0-9]{8}-[0-9]{6}[0-9]{3}$",
+        "description": "Verification ID this system prompt belongs to"
+      },
+      "verificationType": {
+        "type": "string",
+        "enum": ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
+        "description": "Type of verification this prompt is configured for"
+      },
+      "promptContent": {
+        "type": "object",
+        "required": ["systemMessage"],
+        "properties": {
+          "systemMessage": {
+            "type": "string",
+            "minLength": 100,
+            "description": "Complete system prompt text for Bedrock"
+          },
+          "templateVersion": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "description": "Version of the prompt template used (e.g., '1.2.3')"
+          },
+          "promptType": {
+            "type": "string",
+            "enum": ["LAYOUT_VERIFICATION", "TEMPORAL_COMPARISON"],
+            "description": "Specific prompt type based on verification use case"
+          }
+        }
+      },
+      "bedrockConfiguration": {
+        "type": "object",
+        "required": ["anthropicVersion", "maxTokens"],
+        "properties": {
+          "anthropicVersion": {
+            "type": "string",
+            "enum": ["bedrock-2023-05-31"],
+            "description": "Anthropic API version to use"
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 24000,
+            "description": "Maximum tokens for Bedrock response"
+          },
+          "thinking": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["enabled", "disabled"],
+                "default": "enabled",
+                "description": "Whether to enable thinking/reasoning in responses"
+              },
+              "budgetTokens": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 20000,
+                "default": 16000,
+                "description": "Token budget for internal reasoning"
+              }
+            }
+          },
+          "modelId": {
+            "type": "string",
+            "default": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "description": "Specific Bedrock model identifier"
+          }
+        }
+      },
+      "contextInformation": {
+        "type": ["object", "null"],
+        "description": "Context information integrated into the system prompt",
+        "properties": {
+          "machineStructure": {
+            "type": ["object", "null"],
+            "properties": {
+              "rowCount": {"type": "integer", "minimum": 1},
+              "columnsPerRow": {"type": "integer", "minimum": 1},
+              "columnOrder": {"type": "list", "minimum": 1},
+              "rowOrder": {"type": "list", "minimum": 1}
+
+            }
+          },
+          "layoutInformation": {
+            "type": ["object", "null"],
+            "description": "Layout metadata integrated (UC1 only)",
+            "properties": {
+              "layoutId": {"type": "integer"},
+              "layoutPrefix": {"type": "string"},
+              "productCount": {"type": "integer", "minimum": 0}
+            }
+          },
+          "historicalContext": {
+            "type": ["object", "null"],
+            "description": "Historical context integrated (UC2 only)",
+            "properties": {
+              "previousVerificationId": {"type": "string"},
+              "hoursSinceLastVerification": {"type": "number", "minimum": 0},
+              "knownIssuesCount": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      },
+      "outputSpecification": {
+        "type": "object",
+        "required": ["expectedFormat"],
+        "properties": {
+          "expectedFormat": {
+            "type": "string",
+            "enum": ["STRUCTURED_TEXT", "JSON_EMBEDDED", "MIXED_FORMAT"],
+            "default": "STRUCTURED_TEXT",
+            "description": "Expected format of AI response"
+          },
+          "requiresMandatoryStructure": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether response must follow mandatory output format"
+          },
+          "conversationTurns": {
+            "type": "integer",
+            "enum": [2],
+            "default": 2,
+            "description": "Number of conversation turns expected"
+          }
+        }
+      },
+      "processingMetadata": {
+        "type": "object",
+        "required": ["createdAt", "generationTimeMs"],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when system prompt was generated"
+          },
+          "generationTimeMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Time taken to generate prompt in milliseconds"
+          },
+          "templateSource": {
+            "type": "string",
+            "enum": ["STATIC_TEMPLATE", "DYNAMIC_GENERATION", "HYBRID_APPROACH"],
+            "default": "DYNAMIC_GENERATION",
+            "description": "Method used to generate the prompt"
+          },
+          "contextEnrichment": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "LAYOUT_INTEGRATION",
+                "HISTORICAL_INTEGRATION", 
+                "MACHINE_STRUCTURE_INJECTION",
+                "PRODUCT_MAPPING_INJECTION"
+              ]
+            },
+            "description": "List of context enrichments applied"
+          }
+        }
+      },
+      "version": {
+        "type": "string",
+        "default": "1.0",
+        "description": "Schema version for this system prompt"
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "verificationType": {"const": "LAYOUT_VS_CHECKING"}
+          }
+        },
+        "then": {
+          "properties": {
+            "promptContent": {
+              "properties": {
+                "promptType": {"const": "LAYOUT_VERIFICATION"}
+              }
+            },
+            "contextInformation": {
+              "required": ["layoutInformation"],
+              "properties": {
+                "layoutInformation": {"type": "object"},
+                "historicalContext": {"type": "null"}
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "verificationType": {"const": "PREVIOUS_VS_CURRENT"}
+          }
+        },
+        "then": {
+          "properties": {
+            "promptContent": {
+              "properties": {
+                "promptType": {"const": "TEMPORAL_COMPARISON"}
+              }
+            },
+            "contextInformation": {
+              "properties": {
+                "layoutInformation": {"type": "null"}
+              }
+            }
+          }
+        }
+      }
+    ]
+  }

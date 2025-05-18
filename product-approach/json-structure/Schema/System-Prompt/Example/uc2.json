@@ -1,0 +1,42 @@
+//Use Case 2: PREVIOUS_VS_CURRENT
+{
+    "verificationId": "verif-20250421-153025000",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "promptContent": {
+      "systemMessage": "You are an AI assistant specialized in analyzing vending machine product placement changes over time. Your task is to compare a previous checking image with a current checking image to identify changes and discrepancies.\n\nAnalysis Context:\n- Verification Type: Previous vs Current comparison\n- Time Gap: 29.5 hours since last verification\n- Previous Status: INCORRECT (known issues with Row E and F)\n- Machine Configuration: 6 rows × 10 columns (estimated)\n\nTurn 1: Analyze the FIRST image (previous state) to establish baseline\nTurn 2: Compare the SECOND image (current state) against the baseline\n\nFocus on:\n1. Changes in product positions\n2. Products added or removed\n3. Quantity changes\n4. New discrepancies from previous state\n\nProvide analysis in the MANDATORY OUTPUT FORMAT, highlighting temporal changes and current vs previous differences.",
+      "templateVersion": "1.2.3",
+      "promptType": "TEMPORAL_COMPARISON"
+    },
+    "bedrockConfiguration": {
+      "anthropicVersion": "bedrock-2023-05-31",
+      "maxTokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budgetTokens": 16000
+      },
+      "modelId": "anthropic.claude-3-7-sonnet-20250219-v1:0"
+    },
+    "contextInformation": {
+        "machineStructure": {
+            "rowCount": 6,
+            "columnsPerRow": 10,
+            "columnOrder" : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+            "rowOrder": ["A", "B", "C", "D", "E", "F"]
+        },
+      "layoutInformation": null,
+      "historicalContext": {
+        "previousVerificationId": "verif-20250420-100000000",
+        "knownIssuesCount": 2
+      }
+    },
+    "outputSpecification": {
+      "expectedFormat": "STRUCTURED_TEXT",
+      "requiresMandatoryStructure": true,
+      "conversationTurns": 2
+    },
+    "processingMetadata": {
+      "createdAt": "2025-04-21T15:30:26Z",
+      "generationTimeMs": 980,
+      "templateSource": "DYNAMIC_GENERATION",
+    "version": "1.0"
+  }

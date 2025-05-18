@@ -1,0 +1,147 @@
+//Historical Data Found (Complete Context)
+{
+    "verificationId": "verif-20250421-153025000",
+    "historicalDataFound": true,
+    "sourceType": "DYNAMODB_QUERY_RESULT",
+    "previousVerification": {
+      "verificationId": "verif-20250420-100000000",
+      "verificationAt": "2025-04-20T10:00:00Z",
+      "verificationStatus": "INCORRECT",
+      "vendingMachineId": "VM-3245",
+      "location": "Office Building A, Floor 3",
+      "layoutId": 23591,
+      "layoutPrefix": "1q2w3e"
+    },
+    "temporalContext": {
+      "hoursSinceLastVerification": 29.5,
+      "daysSinceLastVerification": 1.23,
+      "verificationGap": "NORMAL",
+      "businessDaysSince": 1
+    },
+    "baselineInformation": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+        "totalPositions": 60
+      },
+      "previousState": {
+        "A": {
+          "status": "PARTIAL",
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7,
+          "filledPositions": ["A01", "A02", "A03", "A04", "A05", "A06", "A07"],
+          "emptyPositions": ["A08", "A09", "A10"],
+          "notes": null
+        },
+        "B": {
+          "status": "PARTIAL", 
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7,
+          "filledPositions": ["B01", "B02", "B03", "B04", "B05", "B06", "B07"],
+          "emptyPositions": ["B08", "B09", "B10"],
+          "notes": null
+        },
+        "E": {
+          "status": "PARTIAL",
+          "productType": "Mi modern Lẩu thái",
+          "productColor": "red/white", 
+          "quantity": 7,
+          "filledPositions": ["E01", "E02", "E03", "E04", "E05", "E06", "E07"],
+          "emptyPositions": ["E08", "E09", "E10"],
+          "notes": "Incorrect product type - should be Mi Cung Đình"
+        },
+        "F": {
+          "status": "EMPTY",
+          "productType": null,
+          "productColor": null,
+          "quantity": 0,
+          "filledPositions": [],
+          "emptyPositions": ["F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10"],
+          "notes": "Completely empty row"
+        }
+      },
+      "knownIssues": {
+        "emptyRows": ["F"],
+        "partialRows": ["A", "B", "C", "D", "E"],
+        "incorrectProducts": ["E"],
+        "discrepantPositions": 14,
+        "totalEmptyPositions": 25,
+        "missingProducts": 7,
+        "unexpectedProducts": 0
+      }
+    },
+    "verificationSummary": {
+      "totalPositionsChecked": 60,
+      "correctPositions": 35,
+      "discrepantPositions": 14,
+      "missingProducts": 7,
+      "incorrectProductTypes": 7,
+      "unexpectedProducts": 0,
+      "emptyPositionsCount": 25,
+      "overallAccuracy": 66.7,
+      "overallConfidence": 97.0,
+      "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+    },
+    "searchCriteria": {
+      "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+      "vendingMachineId": "VM-3245",
+      "queryExecuted": true,
+      "indexUsed": "CheckImageIndex",
+      "queryLimit": 1
+    },
+    "fallbackContext": null,
+    "processingMetadata": {
+      "retrievedAt": "2025-04-21T15:30:25Z",
+      "queryExecutionTime": 245,
+      "enhancementLevel": "detailed",
+      "dataCompleteness": 1.0,
+      "fallbackContextCreated": false,
+      "processingErrors": [],
+      "enhancementApplied": [
+        "TEMPORAL_CALCULATION",
+        "STATE_ENRICHMENT",
+        "ISSUE_CATEGORIZATION",
+        "SUMMARY_ENHANCEMENT"
+      ]
+    },
+    "version": "1.0"
+  }
+
+
+//No Historical Data Found (Fallback Context)
+{
+    "verificationId": "verif-20250421-153025000",
+    "historicalDataFound": false,
+    "sourceType": "NO_HISTORICAL_DATA",
+    "previousVerification": null,
+    "temporalContext": null,
+    "baselineInformation": null,
+    "verificationSummary": null,
+    "searchCriteria": {
+      "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+      "vendingMachineId": "VM-3245",
+      "queryExecuted": true,
+      "indexUsed": "CheckImageIndex",
+      "queryLimit": 1
+    },
+    "fallbackContext": {
+      "baselineSource": "FRESH_ANALYSIS_REQUIRED",
+      "analysisMode": "COMPREHENSIVE_EXTRACTION",
+      "expectationLevel": "DETAILED_STATE_ANALYSIS",
+      "fallbackReason": "No previous verification found for the given reference image URL"
+    },
+    "processingMetadata": {
+      "retrievedAt": "2025-04-21T15:30:25Z",
+      "queryExecutionTime": 180,
+      "enhancementLevel": "minimal",
+      "dataCompleteness": 0.0,
+      "fallbackContextCreated": true,
+      "processingErrors": [],
+      "enhancementApplied": []
+    },
+    "version": "1.0"
+  }

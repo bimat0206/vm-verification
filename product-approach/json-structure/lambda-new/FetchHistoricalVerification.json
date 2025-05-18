@@ -1,0 +1,81 @@
+//Use Case 2: PREVIOUS_VS_CURRENT (Historical Data Found)
+// Input:
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    }
+  },
+  "status": "INITIALIZED"
+}
+  
+  // Output:
+  {
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "processing": {
+        "historicalContext": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/historical-context.json",
+          "etag": "\"abc123def456\"",
+          "size": 4567
+        }
+      }
+    },
+    "status": "HISTORICAL_CONTEXT_LOADED",
+    "summary": {
+      "historicalDataFound": true,
+      "previousVerificationId": "verif-2025042010000000",
+      "previousVerificationAt": "2025-04-20T10:00:00Z",
+      "previousStatus": "INCORRECT",
+      "baselineEstablished": true,
+      "processingTimeMs": 850
+    }
+  }
+
+//Use Case 2: PREVIOUS_VS_CURRENT (No Historical Data Found)
+//Input:
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    }
+  },
+  "status": "INITIALIZED"
+}
+
+//Output
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json",
+        "etag": "\"def456ghi789\"",
+        "size": 1234
+      }
+    }
+  },
+  "status": "HISTORICAL_CONTEXT_LOADED",
+  "summary": {
+    "historicalDataFound": false,
+    "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+    "searchPerformed": true,
+    "fallbackContextCreated": true,
+    "baselineSource": "FRESH_ANALYSIS_REQUIRED",
+    "processingTimeMs": 450
+  }
+}

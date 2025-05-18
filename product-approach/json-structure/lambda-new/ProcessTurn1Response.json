@@ -1,0 +1,224 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+//input
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "layoutMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/layout-metadata.json"
+      }
+    }
+  },
+  "status": "TURN1_COMPLETED"
+}
+
+//output
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "layoutMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/layout-metadata.json"
+      },
+      "turn1Analysis": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/turn1-analysis.json",
+        "etag": "\"abc123def456\"",
+        "size": 2134
+      }
+    }
+  },
+  "status": "TURN1_PROCESSED",
+  "summary": {
+    "analysisType": "LAYOUT_VALIDATION",
+    "processingPath": "UC1_VALIDATION_FLOW",
+    "readyForTurn2": true,
+    "processingTimeMs": 1250,
+  },
+  "basicObservations": {
+    "rowConfirmation": "6 rows confirmed (A-F)",
+    "columnConfirmation": "10 columns confirmed",
+    "productDistribution": "Three product types as expected",
+    "overallState": "Reference layout validated"
+  },
+}
+
+//use case 2: PREVIOUS_VS_CURRENT
+//input With Historical Context
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
+      }
+    }
+  },
+  "status": "TURN1_COMPLETED"
+}
+//Input  Fresh Analysis (No Historical Context)
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    }
+  },
+  "status": "TURN1_COMPLETED"
+}
+
+
+//output With Historical Context
+{
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
+    },
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
+      },
+      "turn1Analysis": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/turn1-analysis.json",
+        "etag": "\"def456ghi789\"",
+        "size": 3421
+      }
+    }
+  },
+  "status": "TURN1_PROCESSED",
+  "summary": {
+    "analysisType": "HISTORICAL",
+    "processingPath": "UC2_HISTORICAL",
+    "sourceType": "HISTORICAL_WITH_VISUAL_CONFIRMATION",
+    "baselineEstablished": true,
+    "historicalContextEnhanced": true,
+    "processingTimeMs": 980,
+  },
+  "verificationSummary": {
+    "totalPositionsChecked": 42,
+    "correctPositions": 28,
+    "discrepantPositions": 14,
+    "missingProducts": 7,
+    "incorrectProductTypes": 7,
+    "unexpectedProducts": 0,
+    "emptyPositionsCount": 7,
+    "overallAccuracy": 66.7,
+    "overallConfidence": 97,
+    "verificationStatus": "INCORRECT",
+    "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+  }
+}
+
+  //output Fresh Analysis (No Historical Context)
+  {
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "responses": {
+        "turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/responses/turn1-response.json"
+        }
+      },
+      "processing": {
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json",
+          "etag": "\"ghi789jkl012\"",
+          "size": 4567
+        }
+      }
+    },
+    "status": "TURN1_PROCESSED",
+    "summary": {
+      "analysisType": "FRESH_EXTRACTION",
+      "processingPath": "UC2_FRESH_EXTRACTION",
+      "sourceType": "FRESH_VISUAL_ANALYSIS",
+      "baselineEstablished": true,
+      "processingTimeMs": 1480,
+    },
+    "extractedStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+    },
+    "extractedState": {
+      "rowStates": {
+        "A": {
+          "status": "PARTIAL",
+          "filledPositions": ["A01-A07"],
+          "emptyPositions": ["A08-A10"],
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7
+        },
+        "B": {
+          "status": "PARTIAL", 
+          "filledPositions": ["B01-B07"],
+          "emptyPositions": ["B08-B10"],
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7
+        },
+        "summary": {
+          "totalPositions": 60,
+          "filledPositions": 35,
+          "emptyPositions": 25,
+          "emptyPositionsList": ["A08-A10", "B08-B10", "C08-C10", "D08-D10", "E08-E10", "F01-F10"]
+        }
+      }
+  }

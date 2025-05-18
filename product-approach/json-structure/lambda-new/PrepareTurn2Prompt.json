@@ -1,0 +1,268 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+//Input:
+{
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "layoutMetadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/layout-metadata.json"
+        },
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        }
+      }
+    },
+    "status": "TURN1_PROCESSED"
+  }
+
+  //Output:
+  {
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "layoutMetadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/layout-metadata.json"
+        },
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        },
+        "turn2": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/turn2-prompt.json",
+          "etag": "\"abc123def456\"",
+          "size": 3456
+        }
+      }
+    },
+    "status": "TURN2_PROMPT_READY",
+    "summary": {
+      "promptType": "LAYOUT_COMPARISON_ANALYSIS",
+      "messageStructureCreated": true,
+      "estimatedTokens": 2850,
+      "checkingImageProcessed": true,
+      "referenceContextIntegrated": true,
+      "layoutValidationIncluded": true,
+      "generationTimeMs": 450
+    }
+  }
+
+  //Use Case 2: PREVIOUS_VS_CURRENT (With Historical Context)
+//Input:
+{
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "historicalContext": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/historical-context.json"
+        },
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        }
+      }
+    },
+    "status": "TURN1_PROCESSED"
+  }
+
+//Output:
+{
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "historicalContext": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/historical-context.json"
+        },
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        },
+        "turn2": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/turn2-prompt.json",
+          "etag": "\"def456ghi789\"",
+          "size": 2987
+        }
+      }
+    },
+    "status": "TURN2_PROMPT_READY",
+    "summary": {
+      "promptType": "TEMPORAL_CHANGE_ANALYSIS",
+      "messageStructureCreated": true,
+      "estimatedTokens": 2340,
+      "checkingImageProcessed": true,
+      "historicalContextIntegrated": true,
+      "baselineComparisonEnabled": true,
+      "focusAreasHighlighted": ["F", "E"],
+      "generationTimeMs": 380
+    }
+  }
+
+//Use Case 2: PREVIOUS_VS_CURRENT (Fresh Analysis - No Historical Context)
+//Input:
+{
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        }
+      }
+    },
+    "status": "TURN1_PROCESSED"
+  }
+
+//Output:
+{
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
+      },
+      "images": {
+        "metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/metadata.json"
+        },
+        "checkingBase64": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/images/checking-base64.json"
+        }
+      },
+      "processing": {
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json"
+        }
+      },
+      "prompts": {
+        "system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/system-prompt.json"
+        },
+        "turn2": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/prompts/turn2-prompt.json",
+          "etag": "\"ghi789jkl012\"",
+          "size": 3123
+        }
+      }
+    },
+    "status": "TURN2_PROMPT_READY",
+    "summary": {
+      "promptType": "EXTRACTED_STATE_COMPARISON",
+      "messageStructureCreated": true,
+      "estimatedTokens": 2650,
+      "checkingImageProcessed": true,
+      "extractedBaselineUsed": true,
+      "freshAnalysisIntegrated": true,
+      "generationTimeMs": 420
+    }
+  }

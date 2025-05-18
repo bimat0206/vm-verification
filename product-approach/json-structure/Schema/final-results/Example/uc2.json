@@ -1,0 +1,94 @@
+//Use Case 2 (PREVIOUS_VS_CURRENT) - With Changes
+{
+    "verificationId": "verif-2025042115302500",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "verificationStatus": "CHANGES_DETECTED",
+    "verificationSummary": {
+      "totalPositionsChecked": 60,
+      "correctPositions": 53,
+      "discrepantPositions": 7,
+      "missingProducts": 0,
+      "incorrectProductTypes": 0,
+      "unexpectedProducts": 7,
+      "emptyPositionsCount": 18,
+      "overallAccuracy": 88.3,
+      "overallConfidence": 95.0,
+      "verificationOutcome": "Positive Change - Row F has been restocked with 7 green Mì Cung Đình products"
+    },
+    "machineStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+    },
+    "discrepancies": [
+      {
+        "position": "F01",
+        "issue": "Unexpected Product",
+        "expected": "Empty (Coils Visible)",
+        "found": "Green \"Mì Cung Đình\" cup noodle",
+        "confidence": 96,
+        "evidence": "Product added where previous state was empty"
+      },
+      {
+        "position": "F02",
+        "issue": "Unexpected Product",
+        "expected": "Empty (Coils Visible)",
+        "found": "Green \"Mì Cung Đình\" cup noodle",
+        "confidence": 96,
+        "evidence": "Product added where previous state was empty"
+      },
+      {
+        "position": "F07",
+        "issue": "Unexpected Product",
+        "expected": "Empty (Coils Visible)",
+        "found": "Green \"Mì Cung Đình\" cup noodle",
+        "confidence": 96,
+        "evidence": "Product added where previous state was empty"
+      }
+    ],
+    "rowStatus": {
+      "reference": {
+        "A": "Baseline: 7 pink \"Mì Hảo Hảo\" cup noodles visible",
+        "B": "Baseline: 7 pink \"Mì Hảo Hảo\" cup noodles visible",
+        "C": "Baseline: 7 red/white \"Mì modern Lẩu thái\" cup noodles visible",
+        "D": "Baseline: 7 red/white \"Mì modern Lẩu thái\" cup noodles visible",
+        "E": "Baseline: 7 green \"Mì Cung Đình\" cup noodles visible",
+        "F": "Baseline: Completely empty"
+      },
+      "checking": {
+        "A": "Current: 7 pink \"Mì Hảo Hảo\" cup noodles visible. Status: No Change",
+        "B": "Current: 7 pink \"Mì Hảo Hảo\" cup noodles visible. Status: No Change",
+        "C": "Current: 7 red/white \"Mì modern Lẩu thái\" cup noodles visible. Status: No Change", 
+        "D": "Current: 7 red/white \"Mì modern Lẩu thái\" cup noodles visible. Status: No Change",
+        "E": "Current: 7 green \"Mì Cung Đình\" cup noodles visible. Status: No Change",
+        "F": "Current: 7 green \"Mì Cung Đình\" cup noodles visible. Status: RESTOCKED"
+      }
+    },
+    "emptySlotReport": {
+      "referenceEmptyRows": ["F"],
+      "checkingEmptyRows": [],
+      "checkingPartiallyEmptyRows": ["A", "B", "C", "D", "E", "F"],
+      "checkingEmptyPositions": [
+        "A08", "A09", "A10", "B08", "B09", "B10", "C08", "C09", "C10",
+        "D08", "D09", "D10", "E08", "E09", "E10", "F08", "F09", "F10"
+      ]
+    },
+    "initialConfirmation": "Baseline established from previous state with historical context enhancement",
+    "correctedRows": ["A", "B", "C", "D", "E"],
+    "processedAt": "2025-04-21T15:30:50Z",
+    "processingMetadata": {
+      "turn1Processing": {
+        "analysisType": "HISTORICAL_ENHANCEMENT",
+        "processingTimeMs": 2950,
+        "tokenUsage": 6277
+      },
+      "turn2Processing": {
+        "analysisType": "CHECKING_ANALYSIS",
+        "processingTimeMs": 3200,
+        "tokenUsage": 8011
+      },
+      "totalProcessingTimeMs": 6150,
+      "bedrockModel": "anthropic.claude-3-7-sonnet-20250219"
+    }
+  }

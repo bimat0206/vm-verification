@@ -1,0 +1,171 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "Turn 2 Response Schema",
+    "description": "Schema for raw Turn 2 AI response data stored in S3 responses category",
+    "required": [
+      "verificationId",
+      "turnId",
+      "analysisStage",
+      "response",
+      "timestamp"
+    ],
+    "properties": {
+      "verificationId": {
+        "type": "string",
+        "pattern": "^verif-[0-9]{13}[0-9]{3}$",
+        "description": "Unique verification identifier"
+      },
+      "turnId": {
+        "type": "integer",
+        "enum": [2],
+        "description": "Turn identifier (always 2 for Turn 2 responses)"
+      },
+      "analysisStage": {
+        "type": "string",
+        "enum": ["CHECKING_ANALYSIS"],
+        "description": "Stage of analysis performed in this turn"
+      },
+      "verificationType": {
+        "type": "string",
+        "enum": ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
+        "description": "Type of verification being performed"
+      },
+      "response": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["text"]
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Complete verification report from AI"
+                }
+              }
+            },
+            "description": "Response content from Bedrock"
+          },
+          "thinking": {
+            "type": "string",
+            "description": "Claude's internal reasoning process (if enabled)"
+          }
+        },
+        "description": "Complete raw response from Bedrock API"
+      },
+      "tokenUsage": {
+        "type": "object",
+        "required": ["input", "output", "total"],
+        "properties": {
+          "input": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of input tokens consumed"
+          },
+          "output": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of output tokens generated"
+          },
+          "thinking": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of thinking tokens used (if applicable)"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total tokens consumed (input + output + thinking)"
+          }
+        },
+        "description": "Token usage statistics from Bedrock API"
+      },
+      "latencyMs": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Total response time from Bedrock in milliseconds"
+      },
+      "bedrockMetadata": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "description": "Bedrock model identifier used"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Bedrock API request ID for tracing"
+          },
+          "stopReason": {
+            "type": "string",
+            "enum": ["end_turn", "max_tokens", "stop_sequence"],
+            "description": "Reason why the model stopped generating"
+          }
+        },
+        "description": "Metadata from Bedrock API response"
+      },
+      "promptMetadata": {
+        "type": "object",
+        "properties": {
+          "imageType": {
+            "type": "string",
+            "enum": ["checking", "current"],
+            "description": "Type of image analyzed in Turn 2"
+          },
+          "imageSize": {
+            "type": "integer",
+            "description": "Size of Base64 image data in bytes"
+          },
+          "turn1ContextIncluded": {
+            "type": "boolean",
+            "description": "Whether Turn 1 context was included in prompt"
+          }
+        },
+        "description": "Metadata about the prompt that generated this response"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Timestamp when response was received"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["SUCCESS", "PARTIAL", "ERROR"],
+        "default": "SUCCESS",
+        "description": "Response processing status"
+      },
+      "processingMetadata": {
+        "type": "object",
+        "properties": {
+          "executionTimeMs": {
+            "type": "integer",
+            "description": "Total execution time including API call overhead"
+          },
+          "retryAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Number of retry attempts made"
+          },
+          "errorDetails": {
+            "type": "object",
+            "properties": {
+              "errorType": { "type": "string" },
+              "errorMessage": { "type": "string" },
+              "errorCode": { "type": "string" }
+            },
+            "description": "Error details if status is ERROR or PARTIAL"
+          }
+        },
+        "description": "Processing and execution metadata"
+      }
+    },
+    "additionalProperties": false
+  }

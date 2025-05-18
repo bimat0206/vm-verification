@@ -1,0 +1,38 @@
+//Use Case 2 (PREVIOUS_VS_CURRENT) - With Historical Context
+{
+  "verificationId": "verif-2025042115302500",
+  "promptType": "TURN2",
+  "verificationType": "PREVIOUS_VS_CURRENT",
+  "messageStructure": {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Now please analyze the SECOND image (Current State Image)\n\nThis image represents the CURRENT state of vending machine VM-3245.\n\n**BASELINE STATE SUMMARY (from previous verification):**\n- Previous verification: verif-2025042010000000 (2025-04-20T10:00:00Z)\n- Machine Structure: 6 rows (A-F), 10 columns per row\n- Row A-B: 7 pink \"Mì Hảo Hảo\" products each (positions 01-07)\n- Row C-D: 7 red/white \"Mì modern Lẩu thái\" products each (positions 01-07)\n- Row E: 7 GREEN \"Mì Cung Đình\" products (visual analysis corrected historical data)\n- Row F: Completely empty\n\nYour task:\n1. Analyze the Current State Image thoroughly\n2. Compare EACH position with the baseline state above\n3. Identify ALL CHANGES between previous and current state\n4. Focus on: product additions/removals, position changes, quantity changes\n\nDocument all changes that have occurred since the previous verification.\n\nComplete the verification report focusing on temporal changes."
+      },
+      {
+        "type": "image",
+        "source": {
+          "type": "base64",
+          "media_type": "image/jpeg",
+          "data": "${BASE64_CURRENT_IMAGE}"
+        }
+      }
+    ]
+  },
+  "imageReference": {
+    "imageType": "current",
+    "sourceUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "base64StorageReference": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/images/checking-base64.json"
+    }
+  },
+  "templateVersion": "1.1.0",
+  "createdAt": "2025-04-21T15:30:38Z",
+  "generationMetadata": {
+    "processingTimeMs": 750,
+    "promptSource": "TEMPLATE_BASED",
+    "contextSources": ["TURN1_ANALYSIS", "IMAGE_METADATA", "HISTORICAL_CONTEXT"]
+  }
+}

@@ -1,0 +1,141 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "Turn 2 Prompt Configuration Schema",
+    "description": "Schema for Turn 2 prompt data stored in S3 prompts category",
+    "required": [
+      "verificationId",
+      "promptType",
+      "verificationType",
+      "messageStructure",
+      "createdAt"
+    ],
+    "properties": {
+      "verificationId": {
+        "type": "string",
+        "pattern": "^verif-[0-9]{13}[0-9]{3}$",
+        "description": "Unique verification identifier"
+      },
+      "promptType": {
+        "type": "string",
+        "enum": ["TURN2"],
+        "description": "Identifies this as a Turn 2 prompt"
+      },
+      "verificationType": {
+        "type": "string",
+        "enum": ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
+        "description": "Type of verification being performed"
+      },
+      "messageStructure": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user"],
+            "description": "Message role for Bedrock API"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "required": ["type", "text"],
+                  "properties": {
+                    "type": { "const": "text" },
+                    "text": {
+                      "type": "string",
+                      "description": "Complete Turn 2 prompt with Turn 1 context embedded"
+                    }
+                  }
+                },
+                {
+                  "required": ["type", "source"],
+                  "properties": {
+                    "type": { "const": "image" },
+                    "source": {
+                      "type": "object",
+                      "required": ["type", "media_type"],
+                      "properties": {
+                        "type": { "const": "base64" },
+                        "media_type": {
+                          "type": "string",
+                          "enum": ["image/jpeg", "image/png", "image/jpg"]
+                        },
+                        "data": {
+                          "type": "string",
+                          "description": "Placeholder for Base64 checking image data"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "description": "Bedrock-compatible message content array"
+          }
+        },
+        "description": "Complete message structure for Bedrock API"
+      },
+      "imageReference": {
+        "type": "object",
+        "required": ["imageType", "sourceUrl"],
+        "properties": {
+          "imageType": {
+            "type": "string",
+            "enum": ["checking", "current"],
+            "description": "Type of image being analyzed in Turn 2"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Original S3 URL of the checking image"
+          },
+          "base64StorageReference": {
+            "type": "object",
+            "properties": {
+              "bucket": { "type": "string" },
+              "key": { "type": "string" }
+            },
+            "description": "S3 reference to stored Base64 data"
+          }
+        },
+        "description": "Reference information for the checking image"
+      },
+      "templateVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+$",
+        "description": "Version of the prompt template used"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Timestamp when prompt was generated"
+      },
+      "generationMetadata": {
+        "type": "object",
+        "properties": {
+          "processingTimeMs": {
+            "type": "integer",
+            "description": "Time taken to generate this prompt"
+          },
+          "promptSource": {
+            "type": "string",
+            "enum": ["TEMPLATE_BASED", "DYNAMIC_GENERATION"],
+            "description": "How this prompt was generated"
+          },
+          "contextSources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["TURN1_ANALYSIS", "IMAGE_METADATA", "SYSTEM_PROMPT", "HISTORICAL_CONTEXT", "LAYOUT_METADATA"]
+            },
+            "description": "Sources of context data used in prompt generation"
+          }
+        },
+        "description": "Metadata about prompt generation"
+      }
+    },
+    "additionalProperties": false
+  }
