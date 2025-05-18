@@ -1,5 +1,80 @@
 # Changelog
 
+## [1.2.9] - 2025-05-14
+
+### Fixed
+- Removed `historicalContext.$: "$.historicalContext"` parameter from FetchImages state to fix JSONPath error
+- This prevents "The JSONPath '$.historicalContext' could not be found in the input" error when processing LAYOUT_VS_CHECKING verification types
+- The FetchImages Lambda function already handles the absence of historicalContext by creating an empty object
+
+## [1.2.8] - 2025-05-14
+
+### Changed
+- Renamed "GenerateMissingFields" state to "InitializeVerificationContext" to better reflect its purpose
+- State name updated to accurately describe its function in initializing the full verification context structure
+
+## [1.2.7] - 2025-05-14
+
+### Fixed
+- Fixed "SCHEMA_VALIDATION_FAILED: The value for the field 'previousVerificationId.$' must be a valid JSONPath or a valid intrinsic function call" error
+- Replaced complex intrinsic function with a simple default value and a conditional state
+- Added CheckPreviousVerificationId and UpdatePreviousVerificationId states to handle PREVIOUS_VS_CURRENT verificationType
+- Implemented robust handling of previousVerificationId for different verification types
+
+## [1.2.6] - 2025-05-14
+
+### Fixed
+- Fixed "JSONPath '$.verificationContext.previousVerificationId' could not be found" error in GenerateMissingFields state
+- Used States.JsonToString and States.Array intrinsic functions to handle missing previousVerificationId field
+- Improved the state machine to gracefully handle LAYOUT_VS_CHECKING verification type which doesn't have previousVerificationId
+- Eliminated complex multi-state approach in favor of a simpler solution using intrinsic functions
+
+## [1.2.5] - 2025-05-14
+
+### Fixed
+- Fixed "JSONPath '$.verificationContext.turnConfig' could not be found" error by adding default turnConfig, turnTimestamps, and requestMetadata structures in the ExecuteTurn1 state
+- Eliminated dependency on fields that might not be present in the input
+- Added default values for maxTurns, referenceImageTurn, and checkingImageTurn
+- Added current timestamp as initialization time in the turnTimestamps structure
+
+## [1.2.4] - 2025-05-14
+
+### Fixed
+- Fixed status field mismatch in ExecuteTurn1 state causing "ValidationException: Invalid value for field status: got IMAGES_FETCHED, expected TURN1_PROMPT_READY"
+- Modified the ExecuteTurn1 state to explicitly set status to "TURN1_PROMPT_READY" in verificationContext
+- Enhanced the Step Function definition to properly pass the status between PrepareTurn1Prompt and ExecuteTurn1
+- Improved the structure of verificationContext in ExecuteTurn1 state to meet validation requirements
+
+## [1.2.3] - 2025-05-13
+
+### Fixed
+- Fixed ExecuteTurn1 Lambda function error (Runtime.ExitError) by modifying the ExecuteTurn1 state parameters
+- Added proper nested structure for currentPrompt and systemPrompt inputs
+- Fixed thinking.type value from "enable" to "enabled" in BedrockConfig
+- Explicitly structured BedrockConfig parameters to ensure consistent input format
+- Modified the Parameters section to create the structure expected by ExecuteTurn1 Lambda
+
+## [1.2.2] - 2025-05-11
+
+### Fixed
+- Fixed "JSONPath '$.historicalContext' could not be found" error in the PrepareSystemPrompt state
+- Modified all states that reference historicalContext to handle missing field for LAYOUT_VS_CHECKING verification type
+- Used an empty object literal for historicalContext instead of intrinsic functions to fix SCHEMA_VALIDATION_FAILED errors
+- Simplified approach with static empty JSON object for historicalContext when the field is missing
+
+## [1.2.1] - 2025-05-11
+
+### Fixed
+- Fixed issue with `previousVerificationId` field in Step Functions FetchImages state
+- Modified Step Functions template to handle missing previousVerificationId field for LAYOUT_VS_CHECKING verification types
+- Previously the workflow was trying to access `$.verificationContext.previousVerificationId` which doesn't exist for LAYOUT_VS_CHECKING verification types
+
+## [1.1.2] - 2025-05-11
+
+### Fixed
+- Fixed "SCHEMA_VALIDATION_FAILED" error in InitializePreviousCurrent state by properly using JSONPath reference for previousVerificationId parameter instead of hardcoded empty string
+- Fixed "SCHEMA_VALIDATION_FAILED" error in FetchImages state by simplifying complex intrinsic function for previousVerificationId
+
 ## [1.1.1] - 2025-05-11
 
 ### Fixed

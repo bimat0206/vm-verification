@@ -24,32 +24,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# S3 access policy
-resource "aws_iam_policy" "s3_access" {
-  count = length(var.s3_bucket_arns) > 0 ? 1 : 0
-  
-  name        = "${var.project_name}-${var.environment}-lambda-s3-access-${var.name_suffix}"
-  description = "Policy for Lambda to access S3 buckets"
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:ListBucket",
-          "s3:DeleteObject",
-          "s3:GetObjectVersion",
-          "s3:GetObjectTagging",
-          "s3:PutObjectTagging"
-        ]
-        Effect   = "Allow"
-        Resource = concat(var.s3_bucket_arns, [for arn in var.s3_bucket_arns : "${arn}/*"])
-      }
-    ]
-  })
-}
 
 # Attach S3 policy to Lambda role
 resource "aws_iam_role_policy_attachment" "s3_access" {
@@ -155,10 +130,16 @@ resource "aws_iam_policy" "bedrock_access" {
       {
         Action = [
           "bedrock:InvokeModel",
+          "bedrock:CreateModelInvocationJob",
           "bedrock:InvokeModelWithResponseStream"
+
         ]
         Effect   = "Allow"
-        Resource = var.bedrock_model_arn
+        #Resource = var.bedrock_model_arn
+        Resource = [
+              "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-*",
+    "arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-*"
+        ]
       },
       {
         Action = [
@@ -277,4 +258,43 @@ resource "aws_iam_role_policy_attachment" "vpc_access" {
   count      = var.lambda_in_vpc ? 1 : 0
   role       = aws_iam_role.lambda_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_policy" "s3_access" {
+  count = length(var.s3_bucket_arns) > 0 ? 1 : 0
+  
+  name        = "${var.project_name}-${var.environment}-lambda-s3-access-${var.name_suffix}"
+  description = "Policy for Lambda to access S3 buckets including temporary Base64 storage"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket",
+          "s3:DeleteObject",
+          "s3:GetObjectVersion",
+          "s3:GetObjectTagging",
+          "s3:PutObjectTagging"
+        ]
+        Effect   = "Allow"
+        Resource = concat(var.s3_bucket_arns, [for arn in var.s3_bucket_arns : "${arn}/*"])
+      },
+      # Specific permissions for temporary Base64 bucket
+      {
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Effect   = "Allow"
+        Resource = [
+          for arn in var.s3_bucket_arns : 
+          "${arn}/temp-base64/*" if can(regex("temp-base64", arn))
+        ]
+      }
+    ]
+  })
 }

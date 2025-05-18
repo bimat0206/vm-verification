@@ -41,6 +41,15 @@ s3_buckets = {
         abort_incomplete_multipart_upload_days = 7
       }
     ]
+        temp_base64 = [
+      {
+        id                                     = "cleanup-temp-base64"
+        enabled                                = true
+        prefix                                 = "temp-base64/"
+        expiration_days                        = 5
+        abort_incomplete_multipart_upload_days = 1
+      }
+    ]
   }
 }
 
@@ -285,7 +294,7 @@ vpc = {
 
 # Bedrock Configuration
 bedrock = {
-  model_id          = "anthropic.claude-3-7-sonnet-20250219"
+  model_id          = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
   anthropic_version = "bedrock-2023-05-31"
   max_tokens        = 24000
   budget_tokens     = 16000

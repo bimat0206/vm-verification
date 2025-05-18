@@ -279,3 +279,66 @@ resource "aws_s3_bucket_lifecycle_configuration" "results" {
     }
   }
 }
+# Create temporary Base64 bucket
+resource "aws_s3_bucket" "temp_base64" {
+  bucket        = var.temp_base64_bucket_name
+  force_destroy = true # Allow destruction with objects for temporary storage
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = var.temp_base64_bucket_name
+      Purpose = "Temporary Base64 Storage"
+    }
+  )
+}
+
+# Encryption for temp Base64 bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "temp_base64" {
+  bucket = aws_s3_bucket.temp_base64.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Versioning (disabled for temporary storage)
+resource "aws_s3_bucket_versioning" "temp_base64" {
+  bucket = aws_s3_bucket.temp_base64.id
+  versioning_configuration {
+    status = "Disabled"
+  }
+}
+
+# Public access block
+resource "aws_s3_bucket_public_access_block" "temp_base64" {
+  bucket                  = aws_s3_bucket.temp_base64.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Lifecycle configuration for automatic cleanup
+resource "aws_s3_bucket_lifecycle_configuration" "temp_base64" {
+  bucket = aws_s3_bucket.temp_base64.id
+
+  rule {
+    id     = "cleanup-temp-base64"
+    status = "Enabled"
+
+    filter {
+      prefix = "temp-base64/"
+    }
+
+    expiration {
+      days = 1  # 24-hour expiration as per design
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}

@@ -18,7 +18,8 @@ locals {
   s3_buckets = {
     reference = lower(join("-", compact([local.name_prefix, "s3", "reference", local.name_suffix]))),
     checking  = lower(join("-", compact([local.name_prefix, "s3", "checking", local.name_suffix]))),
-    results   = lower(join("-", compact([local.name_prefix, "s3", "results", local.name_suffix])))
+    results   = lower(join("-", compact([local.name_prefix, "s3", "results", local.name_suffix]))),
+    temp_base64 = lower(join("-", compact([local.name_prefix, "s3", "temp-base64", local.name_suffix])))
   }
 
   # DynamoDB table names
@@ -280,6 +281,8 @@ locals {
   CHECKING_BUCKET     = local.s3_buckets.checking
   DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
   LOG_LEVEL           = "INFO"
+  TEMP_BASE64_BUCKET         = local.s3_buckets.temp_base64
+  MAX_INLINE_BASE64_SIZE     = "1048576"  # 2MB in bytes
 }
     },
     prepare_system_prompt = {
@@ -295,6 +298,8 @@ locals {
   THINKING_TYPE              = "enable"
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
+  REFERENCE_BUCKET                 = local.s3_buckets.reference
+  CHECKING_BUCKET                  = local.s3_buckets.checking
 }
     },
     # Replace consolidated prepare_turn_prompt with two separate functions
@@ -310,6 +315,11 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "1"
+          REFERENCE_BUCKET                 = local.s3_buckets.reference
+          CHECKING_BUCKET                  = local.s3_buckets.checking
+              TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
+    BASE64_RETRIEVAL_TIMEOUT    = "5000"
+    TEMPLATE_BASE_PATH="/opt/templates"
       }
     },
         prepare_turn2_prompt = {
@@ -324,6 +334,11 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
+          REFERENCE_BUCKET                 = local.s3_buckets.reference
+          CHECKING_BUCKET                  = local.s3_buckets.checking
+              TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
+    BASE64_RETRIEVAL_TIMEOUT    = "5000"
+        TEMPLATE_BASE_PATH="/opt/templates"
       }
     },
     # Replace consolidated invoke_bedrock with two separate functions
@@ -341,6 +356,11 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "1"
+        RETRY_MAX_ATTEMPTS = "3"
+        RETRY_BASE_DELAY = "2000"
+            TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
+    BASE64_RETRIEVAL_TIMEOUT    = "5000"  # 5 seconds
+    MAX_INLINE_BASE64_SIZE      = "2097152"
       }
     },
     
@@ -358,6 +378,9 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
+            TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
+    BASE64_RETRIEVAL_TIMEOUT    = "5000"  # 5 seconds
+    MAX_INLINE_BASE64_SIZE      = "2097152"
       }
     },
     process_turn1_response = {

@@ -6,6 +6,7 @@ module "s3_buckets" {
   reference_bucket_name = local.s3_buckets.reference
   checking_bucket_name  = local.s3_buckets.checking
   results_bucket_name   = local.s3_buckets.results
+  temp_base64_bucket_name = local.s3_buckets.temp_base64
 
   reference_lifecycle_rules = var.s3_buckets.lifecycle_rules.reference
   checking_lifecycle_rules  = var.s3_buckets.lifecycle_rules.checking
@@ -56,7 +57,8 @@ module "lambda_iam" {
   s3_bucket_arns = var.s3_buckets.create_buckets ? [
     module.s3_buckets[0].reference_bucket_arn,
     module.s3_buckets[0].checking_bucket_arn,
-    module.s3_buckets[0].results_bucket_arn
+    module.s3_buckets[0].results_bucket_arn,
+    module.s3_buckets[0].temp_base64_bucket_arn
   ] : []
 
   dynamodb_table_arns = var.dynamodb_tables.create_tables ? [
@@ -69,7 +71,7 @@ module "lambda_iam" {
     for repo_name, repo_url in module.ecr_repositories[0].repository_arns : repo_url
   ] : []
 
-  bedrock_model_arn = "arn:aws:bedrock:${var.aws_region}::foundation-model/${var.bedrock.model_id}"
+  bedrock_model_arn = "arn:aws:bedrock:*::foundation-model/${var.bedrock.model_id}"
 
   common_tags = local.common_tags
 }

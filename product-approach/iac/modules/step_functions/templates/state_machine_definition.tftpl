@@ -1,13 +1,81 @@
 {
-  "Comment": "Kootoro GenAI Vending Machine Verification - Enhanced Two-Turn Workflow",
-  "StartAt": "GenerateMissingFields",
+  "Comment": "Kootoro GenAI Vending Machine Verification - Enhanced Two-Turn Workflow with Standardized Status Transitions",
+  "StartAt": "InitializeVerificationContext",
   "States": {
-    "GenerateMissingFields": {
+    "InitializeVerificationContext": {
       "Type": "Pass",
       "Parameters": {
-        "verificationContext.$": "$.verificationContext",
-        "requestId.$": "States.UUID()",
-        "requestTimestamp.$": "$$.State.EnteredTime"
+        "schemaVersion": "1.2.0",
+        "verificationContext": {
+          "verificationId.$": "States.UUID()",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "VERIFICATION_REQUESTED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId": "",
+          "verificationAt.$": "$$.State.EnteredTime",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig": {
+            "maxTurns": 2,
+            "referenceImageTurn": 1,
+            "checkingImageTurn": 2
+          },
+          "turnTimestamps": {
+            "initialized.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata": {
+            "requestId.$": "States.UUID()",
+            "requestTimestamp.$": "$$.State.EnteredTime",
+            "processingStarted.$": "$$.State.EnteredTime"
+          }
+        }
+      },
+      "Next": "CheckPreviousVerificationId"
+    },
+    
+    "CheckPreviousVerificationId": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.verificationContext.verificationType",
+              "StringEquals": "PREVIOUS_VS_CURRENT"
+            },
+            {
+              "Variable": "$.verificationContext.previousVerificationId",
+              "IsPresent": true
+            }
+          ],
+          "Next": "UpdatePreviousVerificationId"
+        }
+      ],
+      "Default": "CheckVerificationType"
+    },
+    
+    "UpdatePreviousVerificationId": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status.$": "$.verificationContext.status",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        }
       },
       "Next": "CheckVerificationType"
     },
@@ -18,67 +86,49 @@
         {
           "Variable": "$.verificationContext.verificationType",
           "StringEquals": "LAYOUT_VS_CHECKING",
-          "Next": "InitializeLayoutChecking"
+          "Next": "SetStatusInitializing"
         },
         {
           "Variable": "$.verificationContext.verificationType",
           "StringEquals": "PREVIOUS_VS_CURRENT",
-          "Next": "InitializePreviousCurrent"
+          "Next": "SetStatusInitializing"
         }
       ],
       "Default": "HandleInvalidVerificationType"
     },
     
-    "InitializeLayoutChecking": {
-      "Type": "Task",
-      "Resource": "${function_arns["initialize"]}",
-      "ResultPath": "$.verificationContext",
+    "SetStatusInitializing": {
+      "Type": "Pass",
       "Parameters": {
-        "verificationType.$": "$.verificationContext.verificationType",
-        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-        "vendingMachineId.$": "$.verificationContext.vendingMachineId",
-        "layoutId.$": "$.verificationContext.layoutId",
-        "layoutPrefix.$": "$.verificationContext.layoutPrefix",
-        "notificationEnabled.$": "$.verificationContext.notificationEnabled",
-        "requestId.$": "$.requestId",
-        "requestTimestamp.$": "$.requestTimestamp"
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "VERIFICATION_INITIALIZED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        }
       },
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandleInitializationError"
-        }
-      ],
-      "Next": "FetchImages"
+      "Next": "InitializeVerification"
     },
     
-    "InitializePreviousCurrent": {
+    "InitializeVerification": {
       "Type": "Task",
       "Resource": "${function_arns["initialize"]}",
-      "ResultPath": "$.verificationContext",
-      "Parameters": {
-        "verificationType.$": "$.verificationContext.verificationType",
-        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-        "vendingMachineId.$": "$.verificationContext.vendingMachineId",
-        "previousVerificationId": "",
-        "notificationEnabled.$": "$.verificationContext.notificationEnabled",
-        "requestId.$": "$.requestId",
-        "requestTimestamp.$": "$.requestTimestamp"
-      },
+      "InputPath": "$",
+      "ResultPath": "$.initializeResult",
       "Retry": [
         {
-          "ErrorEquals": ["States.TaskFailed"],
+          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
           "IntervalSeconds": 2,
           "MaxAttempts": 3,
           "BackoffRate": 2.0
@@ -91,23 +141,50 @@
           "Next": "HandleInitializationError"
         }
       ],
-      "Next": "FetchHistoricalVerification"
+      "Next": "CheckVerificationFlow"
+    },
+    
+    "CheckVerificationFlow": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verificationContext.verificationType",
+          "StringEquals": "PREVIOUS_VS_CURRENT",
+          "Next": "FetchHistoricalVerification"
+        }
+      ],
+      "Default": "FetchImages"
     },
     
     "HandleInvalidVerificationType": {
       "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Invalid verificationType. Must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT."
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "VERIFICATION_FAILED",
+          "error": {
+            "code": "INVALID_VERIFICATION_TYPE",
+            "message": "Invalid verificationType. Must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT.",
+            "timestamp.$": "$$.State.EnteredTime"
+          }
+        }
       },
       "End": true
     },
     
     "HandleInitializationError": {
       "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to initialize verification process"
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "INITIALIZATION_FAILED",
+          "error.$": "$.error",
+          "timestamp.$": "$$.State.EnteredTime"
+        }
       },
       "End": true
     },
@@ -116,17 +193,13 @@
       "Type": "Task",
       "Resource": "${function_arns["fetch_historical_verification"]}",
       "Parameters": {
-        "verificationId.$": "$.verificationContext.verificationId",
-        "verificationType.$": "$.verificationContext.verificationType",
-        "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-        "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-        "previousVerificationId.$": "$.verificationContext.previousVerificationId",
-        "vendingMachineId.$": "$.verificationContext.vendingMachineId"
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext.$": "$.verificationContext"
       },
       "ResultPath": "$.historicalContext",
       "Retry": [
         {
-          "ErrorEquals": ["States.TaskFailed"],
+          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
           "IntervalSeconds": 2,
           "MaxAttempts": 3,
           "BackoffRate": 2.0
@@ -139,40 +212,60 @@
           "Next": "HandleHistoricalFetchError"
         }
       ],
-      "Next": "FetchImages"
+      "Next": "SetStatusFetchingImages"
     },
     
     "HandleHistoricalFetchError": {
       "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to retrieve historical verification data"
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "HISTORICAL_FETCH_FAILED",
+          "error.$": "$.error",
+          "timestamp.$": "$$.State.EnteredTime"
+        }
       },
       "End": true
+    },
+    
+    "SetStatusFetchingImages": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "FETCHING_IMAGES",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext"
+      },
+      "Next": "FetchImages"
     },
     
     "FetchImages": {
       "Type": "Task",
       "Resource": "${function_arns["fetch_images"]}",
       "Parameters": {
-        "verificationContext": {
-          "verificationId.$": "$.verificationContext.verificationId",
-          "verificationAt.$": "$.verificationContext.verificationAt",
-          "status.$": "$.verificationContext.status",
-          "verificationType.$": "$.verificationContext.verificationType",
-          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
-          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
-          "layoutId.$": "$.verificationContext.layoutId",
-          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
-          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
-          "previousVerificationId.$": "States.ArrayGetItem(States.Array($.verificationContext.previousVerificationId, null), States.StringEquals($.verificationContext.verificationType, 'PREVIOUS_VS_CURRENT') ? 0 : 1)",
-          "notificationEnabled.$": "$.verificationContext.notificationEnabled"
-        }
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext.$": "$.verificationContext"
       },
-      "ResultPath": "$",
+      "ResultPath": "$.fetchImagesResult",
       "Retry": [
         {
-          "ErrorEquals": ["States.TaskFailed"],
+          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
           "IntervalSeconds": 2,
           "MaxAttempts": 3,
           "BackoffRate": 2.0
@@ -185,38 +278,93 @@
           "Next": "HandleFetchImagesError"
         }
       ],
-      "Next": "PrepareSystemPrompt"
+      "Next": "SetStatusImagesFetched"
     },
     
     "HandleFetchImagesError": {
       "Type": "Pass",
-      "Result": {
-        "status": "FAILED",
-        "error": "Failed to fetch images or metadata"
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "IMAGE_FETCH_FAILED",
+          "error.$": "$.error",
+          "timestamp.$": "$$.State.EnteredTime"
+        }
       },
       "End": true
+    },
+    
+    "SetStatusImagesFetched": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "IMAGES_FETCHED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps": {
+            "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+            "imagesFetched.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext": {
+          "$": "States.JsonMerge(States.StringToJson('{}'), States.JsonMerge($.historicalContext || {}, {}))"
+        },
+        "images.$": "$.fetchImagesResult.images",
+        "layoutMetadata.$": "$.fetchImagesResult.layoutMetadata"
+      },
+      "Next": "PrepareSystemPrompt"
     },
     
     "PrepareSystemPrompt": {
       "Type": "Task",
       "Resource": "${function_arns["prepare_system_prompt"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "layoutMetadata.$": "$.layoutMetadata",
         "historicalContext.$": "$.historicalContext"
       },
       "ResultPath": "$.systemPrompt",
-      "Next": "InitializeConversationState"
+      "Next": "SetStatusPromptPrepared"
     },
     
-    "InitializeConversationState": {
+    "SetStatusPromptPrepared": {
       "Type": "Pass",
       "Parameters": {
-        "verificationContext.$": "$.verificationContext",
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "PROMPT_PREPARED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
-        "historicalContext.$": "$.historicalContext",
         "layoutMetadata.$": "$.layoutMetadata",
         "conversationState": {
           "currentTurn": 0,
@@ -233,6 +381,7 @@
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn1_prompt"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
@@ -243,6 +392,40 @@
         "includeImage": "reference"
       },
       "ResultPath": "$.currentPrompt",
+      "Next": "SetStatusTurn1PromptReady"
+    },
+    
+    "SetStatusTurn1PromptReady": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN1_PROMPT_READY",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps": {
+            "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+            "imagesFetched.$": "$.verificationContext.turnTimestamps.imagesFetched",
+            "turn1Started.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "currentPrompt.$": "$.currentPrompt"
+      },
       "Next": "ExecuteTurn1"
     },
     
@@ -250,13 +433,22 @@
       "Type": "Task",
       "Resource": "${function_arns["execute_turn1"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
         "currentPrompt.$": "$.currentPrompt",
         "conversationState.$": "$.conversationState",
         "historicalContext.$": "$.historicalContext",
-        "layoutMetadata.$": "$.layoutMetadata"
+        "layoutMetadata.$": "$.layoutMetadata",
+        "bedrockConfig": {
+          "anthropic_version.$": "$.systemPrompt.bedrockConfig.anthropic_version",
+          "max_tokens.$": "$.systemPrompt.bedrockConfig.max_tokens",
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens.$": "$.systemPrompt.bedrockConfig.thinking.budget_tokens"
+          }
+        }
       },
       "ResultPath": "$.turn1Response",
       "Retry": [
@@ -274,6 +466,42 @@
           "Next": "HandleBedrockError"
         }
       ],
+      "Next": "SetStatusTurn1Completed"
+    },
+    
+    "SetStatusTurn1Completed": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN1_COMPLETED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps": {
+            "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+            "imagesFetched.$": "$.verificationContext.turnTimestamps.imagesFetched",
+            "turn1Started.$": "$.verificationContext.turnTimestamps.turn1Started",
+            "turn1Completed.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "currentPrompt.$": "$.currentPrompt",
+        "turn1Response.$": "$.turn1Response"
+      },
       "Next": "ProcessTurn1Response"
     },
     
@@ -281,6 +509,7 @@
       "Type": "Task",
       "Resource": "${function_arns["process_turn1_response"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "turn1Response.$": "$.turn1Response",
         "images.$": "$.images",
@@ -291,16 +520,32 @@
         "historicalContext.$": "$.historicalContext"
       },
       "ResultPath": "$.referenceAnalysis",
-      "Next": "UpdateConversationStateAfterTurn1"
+      "Next": "SetStatusTurn1Processed"
     },
     
-    "UpdateConversationStateAfterTurn1": {
+    "SetStatusTurn1Processed": {
       "Type": "Pass",
       "Parameters": {
-        "verificationContext.$": "$.verificationContext",
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN1_PROCESSED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
-        "historicalContext.$": "$.historicalContext",
         "layoutMetadata.$": "$.layoutMetadata",
         "currentPrompt.$": "$.currentPrompt",
         "turn1Response.$": "$.turn1Response",
@@ -320,6 +565,7 @@
       "Type": "Task",
       "Resource": "${function_arns["prepare_turn2_prompt"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
@@ -331,6 +577,44 @@
         "previousContext.$": "$.referenceAnalysis"
       },
       "ResultPath": "$.currentPrompt",
+      "Next": "SetStatusTurn2PromptReady"
+    },
+    
+    "SetStatusTurn2PromptReady": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN2_PROMPT_READY",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps": {
+            "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+            "imagesFetched.$": "$.verificationContext.turnTimestamps.imagesFetched",
+            "turn1Started.$": "$.verificationContext.turnTimestamps.turn1Started",
+            "turn1Completed.$": "$.verificationContext.turnTimestamps.turn1Completed",
+            "turn2Started.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "currentPrompt.$": "$.currentPrompt",
+        "turn1Response.$": "$.turn1Response",
+        "referenceAnalysis.$": "$.referenceAnalysis"
+      },
       "Next": "ExecuteTurn2"
     },
     
@@ -338,6 +622,7 @@
       "Type": "Task",
       "Resource": "${function_arns["execute_turn2"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
@@ -364,19 +649,23 @@
           "Next": "HandleBedrockError"
         }
       ],
-      "Next": "ProcessTurn2Response"
+      "Next": "SetStatusTurn2Completed"
     },
     
     "HandleBedrockError": {
-      "Type": "Task",
-      "Resource": "${function_arns["handle_bedrock_error"]}",
+      "Type": "Pass",
       "Parameters": {
-        "verificationContext.$": "$.verificationContext",
-        "error.$": "$.error",
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "BEDROCK_PROCESSING_FAILED",
+          "error.$": "$.error",
+          "timestamp.$": "$$.State.EnteredTime"
+        },
         "conversationState.$": "$.conversationState",
         "images.$": "$.images"
       },
-      "ResultPath": "$",
       "Next": "FinalizeWithError"
     },
     
@@ -384,19 +673,79 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "error.$": "$.error",
         "conversationState.$": "$.conversationState",
         "images.$": "$.images"
       },
       "ResultPath": "$.finalResults",
+      "Next": "SetStatusWithError"
+    },
+    
+    "SetStatusWithError": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "VERIFICATION_FAILED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "error.$": "$.error"
+        },
+        "finalResults.$": "$.finalResults"
+      },
       "Next": "StoreResults"
+    },
+    
+    "SetStatusTurn2Completed": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN2_COMPLETED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps": {
+            "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+            "imagesFetched.$": "$.verificationContext.turnTimestamps.imagesFetched",
+            "turn1Started.$": "$.verificationContext.turnTimestamps.turn1Started",
+            "turn1Completed.$": "$.verificationContext.turnTimestamps.turn1Completed",
+            "turn2Started.$": "$.verificationContext.turnTimestamps.turn2Started",
+            "turn2Completed.$": "$$.State.EnteredTime"
+          },
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "currentPrompt.$": "$.currentPrompt",
+        "turn1Response.$": "$.turn1Response",
+        "turn2Response.$": "$.turn2Response",
+        "referenceAnalysis.$": "$.referenceAnalysis"
+      },
+      "Next": "ProcessTurn2Response"
     },
     
     "ProcessTurn2Response": {
       "Type": "Task",
       "Resource": "${function_arns["process_turn2_response"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "turn2Response.$": "$.turn2Response",
         "turn1Response.$": "$.turn1Response",
@@ -409,16 +758,32 @@
         "historicalContext.$": "$.historicalContext"
       },
       "ResultPath": "$.checkingAnalysis",
-      "Next": "UpdateConversationStateAfterTurn2"
+      "Next": "SetStatusTurn2Processed"
     },
     
-    "UpdateConversationStateAfterTurn2": {
+    "SetStatusTurn2Processed": {
       "Type": "Pass",
       "Parameters": {
-        "verificationContext.$": "$.verificationContext",
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "TURN2_PROCESSED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
         "images.$": "$.images",
         "systemPrompt.$": "$.systemPrompt",
-        "historicalContext.$": "$.historicalContext",
         "layoutMetadata.$": "$.layoutMetadata",
         "currentPrompt.$": "$.currentPrompt",
         "turn1Response.$": "$.turn1Response",
@@ -440,6 +805,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_results"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "conversationState.$": "$.conversationState",
         "referenceAnalysis.$": "$.referenceAnalysis",
@@ -449,6 +815,38 @@
         "historicalContext.$": "$.historicalContext"
       },
       "ResultPath": "$.finalResults",
+      "Next": "SetStatusResultsFinalized"
+    },
+    
+    "SetStatusResultsFinalized": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "RESULTS_FINALIZED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "checkingAnalysis.$": "$.checkingAnalysis",
+        "finalResults.$": "$.finalResults"
+      },
       "Next": "StoreResults"
     },
     
@@ -456,6 +854,7 @@
       "Type": "Task",
       "Resource": "${function_arns["store_results"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "finalResults.$": "$.finalResults",
         "conversationState.$": "$.conversationState",
@@ -466,6 +865,39 @@
         "historicalContext.$": "$.historicalContext"
       },
       "ResultPath": "$.storageResult",
+      "Next": "SetStatusResultsStored"
+    },
+    
+    "SetStatusResultsStored": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "RESULTS_STORED",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "historicalContext.$": "$.historicalContext",
+        "images.$": "$.images",
+        "systemPrompt.$": "$.systemPrompt",
+        "layoutMetadata.$": "$.layoutMetadata",
+        "conversationState.$": "$.conversationState",
+        "referenceAnalysis.$": "$.referenceAnalysis",
+        "checkingAnalysis.$": "$.checkingAnalysis",
+        "finalResults.$": "$.finalResults",
+        "storageResult.$": "$.storageResult"
+      },
       "Next": "ShouldNotify"
     },
     
@@ -478,24 +910,53 @@
           "Next": "Notify"
         }
       ],
-      "Default": "WorkflowComplete"
+      "Default": "SetStatusCompleted"
     },
     
     "Notify": {
       "Type": "Task",
       "Resource": "${function_arns["notify"]}",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationContext.$": "$.verificationContext",
         "finalResults.$": "$.finalResults",
         "storageResult.$": "$.storageResult"
       },
       "ResultPath": "$.notificationResult",
-      "Next": "WorkflowComplete"
+      "Next": "SetStatusNotificationSent"
     },
     
-    "WorkflowComplete": {
+    "SetStatusNotificationSent": {
       "Type": "Pass",
       "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
+        "verificationContext": {
+          "verificationId.$": "$.verificationContext.verificationId",
+          "verificationType.$": "$.verificationContext.verificationType",
+          "status": "NOTIFICATION_SENT",
+          "referenceImageUrl.$": "$.verificationContext.referenceImageUrl",
+          "checkingImageUrl.$": "$.verificationContext.checkingImageUrl",
+          "vendingMachineId.$": "$.verificationContext.vendingMachineId",
+          "layoutId.$": "$.verificationContext.layoutId",
+          "layoutPrefix.$": "$.verificationContext.layoutPrefix",
+          "previousVerificationId.$": "$.verificationContext.previousVerificationId",
+          "verificationAt.$": "$.verificationContext.verificationAt",
+          "notificationEnabled.$": "$.verificationContext.notificationEnabled",
+          "turnConfig.$": "$.verificationContext.turnConfig",
+          "turnTimestamps.$": "$.verificationContext.turnTimestamps",
+          "requestMetadata.$": "$.verificationContext.requestMetadata"
+        },
+        "finalResults.$": "$.finalResults",
+        "storageResult.$": "$.storageResult",
+        "notificationResult.$": "$.notificationResult"
+      },
+      "Next": "SetStatusCompleted"
+    },
+    
+    "SetStatusCompleted": {
+      "Type": "Pass",
+      "Parameters": {
+        "schemaVersion.$": "$.schemaVersion",
         "verificationId.$": "$.verificationContext.verificationId",
         "verificationType.$": "$.verificationContext.verificationType",
         "status": "COMPLETED",
@@ -505,6 +966,15 @@
           "resultImageUrl.$": "$.storageResult.resultImageUrl",
           "confidenceScore.$": "$.finalResults.confidenceScore",
           "discrepanciesCount.$": "$.finalResults.discrepanciesCount"
+        },
+        "turnTimestamps": {
+          "initialized.$": "$.verificationContext.turnTimestamps.initialized",
+          "imagesFetched.$": "$.verificationContext.turnTimestamps.imagesFetched",
+          "turn1Started.$": "$.verificationContext.turnTimestamps.turn1Started",
+          "turn1Completed.$": "$.verificationContext.turnTimestamps.turn1Completed",
+          "turn2Started.$": "$.verificationContext.turnTimestamps.turn2Started",
+          "turn2Completed.$": "$.verificationContext.turnTimestamps.turn2Completed",
+          "completed.$": "$$.State.EnteredTime"
         }
       },
       "End": true

@@ -32,26 +32,49 @@ module "step_functions" {
 
 ## State Machine Workflow
 
-The state machine implements a workflow for vending machine verification:
+The state machine implements a workflow for vending machine verification with different paths based on verification type:
 
-1. **Initialize**: Sets up the verification context and parameters
-2. **CheckVerificationType**: Determines the verification type
-3. **FetchHistoricalVerification**: (Optional) Retrieves historical verification data
-4. **FetchImages**: Gets images from S3
-5. **PrepareSystemPrompt**: Prepares the system prompt for Bedrock
-6. **InitializeConversationState**: Sets up the conversation state
-7. **PrepareTurn1Prompt/ExecuteTurn1**: First turn of the conversation
-8. **ProcessTurn1Response**: Processes the first turn response
-9. **PrepareTurn2Prompt/ExecuteTurn2**: Second turn of the conversation
-10. **ProcessTurn2Response**: Processes the second turn response
-11. **FinalizeResults**: Finalizes the verification results
-12. **StoreResults**: Stores the results in DynamoDB
-13. **Notify**: (Optional) Sends notifications
-14. **WorkflowComplete**: Completes the workflow
+1. **GenerateMissingFields**: Sets initial request ID and timestamp if not provided
+2. **CheckVerificationType**: Determines the verification type and routes accordingly
+
+For LAYOUT_VS_CHECKING type:
+- **InitializeLayoutChecking**: Sets up the verification context for layout checking
+- Continues to FetchImages directly
+
+For PREVIOUS_VS_CURRENT type:
+- **InitializePreviousCurrent**: Sets up the verification context for previous vs current
+- **FetchHistoricalVerification**: Retrieves historical verification data
+- Then continues to FetchImages
+
+Common path for both types:
+1. **FetchImages**: Gets images from S3
+2. **PrepareSystemPrompt**: Prepares the system prompt for Bedrock
+   - Handles missing historicalContext field for LAYOUT_VS_CHECKING type
+3. **InitializeConversationState**: Sets up the conversation state
+4. **PrepareTurn1Prompt/ExecuteTurn1**: First turn of the conversation
+5. **ProcessTurn1Response**: Processes the first turn response
+6. **PrepareTurn2Prompt/ExecuteTurn2**: Second turn of the conversation
+7. **ProcessTurn2Response**: Processes the second turn response
+8. **FinalizeResults**: Finalizes the verification results
+9. **StoreResults**: Stores the results in DynamoDB
+10. **Notify**: (Optional) Sends notifications
+11. **WorkflowComplete**: Completes the workflow
 
 ## Parameters Mapping
 
 Different Lambda functions in the workflow expect different input structures. The state machine handles this by using appropriate parameter mapping for each Lambda function:
+
+### Optional Fields Handling
+
+Some fields in the workflow data are only present for certain verification types. The state machine handles these cases:
+
+- **historicalContext**: Only present for PREVIOUS_VS_CURRENT verification type
+  ```json
+  "historicalContext": {}
+  ```
+  This approach provides an empty object when historicalContext is missing (as in LAYOUT_VS_CHECKING type), preventing JSONPath errors.
+
+- **previousVerificationId**: Only required for PREVIOUS_VS_CURRENT verification type
 
 ### Initialize Lambda
 
