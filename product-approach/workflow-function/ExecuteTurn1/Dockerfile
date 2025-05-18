@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install git for dependencies
 RUN apk add --no-cache git
@@ -6,20 +6,24 @@ RUN apk add --no-cache git
 # Set up the working directory
 WORKDIR /app
 
-# Copy go.mod and go.sum first to leverage Docker caching
-COPY go.mod go.sum* ./
+# Copy source code with modules first
+COPY . .
+
+# Environment setup
+ENV GO111MODULE=on
+ENV GOFLAGS=-mod=mod
+
+# Special handling for Docker build - ensuring modules are properly setup
+RUN go env -w GOMODCACHE=/go/pkg/mod
 
 # Download dependencies
-RUN go mod download
-
-# Copy the source code
-COPY . .
+RUN go mod tidy && go mod download
 
 # Build the application with enhanced error checking
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap -ldflags="-s -w" -trimpath ./cmd/main.go
 
-# Create the lambda runtime image
-FROM --platform=linux/arm64 public.ecr.aws/lambda/provided:al2-arm64
+# Use AWS Lambda provided base image for ARM64
+FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Add function version metadata
 LABEL function.version="1.3.0" 

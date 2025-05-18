@@ -135,23 +135,38 @@ fi
 echo "Copying function files..."
 cp -r ./* "$TEMP_BUILD_DIR/"
 
-# Copy our special temp Dockerfile if it exists
-if [ -f "Dockerfile.temp" ]; then
-  echo "Using specialized temporary build Dockerfile..."
-  cp -f "Dockerfile.temp" "$TEMP_BUILD_DIR/Dockerfile"
+# Fix module paths in go.mod for Docker build
+echo "Fixing go.mod replacements for Docker build..."
+if [ -f "$TEMP_BUILD_DIR/go.mod" ]; then
+  sed -i.bak 's|replace (|// Commented out for Docker build\n// replace (|g' "$TEMP_BUILD_DIR/go.mod"
+  sed -i.bak 's|workflow-function/shared/errors => ../shared/errors|// workflow-function/shared/errors => ../shared/errors|g' "$TEMP_BUILD_DIR/go.mod"
+  sed -i.bak 's|workflow-function/shared/logger => ../shared/logger|// workflow-function/shared/logger => ../shared/logger|g' "$TEMP_BUILD_DIR/go.mod"
+  sed -i.bak 's|workflow-function/shared/schema => ../shared/schema|// workflow-function/shared/schema => ../shared/schema|g' "$TEMP_BUILD_DIR/go.mod"
+  sed -i.bak 's|)|// )|g' "$TEMP_BUILD_DIR/go.mod"
+else
+  echo "Warning: go.mod not found in temp directory - cannot fix replacements"
 fi
 
-# Create a temporary go.work file to help with local module resolution
-cat > "$TEMP_BUILD_DIR/go.work" << EOF
-go 1.22.0
+# Use our simple Dockerfile for Docker build
+if [ -f "Dockerfile.simple" ]; then
+  echo "Using simplified build Dockerfile..."
+  cp -f "Dockerfile.simple" "$TEMP_BUILD_DIR/Dockerfile"
+else
+  echo "Warning: Simplified Dockerfile.simple not found!"
+fi
 
-use (
-  .
-  ./workflow-function/shared/errors
-  ./workflow-function/shared/schema
-  ./workflow-function/shared/logger
-)
+# Create simple module files for each shared package
+echo "Creating simple module files for shared packages..."
+for pkg in "errors" "schema" "logger"; do
+  # Create a simple go.mod file in each module directory if it doesn't exist
+  if [ ! -f "$TEMP_BUILD_DIR/workflow-function/shared/$pkg/go.mod" ]; then
+    cat > "$TEMP_BUILD_DIR/workflow-function/shared/$pkg/go.mod" << EOF
+module workflow-function/shared/$pkg
+
+go 1.22
 EOF
+  fi
+done
 
 # Log in to ECR if not skipped
 if [[ "$SKIP_ECR_LOGIN" == false ]]; then

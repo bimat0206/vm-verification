@@ -2,18 +2,20 @@ package handler
 
 import (
 	"context"
-	"encoding/json"  
+	"encoding/base64"
+	"encoding/json"
+	"errors" // Standard errors package for errors.As
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 
 	"workflow-function/shared/schema"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/errors"
+	wferrors "workflow-function/shared/errors" // Renamed to avoid name collision
 )
 
 // Handler provides the core logic for ExecuteTurn1
@@ -34,87 +36,107 @@ func NewHandler(bedrockClient *bedrockruntime.Client, s3Client *s3.Client, hybri
 	}
 }
 
-// HandleRequest executes Turn 1: validates input, invokes Bedrock, updates WorkflowState.
+// HandleRequest executes Turn 1: validates input, invokes Bedrock with retries, and updates WorkflowState.
 func (h *Handler) HandleRequest(ctx context.Context, state *schema.WorkflowState) (*schema.WorkflowState, error) {
 	log := h.logger.WithFields(map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId,
 		"step":           "ExecuteTurn1",
 	})
+	log.Info("Begin ExecuteTurn1", nil)
 
-	log.Info("Begin ExecuteTurn1 - validating input", nil)
-
-	// Ensure schema version is set to the latest supported version
-	if state.SchemaVersion == "" || state.SchemaVersion != schema.SchemaVersion {
-		log.Info("Updating schema version", map[string]interface{}{
-			"from": state.SchemaVersion, 
-			"to": schema.SchemaVersion,
-		})
+	// Ensure schema version
+	if state.SchemaVersion != schema.SchemaVersion {
+		log.Info("Updating schema version", map[string]interface{}{ "from": state.SchemaVersion, "to": schema.SchemaVersion })
 		state.SchemaVersion = schema.SchemaVersion
 	}
 
-	// Validate core workflow state, image data, prompt, and Bedrock config
+	// Validate workflow state
 	if errs := schema.ValidateWorkflowState(state); len(errs) > 0 {
-		wfErr := errors.NewValidationError("Invalid WorkflowState", map[string]interface{}{"validationErrors": errs.Error()})
+		wfErr := wferrors.NewValidationError("Invalid WorkflowState", map[string]interface{}{"validationErrors": errs.Error()})
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
-	if errs := schema.ValidateImageData(state.Images, true); len(errs) > 0 {
-		wfErr := errors.NewValidationError("Invalid ImageData", map[string]interface{}{"validationErrors": errs.Error()})
-		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
-		return state, wfErr
-	}
+
+	// Validate current prompt
 	if errs := schema.ValidateCurrentPrompt(state.CurrentPrompt, true); len(errs) > 0 {
-		wfErr := errors.NewValidationError("Invalid CurrentPrompt", map[string]interface{}{"validationErrors": errs.Error()})
+		wfErr := wferrors.NewValidationError("Invalid CurrentPrompt", map[string]interface{}{"validationErrors": errs.Error()})
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
+
+	// Validate Bedrock config
 	if errs := schema.ValidateBedrockConfig(state.BedrockConfig); len(errs) > 0 {
-		wfErr := errors.NewValidationError("Invalid BedrockConfig", map[string]interface{}{"validationErrors": errs.Error()})
+		wfErr := wferrors.NewValidationError("Invalid BedrockConfig", map[string]interface{}{"validationErrors": errs.Error()})
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
 
-	// Prepare hybrid Base64 retriever for reference image
+	// Ensure Base64 for images (hybrid logic)
 	retriever := schema.NewHybridBase64Retriever(h.s3Client, h.hybridConfig)
-
-	// Ensure Base64 for images (hybrid logic handled in schema)
-	err := schema.HybridImageProcessor(retriever, nil).EnsureHybridBase64Generated(state.Images)
-	if err != nil {
-		wfErr := errors.NewInternalError("HybridBase64Generation", err)
+	if err := schema.HybridImageProcessor(retriever, nil).EnsureHybridBase64Generated(state.Images); err != nil {
+		wfErr := wferrors.NewInternalError("HybridBase64Generation", err)
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
 
-	// Build Bedrock InvokeModel input using shared schema
+	// Validate full image data now that Base64 is attached
+	if errs := schema.ValidateImageData(state.Images, true); len(errs) > 0 {
+		wfErr := wferrors.NewValidationError("Invalid ImageData", map[string]interface{}{"validationErrors": errs.Error()})
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+
+	// Build Bedrock InvokeModel input
 	modelInput, err := h.buildConverseInput(ctx, state, retriever)
 	if err != nil {
-		wfErr := errors.NewBedrockError("Failed to build Bedrock model input", "BEDROCK_BUILD_INPUT", false).
+		wfErr := wferrors.NewBedrockError("Failed to build Bedrock input", "BEDROCK_BUILD_INPUT", false).
 			WithContext("detail", err.Error())
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
 
-	// Invoke Bedrock Model API
-	log.Info("Invoking Bedrock Model API", map[string]interface{}{
-		"modelId":   aws.ToString(modelInput.ModelId),
-		"promptId":  state.CurrentPrompt.PromptId,
-	})
-
-	start := time.Now()
-	resp, err := h.bedrockClient.InvokeModel(ctx, modelInput)
-	latencyMs := time.Since(start).Milliseconds()
-	if err != nil {
-		wfErr := errors.NewBedrockError("Bedrock Model API failed", "BEDROCK_API_FAILURE", true).
-			WithContext("bedrockError", err.Error())
+	// Invoke Bedrock with retries
+	var respOut *bedrockruntime.InvokeModelOutput
+	var invokeErr error
+	var latencyMs int64
+	for attempt := 1; attempt <= 3; attempt++ {
+		log.Info("Invoking Bedrock Model API", map[string]interface{}{ "modelId": aws.ToString(modelInput.ModelId), "attempt": attempt })
+		start := time.Now()
+		respOut, invokeErr = h.bedrockClient.InvokeModel(ctx, modelInput)
+		latencyMs = time.Since(start).Milliseconds()
+		if invokeErr == nil {
+			break
+		}
+		// Only retry on ServiceException or ThrottlingException
+		var apiErr smithy.APIError
+		if errors.As(invokeErr, &apiErr) {
+			code := apiErr.ErrorCode()
+			if (code == "ServiceException" || code == "ThrottlingException") && attempt < 3 {
+				time.Sleep(time.Duration(3*(1<<uint(attempt-1))) * time.Second)
+				continue
+			}
+		}
+		break
+	}
+	if invokeErr != nil {
+		wfErr := wferrors.NewBedrockError("Bedrock API failure", "BEDROCK_API_FAILURE", true).
+			WithContext("bedrockError", invokeErr.Error())
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
 
-	// Parse Bedrock response into Turn1Response
-	modelId := aws.ToString(modelInput.ModelId)
-	turn1Response, err := h.buildTurn1Response(state, resp, latencyMs, modelId)
+	// Read response body (which is already []byte in the AWS SDK v2)
+	bodyBytes := respOut.Body
 	if err != nil {
-		wfErr := errors.NewParsingError("Bedrock Model API response", err)
+		wfErr := wferrors.NewParsingError("Reading Bedrock response", err)
+		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
+		return state, wfErr
+	}
+
+	// Parse response and build TurnResponse
+	turn1Response, err := h.buildTurn1Response(state, bodyBytes, latencyMs, aws.ToString(modelInput.ModelId))
+	if err != nil {
+		wfErr := wferrors.NewParsingError("Bedrock response parsing", err)
 		h.setErrorAndLog(state, wfErr, log, schema.StatusBedrockProcessingFailed)
 		return state, wfErr
 	}
@@ -123,31 +145,156 @@ func (h *Handler) HandleRequest(ctx context.Context, state *schema.WorkflowState
 	state.Turn1Response = map[string]interface{}{"turnResponse": turn1Response}
 	state.VerificationContext.Status = schema.StatusTurn1Completed
 	state.ConversationState = h.updateConversationState(state, turn1Response)
-	state.VerificationContext.Error = nil // clear error on success
+	state.VerificationContext.Error = nil
 
-	log.Info("Turn1 completed", map[string]interface{}{
-		"latencyMs":  latencyMs,
-		"turnId":     turn1Response.TurnId,
-		"tokens":     turn1Response.TokenUsage,
-		"status":     state.VerificationContext.Status,
-	})
-
+	log.Info("Turn1 completed", map[string]interface{}{ "latencyMs": latencyMs, "turnId": turn1Response.TurnId })
 	return state, nil
 }
 
-// --- Helper Methods ---
+// buildConverseInput prepares the Bedrock payload according to Converse API spec
+func (h *Handler) buildConverseInput(
+	ctx context.Context,
+	state *schema.WorkflowState,
+	retriever *schema.HybridBase64Retriever,
+) (*bedrockruntime.InvokeModelInput, error) {
+	if len(state.CurrentPrompt.Messages) == 0 {
+		return nil, fmt.Errorf("no messages in CurrentPrompt")
+	}
+	msg := state.CurrentPrompt.Messages[0]
 
-// setErrorAndLog centralizes error logging and state update.
-func (h *Handler) setErrorAndLog(state *schema.WorkflowState, err error, log logger.Logger, status string) {
-	log.Error("Error in ExecuteTurn1", map[string]interface{}{"error": err.Error()})
-	var wfErr *errors.WorkflowError
-	if e, ok := err.(*errors.WorkflowError); ok {
+	// Build content array: text then image
+	var content []interface{}
+	// Text block
+	if len(msg.Content) > 0 && msg.Content[0].Text != "" {
+		content = append(content, msg.Content[0].Text)
+	}
+	// Image block if present
+	if len(msg.Content) > 1 && msg.Content[1].Image != nil {
+		info := h.getReferenceImageInfo(state.Images)
+		b64, err := retriever.RetrieveBase64Data(info)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch Base64 from %s: %w", info.URL, err)
+		}
+		raw, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Base64 data: %w", err)
+		}
+		// Append image object
+		content = append(content, map[string]interface{}{ 
+			"image": map[string]interface{}{ 
+				"format": msg.Content[1].Image.Format,
+				"source": map[string]interface{}{ 
+					"bytes": raw,
+				},
+			},
+		})
+	}
+
+	// Assemble payload map
+	payload := map[string]interface{}{
+		"messages": []map[string]interface{}{ {"role": msg.Role, "content": content} },
+		"max_tokens":       state.BedrockConfig.MaxTokens,
+		"anthropic_version": state.BedrockConfig.AnthropicVersion,
+	}
+
+	// Marshal to JSON
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	// Build InvokeModelInput
+	return &bedrockruntime.InvokeModelInput{
+		ModelId:     aws.String(state.BedrockConfig.AnthropicVersion),
+		ContentType: aws.String("application/json"),
+		Accept:      aws.String("application/json"),
+		Body:        bodyBytes,
+	}, nil
+}
+
+// buildTurn1Response parses the Bedrock JSON and constructs a TurnResponse
+func (h *Handler) buildTurn1Response(
+	state *schema.WorkflowState,
+	body []byte,
+	latencyMs int64,
+	modelId string,
+) (*schema.TurnResponse, error) {
+	var resp struct {
+		Content []struct{ Type, Text string } `json:"content"`
+		Usage   struct{ InputTokens, OutputTokens int } `json:"usage"`
+		StopReason string                                `json:"stop_reason"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal Bedrock response: %w", err)
+	}
+
+	// Concatenate text blocks
+	var fullText string
+	for _, c := range resp.Content {
+		if c.Type == "text" {
+			fullText += c.Text
+		}
+	}
+
+	// Token usage
+	tokens := &schema.TokenUsage{
+		InputTokens:  resp.Usage.InputTokens,
+		OutputTokens: resp.Usage.OutputTokens,
+		TotalTokens:  resp.Usage.InputTokens + resp.Usage.OutputTokens,
+	}
+
+	// Build TurnResponse
+	return &schema.TurnResponse{
+		TurnId:    1,
+		Timestamp: schema.FormatISO8601(),
+		Prompt:    state.CurrentPrompt.Messages[0].Content[0].Text,
+		Response: schema.BedrockApiResponse{
+			Content:    fullText,
+			StopReason: resp.StopReason,
+			ModelId:    modelId,
+		},
+		LatencyMs:  latencyMs,
+		TokenUsage: tokens,
+		Stage:      schema.StatusTurn1Completed,
+	}, nil
+}
+
+// updateConversationState appends the turn to history
+func (h *Handler) updateConversationState(
+	state *schema.WorkflowState,
+	turn *schema.TurnResponse,
+) *schema.ConversationState {
+	cs := state.ConversationState
+	if cs == nil {
+		cs = &schema.ConversationState{CurrentTurn: 1, MaxTurns: 2, History: []interface{}{}}
+	}
+	cs.History = append(cs.History, *turn)
+	cs.CurrentTurn = 1
+	return cs
+}
+
+// getReferenceImageInfo returns the reference baseline image info
+func (h *Handler) getReferenceImageInfo(images *schema.ImageData) *schema.ImageInfo {
+	if images.Reference != nil {
+		return images.Reference
+	}
+	return images.ReferenceImage // legacy fallback
+}
+
+// setErrorAndLog centralizes error logging and state update
+func (h *Handler) setErrorAndLog(
+	state *schema.WorkflowState,
+	err error,
+	log logger.Logger,
+	status string,
+) {
+	log.Error("ExecuteTurn1 error", map[string]interface{}{"error": err.Error()})
+	var wfErr *wferrors.WorkflowError
+	if e, ok := err.(*wferrors.WorkflowError); ok {
 		wfErr = e
 	} else {
-		wfErr = errors.WrapError(err, errors.ErrorTypeInternal, "Unexpected error", false)
+		wfErr = wferrors.WrapError(err, wferrors.ErrorTypeInternal, "unexpected", false)
 	}
-	
-	// Convert WorkflowError to schema.ErrorInfo
 	state.VerificationContext.Error = &schema.ErrorInfo{
 		Code:      wfErr.Code,
 		Message:   wfErr.Message,
@@ -155,174 +302,4 @@ func (h *Handler) setErrorAndLog(state *schema.WorkflowState, err error, log log
 		Timestamp: schema.FormatISO8601(),
 	}
 	state.VerificationContext.Status = status
-}
-
-// buildConverseInput prepares a simplified JSON-based input for the Bedrock Converse API
-func (h *Handler) buildConverseInput(ctx context.Context, state *schema.WorkflowState, retriever *schema.HybridBase64Retriever) (*bedrockruntime.InvokeModelInput, error) {
-	// Ensure prompt messages exist
-	if len(state.CurrentPrompt.Messages) == 0 {
-		return nil, fmt.Errorf("no Bedrock messages found in current prompt")
-	}
-
-	// Build simplified payload structure
-	type Message struct {
-		Role    string                   `json:"role"`
-		Content []map[string]interface{} `json:"content"`
-	}
-
-	type RequestPayload struct {
-		ModelID         string    `json:"model_id"`
-		Messages        []Message `json:"messages"`
-		MaxTokens       int       `json:"max_tokens"`
-		Temperature     float64   `json:"temperature"`
-		AnthropicVersion string   `json:"anthropic_version"`
-	}
-
-	// Prepare messages in the appropriate format
-	var messages []Message
-	for _, msg := range state.CurrentPrompt.Messages {
-		var contentBlocks []map[string]interface{}
-
-		for _, content := range msg.Content {
-			switch content.Type {
-			case "text":
-				contentBlocks = append(contentBlocks, map[string]interface{}{
-					"type": "text",
-					"text": content.Text,
-				})
-			case "image":
-				if content.Image != nil {
-					base64Data, err := retriever.RetrieveBase64Data(h.getReferenceImageInfo(state.Images))
-					if err != nil {
-						return nil, fmt.Errorf("failed to retrieve image Base64: %w", err)
-					}
-					
-					contentBlocks = append(contentBlocks, map[string]interface{}{
-						"type": "image",
-						"source": map[string]interface{}{
-							"type":   "base64",
-							"media_type": content.Image.Format,
-							"data": base64Data,
-						},
-					})
-				}
-			}
-		}
-
-		messages = append(messages, Message{
-			Role:    msg.Role,
-			Content: contentBlocks,
-		})
-	}
-
-	// Create the payload
-	payload := RequestPayload{
-		ModelID:    state.BedrockConfig.AnthropicVersion,
-		Messages:   messages,
-		MaxTokens:  state.BedrockConfig.MaxTokens,
-		Temperature: state.BedrockConfig.Temperature,
-		AnthropicVersion: state.BedrockConfig.AnthropicVersion,
-	}
-
-	// Marshal to JSON
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
-	}
-
-	// Create the InvokeModelInput using AnthropicVersion as the model ID
-	input := &bedrockruntime.InvokeModelInput{
-		ModelId:          aws.String(state.BedrockConfig.AnthropicVersion),
-		ContentType:      aws.String("application/json"),
-		Accept:           aws.String("application/json"),
-		Body:             payloadBytes,
-	}
-
-	return input, nil
-}
-
-// buildTurn1Response parses the Bedrock response and builds a TurnResponse.
-func (h *Handler) buildTurn1Response(state *schema.WorkflowState, resp *bedrockruntime.InvokeModelOutput, latencyMs int64, modelId string) (*schema.TurnResponse, error) {
-	// Parse response JSON
-	var responseData struct {
-		Type      string `json:"type"`
-		Content   []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-		StopReason string `json:"stop_reason"`
-		StopSequence string `json:"stop_sequence"`
-		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-
-	if err := json.Unmarshal(resp.Body, &responseData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Bedrock response: %w", err)
-	}
-
-	// Extract content and thinking
-	var content, thinking string
-	for _, item := range responseData.Content {
-		if item.Type == "text" {
-			content += item.Text
-		}
-	}
-
-	// Extract thinking from content if present
-	thinkingPattern := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
-	if matches := thinkingPattern.FindStringSubmatch(content); len(matches) > 1 {
-		thinking = matches[1]
-	}
-
-	// Build token usage
-	tokenUsage := &schema.TokenUsage{
-		InputTokens:  responseData.Usage.InputTokens,
-		OutputTokens: responseData.Usage.OutputTokens,
-		TotalTokens:  responseData.Usage.InputTokens + responseData.Usage.OutputTokens,
-	}
-
-	// Build the response
-	return &schema.TurnResponse{
-		TurnId:    1,
-		Timestamp: schema.FormatISO8601(),
-		Prompt:    state.CurrentPrompt.Text,
-		ImageUrls: map[string]string{
-			"reference": h.getReferenceImageInfo(state.Images).URL,
-		},
-		Response: schema.BedrockApiResponse{
-			Content:    content,
-			Thinking:   thinking,
-			StopReason: responseData.StopReason,
-			ModelId:    modelId,
-			RequestId:  "request-id-not-available", // Response metadata not accessible
-		},
-		LatencyMs:  latencyMs,
-		TokenUsage: tokenUsage,
-		Stage:      schema.StatusTurn1Completed,
-	}, nil
-}
-
-// updateConversationState updates the conversation state/history after Turn1.
-func (h *Handler) updateConversationState(state *schema.WorkflowState, turn1Response *schema.TurnResponse) *schema.ConversationState {
-	cs := state.ConversationState
-	if cs == nil {
-		cs = &schema.ConversationState{
-			CurrentTurn: 1,
-			MaxTurns:    2,
-			History:     []interface{}{},
-		}
-	}
-	cs.History = append(cs.History, *turn1Response)
-	cs.CurrentTurn = 1
-	return cs
-}
-
-// getReferenceImageInfo returns the reference ImageInfo from ImageData.
-func (h *Handler) getReferenceImageInfo(images *schema.ImageData) *schema.ImageInfo {
-	if images.Reference != nil {
-		return images.Reference
-	}
-	return images.ReferenceImage // legacy fallback
 }

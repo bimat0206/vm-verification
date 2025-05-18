@@ -1,25 +1,23 @@
 package handler
 
 import (
-	//"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"workflow-function/shared/schema"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/errors"
-	//"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	wferrors "workflow-function/shared/errors"
 )
 
-// ResponseProcessor handles all Bedrock Turn response processing and workflow state updates.
+// ResponseProcessor handles Bedrock turn response parsing and workflow state updates.
 type ResponseProcessor struct {
 	logger         logger.Logger
 	enableThinking bool
 	thinkingBudget int
 }
 
-// NewResponseProcessor constructs a new ResponseProcessor.
+// NewResponseProcessor constructs a new ResponseProcessor with thinking settings.
 func NewResponseProcessor(log logger.Logger, enableThinking bool, thinkingBudget int) *ResponseProcessor {
 	return &ResponseProcessor{
 		logger:         log.WithFields(map[string]interface{}{"component": "ResponseProcessor"}),
@@ -28,7 +26,7 @@ func NewResponseProcessor(log logger.Logger, enableThinking bool, thinkingBudget
 	}
 }
 
-// ProcessResponse parses Bedrock API response and produces a TurnResponse.
+// ProcessResponse transforms a BedrockApiResponse into a TurnResponse, applying thinking extraction and token normalization.
 func (p *ResponseProcessor) ProcessResponse(
 	bedrockResp schema.BedrockApiResponse,
 	latencyMs int64,
@@ -37,65 +35,64 @@ func (p *ResponseProcessor) ProcessResponse(
 	imageUrls map[string]string,
 	tokenUsage *schema.TokenUsage,
 ) (*schema.TurnResponse, error) {
-	p.logger.Info("Processing Bedrock response", map[string]interface{}{
-		"stage":     stage,
-		"latencyMs": latencyMs,
-	})
+	p.logger.Info("Processing Bedrock response", map[string]interface{}{"stage": stage, "latencyMs": latencyMs})
 
-	thinking := ""
-	if p.enableThinking && bedrockResp.Thinking != "" {
-		thinking = bedrockResp.Thinking
-	} else if p.enableThinking {
-		// Optionally extract <thinking>...</thinking> from content if not already parsed
-		thinking = extractThinkingContent(bedrockResp.Content)
-	}
-
-	// Create the basic response structure
-	turnResponse := &schema.TurnResponse{
-		TurnId:     1, // Always 1 for Turn1
-		Timestamp:  schema.FormatISO8601(),
-		Prompt:     prompt,
-		ImageUrls:  imageUrls,
-		Response:   bedrockResp,
-		LatencyMs:  latencyMs,
-		TokenUsage: normalizeTokenUsage(tokenUsage),
-		Stage:      stage,
-	}
-	
-	// Add the thinking content to the response metadata if it's not a direct field
-	if thinking != "" {
-		if turnResponse.Metadata == nil {
-			turnResponse.Metadata = make(map[string]interface{})
+	// Extract thinking if enabled
+	var thinking string
+	if p.enableThinking {
+		if bedrockResp.Thinking != "" {
+			thinking = bedrockResp.Thinking
+		} else {
+			thinking = extractThinkingContent(bedrockResp.Content)
 		}
-		turnResponse.Metadata["thinking"] = thinking
+		if p.thinkingBudget > 0 && len(thinking) > p.thinkingBudget {
+			thinking = thinking[:p.thinkingBudget]
+		}
 	}
-	
-	return turnResponse, nil
+
+	// Build TurnResponse
+	turnResp := &schema.TurnResponse{
+		TurnId:    determineTurnID(stage),
+		Timestamp: schema.FormatISO8601(),
+		Prompt:    prompt,
+		ImageUrls: imageUrls,
+		Response:  bedrockResp,
+		LatencyMs: latencyMs,
+		TokenUsage: mergeTokenUsage(tokenUsage, bedrockResp),
+		Stage:     stage,
+	}
+
+	// Attach thinking to metadata
+	if thinking != "" {
+		if turnResp.Metadata == nil {
+			turnResp.Metadata = make(map[string]interface{})
+		}
+		turnResp.Metadata["thinking"] = thinking
+	}
+
+	return turnResp, nil
 }
 
-// UpdateWorkflowState updates the workflow state after processing Turn1.
+// UpdateWorkflowState appends the TurnResponse to history and updates context status.
 func (p *ResponseProcessor) UpdateWorkflowState(
 	state *schema.WorkflowState,
-	turnResponse *schema.TurnResponse,
+	turnResp *schema.TurnResponse,
 ) *schema.WorkflowState {
-	p.logger.Info("Updating WorkflowState with Turn1 response", map[string]interface{}{
-		"turnId":    turnResponse.TurnId,
-		"latencyMs": turnResponse.LatencyMs,
-	})
+	p.logger.Info("Updating WorkflowState with response", map[string]interface{}{"turnId": turnResp.TurnId})
 
-	// Add Turn1 to conversation history
+	// Initialize conversation state if needed
 	if state.ConversationState == nil {
 		state.ConversationState = &schema.ConversationState{
-			CurrentTurn: 1,
+			CurrentTurn: turnResp.TurnId,
 			MaxTurns:    2,
 			History:     []interface{}{},
 		}
 	}
-	state.ConversationState.History = append(state.ConversationState.History, *turnResponse)
-	state.ConversationState.CurrentTurn = 1
+	state.ConversationState.History = append(state.ConversationState.History, *turnResp)
+	state.ConversationState.CurrentTurn = turnResp.TurnId
 
-	// Set Turn1Response field
-	state.Turn1Response = map[string]interface{}{"turnResponse": turnResponse}
+	// Update verification context
+	state.Turn1Response = map[string]interface{}{"turnResponse": turnResp}
 	state.VerificationContext.Status = schema.StatusTurn1Completed
 	state.VerificationContext.Error = nil
 	state.VerificationContext.VerificationAt = schema.FormatISO8601()
@@ -103,57 +100,70 @@ func (p *ResponseProcessor) UpdateWorkflowState(
 	return state
 }
 
-// ExtractBedrockError converts a generic Bedrock error to a WorkflowError (Step Functions-friendly).
-func (p *ResponseProcessor) ExtractBedrockError(err error) *errors.WorkflowError {
-	// Already a WorkflowError
-	if wfErr, ok := err.(*errors.WorkflowError); ok {
+// ExtractBedrockError maps generic errors to WorkflowError for Step Functions.
+func (p *ResponseProcessor) ExtractBedrockError(err error) *wferrors.WorkflowError {
+	if wfErr, ok := err.(*wferrors.WorkflowError); ok {
 		return wfErr
 	}
-	// Simple error pattern mapping
 	errStr := err.Error()
 	switch {
-	case strings.Contains(errStr, "quota exceeded") || strings.Contains(errStr, "Rate exceeded"):
-		return errors.NewBedrockError("Bedrock API quota exceeded", "BEDROCK_QUOTA_EXCEEDED", true).
+	case strings.Contains(errStr, "ServiceException"), strings.Contains(errStr, "ThrottlingException"):
+		return wferrors.NewBedrockError("Bedrock API error", "BEDROCK_API_ERROR", true).
 			WithContext("rawError", errStr)
 	case strings.Contains(errStr, "validation"):
-		return errors.NewBedrockError("Bedrock API validation error", "BEDROCK_VALIDATION_ERROR", false).
+		return wferrors.NewBedrockError("Bedrock validation error", "BEDROCK_VALIDATION_ERROR", false).
 			WithContext("rawError", errStr)
-	case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded"):
-		return errors.NewTimeoutError("Bedrock Converse", 30*time.Second).
+	case strings.Contains(errStr, "timeout"), strings.Contains(errStr, "deadline exceeded"):
+		return wferrors.NewTimeoutError("Bedrock invocation", time.Duration(0)).
 			WithContext("rawError", errStr)
 	default:
-		return errors.NewBedrockError("Bedrock API error", "BEDROCK_ERROR", true).
+		return wferrors.NewBedrockError("Bedrock API error", "BEDROCK_ERROR", true).
 			WithContext("rawError", errStr)
 	}
 }
 
-// --- Helpers ---
+// determineTurnID infers the numeric turn based on stage.
+func determineTurnID(stage string) int {
+	switch stage {
+	case schema.StatusTurn1Completed:
+		return 1
+	case schema.StatusTurn2Completed:
+		return 2
+	default:
+		return 0
+	}
+}
 
-// extractThinkingContent pulls out <thinking>...</thinking> tags from text, if present.
+// mergeTokenUsage combines provided tokenUsage with values from BedrockApiResponse.
+func mergeTokenUsage(
+	usage *schema.TokenUsage,
+	resp schema.BedrockApiResponse,
+) *schema.TokenUsage {
+	// Since token usage is not directly in BedrockApiResponse, 
+	// we just return the provided usage or create a new one
+	if usage == nil {
+		// Construct fresh usage with estimated values
+		return &schema.TokenUsage{
+			InputTokens:    0, // Set default or estimated values
+			OutputTokens:   len(resp.Content) / 4, // Rough estimate
+			ThinkingTokens: func() int { if resp.Thinking != "" { return len(resp.Thinking) / 4 } else { return 0 } }(),
+			TotalTokens:    len(resp.Content) / 4, // Will be updated when actual counts are available
+		}
+	}
+	// Fill thinking tokens if present in response
+	if usage.ThinkingTokens == 0 && resp.Thinking != "" {
+		usage.ThinkingTokens = len(resp.Thinking) / 4 // Rough estimate
+		usage.TotalTokens += usage.ThinkingTokens
+	}
+	return usage
+}
+
+// extractThinkingContent pulls out content inside <thinking> tags.
 func extractThinkingContent(text string) string {
-	thinkingRegex := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
-	matches := thinkingRegex.FindStringSubmatch(text)
-	if len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
+	regex := regexp.MustCompile(`(?s)<thinking>(.*?)</thinking>`)
+	m := regex.FindStringSubmatch(text)
+	if len(m) > 1 {
+		return strings.TrimSpace(m[1])
 	}
 	return ""
 }
-
-// normalizeTokenUsage normalizes token usage accounting from Bedrock or schema.
-func normalizeTokenUsage(usage *schema.TokenUsage) *schema.TokenUsage {
-	if usage == nil {
-		return &schema.TokenUsage{}
-	}
-	return &schema.TokenUsage{
-		InputTokens:   usage.InputTokens,
-		OutputTokens:  usage.OutputTokens,
-		ThinkingTokens: usage.ThinkingTokens,
-		TotalTokens:   usage.TotalTokens,
-	}
-}
-
-// FormatISO8601 helper returns UTC now in RFC3339.
-func FormatISO8601() string {
-	return time.Now().UTC().Format(time.RFC3339)
-}
-
