@@ -1,402 +1,545 @@
 package internal
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-)
+   "fmt"
+   "net/url"
+   "path/filepath"
+   "regexp"
+   "strings"
 
-// Environment variable names for buckets
-const (
-	ENV_REFERENCE_BUCKET = "REFERENCE_BUCKET"
-	ENV_CHECKING_BUCKET  = "CHECKING_BUCKET"
+   "workflow-function/shared/schema"
 )
 
 // ValidationError represents a structured validation error
 type ValidationError struct {
-	Field   string
-	Message string
+   Field   string
+   Message string
+   Details map[string]interface{}
 }
 
 func (e ValidationError) Error() string {
-	return fmt.Sprintf("validation error: %s - %s", e.Field, e.Message)
+   if len(e.Details) > 0 {
+   	return fmt.Sprintf("validation error [%s]: %s (details: %v)", e.Field, e.Message, e.Details)
+   }
+   return fmt.Sprintf("validation error [%s]: %s", e.Field, e.Message)
 }
 
-// ValidateInput performs comprehensive validation on the Lambda input
-func ValidateInput(input *Input) error {
-	// Basic verification context validation
-	if err := validateVerificationContext(input.VerificationContext); err != nil {
-		return err
-	}
-	
-	// Validate turn number is 1
-	if input.TurnNumber != 1 {
-		return &ValidationError{
-			Field:   "turnNumber",
-			Message: "turnNumber must be 1 for PrepareTurn1Prompt",
-		}
-	}
-	
-	// Validate includeImage is "reference"
-	if input.IncludeImage != "reference" {
-		return &ValidationError{
-			Field:   "includeImage",
-			Message: "includeImage must be 'reference' for Turn 1",
-		}
-	}
-	
-	// Validate that reference image URL exists in verification context
-	if input.VerificationContext.ReferenceImageURL == "" {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "reference image URL is required for Turn 1",
-		}
-	}
-	
-	// Type-specific validation
-	if input.VerificationContext.VerificationType == "LAYOUT_VS_CHECKING" {
-		return validateLayoutVsChecking(input)
-	} else if input.VerificationContext.VerificationType == "PREVIOUS_VS_CURRENT" {
-		return validatePreviousVsCurrent(input)
-	}
-	
-	return nil
+// NewValidationError creates a new validation error
+func NewValidationError(field, message string, details map[string]interface{}) *ValidationError {
+   return &ValidationError{
+   	Field:   field,
+   	Message: message,
+   	Details: details,
+   }
 }
 
-// validateVerificationContext checks basic verification context properties
+// ValidateInputComplete performs comprehensive validation on the Lambda input
+func ValidateInputComplete(input *Input) error {
+   // Basic structure validation
+   if err := validateBasicStructure(input); err != nil {
+   	return err
+   }
+   
+   // Turn-specific validation
+   if err := validateTurnSpecific(input); err != nil {
+   	return err
+   }
+   
+   // Verification type validation
+   if err := validateVerificationType(input.VerificationContext.VerificationType); err != nil {
+   	return err
+   }
+   
+   // Type-specific validation
+   switch input.VerificationContext.VerificationType {
+   case schema.VerificationTypeLayoutVsChecking:
+   	return validateLayoutVsChecking(input)
+   case schema.VerificationTypePreviousVsCurrent:
+   	return validatePreviousVsCurrent(input)
+   default:
+   	return NewValidationError("verificationType", 
+   		"unsupported verification type", 
+   		map[string]interface{}{"type": input.VerificationContext.VerificationType})
+   }
+}
+
+// validateBasicStructure validates the basic structure of the input
+func validateBasicStructure(input *Input) error {
+   if input == nil {
+   	return NewValidationError("input", "input cannot be nil", nil)
+   }
+   
+   if input.VerificationContext == nil {
+   	return NewValidationError("verificationContext", "verification context is required", nil)
+   }
+   
+   // Validate verification context fields
+   if err := validateVerificationContext(input.VerificationContext); err != nil {
+   	return err
+   }
+   
+   return nil
+}
+
+// validateVerificationContext validates the verification context fields
 func validateVerificationContext(ctx *VerificationContext) error {
-	if ctx == nil {
-		return &ValidationError{
-			Field:   "verificationContext",
-			Message: "verification context is required",
-		}
-	}
-	
-	// Validate verification ID
-	if ctx.VerificationID == "" {
-		return &ValidationError{
-			Field:   "verificationId",
-			Message: "verification ID is required",
-		}
-	}
-	
-	// Note: Removed strict verification ID prefix validation to allow flexibility
-	// The verification ID just needs to be non-empty
-	
-	// Validate verification type
-	if ctx.VerificationType == "" {
-		return &ValidationError{
-			Field:   "verificationType",
-			Message: "verification type is required",
-		}
-	}
-	
-	// Ensure verification type is one of the supported types
-	if ctx.VerificationType != "LAYOUT_VS_CHECKING" && ctx.VerificationType != "PREVIOUS_VS_CURRENT" {
-		return &ValidationError{
-			Field:   "verificationType",
-			Message: "verification type must be LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT",
-		}
-	}
-	
-	// Validate timestamp if present
-	if ctx.VerificationAt != "" {
-		if !isValidISO8601(ctx.VerificationAt) {
-			return &ValidationError{
-				Field:   "verificationAt",
-				Message: "verification timestamp must be in ISO8601 format",
-			}
-		}
-	}
-	
-	// Validate vending machine ID if present
-	if ctx.VendingMachineID != "" {
-		if !isValidVendingMachineID(ctx.VendingMachineID) {
-			return &ValidationError{
-				Field:   "vendingMachineId",
-				Message: "invalid vending machine ID format",
-			}
-		}
-	}
-	
-	return nil
+   // Verification ID
+   if ctx.VerificationID == "" {
+   	return NewValidationError("verificationId", "verification ID is required", nil)
+   }
+   
+   // Basic format check for verification ID
+   if len(ctx.VerificationID) < 3 {
+   	return NewValidationError("verificationId", "verification ID too short", 
+   		map[string]interface{}{"length": len(ctx.VerificationID)})
+   }
+   
+   // Verification type
+   if ctx.VerificationType == "" {
+   	return NewValidationError("verificationType", "verification type is required", nil)
+   }
+   
+   // Reference image URL
+   if ctx.ReferenceImageURL == "" {
+   	return NewValidationError("referenceImageUrl", "reference image URL is required", nil)
+   }
+   
+   if err := validateS3URL(ctx.ReferenceImageURL); err != nil {
+   	return NewValidationError("referenceImageUrl", "invalid S3 URL format", 
+   		map[string]interface{}{"url": ctx.ReferenceImageURL, "error": err.Error()})
+   }
+   
+   // Optional field validation
+   if ctx.VerificationAt != "" {
+   	if err := validateISO8601Timestamp(ctx.VerificationAt); err != nil {
+   		return NewValidationError("verificationAt", "invalid timestamp format", 
+   			map[string]interface{}{"timestamp": ctx.VerificationAt})
+   	}
+   }
+   
+   if ctx.VendingMachineID != "" {
+   	if err := validateVendingMachineID(ctx.VendingMachineID); err != nil {
+   		return NewValidationError("vendingMachineId", "invalid vending machine ID format", 
+   			map[string]interface{}{"id": ctx.VendingMachineID})
+   	}
+   }
+   
+   return nil
 }
 
-// validateLayoutVsChecking performs validation specific to LAYOUT_VS_CHECKING type
+// validateTurnSpecific validates turn-specific requirements
+func validateTurnSpecific(input *Input) error {
+   // Turn number must be 1
+   if input.TurnNumber != 1 {
+   	return NewValidationError("turnNumber", "turn number must be 1 for PrepareTurn1Prompt", 
+   		map[string]interface{}{"actual": input.TurnNumber, "expected": 1})
+   }
+   
+   // Include image must be "reference"
+   if input.IncludeImage != "reference" {
+   	return NewValidationError("includeImage", "include image must be 'reference' for Turn 1", 
+   		map[string]interface{}{"actual": input.IncludeImage, "expected": "reference"})
+   }
+   
+   return nil
+}
+
+// validateVerificationType validates the verification type value
+func validateVerificationType(verificationType string) error {
+   validTypes := []string{
+   	schema.VerificationTypeLayoutVsChecking,
+   	schema.VerificationTypePreviousVsCurrent,
+   }
+   
+   for _, validType := range validTypes {
+   	if verificationType == validType {
+   		return nil
+   	}
+   }
+   
+   return NewValidationError("verificationType", "invalid verification type", 
+   	map[string]interface{}{
+   		"provided": verificationType,
+   		"valid":    validTypes,
+   	})
+}
+
+// validateLayoutVsChecking validates layout vs checking specific requirements
 func validateLayoutVsChecking(input *Input) error {
-	ctx := input.VerificationContext
-	
-	// Layout ID is required
-	if ctx.LayoutID <= 0 {
-		return &ValidationError{
-			Field:   "layoutId",
-			Message: "layout ID is required and must be positive",
-		}
-	}
-	
-	// LayoutPrefix is required
-	if ctx.LayoutPrefix == "" {
-		return &ValidationError{
-			Field:   "layoutPrefix",
-			Message: "layout prefix is required",
-		}
-	}
-	
-	// Validate layout metadata
-	if input.LayoutMetadata == nil {
-		return &ValidationError{
-			Field:   "layoutMetadata",
-			Message: "layout metadata is required for LAYOUT_VS_CHECKING",
-		}
-	}
-	
-	// Validate machine structure
-	if err := validateMachineStructure(input.LayoutMetadata.MachineStructure); err != nil {
-		return err
-	}
-	
-	// Get bucket names from environment variables
-	referenceBucket := os.Getenv(ENV_REFERENCE_BUCKET)
-	
-	if referenceBucket == "" {
-		return &ValidationError{
-			Field:   ENV_REFERENCE_BUCKET,
-			Message: "reference bucket environment variable is not set",
-		}
-	}
-	
-	// Validate reference image URL
-	if !isValidS3URL(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "invalid S3 URL format for reference image",
-		}
-	}
-	
-	// Extract bucket from S3 URL and verify it points to reference bucket
-	bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
-	if err != nil {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-		}
-	}
-	
-	if bucket != referenceBucket {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("reference image must be in the reference bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-				referenceBucket, bucket, referenceBucket, key),
-		}
-	}
-	
-	// Validate image format (Bedrock only supports JPEG and PNG)
-	if !hasValidImageExtension(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "image format must be JPEG or PNG (supported by Bedrock)",
-		}
-	}
-	
-	return nil
+   ctx := input.VerificationContext
+   
+   // Layout ID is required
+   if ctx.LayoutID <= 0 {
+   	return NewValidationError("layoutId", "layout ID must be positive for LAYOUT_VS_CHECKING", 
+   		map[string]interface{}{"actual": ctx.LayoutID})
+   }
+   
+   // Layout prefix is required
+   if ctx.LayoutPrefix == "" {
+   	return NewValidationError("layoutPrefix", "layout prefix is required for LAYOUT_VS_CHECKING", nil)
+   }
+   
+   // Validate layout prefix format (basic alphanumeric check)
+   if !isValidLayoutPrefix(ctx.LayoutPrefix) {
+   	return NewValidationError("layoutPrefix", "invalid layout prefix format", 
+   		map[string]interface{}{"prefix": ctx.LayoutPrefix})
+   }
+   
+   // Check reference image URL bucket
+   if err := validateS3URLBucket(ctx.ReferenceImageURL, "REFERENCE_BUCKET"); err != nil {
+   	return err
+   }
+   
+   // Validate layout metadata if present
+   if input.LayoutMetadata != nil {
+   	if err := validateLayoutMetadata(input.LayoutMetadata); err != nil {
+   		return err
+   	}
+   }
+   
+   return nil
 }
 
-// validatePreviousVsCurrent performs validation specific to PREVIOUS_VS_CURRENT type
+// validatePreviousVsCurrent validates previous vs current specific requirements
 func validatePreviousVsCurrent(input *Input) error {
-	ctx := input.VerificationContext
-	
-	// Get bucket names from environment variables
-	checkingBucket := os.Getenv(ENV_CHECKING_BUCKET)
-	
-	if checkingBucket == "" {
-		return &ValidationError{
-			Field:   ENV_CHECKING_BUCKET,
-			Message: "checking bucket environment variable is not set",
-		}
-	}
-	
-	// Reference image URL is required and should point to checking bucket
-	if ctx.ReferenceImageURL == "" {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "reference image URL is required for PREVIOUS_VS_CURRENT",
-		}
-	}
-	
-	if !isValidS3URL(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "invalid S3 URL format for reference image",
-		}
-	}
-	
-	// Extract bucket from S3 URL and verify it points to checking bucket
-	bucket, key, err := extractS3BucketAndKey(ctx.ReferenceImageURL)
-	if err != nil {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("failed to parse S3 URL: %v", err),
-		}
-	}
-
-	if bucket != checkingBucket {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: fmt.Sprintf("for PREVIOUS_VS_CURRENT, reference image must be in the checking bucket (%s), found bucket (%s) instead. URL format should be: s3://%s/%s",
-				checkingBucket, bucket, checkingBucket, key),
-		}
-	}
-	
-	// Validate image format (Bedrock only supports JPEG and PNG)
-	if !hasValidImageExtension(ctx.ReferenceImageURL) {
-		return &ValidationError{
-			Field:   "referenceImageUrl",
-			Message: "image format must be JPEG or PNG (supported by Bedrock)",
-		}
-	}
-	
-	// Validate historical context if present (optional for Turn 1)
-	if input.HistoricalContext != nil {
-		hCtx := input.HistoricalContext
-		
-		// Validate previous verification ID
-		if hCtx.PreviousVerificationID == "" {
-			return &ValidationError{
-				Field:   "historicalContext.previousVerificationId",
-				Message: "previous verification ID is required when historical context is provided",
-			}
-		}
-		
-		// Validate previous verification timestamp
-		if hCtx.PreviousVerificationAt != "" && !isValidISO8601(hCtx.PreviousVerificationAt) {
-			return &ValidationError{
-				Field:   "historicalContext.previousVerificationAt",
-				Message: "previous verification timestamp must be in ISO8601 format",
-			}
-		}
-		
-		// Validate machine structure if present
-		if hCtx.MachineStructure != nil {
-			if err := validateMachineStructure(hCtx.MachineStructure); err != nil {
-				return err
-			}
-		}
-	}
-	
-	return nil
+   ctx := input.VerificationContext
+   
+   // Check reference image URL bucket (should be in checking bucket for this type)
+   if err := validateS3URLBucket(ctx.ReferenceImageURL, "CHECKING_BUCKET"); err != nil {
+   	return err
+   }
+   
+   // Validate historical context if present
+   if input.HistoricalContext != nil {
+   	if err := validateHistoricalContext(input.HistoricalContext); err != nil {
+   		return err
+   	}
+   }
+   
+   return nil
 }
 
-// validateMachineStructure checks machine structure validity
+// validateLayoutMetadata validates layout metadata structure
+func validateLayoutMetadata(metadata *LayoutMetadata) error {
+   if metadata.MachineStructure != nil {
+   	if err := validateMachineStructure(metadata.MachineStructure); err != nil {
+   		return err
+   	}
+   }
+   
+   // Validate product position map if present
+   if metadata.ProductPositionMap != nil {
+   	if err := validateProductPositionMap(metadata.ProductPositionMap); err != nil {
+   		return err
+   	}
+   }
+   
+   return nil
+}
+
+// validateMachineStructure validates machine structure fields
 func validateMachineStructure(ms *MachineStructure) error {
-	if ms == nil {
-		return &ValidationError{
-			Field:   "machineStructure",
-			Message: "machine structure is required",
-		}
-	}
-	
-	// Validate row count
-	if ms.RowCount <= 0 {
-		return &ValidationError{
-			Field:   "machineStructure.rowCount",
-			Message: "row count must be positive",
-		}
-	}
-	
-	// Validate column count
-	if ms.ColumnsPerRow <= 0 {
-		return &ValidationError{
-			Field:   "machineStructure.columnsPerRow",
-			Message: "columns per row must be positive",
-		}
-	}
-	
-	// Validate row order array
-	if len(ms.RowOrder) == 0 {
-		return &ValidationError{
-			Field:   "machineStructure.rowOrder",
-			Message: "row order array cannot be empty",
-		}
-	}
-	
-	if len(ms.RowOrder) != ms.RowCount {
-		return &ValidationError{
-			Field:   "machineStructure.rowOrder",
-			Message: fmt.Sprintf("row order array length (%d) does not match row count (%d)", 
-				len(ms.RowOrder), ms.RowCount),
-		}
-	}
-	
-	// Validate column order array
-	if len(ms.ColumnOrder) == 0 {
-		return &ValidationError{
-			Field:   "machineStructure.columnOrder",
-			Message: "column order array cannot be empty",
-		}
-	}
-	
-	if len(ms.ColumnOrder) != ms.ColumnsPerRow {
-		return &ValidationError{
-			Field:   "machineStructure.columnOrder",
-			Message: fmt.Sprintf("column order array length (%d) does not match columns per row (%d)", 
-				len(ms.ColumnOrder), ms.ColumnsPerRow),
-		}
-	}
-	
-	return nil
+   // Row count validation
+   if ms.RowCount <= 0 {
+   	return NewValidationError("machineStructure.rowCount", "row count must be positive", 
+   		map[string]interface{}{"actual": ms.RowCount})
+   }
+   
+   if ms.RowCount > 26 { // Reasonable upper limit
+   	return NewValidationError("machineStructure.rowCount", "row count exceeds reasonable limit", 
+   		map[string]interface{}{"actual": ms.RowCount, "limit": 26})
+   }
+   
+   // Column count validation
+   if ms.ColumnsPerRow <= 0 {
+   	return NewValidationError("machineStructure.columnsPerRow", "columns per row must be positive", 
+   		map[string]interface{}{"actual": ms.ColumnsPerRow})
+   }
+   
+   if ms.ColumnsPerRow > 50 { // Reasonable upper limit
+   	return NewValidationError("machineStructure.columnsPerRow", "columns per row exceeds reasonable limit", 
+   		map[string]interface{}{"actual": ms.ColumnsPerRow, "limit": 50})
+   }
+   
+   // Row order validation
+   if len(ms.RowOrder) != ms.RowCount {
+   	return NewValidationError("machineStructure.rowOrder", "row order length must match row count", 
+   		map[string]interface{}{
+   			"rowOrderLength": len(ms.RowOrder),
+   			"rowCount":       ms.RowCount,
+   		})
+   }
+   
+   // Column order validation
+   if len(ms.ColumnOrder) != ms.ColumnsPerRow {
+   	return NewValidationError("machineStructure.columnOrder", "column order length must match columns per row", 
+   		map[string]interface{}{
+   			"columnOrderLength": len(ms.ColumnOrder),
+   			"columnsPerRow":     ms.ColumnsPerRow,
+   		})
+   }
+   
+   // Check for duplicates in row order
+   if hasDuplicates(ms.RowOrder) {
+   	return NewValidationError("machineStructure.rowOrder", "row order contains duplicates", 
+   		map[string]interface{}{"rowOrder": ms.RowOrder})
+   }
+   
+   // Check for duplicates in column order
+   if hasDuplicates(ms.ColumnOrder) {
+   	return NewValidationError("machineStructure.columnOrder", "column order contains duplicates", 
+   		map[string]interface{}{"columnOrder": ms.ColumnOrder})
+   }
+   
+   return nil
 }
 
-// hasValidImageExtension checks if an S3 URL has a valid image extension (JPEG or PNG only for Bedrock)
-func hasValidImageExtension(url string) bool {
-	ext := strings.ToLower(filepath.Ext(url))
-	return ext == ".jpg" || ext == ".jpeg" || ext == ".png"
+// validateProductPositionMap validates product position map
+func validateProductPositionMap(positionMap map[string]ProductInfo) error {
+   for position, info := range positionMap {
+   	// Validate position format (basic check)
+   	if !isValidPosition(position) {
+   		return NewValidationError("productPositionMap.position", "invalid position format", 
+   			map[string]interface{}{"position": position})
+   	}
+   	
+   	// Validate product info
+   	if info.ProductID <= 0 {
+   		return NewValidationError("productPositionMap.productId", "product ID must be positive", 
+   			map[string]interface{}{"position": position, "productId": info.ProductID})
+   	}
+   	
+   	if info.ProductName == "" {
+   		return NewValidationError("productPositionMap.productName", "product name is required", 
+   			map[string]interface{}{"position": position})
+   	}
+   }
+   
+   return nil
 }
 
-// isValidISO8601 checks if a string is a valid ISO8601 timestamp
-func isValidISO8601(timestamp string) bool {
-	// This is a simplified pattern that matches common ISO8601 formats
-	pattern := `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})?$`
-	match, _ := regexp.MatchString(pattern, timestamp)
-	return match
+// validateHistoricalContext validates historical context fields
+func validateHistoricalContext(hCtx *HistoricalContext) error {
+   // Previous verification ID (required if historical context is provided)
+   if hCtx.PreviousVerificationID == "" {
+   	return NewValidationError("historicalContext.previousVerificationId", 
+   		"previous verification ID is required when historical context is provided", nil)
+   }
+   
+   // Previous verification timestamp validation
+   if hCtx.PreviousVerificationAt != "" {
+   	if err := validateISO8601Timestamp(hCtx.PreviousVerificationAt); err != nil {
+   		return NewValidationError("historicalContext.previousVerificationAt", 
+   			"invalid timestamp format", 
+   			map[string]interface{}{"timestamp": hCtx.PreviousVerificationAt})
+   	}
+   }
+   
+   // Hours since last verification validation
+   if hCtx.HoursSinceLastVerification < 0 {
+   	return NewValidationError("historicalContext.hoursSinceLastVerification", 
+   		"hours since last verification cannot be negative", 
+   		map[string]interface{}{"hours": hCtx.HoursSinceLastVerification})
+   }
+   
+   // Validate machine structure if present
+   if hCtx.MachineStructure != nil {
+   	if err := validateMachineStructure(hCtx.MachineStructure); err != nil {
+   		return err
+   	}
+   }
+   
+   return nil
 }
 
-// isValidS3URL checks if a string is a valid S3 URL
-func isValidS3URL(url string) bool {
-	// This pattern matches s3://bucket-name/path/to/object format
-	// Allow alphanumeric, dots, hyphens, spaces, underscores, and other common characters in the path
-	pattern := `^s3://[\w.\-]+/[\w.\-/ _+%()]+$`
-	match, _ := regexp.MatchString(pattern, url)
-	return match
+// validateS3URL validates S3 URL format
+func validateS3URL(s3URL string) error {
+   if s3URL == "" {
+   	return fmt.Errorf("S3 URL cannot be empty")
+   }
+   
+   // Parse URL
+   parsedURL, err := url.Parse(s3URL)
+   if err != nil {
+   	return fmt.Errorf("invalid URL format: %w", err)
+   }
+   
+   // Check scheme
+   if parsedURL.Scheme != "s3" {
+   	return fmt.Errorf("URL must use s3:// scheme, got: %s", parsedURL.Scheme)
+   }
+   
+   // Check bucket name
+   if parsedURL.Host == "" {
+   	return fmt.Errorf("S3 URL missing bucket name")
+   }
+   
+   // Check key (path)
+   if parsedURL.Path == "" || parsedURL.Path == "/" {
+   	return fmt.Errorf("S3 URL missing object key")
+   }
+   
+   // Validate file extension for images
+   ext := strings.ToLower(filepath.Ext(parsedURL.Path))
+   if !isValidImageExtension(ext) {
+   	return fmt.Errorf("unsupported image format: %s (supported: .jpg, .jpeg, .png)", ext)
+   }
+   
+   return nil
 }
 
-// extractS3BucketAndKey extracts bucket and key from an S3 URL
-func extractS3BucketAndKey(s3URL string) (string, string, error) {
-	// Clean URL first
-	s3URL = strings.TrimSpace(s3URL)
-	
-	// Ensure s3:// prefix
-	if !strings.HasPrefix(s3URL, "s3://") {
-		return "", "", fmt.Errorf("not a valid S3 URL: %s", s3URL)
-	}
-	
-	// Remove prefix
-	s3Path := strings.TrimPrefix(s3URL, "s3://")
-	
-	// Split into bucket and key
-	parts := strings.SplitN(s3Path, "/", 2)
-	if len(parts) < 2 {
-		return parts[0], "", nil // No key, just bucket
-	}
-	
-	return parts[0], parts[1], nil
+// validateS3URLBucket validates that S3 URL uses the expected bucket
+func validateS3URLBucket(s3URL, bucketEnvVar string) error {
+   expectedBucket := GetEnvWithDefault(bucketEnvVar, "")
+   if expectedBucket == "" {
+   	return NewValidationError(bucketEnvVar, "environment variable not set", nil)
+   }
+   
+   bucket, _, err := ExtractS3BucketAndKey(s3URL)
+   if err != nil {
+   	return NewValidationError("s3Url", "failed to parse S3 URL", 
+   		map[string]interface{}{"url": s3URL, "error": err.Error()})
+   }
+   
+   if bucket != expectedBucket {
+   	return NewValidationError("s3Url", "S3 URL uses incorrect bucket", 
+   		map[string]interface{}{
+   			"expectedBucket": expectedBucket,
+   			"actualBucket":   bucket,
+   			"url":            s3URL,
+   		})
+   }
+   
+   return nil
 }
 
-// isValidVendingMachineID checks if a string is a valid vending machine ID
-func isValidVendingMachineID(id string) bool {
-	// This pattern matches VM-XXXX format
-	pattern := `^VM-\d+$`
-	match, _ := regexp.MatchString(pattern, id)
-	return match
+// validateISO8601Timestamp validates ISO8601 timestamp format
+func validateISO8601Timestamp(timestamp string) error {
+   // RFC3339 is a subset of ISO8601 and is what Go uses
+   pattern := `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})$`
+   matched, err := regexp.MatchString(pattern, timestamp)
+   if err != nil {
+   	return fmt.Errorf("regex error: %w", err)
+   }
+   
+   if !matched {
+   	return fmt.Errorf("timestamp must be in ISO8601/RFC3339 format (e.g., 2025-01-01T12:00:00Z)")
+   }
+   
+   return nil
+}
+
+// validateVendingMachineID validates vending machine ID format
+func validateVendingMachineID(id string) error {
+   // Allow flexible format - just check it's not empty and reasonable length
+   if len(id) < 2 || len(id) > 50 {
+   	return fmt.Errorf("vending machine ID must be between 2 and 50 characters")
+   }
+   
+   // Basic format check - alphanumeric with hyphens/underscores
+   pattern := `^[a-zA-Z0-9\-_]+$`
+   matched, err := regexp.MatchString(pattern, id)
+   if err != nil {
+   	return fmt.Errorf("regex error: %w", err)
+   }
+   
+   if !matched {
+   	return fmt.Errorf("vending machine ID contains invalid characters (allowed: letters, numbers, hyphens, underscores)")
+   }
+   
+   return nil
+}
+
+// isValidLayoutPrefix validates layout prefix format
+func isValidLayoutPrefix(prefix string) bool {
+   if len(prefix) < 1 || len(prefix) > 20 {
+   	return false
+   }
+   
+   // Allow alphanumeric characters
+   pattern := `^[a-zA-Z0-9]+$`
+   matched, _ := regexp.MatchString(pattern, prefix)
+   return matched
+}
+
+// isValidPosition validates position format (e.g., "A01", "B12")
+func isValidPosition(position string) bool {
+   if len(position) < 2 || len(position) > 5 {
+   	return false
+   }
+   
+   // Basic pattern: letter(s) followed by number(s)
+   pattern := `^[A-Z]+[0-9]+$`
+   matched, _ := regexp.MatchString(pattern, strings.ToUpper(position))
+   return matched
+}
+
+// isValidImageExtension checks if file extension is valid for images
+func isValidImageExtension(ext string) bool {
+   ext = strings.ToLower(ext)
+   validExtensions := []string{".jpg", ".jpeg", ".png"}
+   
+   for _, validExt := range validExtensions {
+   	if ext == validExt {
+   		return true
+   	}
+   }
+   
+   return false
+}
+
+// hasDuplicates checks if string slice has duplicate values
+func hasDuplicates(slice []string) bool {
+   seen := make(map[string]bool)
+   for _, item := range slice {
+   	if seen[item] {
+   		return true
+   	}
+   	seen[item] = true
+   }
+   return false
+}
+
+// Helper validation functions that can be used independently
+
+// ValidatePositiveInt validates that an integer is positive
+func ValidatePositiveInt(value int, fieldName string) error {
+   if value <= 0 {
+   	return NewValidationError(fieldName, "must be positive", 
+   		map[string]interface{}{"value": value})
+   }
+   return nil
+}
+
+// ValidateStringNotEmpty validates that a string is not empty
+func ValidateStringNotEmpty(value, fieldName string) error {
+   if value == "" {
+   	return NewValidationError(fieldName, "cannot be empty", nil)
+   }
+   return nil
+}
+
+// ValidateStringLength validates string length is within bounds
+func ValidateStringLength(value, fieldName string, minLen, maxLen int) error {
+   if len(value) < minLen || len(value) > maxLen {
+   	return NewValidationError(fieldName, "length out of bounds", 
+   		map[string]interface{}{
+   			"length": len(value),
+   			"min":    minLen,
+   			"max":    maxLen,
+   		})
+   }
+   return nil
+}
+
+// ValidateSliceLength validates slice length is within bounds
+func ValidateSliceLength(slice []string, fieldName string, expectedLen int) error {
+   if len(slice) != expectedLen {
+   	return NewValidationError(fieldName, "incorrect length", 
+   		map[string]interface{}{
+   			"actual":   len(slice),
+   			"expected": expectedLen,
+   		})
+   }
+   return nil
 }

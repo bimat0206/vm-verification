@@ -107,6 +107,9 @@ type ImageMetadata struct {
 	BucketOwner   string `json:"bucketOwner,omitempty"`
 	Bucket        string `json:"bucket,omitempty"`
 	Key           string `json:"key,omitempty"`
+	StorageMethod    string `json:"storageMethod,omitempty"`
+    Base64S3Bucket   string `json:"base64S3Bucket,omitempty"`
+    Base64S3Key      string `json:"base64S3Key,omitempty"`
 }
 
 // SystemPrompt represents the generated system prompt
