@@ -1,39 +1,41 @@
 FROM golang:1.24-alpine AS builder
 
-# Install git for dependencies
-RUN apk add --no-cache git
+# Install necessary packages
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata && \
+    update-ca-certificates
 
-# Set up the working directory
-WORKDIR /app
+# Set up working directory
+WORKDIR /build
 
-# Copy source code with modules first
+# Copy the ExecuteTurn1 directory and shared modules
 COPY . .
 
-# Environment setup
-ENV GO111MODULE=on
-ENV GOFLAGS=-mod=mod
+# Verify the structure (for debugging - can be removed in production)
+RUN echo "Build context contents:" && ls -la
+RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not accessible in this context"
 
-# Special handling for Docker build - ensuring modules are properly setup
-RUN go env -w GOMODCACHE=/go/pkg/mod
-
-# Download dependencies
+# Download dependencies and build
+# Generate the go.sum file (if missing) and download dependencies
 RUN go mod tidy && go mod download
 
-# Build the application with enhanced error checking
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap -ldflags="-s -w" -trimpath ./cmd/main.go
+# Build the application for AWS Lambda ARM64 (Graviton)
+RUN --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o main ./cmd/main.go
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Add function version metadata
-LABEL function.version="1.3.0" 
-LABEL function.description="ExecuteTurn1 - Bedrock InvokeModel API implementation"
+LABEL function.version="4.0.5" 
+LABEL function.description="ExecuteTurn1 - Process first turn with Bedrock Converse API"
 
-# Copy the compiled binary
-COPY --from=builder /app/bootstrap /var/runtime/bootstrap
+# Copy compiled binary from builder stage
+COPY --from=builder /build/main /var/task/main
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Make the bootstrap file executable
-RUN chmod +x /var/runtime/bootstrap
-
-# Set the entry point for AWS Lambda
-CMD ["bootstrap"]
+# Set the binary as the Lambda handler
+ENTRYPOINT ["/var/task/main"]

@@ -4,6 +4,124 @@ All notable changes to this project are documented here.
 
 ---
 
+## [4.0.6] - 2025-05-19
+
+### Fixed
+
+* **Critical Build & Deployment Fixes:**
+  * Resolved compilation issues related to schema package integration
+  * Fixed type errors with undefined schema imports:
+    * Added missing StateReferences, HybridStorageConfig, StepFunctionInput, and StepFunctionOutput
+    * Fixed references to undefined error types in bedrock client
+    * Updated image handling to use HasBase64Data() instead of non-existent Base64 field
+
+* **Infrastructure Improvements:**
+  * Completely redesigned Dockerfile for more robust builds:
+    * Added proper CA certificates installation
+    * Improved working directory structure
+    * Enhanced build verification with diagnostics
+    * Added cache mounting for faster builds
+  * Rebuilt docker-build script with better shared module handling:
+    * Reliable shared package copying with proper Go module structure
+    * Enhanced error detection and reporting
+    * Improved temporary build context management
+    * Better Lambda deployment integration
+
+* **Bedrock Integration Fixes:**
+  * Created proper adapter between shared/bedrock and internal/bedrock
+  * Fixed message structure for Bedrock Converse API
+  * Improved error handling for Bedrock client interactions
+  * Corrected image data handling with proper Base64 processing
+
+### Added
+
+* **Enhanced Architecture:**
+  * Added internal types package with properly defined interfaces
+  * Created adapter pattern for better integration between shared and internal types
+  * Improved type safety throughout codebase
+  * Better separation of concerns with clear interfaces
+
+### Technical Details
+
+* Resolved compiler issues by creating local type definitions:
+  * HybridStorageConfig with proper field structure
+  * StepFunctionInput/Output types with correct field mapping
+  * BedrockClient interface with proper adapter implementation
+* Fixed dependency injection with proper type conversions
+* Enhanced build system for more reliable Lambda deployments
+
+---
+
+## [2.0.0] - 2025-05-21
+
+### Changed
+
+* **MAJOR ARCHITECTURAL OVERHAUL - S3 State Reference Architecture:**
+  * Complete transformation from payload-based to reference-based state management
+  * Implemented shared S3StateManager pattern for lightweight API contracts
+  * Replaced large workflow state payloads with S3 references between Lambda functions
+  * Reorganized code into focused modules with single responsibilities
+
+### Added
+
+* **New Directory Structure:**
+  * Redesigned with true separation of concerns and modular architecture:
+    * `internal/state/` - State loading/saving with S3 reference architecture
+    * `internal/bedrock/` - Bedrock client integration with shared package
+    * `internal/validation/` - Input validation with schema validation
+    * `internal/handler/` - Core business logic coordination
+    * `internal/config/` - Enhanced configuration management
+
+* **State Management Components:**
+  * `StateLoader` for loading workflow state from S3 references
+  * `StateSaver` for saving workflow state to S3 with category-based organization
+  * Support for thinking content storage as separate artifacts
+  * Hybrid Base64 image processing with improved performance characteristics
+
+* **Enhanced Configuration:**
+  * Standardized environment variable handling with sensible defaults
+  * Improved categorization by functional area (S3, Bedrock, Images, Timeouts)
+  * Comprehensive validation with detailed error messages
+  * Better Bedrock configuration with proper regional settings
+
+### Improved
+
+* **Integration with Shared Packages:**
+  * Full integration with `shared/s3state` package for state management
+  * Complete adoption of `shared/bedrock` for standardized API integration
+  * Focused error handling using `shared/errors` workflow error types
+  * Streamlined logging with `shared/logger` for structured JSON logs
+
+* **Error Handling:**
+  * Consistent error creation and handling across all components
+  * Better error classification and propagation with context preservation
+  * Enhanced WorkflowError creation with detailed context
+  * Improved retry logic with exponential backoff
+
+* **Performance:**
+  * Reduced memory usage by eliminating large in-memory payloads
+  * Improved Lambda execution efficiency with smaller state transfers
+  * Better resource utilization with S3 for large data storage
+  * Optimized image processing with hybrid storage model
+
+* **Maintainability:**
+  * Clean, focused modules with single responsibilities
+  * No file exceeds 300 lines of code
+  * Comprehensive interfaces for better testability
+  * Standardized error handling and logging patterns
+
+### Technical Details
+
+* Migrated from direct AWS SDK usage to shared Bedrock client
+* Replaced custom validation with schema-based validation
+* Implemented proper error typing and classification
+* Enhanced logging with correlation IDs and structured context
+* Streamlined configuration with sensible defaults
+* S3 state storage with category-based organization
+* Proper handler dependency injection for testability
+
+---
+
 ## [1.4.0] - 2025-05-20
 
 ### Added

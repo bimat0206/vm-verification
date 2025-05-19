@@ -5,48 +5,66 @@ import (
 	"strconv"
 	"time"
 
+	wferrors "workflow-function/shared/errors"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/errors"
 )
 
 // Config holds all environment variables for ExecuteTurn1.
+// Enhanced with S3 state management and improved categorization of configuration
 type Config struct {
-	AWSRegion              string
-	BedrockModelID         string
-	AnthropicVersion       string
-	MaxTokens              int
-	Temperature            float64
-	ThinkingType           string
-	ThinkingBudgetTokens   int
-
-	EnableHybridStorage    bool
-	TempBase64Bucket       string
-	Base64SizeThreshold    int64
-	Base64RetrievalTimeout time.Duration
-
-	BedrockTimeout         time.Duration
-	FunctionTimeout        time.Duration
+	// S3 State Management
+	StateBucket         string        `env:"STATE_BUCKET,required"`
+	StateBasePrefix     string        `env:"STATE_BASE_PREFIX" envDefault:"verification-states"`
+	StateTimeout        time.Duration `env:"STATE_TIMEOUT" envDefault:"30s"`
+	
+	// Bedrock Configuration  
+	BedrockModelID      string        `env:"BEDROCK_MODEL_ID,required"`
+	BedrockRegion       string        `env:"BEDROCK_REGION,required"`
+	AnthropicVersion    string        `env:"ANTHROPIC_VERSION,required"`
+	MaxTokens           int           `env:"MAX_TOKENS" envDefault:"4096"`
+	Temperature         float64       `env:"TEMPERATURE" envDefault:"0.7"`
+	ThinkingType        string        `env:"THINKING_TYPE" envDefault:"thinking"`
+	ThinkingBudgetTokens int          `env:"THINKING_BUDGET_TOKENS" envDefault:"16000"`
+	
+	// Image Processing Configuration
+	EnableHybridStorage bool          `env:"ENABLE_HYBRID_STORAGE" envDefault:"true"`
+	TempBase64Bucket    string        `env:"TEMP_BASE64_BUCKET"`
+	Base64SizeThreshold int64         `env:"BASE64_SIZE_THRESHOLD" envDefault:"1048576"` // 1MB default
+	
+	// Timeouts and Performance Settings
+	BedrockTimeout      time.Duration `env:"BEDROCK_TIMEOUT" envDefault:"120s"`
+	FunctionTimeout     time.Duration `env:"FUNCTION_TIMEOUT" envDefault:"240s"`
+	RetryMaxAttempts    int           `env:"RETRY_MAX_ATTEMPTS" envDefault:"3"`
+	RetryBaseDelay      time.Duration `env:"RETRY_BASE_DELAY" envDefault:"1s"`
 }
 
-// New loads and validates config from environment.
-// All values must be provided via Lambda environment variables; no defaults are hardcoded.
+// New loads and validates config from environment with sensible defaults.
 func New(log logger.Logger) (*Config, error) {
 	cfg := &Config{
-		AWSRegion:              getenv("AWS_REGION", ""),
-		BedrockModelID:         getenv("BEDROCK_MODEL", ""),
-		AnthropicVersion:       getenv("ANTHROPIC_VERSION", ""),
-		MaxTokens:              getenvInt("MAX_TOKENS", 0),
-		Temperature:            getenvFloat("TEMPERATURE", 0),
-		ThinkingType:           getenv("THINKING_TYPE", ""),
-		ThinkingBudgetTokens:   getenvInt("BUDGET_TOKENS", 0),
-
-		EnableHybridStorage:    getenvBool("ENABLE_HYBRID_STORAGE", false),
-		TempBase64Bucket:       getenv("TEMP_BASE64_BUCKET", ""),
-		Base64SizeThreshold:    getenvInt64("BASE64_SIZE_THRESHOLD", 0),
-		Base64RetrievalTimeout: time.Duration(getenvInt("BASE64_RETRIEVAL_TIMEOUT", 0)) * time.Millisecond,
-
-		BedrockTimeout:         time.Duration(getenvInt("BEDROCK_TIMEOUT", 0)) * time.Millisecond,
-		FunctionTimeout:        time.Duration(getenvInt("FUNCTION_TIMEOUT", 0)) * time.Millisecond,
+		// S3 State Management
+		StateBucket:         getenv("STATE_BUCKET", ""),
+		StateBasePrefix:     getenv("STATE_BASE_PREFIX", "verification-states"),
+		StateTimeout:        time.Duration(getenvInt("STATE_TIMEOUT", 30)) * time.Second,
+		
+		// Bedrock Configuration
+		BedrockModelID:      getenv("BEDROCK_MODEL_ID", ""),
+		BedrockRegion:       getenv("BEDROCK_REGION", getenv("AWS_REGION", "")),
+		AnthropicVersion:    getenv("ANTHROPIC_VERSION", "bedrock-2023-05-31"),
+		MaxTokens:           getenvInt("MAX_TOKENS", 4096),
+		Temperature:         getenvFloat("TEMPERATURE", 0.7),
+		ThinkingType:        getenv("THINKING_TYPE", "thinking"),
+		ThinkingBudgetTokens: getenvInt("THINKING_BUDGET_TOKENS", 16000),
+		
+		// Image Processing Configuration
+		EnableHybridStorage: getenvBool("ENABLE_HYBRID_STORAGE", true),
+		TempBase64Bucket:    getenv("TEMP_BASE64_BUCKET", ""),
+		Base64SizeThreshold: getenvInt64("BASE64_SIZE_THRESHOLD", 1048576), // 1MB default
+		
+		// Timeouts and Performance Settings
+		BedrockTimeout:      time.Duration(getenvInt("BEDROCK_TIMEOUT", 120)) * time.Second,
+		FunctionTimeout:     time.Duration(getenvInt("FUNCTION_TIMEOUT", 240)) * time.Second,
+		RetryMaxAttempts:    getenvInt("RETRY_MAX_ATTEMPTS", 3),
+		RetryBaseDelay:      time.Duration(getenvInt("RETRY_BASE_DELAY", 1)) * time.Second,
 	}
 
 	if err := cfg.Validate(log); err != nil {
@@ -54,33 +72,86 @@ func New(log logger.Logger) (*Config, error) {
 	}
 
 	log.Info("Loaded configuration", map[string]interface{}{ 
-		"AWSRegion":        cfg.AWSRegion, 
-		"BedrockModelID":   cfg.BedrockModelID,
-		"AnthropicVersion": cfg.AnthropicVersion,
+		"stateBucket":       cfg.StateBucket,
+		"bedrockModelID":    cfg.BedrockModelID,
+		"bedrockRegion":     cfg.BedrockRegion,
+		"anthropicVersion":  cfg.AnthropicVersion,
+		"enableHybridStorage": cfg.EnableHybridStorage,
+		"thinkingEnabled":   cfg.ThinkingType != "",
 	})
+	
 	return cfg, nil
 }
 
 // Validate checks for required config fields.
 func (c *Config) Validate(log logger.Logger) error {
 	var missing []string
-	if c.AWSRegion == "" {
-		missing = append(missing, "AWS_REGION")
+	
+	// Critical S3 state bucket
+	if c.StateBucket == "" {
+		missing = append(missing, "STATE_BUCKET")
 	}
+	
+	// Required Bedrock configuration
 	if c.BedrockModelID == "" {
-		missing = append(missing, "BEDROCK_MODEL")
+		missing = append(missing, "BEDROCK_MODEL_ID")
 	}
+	
+	if c.BedrockRegion == "" {
+		missing = append(missing, "BEDROCK_REGION or AWS_REGION")
+	}
+	
 	if c.AnthropicVersion == "" {
 		missing = append(missing, "ANTHROPIC_VERSION")
 	}
+	
+	// Conditional requirements
 	if c.EnableHybridStorage && c.TempBase64Bucket == "" {
-		missing = append(missing, "TEMP_BASE64_BUCKET")
+		missing = append(missing, "TEMP_BASE64_BUCKET (required when ENABLE_HYBRID_STORAGE=true)")
 	}
+	
 	if len(missing) > 0 {
 		log.Error("Missing required environment variables", map[string]interface{}{"vars": missing})
-		return errors.NewValidationError("Missing environment variables", map[string]interface{}{"vars": missing})
+		return wferrors.NewValidationError("Missing environment variables", map[string]interface{}{"vars": missing})
 	}
+	
+	// Validate reasonable values
+	if c.MaxTokens <= 0 {
+		log.Warn("Setting default MaxTokens=4096 as configured value was invalid", 
+			map[string]interface{}{"configuredValue": c.MaxTokens})
+		c.MaxTokens = 4096
+	}
+	
+	if c.BedrockTimeout < 10*time.Second {
+		log.Warn("BedrockTimeout is very short, setting to minimum of 30 seconds", nil)
+		c.BedrockTimeout = 30 * time.Second
+	}
+	
 	return nil
+}
+
+// GetHybridStorageConfig returns the hybrid storage configuration for S3/Base64 handling
+func (c *Config) GetHybridStorageConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"enabled":          c.EnableHybridStorage,
+		"tempBucket":       c.TempBase64Bucket,
+		"sizeThreshold":    c.Base64SizeThreshold,
+		"retrievalTimeout": c.StateTimeout.Milliseconds(),
+	}
+}
+
+// GetBedrockConfig returns the Bedrock API configuration
+func (c *Config) GetBedrockConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"modelId":          c.BedrockModelID,
+		"region":           c.BedrockRegion,
+		"anthropicVersion": c.AnthropicVersion,
+		"maxTokens":        c.MaxTokens,
+		"temperature":      c.Temperature,
+		"thinkingEnabled":  c.ThinkingType != "",
+		"budgetTokens":     c.ThinkingBudgetTokens,
+		"timeout":          c.BedrockTimeout.Milliseconds(),
+	}
 }
 
 // --- Helper functions for environment parsing ---

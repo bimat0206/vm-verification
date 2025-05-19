@@ -10,21 +10,21 @@ import (
 
 	"workflow-function/shared/schema"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/errors"
+	wferrors "workflow-function/shared/errors"
 
+	"workflow-function/ExecuteTurn1/internal"
 	"workflow-function/ExecuteTurn1/internal/config"
 	"workflow-function/ExecuteTurn1/internal/dependencies"
-	"workflow-function/ExecuteTurn1/internal/handler"
-	"workflow-function/ExecuteTurn1/internal/models"  // Add this import
 )
 
-// Global handler for re-use between Lambda invocations
-var executeTurn1Handler *handler.Handler
+// Global handler and dependencies for re-use between Lambda invocations
+var clients *dependencies.Clients
 var log logger.Logger
 
 func init() {
 	// Initialize logger
 	log = logger.New("vending-verification", "ExecuteTurn1")
+	log.Info("Initializing ExecuteTurn1 Lambda function", nil)
 
 	// Load config
 	cfg, err := config.New(log)
@@ -33,61 +33,94 @@ func init() {
 		os.Exit(1)
 	}
 
-	// Set up AWS/Bedrock/S3 clients
-	clients, err := dependencies.New(context.Background(), cfg, log)
+	// Set up all dependencies
+	clients, err = dependencies.New(context.Background(), cfg, log)
 	if err != nil {
-		log.Error("Failed to initialize AWS clients", map[string]interface{}{"error": err.Error()})
+		log.Error("Failed to initialize dependencies", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
 
-	// Create handler with model ID from config
-	executeTurn1Handler = handler.NewHandler(clients.BedrockClient, clients.S3Client, clients.HybridConfig, log, cfg.BedrockModelID)
+	log.Info("Lambda initialization completed successfully", map[string]interface{}{
+		"bedrockModel": cfg.BedrockModelID,
+		"stateBucket":  cfg.StateBucket,
+	})
 }
 
 // LambdaHandler - main entrypoint for Lambda
 func LambdaHandler(ctx context.Context, event json.RawMessage) (interface{}, error) {
+	// Generate request ID and configure context and logging
 	requestID := uuid.NewString()
 	ctx = context.WithValue(ctx, "requestID", requestID)
 	log := log.WithCorrelationId(requestID)
 
 	log.Info("Starting ExecuteTurn1 Lambda invocation", nil)
 
-	// Parse and validate the input event
-	request, err := models.NewRequestFromJSON(event, log)
-	if err != nil {
+	// Parse the input event into StepFunctionInput
+	var input internal.StepFunctionInput
+	if err := json.Unmarshal(event, &input); err != nil {
 		log.Error("Failed to parse input event", map[string]interface{}{"error": err.Error()})
-		return nil, errors.NewValidationError("Invalid input format", map[string]interface{}{"error": err.Error()})
+		return createErrorResponse("invalid_input", "Invalid input format", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 
-	// Validate and sanitize the request
-	if err := request.ValidateAndSanitize(log); err != nil {
-		log.Error("Request validation failed", map[string]interface{}{"error": err.Error()})
-		return models.NewErrorResponse(&request.WorkflowState, err.(*errors.WorkflowError), log, schema.StatusBedrockProcessingFailed), nil
-	}
-
-	log.Info("Request validation passed", map[string]interface{}{
-		"verificationId": request.GetVerificationID(),
-		"promptId":       request.GetPromptID(),
-	})
-
-	// Handle the request
-	outputState, err := executeTurn1Handler.HandleRequest(ctx, &request.WorkflowState)
+	// Handle the request using the main Handler
+	output, err := clients.Handler.HandleRequest(ctx, &input)
 	if err != nil {
 		log.Error("Handler error", map[string]interface{}{"error": err.Error()})
-		if wfErr, ok := err.(*errors.WorkflowError); ok {
-			return models.NewErrorResponse(outputState, wfErr, log, schema.StatusBedrockProcessingFailed), nil
+		
+		// Return a proper error response for Step Functions
+		if wfErr, ok := err.(*wferrors.WorkflowError); ok {
+			return createErrorResponseFromWFError(wfErr), nil
 		}
+		
 		// Wrap unexpected errors
-		wfErr := errors.WrapError(err, errors.ErrorTypeInternal, "unexpected handler error", false)
-		return models.NewErrorResponse(outputState, wfErr, log, schema.StatusBedrockProcessingFailed), nil
+		wfErr := wferrors.WrapError(err, wferrors.ErrorTypeInternal, "unexpected handler error", false)
+		return createErrorResponseFromWFError(wfErr), nil
 	}
 
-	log.Info("Successfully processed Turn1", map[string]interface{}{
-		"verificationId": outputState.VerificationContext.VerificationId,
-		"status":         outputState.VerificationContext.Status,
+	log.Info("Successfully completed ExecuteTurn1", map[string]interface{}{
+		"verificationId": output.StateReferences.VerificationId,
+		"status":         output.Status,
 	})
 
-	return models.NewResponse(outputState, log), nil
+	return output, nil
+}
+
+// createErrorResponse creates a StepFunctionOutput with error information
+func createErrorResponse(code, message string, details map[string]interface{}) *internal.StepFunctionOutput {
+	return &internal.StepFunctionOutput{
+		Status: schema.StatusBedrockProcessingFailed,
+		Error: &schema.ErrorInfo{
+			Code:      code,
+			Message:   message,
+			Timestamp: schema.FormatISO8601(),
+			Details:   details,
+		},
+		Summary: map[string]interface{}{
+			"error":  message,
+			"status": schema.StatusBedrockProcessingFailed,
+		},
+	}
+}
+
+// createErrorResponseFromWFError creates a StepFunctionOutput from a WorkflowError
+func createErrorResponseFromWFError(wfErr *wferrors.WorkflowError) *internal.StepFunctionOutput {
+	return &internal.StepFunctionOutput{
+		Status: schema.StatusBedrockProcessingFailed,
+		Error: &schema.ErrorInfo{
+			Code:      wfErr.Code,
+			Message:   wfErr.Message,
+			Timestamp: schema.FormatISO8601(),
+			Details:   wfErr.Context,
+		},
+		Summary: map[string]interface{}{
+			"error":     wfErr.Message,
+			"status":    schema.StatusBedrockProcessingFailed,
+			"retryable": wfErr.Retryable,
+			"errorType": wfErr.Type,
+		},
+	}
 }
 
 func main() {

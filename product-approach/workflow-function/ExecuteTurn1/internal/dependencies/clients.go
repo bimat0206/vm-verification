@@ -1,76 +1,158 @@
-// internal/dependencies/clients.go
-
 package dependencies
 
 import (
-    "context"
-    "net/http"
-    //"time"
+	"context"
+	"time"
 
-    "github.com/aws/aws-sdk-go-v2/aws"
-    awsconfig "github.com/aws/aws-sdk-go-v2/config"
-    "github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-    "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-    "workflow-function/shared/schema"
-    "workflow-function/shared/logger"
-    wferrors "workflow-function/shared/errors"
-    "workflow-function/ExecuteTurn1/internal/config"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/s3state"
+	"workflow-function/shared/bedrock"
+	wferrors "workflow-function/shared/errors"
+
+	"workflow-function/ExecuteTurn1/internal"
+	localBedrock "workflow-function/ExecuteTurn1/internal/bedrock"
+	"workflow-function/ExecuteTurn1/internal/config"
+	"workflow-function/ExecuteTurn1/internal/state"
+	"workflow-function/ExecuteTurn1/internal/validation"
+	"workflow-function/ExecuteTurn1/internal/handler"
 )
 
-// Clients centralizes AWS clients and hybrid-storage config.
+// Clients centralizes shared dependencies
 type Clients struct {
-    BedrockClient *bedrockruntime.Client
-    S3Client      *s3.Client
-    HybridConfig  *schema.HybridStorageConfig
-    Logger        logger.Logger
+	// Services
+	S3Client       *s3.Client
+	S3StateManager s3state.Manager
+	BedrockClient  *bedrock.BedrockClient
+	
+	// Components
+	StateLoader    *state.Loader
+	StateSaver     *state.Saver
+	BedrockHandler *localBedrock.Client
+	Validator      *validation.Validator
+	
+	// Main handler
+	Handler        *handler.Handler
+	
+	// Configuration
+	Config         *config.Config
+	HybridConfig   *internal.HybridStorageConfig
+	
+	// Logger
+	Logger         logger.Logger
 }
 
-// New initializes AWS SDK clients, applying the Bedrock timeout from Lambda env.
-// Returns a WorkflowError on any failure.
+// New initializes clients and components for dependency injection
 func New(ctx context.Context, cfg *config.Config, log logger.Logger) (*Clients, error) {
-    // 1. Load AWS config for region
-    awsCfg, err := loadAWSConfig(ctx, cfg.AWSRegion)
-    if err != nil {
-        log.Error("Failed to load AWS config", map[string]interface{}{"error": err.Error()})
-        return nil, wferrors.NewInternalError("AWSConfig", err)
-    }
+	// 1. Load AWS config
+	awsCfg, err := loadAWSConfig(ctx, cfg.BedrockRegion)
+	if err != nil {
+		log.Error("Failed to load AWS config", map[string]interface{}{"error": err.Error()})
+		return nil, wferrors.NewInternalError("AWSConfig", err)
+	}
 
-    // 2. Create a custom HTTP client for Bedrock API calls
-    httpClient := &http.Client{Timeout: cfg.BedrockTimeout}
-
-    // 3. Bedrock client with timeout
-    bedrockClient := bedrockruntime.NewFromConfig(awsCfg, func(o *bedrockruntime.Options) {
-        o.HTTPClient = httpClient
-    })
-
-    // 4. Standard S3 client
-    s3Client := s3.NewFromConfig(awsCfg)
-
-    // 5. Hybrid-storage config
-    hybridCfg := &schema.HybridStorageConfig{
-        TempBase64Bucket:       cfg.TempBase64Bucket,
-        Base64SizeThreshold:    cfg.Base64SizeThreshold,
-        Base64RetrievalTimeout: int(cfg.Base64RetrievalTimeout.Milliseconds()),
-        EnableHybridStorage:    cfg.EnableHybridStorage,
-    }
-
-    log.Info("AWS clients initialized", map[string]interface{}{
-        "region":           cfg.AWSRegion,
-        "hybridEnabled":    cfg.EnableHybridStorage,
-        "tempBase64Bucket": cfg.TempBase64Bucket,
-        "bedrockTimeout":   cfg.BedrockTimeout.String(),
-    })
-
-    return &Clients{
-        BedrockClient: bedrockClient,
-        S3Client:      s3Client,
-        HybridConfig:  hybridCfg,
-        Logger:        log,
-    }, nil
+	// 2. Initialize clients
+	s3Client := s3.NewFromConfig(awsCfg)
+	
+	// 3. Set up S3 state manager
+	s3StateManager, err := s3state.New(cfg.StateBucket)
+	if err != nil {
+		log.Error("Failed to create S3 state manager", map[string]interface{}{"error": err.Error()})
+		return nil, wferrors.NewInternalError("S3StateManager", err)
+	}
+	
+	// 4. Set up Bedrock client with Converse API
+	bedrockClientConfig := bedrock.CreateClientConfig(
+		cfg.BedrockRegion, 
+		cfg.AnthropicVersion, 
+		cfg.MaxTokens, 
+		cfg.ThinkingType, 
+		cfg.ThinkingBudgetTokens,
+	)
+	
+	bedrockClient, err := bedrock.NewBedrockClient(ctx, cfg.BedrockModelID, bedrockClientConfig)
+	if err != nil {
+		log.Error("Failed to create Bedrock client", map[string]interface{}{"error": err.Error()})
+		return nil, wferrors.NewInternalError("BedrockClient", err)
+	}
+	
+	// 5. Set up hybrid storage config for images
+	hybridConfig := &internal.HybridStorageConfig{
+		TempBase64Bucket:       cfg.TempBase64Bucket,
+		Base64SizeThreshold:    cfg.Base64SizeThreshold,
+		Base64RetrievalTimeout: int(cfg.StateTimeout.Milliseconds()),
+		EnableHybridStorage:    cfg.EnableHybridStorage,
+	}
+	
+	// 6. Create components
+	stateLoader := state.NewLoader(s3StateManager, s3Client, log, cfg.StateTimeout)
+	stateSaver := state.NewSaver(s3StateManager, s3Client, log, cfg.StateTimeout)
+	validator := validation.NewValidator(log)
+	
+	// 7. Create local Bedrock handler with adapter
+	bedrockAdapter := localBedrock.NewBedrockAdapter(bedrockClient)
+	bedrockHandler := localBedrock.NewClient(bedrockAdapter, log, &localBedrock.Config{
+		ModelID:          cfg.BedrockModelID,
+		AnthropicVersion: cfg.AnthropicVersion,
+		MaxTokens:        cfg.MaxTokens,
+		Temperature:      cfg.Temperature,
+		ThinkingType:     cfg.ThinkingType,
+		ThinkingBudget:   cfg.ThinkingBudgetTokens,
+		Timeout:          cfg.BedrockTimeout,
+	})
+	
+	// 8. Create main handler
+	mainHandler := handler.NewHandler(
+		stateLoader,
+		stateSaver,
+		bedrockHandler,
+		validator,
+		s3Client,
+		hybridConfig,
+		log,
+	)
+	
+	// Log initialization success
+	log.Info("Dependencies initialized successfully", map[string]interface{}{
+		"region":           cfg.BedrockRegion,
+		"bedrockModel":     cfg.BedrockModelID,
+		"stateBucket":      cfg.StateBucket,
+		"hybridEnabled":    cfg.EnableHybridStorage,
+	})
+	
+	// Return all clients
+	return &Clients{
+		// Services
+		S3Client:       s3Client,
+		S3StateManager: s3StateManager,
+		BedrockClient:  bedrockClient,
+		
+		// Components
+		StateLoader:    stateLoader,
+		StateSaver:     stateSaver,
+		BedrockHandler: bedrockHandler,
+		Validator:      validator,
+		
+		// Main handler
+		Handler:        mainHandler,
+		
+		// Configuration
+		Config:         cfg,
+		HybridConfig:   hybridConfig,
+		
+		// Logger
+		Logger:         log,
+	}, nil
 }
 
-// loadAWSConfig is a thin wrapper for AWS SDK v2 config loading.
+// loadAWSConfig is a thin wrapper for AWS SDK v2 config loading
 func loadAWSConfig(ctx context.Context, region string) (aws.Config, error) {
-    return awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	
+	return awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 }

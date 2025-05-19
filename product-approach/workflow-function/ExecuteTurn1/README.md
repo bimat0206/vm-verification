@@ -1,96 +1,103 @@
 # ExecuteTurn1 Lambda Function
 
-This Lambda executes the first conversation turn with Amazon Bedrock, analyzing the reference image for the vending machine verification workflow.  
-**Now fully standardized on a shared schema, logger, and error package for robust, auditable, and maintainable production use.**  
-**Refactored with modular code organization for improved maintainability and easier troubleshooting.**
+This Lambda handles the first conversation turn with Bedrock (Claude 3.7) for vending machine verification, now completely redesigned with a **S3 state reference architecture** for better performance, scalability, and maintainability.
 
 ---
 
 ## Overview
 
-**ExecuteTurn1** is a core component in the AI-powered vending machine verification solution. It:
+**ExecuteTurn1** is a critical component in the vending machine verification workflow, reimagined with a modern state reference architecture:
 
-1. Accepts the canonical workflow state and system/user prompts (per shared schema).
-2. Retrieves image data via hybrid Base64 logic (inline or S3 as needed).
-3. Invokes the Bedrock InvokeModel API (Claude 3.7 Sonnet) using a standardized JSON payload.
-4. Processes and structures the response, including "thinking" content if enabled.
-5. Updates the workflow state, including full turn history, verification context, and standardized error surfaces.
-
----
-
-## Key Features
-
-- **Modular Code Structure**:  
-  - Codebase is organized into focused modules with clear separation of concerns for better maintainability and troubleshooting.
-- **Shared Schema**:  
-  - All requests, responses, prompts, and images use a common Go struct package, enabling strong validation and seamless Step Functions integration.
-- **Hybrid Base64 Storage**:  
-  - Images are handled as Base64 inline or via S3, based on size and configuration. S3 retrieval and embedding is automatic and fully abstracted.
-- **Bedrock InvokeModel API**:  
-  - Supports the Claude 3.7 Sonnet multimodal model via standardized JSON format.
-- **Centralized Logging**:  
-  - All logs are structured JSON, with service/function, severity, and correlation ID for distributed traceability.
-- **Comprehensive Error Handling**:  
-  - Every error (validation, AWS, Bedrock, etc.) is captured as a `WorkflowError` (typed, retryable, with context), and surfaced both in Lambda and in `VerificationContext.Error` for Step Functions.
-- **Step Functions Ready**:  
-  - All state transitions and output match the canonical shared schema for downstream workflow compatibility.
+1. Accepts S3 references to workflow state components (no large payloads)
+2. Loads state components from S3 using category-based organization
+3. Processes the Turn1 conversation with Bedrock using shared client package
+4. Saves results back to S3 with optimized storage patterns
+5. Returns lightweight references for downstream Step Functions processing
 
 ---
 
-## Directory Structure
+## Key Architectural Improvements
 
+- **S3 State Reference Architecture**:  
+  - Replaced large workflow state payloads with lightweight S3 references
+  - Implemented category-based state storage with shared S3StateManager
+  - Improved performance by eliminating serialization/deserialization overhead
+  - Enhanced scalability by removing API Gateway and Lambda payload size limitations
 
+- **Modular Component Design**:  
+  - Complete separation of concerns with focused, single-responsibility modules
+  - Clear boundaries between state management, validation, and business logic
+  - Improved testability with proper dependency injection
+  - No file exceeds 300 lines for better maintainability
 
+- **Shared Package Integration**:  
+  - Fully leverages shared/s3state for standardized state management
+  - Uses shared/bedrock for consistent Bedrock API interactions
+  - Standardized error handling with shared/errors WorkflowError types
+  - Enhanced logging with shared/logger structured JSON logging
+
+- **Enhanced Configuration**:  
+  - Improved environment variable organization by functional area
+  - Sensible defaults with comprehensive validation
+  - Better configuration error reporting
+  - Support for hybrid storage modes and timeouts
+
+---
+
+## New Directory Structure
+
+```
 ExecuteTurn1/
 ├── cmd/
-│ └── main.go # Lambda handler entry point
+│   └── main.go              # Lambda handler entry point
 ├── internal/
-│ ├── handler/
-│ │ ├── handler.go # Core handler structure and main request handling
-│ │ ├── validation.go # Validation-related functions
-│ │ ├── image_processor.go # Image processing functionality
-│ │ ├── bedrock_client.go # Bedrock API interaction
-│ │ ├── error_handler.go # Error handling utilities
-│ │ ├── state_manager.go # State management functions
-│ │ └── response_processor.go # Response processing logic
-│ ├── config/
-│ │ └── config.go # Centralized configuration
-│ ├── dependencies/
-│ │ └── clients.go # AWS client initialization
-│ └── request/
-│ └── request.go # Lambda input/output and validation helpers
-├── shared/ # Shared schema/logger/error packages
-│ ├── schema/
-│ ├── logger/
-│ └── errors/
-├── Dockerfile
-├── go.mod
-├── go.sum
-└── README.md
-
+│   ├── state/               # S3 state management
+│   │   ├── loader.go        # State loading operations
+│   │   └── saver.go         # State saving operations
+│   ├── bedrock/             # Bedrock integration
+│   │   └── client.go        # Bedrock API wrapper
+│   ├── validation/          # Input validation
+│   │   └── validator.go     # Schema validation
+│   ├── handler/             # Core business logic
+│   │   └── handler.go       # Request coordination
+│   ├── config/              # Configuration
+│   │   └── config.go        # Environment config
+│   └── dependencies/        # Dependencies
+│       └── clients.go       # Client initialization
+├── Dockerfile               # Container build
+├── go.mod                   # Go module definition
+└── README.md                # Documentation
+```
 
 ---
 
 ## Configuration
 
-The function uses environment variables for all settings.  
-**All values are strongly validated at startup.**
+The function uses these environment variables with sensible defaults:
 
-| Variable                | Description                                | Default                                     |
-|-------------------------|--------------------------------------------|---------------------------------------------|
-| BEDROCK_MODEL_ID        | Bedrock model identifier                   | anthropic.claude-3-7-sonnet-20250219-v1:0   |
-| AWS_REGION              | AWS region for services                    | us-east-1                                   |
-| ANTHROPIC_VERSION       | Anthropic API version                      | bedrock-2023-05-31                          |
-| MAX_TOKENS              | Max tokens for Bedrock response            | 4000                                        |
-| TEMPERATURE             | Model sampling temperature                 | 0.7                                         |
-| THINKING_TYPE           | Type of thinking to extract                | thoroughness                                |
-| THINKING_BUDGET_TOKENS  | Token budget for thinking                  | 16000                                       |
-| ENABLE_HYBRID_STORAGE   | Enable S3 storage for large Base64         | true                                        |
-| TEMP_BASE64_BUCKET      | S3 bucket for Base64 storage               | temp-base64-bucket                          |
-| BASE64_SIZE_THRESHOLD   | Size threshold for S3 storage (bytes)      | 2097152 (2MB)                               |
-| BASE64_RETRIEVAL_TIMEOUT| Timeout for S3 retrieval (ms)              | 30000                                       |
-| BEDROCK_TIMEOUT         | Timeout for Bedrock API calls (ms)         | 120000                                      |
-| FUNCTION_TIMEOUT        | Overall function timeout (ms)              | 120000                                      |
+| Variable                | Description                           | Default                     |
+|-------------------------|---------------------------------------|----------------------------|
+| **S3 State Management** |                                       |                            |
+| STATE_BUCKET            | Bucket for S3 state storage           | (required)                  |
+| STATE_BASE_PREFIX       | Base prefix for S3 state objects      | verification-states         |
+| STATE_TIMEOUT           | Timeout for state operations          | 30s                         |
+| **Bedrock Configuration** |                                     |                            |
+| BEDROCK_MODEL_ID        | Claude model identifier               | (required)                  |
+| BEDROCK_REGION          | AWS region for Bedrock                | (required)                  |
+| ANTHROPIC_VERSION       | Anthropic API version                 | bedrock-2023-05-31          |
+| MAX_TOKENS              | Max tokens for response               | 4096                        |
+| TEMPERATURE             | Model sampling temperature            | 0.7                         |
+| THINKING_TYPE           | Thinking extraction pattern           | thinking                    |
+| THINKING_BUDGET_TOKENS  | Max tokens for thinking               | 16000                       |
+| **Image Processing**    |                                       |                            |
+| ENABLE_HYBRID_STORAGE   | Use S3 for large Base64               | true                        |
+| TEMP_BASE64_BUCKET      | Bucket for Base64 storage             | (required if hybrid=true)   |
+| BASE64_SIZE_THRESHOLD   | Size threshold for S3 (bytes)         | 1048576 (1MB)               |
+| **Timeouts**            |                                       |                            |
+| BEDROCK_TIMEOUT         | Timeout for Bedrock calls             | 120s                        |
+| FUNCTION_TIMEOUT        | Overall function timeout              | 240s                        |
+| RETRY_MAX_ATTEMPTS      | Max retry attempts                    | 3                           |
+| RETRY_BASE_DELAY        | Base delay for retries                | 1s                          |
 
 ---
 
@@ -100,8 +107,7 @@ The function uses environment variables for all settings.
 
 ```bash
 go build -o main ./cmd/main.go
-
-
+```
 
 ### Docker Build
 
@@ -111,130 +117,161 @@ docker build -t execute-turn1 .
 
 ### AWS Lambda Deployment
 
-The function is designed to be deployed as a container image to AWS Lambda.
-
-1. Build the Docker image
-2. Push to Amazon ECR
-3. Create or update Lambda function to use the ECR image
-4. Configure environment variables and IAM permissions
+```bash
+./retry-docker-build.sh --repo=<ECR_REPO_URI> --function=<LAMBDA_FUNCTION_NAME> --region=<AWS_REGION>
+```
 
 Required IAM permissions:
 - `bedrock:InvokeModel` for the specified model
-- `s3:GetObject` for the Base64 storage bucket (if hybrid storage is enabled)
+- `s3:GetObject` and `s3:PutObject` for the state bucket and Base64 bucket
+
+---
 
 ## Input and Output
 
-### Input
+### Input (S3 References)
 
 ```json
 {
-  "workflowState": {
-    "verificationId": "12345",
-    "status": "IN_PROGRESS",
-    "stage": "REFERENCE_ANALYSIS",
-    "correlationId": "corr-123",
-    "timestamp": "2023-04-01T12:00:00Z",
-    "currentPrompt": {
-      "promptId": "prompt-123",
-      "messages": [
-        {
-          "role": "user",
-          "content": [
-            {
-              "type": "text",
-              "text": "Analyze this vending machine image..."
-            }
-          ]
-        }
-      ]
+  "stateReferences": {
+    "verificationId": "verif-12345",
+    "verificationContext": {
+      "bucket": "state-bucket",
+      "key": "contexts/verif-12345/verification-context.json"
     },
-    "imageData": {
-      "imageId": "img-123",
-      "imageBase64": "base64data...",
-      "contentType": "image/jpeg"
+    "systemPrompt": {
+      "bucket": "state-bucket",
+      "key": "prompts/verif-12345/system-prompt.json"
+    },
+    "images": {
+      "bucket": "state-bucket",
+      "key": "images/verif-12345/image-data.json"
+    },
+    "bedrockConfig": {
+      "bucket": "state-bucket",
+      "key": "configs/verif-12345/bedrock-config.json"
     }
   }
 }
 ```
 
-### Output
+### Output (Updated References)
 
 ```json
 {
-  "workflowState": {
-    "verificationId": "12345",
-    "status": "IN_PROGRESS",
-    "stage": "TURN1_COMPLETE",
-    "correlationId": "corr-123",
-    "timestamp": "2023-04-01T12:00:30Z",
-    "currentPrompt": { ... },
-    "imageData": { ... },
-    "turnHistory": [
-      {
-        "turnId": 1,
-        "timestamp": "2023-04-01T12:00:30Z",
-        "response": {
-          "id": "resp-123",
-          "content": [
-            {
-              "type": "text",
-              "text": "Based on the vending machine image..."
-            }
-          ],
-          "role": "assistant",
-          "usage": {
-            "inputTokens": 1000,
-            "outputTokens": 2000,
-            "totalTokens": 3000
-          }
-        },
-        "latencyMs": 15000,
-        "tokenUsage": {
-          "inputTokens": 1000,
-          "outputTokens": 2000,
-          "totalTokens": 3000
-        },
-        "stage": "REFERENCE_ANALYSIS",
-        "thinking": "I'm analyzing this image step by step..."
-      }
-    ]
+  "stateReferences": {
+    "verificationId": "verif-12345",
+    "verificationContext": {
+      "bucket": "state-bucket",
+      "key": "contexts/verif-12345/verification-context.json"
+    },
+    "systemPrompt": {
+      "bucket": "state-bucket",
+      "key": "prompts/verif-12345/system-prompt.json"
+    },
+    "images": {
+      "bucket": "state-bucket",
+      "key": "images/verif-12345/image-data.json"
+    },
+    "bedrockConfig": {
+      "bucket": "state-bucket",
+      "key": "configs/verif-12345/bedrock-config.json"
+    },
+    "conversationState": {
+      "bucket": "state-bucket",
+      "key": "conversations/verif-12345/conversation-state.json"
+    },
+    "turn1Response": {
+      "bucket": "state-bucket",
+      "key": "responses/verif-12345/turn1-response.json"
+    },
+    "turn1Thinking": {
+      "bucket": "state-bucket",
+      "key": "thinking/verif-12345/turn1-thinking.json"
+    }
+  },
+  "status": "TURN1_COMPLETED",
+  "summary": {
+    "tokenUsage": 3500,
+    "latencyMs": 12500,
+    "status": "TURN1_COMPLETED"
   }
 }
 ```
 
 ## Error Handling
 
-The function returns structured errors:
+The function returns structured errors with the same reference pattern:
 
 ```json
 {
-  "workflowState": { ... },
+  "status": "BEDROCK_PROCESSING_FAILED",
   "error": {
     "code": "BEDROCK_API_ERROR",
     "message": "Failed to call Bedrock API",
-    "retryable": true,
-    "context": {
-      "promptId": "prompt-123",
-      "error": "Quota exceeded"
+    "timestamp": "2023-05-19T08:12:30Z",
+    "details": {
+      "error": "Quota exceeded",
+      "retryable": true
     }
+  },
+  "summary": {
+    "error": "Failed to call Bedrock API",
+    "status": "BEDROCK_PROCESSING_FAILED",
+    "retryable": true
   }
 }
 ```
 
 ## Monitoring and Logging
 
-All function activity is logged to CloudWatch Logs with structured information.
-Key metrics to monitor:
+All function activity is logged to CloudWatch Logs with structured JSON format:
 
-- Bedrock API latency
-- Error rates
-- Lambda timeout occurrences
-- Memory utilization
+```json
+{
+  "level": "info",
+  "timestamp": "2025-05-19T12:34:56Z",
+  "service": "vending-verification",
+  "function": "ExecuteTurn1",
+  "correlationId": "req-abc123",
+  "verificationId": "verif-12345",
+  "step": "Turn1Processing",
+  "message": "Bedrock API call successful",
+  "data": {
+    "latencyMs": 12500,
+    "tokenUsage": 3500,
+    "modelId": "anthropic.claude-3-sonnet-20250219-v1:0"
+  }
+}
+```
+
+Key metrics to monitor:
+- Bedrock API latency (average, p95, p99)
+- S3 operation latency
+- Error rates by error type
+- Lambda duration and memory utilization
+- State size metrics
+
+---
 
 ## Development
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.22+
 - Docker
-- AWS CLI configured
+- AWS CLI configured with appropriate permissions
+- S3 bucket for state storage
+
+### Local Testing
+
+```bash
+# Set up environment variables
+export STATE_BUCKET=my-state-bucket
+export BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20250219-v1:0
+export BEDROCK_REGION=us-east-1
+
+# Build and run locally
+go build -o main ./cmd/main.go
+./main
+```
