@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Updated script for direct AWS SDK usage (no shared s3utils/dbutils dependencies)
+# Updated script for the new project structure
 
 # Manually set the ECR repository URL if terraform output isn't working
 # Replace this with your actual ECR repository URL from the AWS console
@@ -19,7 +19,7 @@ echo -e "${YELLOW}Building FetchImages Lambda function...${NC}"
 echo "Using ECR repository: $ECR_REPO"
 
 # Verify we're in the FetchImages directory
-if [ ! -f "main.go" ] || [ ! -f "models.go" ]; then
+if [ ! -f "go.mod" ] || [ ! -d "cmd/fetchimages" ]; then
     echo -e "${RED}Error: Cannot find required files. Make sure you're in the FetchImages directory${NC}"
     echo -e "${RED}Expected to be in: workflow-function/FetchImages/${NC}"
     exit 1
@@ -40,6 +40,7 @@ cp -r ./* "$BUILD_CONTEXT/"
 mkdir -p "$BUILD_CONTEXT/shared"
 cp -r ../shared/logger "$BUILD_CONTEXT/shared/"
 cp -r ../shared/schema "$BUILD_CONTEXT/shared/"
+cp -r ../shared/s3state "$BUILD_CONTEXT/shared/"
 
 # Create a modified go.mod file for Docker build
 echo -e "${YELLOW}Creating modified go.mod for Docker build...${NC}"
@@ -57,6 +58,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	workflow-function/shared/logger v0.0.0
 	workflow-function/shared/schema v0.0.0
+	workflow-function/shared/s3state v0.0.0
 )
 
 require (
@@ -81,6 +83,7 @@ require (
 
 replace workflow-function/shared/schema => ./shared/schema
 replace workflow-function/shared/logger => ./shared/logger
+replace workflow-function/shared/s3state => ./shared/s3state
 EOF
 
 # Build the image from the temporary build context

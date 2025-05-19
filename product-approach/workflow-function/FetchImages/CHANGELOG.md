@@ -1,5 +1,33 @@
 # Changelog
 
+## [4.0.1] - 2025-05-20
+
+### Fixed
+- Fixed import naming collision in handler.go by aliasing internal/config to localConfig
+- Fixed ContentLength handling in S3Repository to properly dereference pointer value
+- Removed unused imports (strings, aws, schema) to fix compiler warnings
+- Fixed proper initialization of ImageInfo struct with nil-safe property assignments
+
+## [4.0.0] - 2025-05-19
+
+### Added
+- Integrated with shared/s3state package for state management
+- Implemented S3 state management with category-based organization
+- Added support for reference-based image handling (no Base64 encoding)
+- Added a new structured project layout with clear separation of concerns
+
+### Changed
+- Complete architectural redesign to use the S3 State Manager pattern
+- Refactored to a modern Go project structure (cmd and internal packages)
+- Split code into separate packages: config, models, repository, service, and handler
+- Updated handler to support both direct invocation and S3 reference-based inputs
+- Changed response format to use S3 references instead of inline Base64 data
+
+### Removed
+- Removed all Base64 encoding/decoding logic
+- Removed response size tracking and hybrid storage approach
+- Removed unnecessary storage method validation
+
 ## [3.0.0] - 2025-05-16
 
 ### Changed

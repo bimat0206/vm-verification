@@ -192,3 +192,4 @@ secrets/
 *.secret
 
 *.sh
+retry-docker-build.sh

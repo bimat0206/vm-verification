@@ -15,7 +15,7 @@ COPY . .
 
 # Verify the structure (for debugging - can be removed in production)
 RUN echo "Build context contents:" && ls -la
-RUN echo "Shared modules:" && ls -la shared/
+RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not accessible in this context"
 
 # Download dependencies and build
 RUN go mod download
@@ -23,7 +23,7 @@ RUN go mod download
 # Build the application for AWS Lambda ARM64 (Graviton)
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg/mod \
-    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o main
+    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o main ./cmd/fetchimages
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
