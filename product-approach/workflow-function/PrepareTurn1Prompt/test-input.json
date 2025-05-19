@@ -1,0 +1,24 @@
+{
+  "references": {
+    "initialization_initialization": {
+      "bucket": "vending-machine-verification-dev",
+      "key": "initialization/verification-123/initialization.json",
+      "size": 512
+    },
+    "images_reference": {
+      "bucket": "vending-machine-verification-dev",
+      "key": "images/verification-123/reference-image.json",
+      "size": 2048
+    },
+    "processing_layout_metadata": {
+      "bucket": "vending-machine-verification-dev",
+      "key": "processing/verification-123/layout-metadata.json",
+      "size": 1024
+    }
+  },
+  "verificationId": "verification-123",
+  "verificationType": "LAYOUT_VS_CHECKING",
+  "turnNumber": 1,
+  "includeImage": "reference",
+  "enableS3StateManager": true
+}

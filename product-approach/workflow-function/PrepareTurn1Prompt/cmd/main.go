@@ -1,429 +1,336 @@
 package main
 
 import (
-   "context"
-   "encoding/json"
-   "fmt"
-   "strings"
-   "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
 
-   "github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-lambda-go/lambda"
 
-   "workflow-function/shared/errors"
-   "workflow-function/shared/logger"
-   "workflow-function/shared/schema"
-   "workflow-function/shared/templateloader"
+	"workflow-function/shared/errors"
+	"workflow-function/shared/logger"
+	"workflow-function/shared/s3state"
+	"workflow-function/shared/templateloader"
 
-   "prepare-turn1/internal"
+	"prepare-turn1/internal/core"
+	"prepare-turn1/internal/images"
+	"prepare-turn1/internal/integration"
+	"prepare-turn1/internal/state"
+	"prepare-turn1/internal/validation"
 )
 
 var (
-   log            logger.Logger
-   templateLoader templateloader.TemplateLoader
+	log            logger.Logger
+	templateLoader templateloader.TemplateLoader
+	s3StateManager s3state.Manager
 )
 
 func init() {
-   // Initialize logger
-   log = logger.New("vending-machine-verification", "PrepareTurn1Prompt")
-   
-   // Initialize template loader with base path from environment
-   templateBasePath := internal.GetEnvWithDefault("TEMPLATE_BASE_PATH", "")
-   if templateBasePath == "" {
-   	log.Error("TEMPLATE_BASE_PATH environment variable is required", nil)
-   	panic("TEMPLATE_BASE_PATH environment variable not set")
-   }
-   
-   // Create template loader config
-   config := templateloader.Config{
-   	BasePath:     templateBasePath,
-   	CacheEnabled: true,
-   	CustomFuncs:  templateloader.DefaultFunctions,
-   }
-   
-   // Initialize template loader
-   var err error
-   templateLoader, err = templateloader.New(config)
-   if err != nil {
-   	log.Error("Failed to initialize template loader", map[string]interface{}{
-   		"error":    err.Error(),
-   		"basePath": templateBasePath,
-   	})
-   	panic(fmt.Sprintf("Failed to initialize template loader: %v", err))
-   }
-   
-   log.Info("Initialized PrepareTurn1Prompt function", map[string]interface{}{
-   	"templateBasePath": templateBasePath,
-   })
+	// Initialize logger
+	log = logger.New("vending-machine-verification", "PrepareTurn1Prompt")
+	
+	// Initialize template loader with base path from environment
+	templateBasePath := integration.GetEnvWithDefault("TEMPLATE_BASE_PATH", "")
+	if templateBasePath == "" {
+		log.Error("TEMPLATE_BASE_PATH environment variable is required", nil)
+		panic("TEMPLATE_BASE_PATH environment variable not set")
+	}
+	
+	// Create template loader config
+	config := templateloader.Config{
+		BasePath:     templateBasePath,
+		CacheEnabled: true,
+		CustomFuncs:  templateloader.DefaultFunctions,
+	}
+	
+	// Initialize template loader
+	var err error
+	templateLoader, err = templateloader.New(config)
+	if err != nil {
+		log.Error("Failed to initialize template loader", map[string]interface{}{
+			"error":    err.Error(),
+			"basePath": templateBasePath,
+		})
+		panic(fmt.Sprintf("Failed to initialize template loader: %v", err))
+	}
+
+	// Initialize S3 state manager
+	s3Bucket := integration.GetEnvWithDefault("STATE_BUCKET", "")
+	if s3Bucket == "" {
+		log.Error("STATE_BUCKET environment variable is required", nil)
+		panic("STATE_BUCKET environment variable not set")
+	}
+
+	s3StateManager, err = s3state.New(s3Bucket)
+	if err != nil {
+		log.Error("Failed to initialize S3 state manager", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": s3Bucket,
+		})
+		panic(fmt.Sprintf("Failed to initialize S3 state manager: %v", err))
+	}
+	
+	log.Info("Initialized PrepareTurn1Prompt function", map[string]interface{}{
+		"templateBasePath": templateBasePath,
+		"s3Bucket":         s3Bucket,
+	})
 }
 
 // HandleRequest is the Lambda handler function
-func HandleRequest(ctx context.Context, event json.RawMessage) (*internal.Response, error) {
-   start := time.Now()
-   log.LogReceivedEvent(event)
-   
-   // Add panic recovery middleware
-   var verificationId string
-   defer func() {
-   	internal.RecoverFromPanic(log, verificationId)
-   }()
-   
-   // Parse and validate input
-   var input internal.Input
-   if err := json.Unmarshal(event, &input); err != nil {
-   	log.Error("Error parsing input", map[string]interface{}{
-   		"error": err.Error(),
-   	})
-   	return nil, errors.NewParsingError("JSON", err)
-   }
-   
-   // Set verification ID for panic recovery and logging
-   if input.VerificationContext != nil {
-   	verificationId = input.VerificationContext.VerificationID
-   }
-   
-   // Validate input
-   if err := validateInput(&input); err != nil {
-   	log.Error("Validation error", map[string]interface{}{
-   		"error":          err.Error(),
-   		"verificationId": verificationId,
-   	})
-   	return nil, err
-   }
-   
-   // Log processing start
-   log.Info("Processing Turn 1 prompt", map[string]interface{}{
-   	"verificationType": input.VerificationContext.VerificationType,
-   	"verificationId":   verificationId,
-   	"turnNumber":       input.TurnNumber,
-   	"includeImage":     input.IncludeImage,
-   })
-   
-   // Convert input to workflow state
-   workflowState := internal.ConvertToWorkflowState(&input)
-   
-   // Process images for Bedrock before template processing
-   if err := processImagesForBedrock(workflowState); err != nil {
-   	log.Error("Failed to process images", map[string]interface{}{
-   		"error":          err.Error(),
-   		"verificationId": verificationId,
-   	})
-   	return nil, errors.NewInternalError("image-processing", err)
-   }
-   
-   // Get appropriate template
-   templateName := buildTemplateName(input.VerificationContext.VerificationType)
-   tmpl, err := templateLoader.LoadTemplate(templateName)
-   if err != nil {
-   	log.Error("Error loading template", map[string]interface{}{
-   		"error":          err.Error(),
-   		"templateName":   templateName,
-   		"verificationId": verificationId,
-   	})
-   	return nil, errors.NewInternalError("template-loader", err)
-   }
-   
-   // Create template data context
-   templateData, err := internal.BuildTemplateData(workflowState)
-   if err != nil {
-   	log.Error("Error building template data", map[string]interface{}{
-   		"error":          err.Error(),
-   		"verificationId": verificationId,
-   	})
-   	return nil, errors.NewInternalError("template-data", err)
-   }
-   
-   // Generate turn 1 prompt text
-   promptText, err := internal.ProcessTemplate(tmpl, templateData)
-   if err != nil {
-   	log.Error("Error processing template", map[string]interface{}{
-   		"error":          err.Error(),
-   		"verificationId": verificationId,
-   	})
-   	return nil, errors.NewInternalError("template-processing", err)
-   }
-   
-   // Create Bedrock message with prompt text and reference image
-   userMessage, err := createBedrockMessage(promptText, workflowState)
-   if err != nil {
-   	log.Error("Error creating Bedrock message", map[string]interface{}{
-   		"error":          err.Error(),
-   		"verificationId": verificationId,
-   	})
-   	return nil, errors.NewInternalError("bedrock-message", err)
-   }
-   
-   // Update verification context status
-   workflowState.VerificationContext.Status = schema.StatusTurn1PromptReady
-   
-   // Update the current prompt in the workflow state
-   updateCurrentPrompt(workflowState, userMessage, templateName)
-   
-   // Set Bedrock configuration
-   setBedrockConfiguration(workflowState, &input)
-   
-   // Convert workflow state back to response
-   response := internal.ConvertToResponse(workflowState)
-   
-   // Log completion
-   duration := time.Since(start)
-   log.Info("Completed processing", map[string]interface{}{
-   	"duration":       duration.String(),
-   	"verificationId": verificationId,
-   	"templateUsed":   templateName,
-   })
-   
-   log.LogOutputEvent(response)
-   return response, nil
+func HandleRequest(ctx context.Context, event json.RawMessage) (*state.Output, error) {
+	start := time.Now()
+	log.LogReceivedEvent(event)
+	
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("Panic recovered", map[string]interface{}{
+				"panic": fmt.Sprintf("%v", r),
+			})
+		}
+	}()
+	
+	// First, try to parse as S3 state envelope
+	var envelope s3state.Envelope
+	
+	// Also try to parse as a JSON object to check for schemaVersion field
+	var rawEvent map[string]interface{}
+	_ = json.Unmarshal(event, &rawEvent)
+	
+	hasSchemaVersion := false
+	schemaVersionValue := ""
+	if schemaVersion, ok := rawEvent["schemaVersion"].(string); ok && schemaVersion != "" {
+		hasSchemaVersion = true
+		schemaVersionValue = schemaVersion
+	}
+	
+	if err := json.Unmarshal(event, &envelope); err == nil && hasSchemaVersion && len(envelope.References) > 0 {
+		log.Info("Detected S3 state envelope format", map[string]interface{}{
+			"schemaVersion":  schemaVersionValue,
+			"verificationId": envelope.VerificationID,
+			"referenceCount": len(envelope.References),
+		})
+		
+		// Convert envelope to input
+		var err error
+		inputFromEnvelope, err := state.EnvelopeToInput(&envelope)
+		if err != nil {
+			log.Error("Failed to convert envelope to input", map[string]interface{}{
+				"error":          err.Error(),
+				"verificationId": envelope.VerificationID,
+			})
+			return nil, err
+		}
+		
+		// Create validator
+		validator := validation.NewValidator(log)
+		
+		// Validate input
+		if err := validator.ValidateInput(inputFromEnvelope); err != nil {
+			log.Error("Validation error", map[string]interface{}{
+				"error":          err.Error(),
+				"verificationId": inputFromEnvelope.VerificationID,
+			})
+			return nil, err
+		}
+		
+		// Use the converted input
+		log.Info("Successfully parsed S3 state envelope", map[string]interface{}{
+			"verificationId": inputFromEnvelope.VerificationID,
+			"turnNumber":     inputFromEnvelope.TurnNumber,
+			"includeImage":   inputFromEnvelope.IncludeImage,
+		})
+		
+		// Continue with the converted input
+		return processInput(ctx, inputFromEnvelope, start)
+	}
+	
+	// If not an envelope, try to parse as direct input
+	var input state.Input
+	if err := json.Unmarshal(event, &input); err != nil {
+		log.Error("Error parsing input", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, errors.NewParsingError("JSON", err)
+	}
+	
+	// Set default values for Turn 1 if not set
+	if input.TurnNumber == 0 {
+		input.TurnNumber = 1
+	}
+	
+	if input.IncludeImage == "" {
+		input.IncludeImage = "reference"
+	}
+	
+	// Create validator
+	validator := validation.NewValidator(log)
+	
+	// Validate input
+	if err := validator.ValidateInput(&input); err != nil {
+		log.Error("Validation error", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, err
+	}
+	
+	// Continue with the input
+	return processInput(ctx, &input, start)
 }
 
-// validateInput validates the input parameters
-func validateInput(input *internal.Input) error {
-   // Basic validation
-   if input == nil {
-   	return errors.NewValidationError("Input cannot be nil", nil)
-   }
-   
-   if input.VerificationContext == nil {
-   	return errors.NewMissingFieldError("verificationContext")
-   }
-   
-   if input.VerificationContext.VerificationID == "" {
-   	return errors.NewMissingFieldError("verificationContext.verificationId")
-   }
-   
-   if input.VerificationContext.VerificationType == "" {
-   	return errors.NewMissingFieldError("verificationContext.verificationType")
-   }
-   
-   if input.VerificationContext.ReferenceImageURL == "" {
-   	return errors.NewMissingFieldError("verificationContext.referenceImageUrl")
-   }
-   
-   // Turn number validation
-   if input.TurnNumber != 1 {
-   	return errors.NewInvalidFieldError("turnNumber", input.TurnNumber, "1")
-   }
-   
-   // Include image validation
-   if input.IncludeImage != "reference" {
-   	return errors.NewInvalidFieldError("includeImage", input.IncludeImage, "reference")
-   }
-   
-   // Verification type validation
-   validTypes := []string{schema.VerificationTypeLayoutVsChecking, schema.VerificationTypePreviousVsCurrent}
-   isValidType := false
-   for _, vt := range validTypes {
-   	if input.VerificationContext.VerificationType == vt {
-   		isValidType = true
-   		break
-   	}
-   }
-   
-   if !isValidType {
-   	return errors.NewInvalidFieldError("verificationType", 
-   		input.VerificationContext.VerificationType, 
-   		fmt.Sprintf("one of %v", validTypes))
-   }
-   
-   // Validation specific to verification type
-   if input.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
-   	return validateLayoutVsChecking(input)
-   } else if input.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-   	return validatePreviousVsCurrent(input)
-   }
-   
-   return nil
-}
-
-// validateLayoutVsChecking validates layout vs checking specific fields
-func validateLayoutVsChecking(input *internal.Input) error {
-   ctx := input.VerificationContext
-   
-   // Layout ID is required
-   if ctx.LayoutID <= 0 {
-   	return errors.NewValidationError("Layout ID is required for LAYOUT_VS_CHECKING", 
-   		map[string]interface{}{"layoutId": ctx.LayoutID})
-   }
-   
-   // Layout prefix is required
-   if ctx.LayoutPrefix == "" {
-   	return errors.NewMissingFieldError("verificationContext.layoutPrefix")
-   }
-   
-   // Layout metadata should be available (optional check since it might come from upstream)
-   if input.LayoutMetadata == nil {
-   	log.Warn("Layout metadata not provided", map[string]interface{}{
-   		"verificationId": ctx.VerificationID,
-   	})
-   }
-   
-   // Check S3 URL is in reference bucket
-   if err := validateS3BucketForType(ctx.ReferenceImageURL, "REFERENCE_BUCKET"); err != nil {
-   	return err
-   }
-   
-   return nil
-}
-
-// validatePreviousVsCurrent validates previous vs current specific fields
-func validatePreviousVsCurrent(input *internal.Input) error {
-   ctx := input.VerificationContext
-   
-   // Check S3 URL is in checking bucket (for previous vs current, reference image is in checking bucket)
-   if err := validateS3BucketForType(ctx.ReferenceImageURL, "CHECKING_BUCKET"); err != nil {
-   	return err
-   }
-   
-   // Historical context is optional for Turn 1
-   if input.HistoricalContext != nil {
-   	log.Info("Historical context provided", map[string]interface{}{
-   		"verificationId":         ctx.VerificationID,
-   		"previousVerificationId": input.HistoricalContext.PreviousVerificationID,
-   	})
-   }
-   
-   return nil
-}
-
-// validateS3BucketForType validates that the S3 URL uses the correct bucket
-func validateS3BucketForType(s3URL, bucketEnvVar string) error {
-   expectedBucket := internal.GetEnvWithDefault(bucketEnvVar, "")
-   if expectedBucket == "" {
-   	return errors.NewValidationError(fmt.Sprintf("%s environment variable not set", bucketEnvVar), nil)
-   }
-   
-   bucket, _, err := internal.ExtractS3BucketAndKey(s3URL)
-   if err != nil {
-   	return errors.NewValidationError("Invalid S3 URL format", 
-   		map[string]interface{}{"url": s3URL, "error": err.Error()})
-   }
-   
-   if bucket != expectedBucket {
-   	return errors.NewValidationError("S3 URL uses incorrect bucket", 
-   		map[string]interface{}{
-   			"expectedBucket": expectedBucket,
-   			"actualBucket":   bucket,
-   			"url":            s3URL,
-   		})
-   }
-   
-   return nil
-}
-
-// processImagesForBedrock processes images to ensure they have Base64 data
-func processImagesForBedrock(workflowState *schema.WorkflowState) error {
-   if workflowState.Images == nil {
-   	return nil
-   }
-   
-   // Process reference image (required for Turn 1)
-   if refImage := workflowState.Images.GetReference(); refImage != nil {
-   	if err := internal.ProcessImageForBedrock(refImage); err != nil {
-   		return fmt.Errorf("failed to process reference image: %w", err)
-   	}
-   	log.Info("Reference image processed successfully", map[string]interface{}{
-   		"storageMethod": refImage.StorageMethod,
-   		"format":        refImage.Format,
-   		"hasBase64":     refImage.Base64Data != "",
-   	})
-   }
-   
-   // Process checking image if available (not needed for Turn 1 but may be present)
-   if checkImage := workflowState.Images.GetChecking(); checkImage != nil {
-   	if err := internal.ProcessImageForBedrock(checkImage); err != nil {
-   		// Log warning but don't fail for checking image in Turn 1
-   		log.Warn("Failed to process checking image", map[string]interface{}{
-   			"error": err.Error(),
-   		})
-   	}
-   }
-   
-   return nil
-}
-
-// buildTemplateName constructs the template name based on verification type
-func buildTemplateName(verificationType string) string {
-   // Convert LAYOUT_VS_CHECKING to layout-vs-checking (replace underscores with hyphens)
-   formattedType := strings.ReplaceAll(strings.ToLower(verificationType), "_", "-")
-   return fmt.Sprintf("turn1-%s", formattedType)
-}
-
-// createBedrockMessage creates a Bedrock message with prompt text and reference image
-func createBedrockMessage(promptText string, workflowState *schema.WorkflowState) (schema.BedrockMessage, error) {
-   // Get reference image
-   refImage := workflowState.Images.GetReference()
-   if refImage == nil {
-   	return schema.BedrockMessage{}, fmt.Errorf("reference image is required for Turn 1")
-   }
-   
-   // Ensure image has Base64 data
-   if refImage.Base64Data == "" {
-   	return schema.BedrockMessage{}, fmt.Errorf("reference image missing Base64 data")
-   }
-   
-   // Use shared schema function to build the message
-   return schema.BuildBedrockMessage(promptText, refImage), nil
-}
-
-// updateCurrentPrompt updates the current prompt in the workflow state
-func updateCurrentPrompt(workflowState *schema.WorkflowState, userMessage schema.BedrockMessage, templateName string) {
-   workflowState.CurrentPrompt.Messages = []schema.BedrockMessage{userMessage}
-   workflowState.CurrentPrompt.TurnNumber = 1
-   workflowState.CurrentPrompt.PromptId = internal.GeneratePromptID(workflowState.VerificationContext.VerificationId, 1)
-   workflowState.CurrentPrompt.CreatedAt = internal.FormatTimestamp(time.Now())
-   workflowState.CurrentPrompt.PromptVersion = templateLoader.GetLatestVersion(templateName)
-   workflowState.CurrentPrompt.IncludeImage = "reference"
-}
-
-// setBedrockConfiguration sets the Bedrock configuration in the workflow state
-func setBedrockConfiguration(workflowState *schema.WorkflowState, input *internal.Input) {
-   if input.BedrockConfig != nil {
-   	// Use the input BedrockConfig if provided
-   	workflowState.BedrockConfig = &schema.BedrockConfig{
-   		AnthropicVersion: input.BedrockConfig.AnthropicVersion,
-   		MaxTokens:        input.BedrockConfig.MaxTokens,
-   	}
-   	
-   	// ThinkingConfig is not a pointer in our internal types
-	if input.BedrockConfig.Thinking.Type != "" {
-   		workflowState.BedrockConfig.Thinking = &schema.Thinking{
-   			Type:         input.BedrockConfig.Thinking.Type,
-   			BudgetTokens: input.BedrockConfig.Thinking.BudgetTokens,
-   		}
-   	}
-   } else {
-   	// Use environment variables for default configuration
-   	workflowState.BedrockConfig = &schema.BedrockConfig{
-   		AnthropicVersion: internal.GetEnvWithDefault("ANTHROPIC_VERSION", ""),
-   		MaxTokens:        internal.GetIntEnvWithDefault("MAX_TOKENS", 0),
-   		Thinking: &schema.Thinking{
-   			Type:         internal.GetEnvWithDefault("THINKING_TYPE", ""),
-   			BudgetTokens: internal.GetIntEnvWithDefault("BUDGET_TOKENS", 0),
-   		},
-   	}
-   	
-   	// Validate that required configuration is provided
-   	if workflowState.BedrockConfig.AnthropicVersion == "" {
-   		log.Warn("ANTHROPIC_VERSION environment variable not set", map[string]interface{}{
-   			"verificationId": workflowState.VerificationContext.VerificationId,
-   		})
-   	}
-   	
-   	if workflowState.BedrockConfig.MaxTokens == 0 {
-   		log.Warn("MAX_TOKENS environment variable not set", map[string]interface{}{
-   			"verificationId": workflowState.VerificationContext.VerificationId,
-   		})
-   	}
-   }
-   
-   log.Info("Bedrock configuration set", map[string]interface{}{
-   	"anthropicVersion": workflowState.BedrockConfig.AnthropicVersion,
-   	"maxTokens":        workflowState.BedrockConfig.MaxTokens,
-   	"thinkingEnabled":  workflowState.BedrockConfig.Thinking.Type != "",
-   })
+// processInput processes the input and returns the output
+func processInput(ctx context.Context, input *state.Input, start time.Time) (*state.Output, error) {
+	// Log processing start
+	log.Info("Processing Turn 1 prompt", map[string]interface{}{
+		"verificationType": input.VerificationType,
+		"verificationId":   input.VerificationID,
+		"turnNumber":       input.TurnNumber,
+		"includeImage":     input.IncludeImage,
+	})
+	
+	// Create validator
+	validator := validation.NewValidator(log)
+	
+	// Create state loader
+	stateLoader := state.NewLoader(s3StateManager, log)
+	
+	// Load workflow state from S3
+	workflowState, err := stateLoader.LoadWorkflowState(input)
+	if err != nil {
+		log.Error("Failed to load workflow state", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, errors.NewInternalError("state-loading", err)
+	}
+	
+	// Validate workflow state
+	if err := validator.ValidateWorkflowState(workflowState); err != nil {
+		log.Error("Workflow state validation error", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, err
+	}
+	
+	// Create image processor
+	imageProcessor := images.NewProcessor(s3StateManager, log)
+	
+	// Process images for Bedrock
+	if err := imageProcessor.ProcessImagesForBedrock(ctx, workflowState); err != nil {
+		log.Error("Failed to process images", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, errors.NewInternalError("image-processing", err)
+	}
+	
+	// Create template processor
+	templateProcessor := core.NewTemplateProcessor(templateLoader, log)
+	
+	// Create prompt generator
+	promptGenerator := core.NewPromptGenerator(log, templateProcessor)
+	
+	// Generate prompt text
+	promptText, err := promptGenerator.GeneratePrompt(workflowState)
+	if err != nil {
+		log.Error("Failed to generate prompt", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, errors.NewInternalError("prompt-generation", err)
+	}
+	
+	// Create Bedrock integrator
+	bedrockIntegrator := integration.NewBedrockIntegrator(log)
+	
+	// Create response builder
+	responseBuilder := core.NewResponseBuilder(log, bedrockIntegrator)
+	
+	// Configure Bedrock
+	responseBuilder.ConfigureBedrock(workflowState, input)
+	
+	// Build response
+	templateName := promptGenerator.BuildTemplateName(workflowState.VerificationContext.VerificationType)
+	if err := responseBuilder.BuildResponse(workflowState, promptText, templateProcessor.GetTemplateVersion(templateName)); err != nil {
+		log.Error("Failed to build response", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, errors.NewInternalError("response-building", err)
+	}
+	
+	// Create state saver
+	stateSaver := state.NewSaver(s3StateManager, log)
+	
+	// Create output
+	output := state.NewOutput(
+		workflowState.VerificationContext.VerificationId,
+		workflowState.VerificationContext.VerificationType,
+		workflowState.VerificationContext.Status,
+	)
+	
+	// Save results to S3
+	if err := stateSaver.SaveTurn1Prompt(workflowState, output); err != nil {
+		log.Error("Failed to save Turn 1 prompt", map[string]interface{}{
+			"error":          err.Error(),
+			"verificationId": input.VerificationID,
+		})
+		return nil, errors.NewInternalError("state-saving", err)
+	}
+	
+	// Log completion
+	duration := time.Since(start)
+	log.Info("Completed processing", map[string]interface{}{
+		"duration":       duration.String(),
+		"verificationId": input.VerificationID,
+		"templateUsed":   templateName,
+	})
+	
+	log.LogOutputEvent(output)
+	return output, nil
 }
 
 // main is the entry point for the Lambda function
 func main() {
-   lambda.Start(HandleRequest)
+	// Check if running in Lambda environment
+	if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
+		lambda.Start(HandleRequest)
+	} else {
+		// Local execution for testing
+		log.Info("Running in local mode", nil)
+		
+		// Read input from environment or file
+		inputPath := os.Getenv("INPUT_FILE")
+		if inputPath == "" {
+			log.Error("INPUT_FILE environment variable is required for local execution", nil)
+			os.Exit(1)
+		}
+		
+		// Read input file
+		inputData, err := os.ReadFile(inputPath)
+		if err != nil {
+			log.Error("Failed to read input file", map[string]interface{}{
+				"error": err.Error(),
+				"path":  inputPath,
+			})
+			os.Exit(1)
+		}
+		
+		// Process input
+		output, err := HandleRequest(context.Background(), inputData)
+		if err != nil {
+			log.Error("Error processing input", map[string]interface{}{
+				"error": err.Error(),
+			})
+			os.Exit(1)
+		}
+		
+		// Write output to stdout
+		outputData, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(outputData))
+	}
 }

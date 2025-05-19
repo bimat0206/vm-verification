@@ -1,143 +1,129 @@
-# PrepareTurn1Prompt Changelog
+# Changelog
 
-## v1.3.1 - 2025-05-18
+All notable changes to the PrepareTurn1Prompt function will be documented in this file.
 
-### Bug Fixes
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- Fixed struct field issues in bedrock.go to match Bedrock API requirements:
-  - Updated BedrockImageSource field references from `Data` to `Bytes`
-  - Changed image source type from `base64` to `bytes` to match Bedrock schema
-  - Fixed S3 references to use the `bytes` field instead of deprecated `URI`
-- Fixed undefined type references:
-  - Changed `schema.ContentBlock` to `schema.BedrockContent`
-  - Changed `schema.ImageBlock` to `schema.BedrockImageData`
-- Fixed S3 temporary storage field references:
-  - Updated `S3TempBucket` to `Base64S3Bucket`
-  - Updated `S3TempKey` to `Base64S3Key`
-- Fixed struct nil comparison issues with BedrockImageSource and Thinking
-- Removed unused imports from s3client.go
-- Fixed function redeclaration conflicts between utils.go and s3client.go
+## [4.0.4] - 2025-05-25
 
-## v1.3.0 - 2025-05-18
+### Fixed
+- Fixed duplicate case error in processor.go for "s3-temporary" storage method
+- Consolidated image processing logic for S3 temporary storage
+- Improved handling of S3 URL processing within the same storage method case
 
-### Major Features Added
+## [4.0.3] - 2025-05-20
 
-- **Base64 Image Processing**: Implemented hybrid Base64 storage approach for Bedrock compatibility
- - Added automatic image retrieval and Base64 encoding for S3 images
- - Support for inline Base64 data and S3-temporary storage methods
- - Automatic image format detection and validation (JPEG/PNG only)
- - Size validation (10MB limit for Bedrock compatibility)
+### Fixed
+- Fixed compilation errors in image handling code
+- Updated field names in schema.ImageInfo usage to match shared package
+- Replaced deprecated constants with string literals for storage methods
+- Simplified image loading from S3 URLs
+- Fixed error handling in URL processing
 
-- **Enhanced S3 Client**: New S3ImageProcessor with comprehensive image handling
- - Smart storage method detection (inline, S3-temporary, direct S3)
- - Automatic Base64 encoding with validation
- - Configurable timeouts and size limits via environment variables
- - Proper error handling for S3 access issues
+## [4.0.2] - 2025-05-20
 
-- **Improved Error Handling**: Added specific error types for different failure scenarios
- - ImageProcessingError for image-related failures
- - StorageMethodError for storage handling issues
- - S3AccessError for S3 operation failures
- - Base64Error for encoding/decoding issues
- - ConfigurationError for missing/invalid configuration
+### Fixed
+- Added fallback mechanism to create image info from URLs in verification context when references are missing
+- Improved image processing with support for direct S3 URL processing
+- Fixed "Reference image reference not found" error when only URL is available
+- Extended the processor to handle cases where image info doesn't have proper storage method set
+- Enhanced checking image handling for better compatibility
+- Added robust detection and processing of S3 URLs directly from verification context
+- Improved error messages for troubleshooting image reference issues
 
-- **Comprehensive Validation**: Enhanced input validation with detailed error messages
- - Environment variable validation (REFERENCE_BUCKET, CHECKING_BUCKET)
- - S3 URL format and bucket validation
- - Machine structure validation with reasonable limits
- - Improved verification type-specific validation
+### Added
+- New processFromS3URL method in image processor for handling S3 URLs directly
+- Support for automatically detecting and setting content type based on image format
+- Comprehensive logging for image processing operations
 
-### Code Improvements
+## [4.0.1] - 2025-05-19
 
-- **Removed Hardcoded Values**: All configuration now sourced from environment variables
- - Template paths, bucket names, Bedrock settings
- - Configurable timeouts and limits
- - Flexible configuration with validation
+### Fixed
+- Fixed validation error for turnNumber field in S3 state envelope input
+- Enhanced state envelope parsing to handle different schema versions
+- Improved input field handling for both direct invocation and Step Functions
+- Updated reference key detection with support for multiple naming patterns
+- Added robust validation for S3 references with clear error messages
+- Fixed main.go handler to properly handle different input formats
+- Enhanced compatibility with state machine execution
+- Improved error recovery for missing or malformed references
 
-- **Enhanced Logging**: Added structured logging with verification ID context
- - Image processing status logging
- - Configuration validation warnings
- - Performance metrics (processing duration)
- - Detailed error context for troubleshooting
+### Added
+- Support for alternative reference field names (References/S3References)
+- Detailed logging of reference resolution for easier troubleshooting
+- Default values for required fields in envelope conversion
+- Flexible reference key matching to handle different naming conventions
 
-- **Modular Architecture**: Separated concerns into focused modules
- - `processor.go`: Core image processing and template data building
- - `s3client.go`: S3 operations and image handling
- - `bedrock.go`: Bedrock message creation and validation
- - `validator.go`: Comprehensive input validation
- - `errors.go`: Specific error types and handling
- - `utils.go`: Common utility functions
+## [4.0.0] - 2025-05-20
 
-### Environment Variables
+### Added
+- Complete refactoring to use shared packages architecture
+- Integration with `workflow-function/shared/s3state` package
+- Modular codebase with clear separation of concerns
+- New directory structure with focused modules
+- Enhanced image processing with better format detection
+- Updated template handling with improved error recovery
+- Comprehensive logging with structured context
+- Integrated Bedrock message creation using shared schema
 
-- **Required Variables**:
- - `TEMPLATE_BASE_PATH`: Path to template directory
- - `REFERENCE_BUCKET`: S3 bucket for reference images
- - `CHECKING_BUCKET`: S3 bucket for checking images
+### Changed
+- Migrated from custom error types to shared error package
+- Replaced custom logging with shared logger package
+- Switched from direct S3 operations to s3state package
+- Updated prompt generation to use shared template loader
+- Improved validation with separate validation module
+- Enhanced documentation with clear architecture explanation
 
-- **Optional Variables** (with validation warnings):
- - `ANTHROPIC_VERSION`: Bedrock API version
- - `MAX_TOKENS`: Maximum tokens for Bedrock response
- - `BUDGET_TOKENS`: Tokens for Claude's thinking process
- - `THINKING_TYPE`: Claude's thinking mode
- - `BASE64_RETRIEVAL_TIMEOUT`: Timeout for S3 operations (ms)
- - `MAX_IMAGE_SIZE_MB`: Maximum image size limit
+### Removed
+- Custom S3 client implementation
+- Direct AWS SDK usage for S3 operations
+- Custom template management code
+- Tightly coupled image processing logic
 
-### Bug Fixes
+## [2.0.1] - 2025-05-19
 
-- Fixed missing Base64 data issue that prevented proper Bedrock integration
-- Resolved template loading errors with proper naming convention handling
-- Improved Docker build reliability with enhanced shared module dependencies
-- Added proper panic recovery with detailed stack traces
+### Added
+- Enhanced Dockerfile for AWS Lambda ARM64 deployment
+- Improved build script with colored output and better error handling
+- Automatic shared module resolution and dependency management
+- Support for proper Go module resolution in Docker builds
 
-### Performance Improvements
+### Fixed
+- Docker build issues with shared module dependencies
+- Template path resolution in containerized environment
+- ARM64 architecture support for AWS Lambda (Graviton)
+- Proper directory structure checking in build script
 
-- Parallel image processing where possible
-- Optimized S3 operations with configurable timeouts
-- Efficient Base64 encoding for large images
-- Template caching for improved performance
+## [2.0.0] - 2025-05-19
 
-### Breaking Changes
+### Added
+- New S3 state management architecture
+- S3 reference-based input/output handling
+- Image processing with multiple storage method support
+- Validator package for input validation
+- Unit tests for validator component
+- Comprehensive README documentation
+- Dockerfile for containerized deployment
+- Build and deployment script with retry logic
 
-- Function now requires Base64 image processing before sending to ExecuteTurn1
-- Environment variables are now required (no hardcoded defaults)
-- Updated response structure to include Base64 data in ImageInfo
+### Changed
+- Transformed from payload-based to S3 state management architecture
+- Refactored code into separate packages with clear responsibilities
+- Updated template handling to use existing template structure
+- Enhanced error handling with shared error types
+- Improved logging with structured context fields
 
-### Dependencies Updated
+### Removed
+- Legacy payload-based input/output handling
+- Direct Base64 image processing in main function
+- Monolithic function structure
 
-- Added AWS SDK v2 for S3 operations
-- Enhanced integration with shared packages (schema, logger, errors)
-- Improved templateloader integration
+## [1.0.0] - 2025-01-15
 
-## v1.2.0 - 2025-05-17
-
-### Bug Fixes and Improvements
-
-- Fixed template loading error by correctly handling template naming conventions (replacing underscores with hyphens)
-- Fixed Docker build issues by improving shared module dependency handling
-- Added panic recovery middleware to gracefully handle unexpected errors
-- Improved error logging with detailed stack traces for better debugging
-- Updated retry-docker-build.sh script to properly handle module dependencies
-
-## v1.1.0 - 2025-05-17
-
-### Migration to Shared Packages
-
-- Migrated to use shared schema package for standardized types
-- Migrated to use shared logger package for consistent logging
-- Migrated to use shared templateloader package for template management
-- Migrated to use shared bedrock package for Bedrock API interactions
-- Migrated to use shared errors package for standardized error handling
-- Removed duplicate code and unused functions
-- Updated code to follow best practices
-- Ensured all AWS dependencies are properly included
-
-### Code Improvements
-
-- Added proper error handling with structured errors
-- Improved logging with structured logs
-- Standardized template loading and rendering
-- Simplified Bedrock message creation using shared utilities
-- Removed hardcoded values and replaced with constants from schema
-- Added proper validation for input parameters
-- Improved code organization and readability
+### Added
+- Initial implementation of PrepareTurn1Prompt function
+- Support for layout-vs-checking verification type
+- Support for previous-vs-current verification type
+- Basic template handling for prompt generation
+- Direct Base64 image processing
