@@ -12,6 +12,7 @@ require (
 	github.com/aws/smithy-go v1.22.3
 	github.com/google/uuid v1.6.0
 	workflow-function/shared/logger v0.0.0-00010101000000-000000000000
+	workflow-function/shared/s3state v0.0.0-00010101000000-000000000000
 	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
 )
 
@@ -39,3 +40,5 @@ replace workflow-function/shared => ../shared
 replace workflow-function/shared/schema => ../shared/schema
 
 replace workflow-function/shared/logger => ../shared/logger
+
+replace workflow-function/shared/s3state => ../shared/s3state

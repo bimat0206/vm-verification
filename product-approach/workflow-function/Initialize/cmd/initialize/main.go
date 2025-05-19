@@ -68,6 +68,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		VerificationPrefix: getEnvWithDefault("VERIFICATION_PREFIX", "verif-"),
 		ReferenceBucket:    os.Getenv("REFERENCE_BUCKET"),
 		CheckingBucket:     os.Getenv("CHECKING_BUCKET"),
+		StateBucket:        os.Getenv("STATE_BUCKET"),
 	}
 	
 	// Create the service
@@ -272,6 +273,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		"layoutTable":        cfg.LayoutTable,
 		"verificationTable":  cfg.VerificationTable,
 		"verificationPrefix": cfg.VerificationPrefix,
+		"stateBucket":        cfg.StateBucket,
 	})
 
 	// 7) Process the request with our internal service
@@ -291,7 +293,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		}
 	}
 	
-	result, err := svc.Process(ctx, internal.ProcessRequest{
+	processRequest := internal.ProcessRequest{
 		SchemaVersion:         request.SchemaVersion,
 		VerificationContext:   request.VerificationContext,
 		VerificationType:      request.VerificationType,
@@ -305,19 +307,33 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		RequestTimestamp:      request.RequestTimestamp,
 		NotificationEnabled:   request.NotificationEnabled,
 		ConversationConfig:    convConfig,
-	})
+	}
 	
+	// Process the request and get the S3 envelope
+	envelope, err := svc.Process(ctx, processRequest)
 	if err != nil {
 		logger.Error("Failed to process request", map[string]interface{}{
 			"error": err.Error(),
 		})
+		
+		// Return error envelope if available
+		if envelope != nil {
+			return envelope, nil
+		}
+		
 		return nil, err
 	}
 	
-	// 8) Return result
-	// Always return just the VerificationContext for Step Functions
-	// This prevents nesting and follows the state machine design
-	return result, nil
+	// 8) Return the S3 envelope with references
+	logger.Info("Returning S3 state envelope", map[string]interface{}{
+		"verificationId": envelope.VerificationID,
+		"status": envelope.Status,
+		"referencesCount": len(envelope.References),
+		"verificationContextIncluded": envelope.VerificationContext != nil,
+	})
+	
+	// For Step Functions, return the envelope directly
+	return envelope, nil
 }
 
 // getEnvWithDefault gets an environment variable with a default value

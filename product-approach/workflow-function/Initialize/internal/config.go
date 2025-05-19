@@ -12,6 +12,7 @@ type Config struct {
 	// S3 bucket names
 	ReferenceBucket string
 	CheckingBucket  string
+	StateBucket     string // New bucket for S3 state management
 	
 	// Default TTL for DynamoDB items in days
 	DefaultTTLDays int

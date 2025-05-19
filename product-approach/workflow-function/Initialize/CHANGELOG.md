@@ -5,6 +5,62 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.4] - 2025-05-19
+
+### Changed
+- Reorganized S3 state structure to use date-based hierarchical path: `{year}/{month}/{day}/{verificationId}/`
+- Implemented helper method `getDateBasedPath` to standardize the path generation
+- Modified folder creation and S3 storage to use the date-based structure
+- Improved S3 performance by distributing objects across date-based prefixes
+- Enhanced logging to show the date-based paths being used
+
+## [3.0.3] - 2025-05-19
+
+### Fixed
+- Fixed Step Functions integration error by ensuring `verificationContext` field is included in the output
+- Added `ExtendedEnvelope` type to maintain compatibility with Step Functions Choice state requirements
+- Updated Process method to return the extended envelope format with both S3 references and verification context
+- Improved logging to detect when verification context is included in the output
+
+## [3.0.2] - 2025-05-19
+
+### Fixed
+- Fixed critical bug where `VerificationAt` field was not set when using standardized schema format
+- Added validation and auto-setting of `VerificationAt` field to prevent DynamoDB errors
+- Improved logging to track when `VerificationAt` is missing and automatically set
+
+## [3.0.1] - 2025-05-19
+
+### Fixed
+- Fixed dependency management for shared s3state package
+- Resolved compilation issues with SchemaVersion field not found in VerificationContext
+- Fixed undefined variable references in previous verification lookup
+- Corrected import statements for proper module resolution
+- Added go.mod replacements for all shared packages
+
+## [3.0.0] - 2025-05-19
+
+### Added
+- Integration with shared S3 state management package
+- S3 state folder structure creation for verification
+- S3StateManagerWrapper for managing state operations
+- STATE_BUCKET environment variable support
+- S3 reference-based output format instead of full data payload
+- Minimal DynamoDB record storage with S3 references
+
+### Changed
+- Refactored to use S3 state management architecture
+- Transformed function from "data creator" to "state initializer"
+- Updated `Process` method to return S3 state envelope
+- Simplified `createVerificationContext` to use shared schema
+- Enhanced error handling to store errors in S3 state
+- Modified lambda handler to work with S3 references
+- Updated resource validation to store results in S3
+
+### Removed
+- Historical context retrieval from Initialize function (moved to FetchHistoricalVerification)
+- Complex conversation configuration handling (simplified)
+
 ## [2.0.1] - 2025-05-17
 
 ### Fixed

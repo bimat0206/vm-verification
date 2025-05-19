@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/google/uuid"
+	"github.com/google/uuid" 
 	"workflow-function/shared/logger"
+	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
 )
 
@@ -27,17 +28,27 @@ type InitializeService struct {
 	layoutRepo         *LayoutRepository
 	s3Validator        *S3Validator
 	s3URLParser        *S3URLParser
+	s3StateManager     *S3StateManagerWrapper
 }
 
 // NewInitializeService creates a new instance of InitializeService
 func NewInitializeService(ctx context.Context, awsConfig aws.Config, cfg Config) (*InitializeService, error) {
 	// Create logger
-	log := logger.New("kootoro-verification", "InitializeFunction")
+	log := logger.New("verification", "InitializeFunction")
 	
 	// Create S3 client
 	s3Client := NewS3Client(awsConfig, cfg, log)
 	s3URLParser := NewS3URLParser(cfg, log)
 	s3Validator := NewS3Validator(s3Client, s3URLParser, log)
+	
+	// Create S3 state manager
+	s3StateManager, err := NewS3StateManager(ctx, awsConfig, cfg, log)
+	if err != nil {
+		log.Error("Failed to create S3 state manager", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, fmt.Errorf("failed to create S3 state manager: %w", err)
+	}
 	
 	// Create DynamoDB client
 	dbClient := NewDynamoDBClient(awsConfig, cfg, log)
@@ -51,205 +62,174 @@ func NewInitializeService(ctx context.Context, awsConfig aws.Config, cfg Config)
 		layoutRepo:         layoutRepo,
 		s3Validator:        s3Validator,
 		s3URLParser:        s3URLParser,
+		s3StateManager:     s3StateManager,
 	}, nil
 }
 
 // Process handles the verification initialization process
-func (s *InitializeService) Process(ctx context.Context, request ProcessRequest) (*schema.VerificationContext, error) {
-	// If using the new standardized schema format
-	if request.SchemaVersion != "" && request.VerificationContext != nil {
-		vc, ok := request.VerificationContext.(*schema.VerificationContext)
-		if !ok {
-			s.logger.Error("Invalid verification context type", map[string]interface{}{
-				"type": fmt.Sprintf("%T", request.VerificationContext),
-			})
-			return nil, fmt.Errorf("invalid verification context type")
-		}
-		
-		// Validate the verification context
-		errors := schema.ValidateVerificationContext(vc)
-		if len(errors) > 0 {
-			s.logger.Error("Verification context validation failed", map[string]interface{}{
-				"errors": errors.Error(),
-			})
-			return nil, fmt.Errorf("validation failed: %s", errors.Error())
-		}
-		
-		// Verify resources
-		resourceValidation, err := s.verifyResources(ctx, request)
-		if err != nil {
-			s.logger.Error("Resource verification failed", map[string]interface{}{
-				"error": err.Error(),
-			})
-			
-			// Create standard error structure
-			errorInfo := &schema.ErrorInfo{
-				Code:      "RESOURCE_VALIDATION_FAILED",
-				Message:   err.Error(),
-				Timestamp: schema.FormatISO8601(),
-				Details: map[string]interface{}{
-					"resourceValidation": resourceValidation,
-				},
-			}
-			
-			vc.Error = errorInfo
-			return vc, err
-		}
-		
-		// Update the verification context with resource validation
-		vc.ResourceValidation = resourceValidation
-		
-		// Always replace the verification ID with our standard format
-		// This ensures any UUID from Step Functions is replaced
-		vc.VerificationId = s.generateVerificationId()
-		
-		// Store in DynamoDB
-		if err := s.verificationRepo.StoreVerificationRecord(ctx, vc); err != nil {
-			s.logger.Error("Failed to store verification record", map[string]interface{}{
-				"error": err.Error(),
-				"verificationId": vc.VerificationId,
-			})
-			return nil, err
-		}
-		
-		s.logger.Info("Verification initialized successfully with standardized schema", map[string]interface{}{
-			"verificationId": vc.VerificationId,
-			"verificationType": vc.VerificationType,
-			"status": vc.Status,
-			"schemaVersion": request.SchemaVersion,
-		})
-		
-		return vc, nil
-	}
-
-	// Legacy flow for backward compatibility
-	s.logger.Info("Using legacy format processing", nil)
-	
-	// Ensure previousVerificationId field is set for PREVIOUS_VS_CURRENT type
-	if request.VerificationType == schema.VerificationTypePreviousVsCurrent && request.PreviousVerificationId == "" {
-		s.logger.Info("Setting empty previousVerificationId for PREVIOUS_VS_CURRENT verification", nil)
-		request.PreviousVerificationId = ""  // Explicitly set to empty string to ensure it exists
-	}
-
-	s.logger.Info("Starting verification initialization process", map[string]interface{}{
-		"verificationType": request.VerificationType,
-		"vendingMachineId": request.VendingMachineId,
-		"previousVerificationId": request.PreviousVerificationId,
-	})
-
-	// Step 1: Validate the request
-	if err := s.validateRequest(request); err != nil {
-		s.logger.Error("Request validation failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil, err
-	}
-
-	// Step 2: Verify all resources exist
-	resourceValidation, err := s.verifyResources(ctx, request)
-	if err != nil {
-		s.logger.Error("Resource verification failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil, err
-	}
-
-	// Step 3: For PREVIOUS_VS_CURRENT, fetch historical context if previousVerificationId is provided
-	var historicalContext *HistoricalContext
-	if request.VerificationType == schema.VerificationTypePreviousVsCurrent && request.PreviousVerificationId != "" {
-		previousVerification, err := s.verificationRepo.GetVerificationRecord(ctx, request.PreviousVerificationId)
-		if err != nil {
-			s.logger.Warn("Failed to fetch previous verification", map[string]interface{}{
-				"previousVerificationId": request.PreviousVerificationId,
-				"error": err.Error(),
-			})
-			// This is a non-critical error, we can continue without historical context
-		} else if previousVerification != nil {
-			historicalContext = s.createHistoricalContext(previousVerification)
-		}
-	} else if request.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		// Try to find the most recent verification using the reference image as checking image
-		previousVerification, err := s.verificationRepo.FindPreviousVerification(ctx, request.ReferenceImageUrl)
-		if err != nil {
-			s.logger.Warn("Failed to find previous verification", map[string]interface{}{
-				"referenceImageUrl": request.ReferenceImageUrl,
-				"error": err.Error(),
-			})
-			// This is a non-critical error, we can continue without historical context
-		} else if previousVerification != nil {
-			historicalContext = s.createHistoricalContext(previousVerification)
-			// Update request with found previousVerificationId
-			request.PreviousVerificationId = previousVerification.VerificationId
-		}
-	}
-
-	// Step 4: Generate verification ID and context
-	verificationContext, err := s.createVerificationContext(request, resourceValidation, historicalContext)
+func (s *InitializeService) Process(ctx context.Context, request ProcessRequest) (*ExtendedEnvelope, error) {
+	// Create a verification context from the request
+	verificationContext, err := s.createVerificationContext(request)
 	if err != nil {
 		s.logger.Error("Failed to create verification context", map[string]interface{}{
 			"error": err.Error(),
 		})
+		return nil, fmt.Errorf("failed to create verification context: %w", err)
+	}
+	
+	// Validate the verification context
+	if err := s.validateVerificationContext(verificationContext); err != nil {
+		s.logger.Error("Verification context validation failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+	
+	// Verify resources (S3 images, layout metadata)
+	resourceValidation, err := s.verifyResources(ctx, verificationContext)
+	if err != nil {
+		s.logger.Error("Resource verification failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		
+		// Create standard error structure
+		errorInfo := &schema.ErrorInfo{
+			Code:      "RESOURCE_VALIDATION_FAILED",
+			Message:   err.Error(),
+			Timestamp: schema.FormatISO8601(),
+			Details: map[string]interface{}{
+				"resourceValidation": resourceValidation,
+			},
+		}
+		
+		verificationContext.Error = errorInfo
+		verificationContext.Status = schema.StatusInitializationFailed
+		
+		// Still try to create the S3 state structure with error info
+		basicEnvelope, stateErr := s.createStateStructure(ctx, verificationContext)
+		if stateErr != nil {
+			// Log but return the original error
+			s.logger.Error("Failed to create state structure after resource validation failure", map[string]interface{}{
+				"error": stateErr.Error(),
+			})
+		} else if basicEnvelope != nil {
+			// Create extended envelope with verification context
+			envelope := NewExtendedEnvelope(basicEnvelope)
+			envelope.VerificationContext = verificationContext
+			
+			// Return the envelope with error status
+			envelope.Envelope.SetStatus(schema.StatusInitializationFailed)
+			return envelope, err
+		}
+		
 		return nil, err
 	}
-
-	// Step 5: Store in DynamoDB
-	if err := s.verificationRepo.StoreVerificationRecord(ctx, verificationContext); err != nil {
+	
+	// Update the verification context with resource validation
+	verificationContext.ResourceValidation = resourceValidation
+	verificationContext.Status = schema.StatusVerificationInitialized
+	
+	// Create S3 state structure and save initialization context
+	basicEnvelope, err := s.createStateStructure(ctx, verificationContext)
+	if err != nil {
+		s.logger.Error("Failed to create state structure", map[string]interface{}{
+			"error": err.Error(),
+			"verificationId": verificationContext.VerificationId,
+		})
+		return nil, fmt.Errorf("failed to create state structure: %w", err)
+	}
+	
+	// Store minimal record in DynamoDB with S3 reference
+	err = s.verificationRepo.StoreMinimalRecord(ctx, verificationContext, basicEnvelope.References["processing_initialization"])
+	if err != nil {
 		s.logger.Error("Failed to store verification record", map[string]interface{}{
 			"error": err.Error(),
 			"verificationId": verificationContext.VerificationId,
 		})
-		return nil, err
+		return nil, fmt.Errorf("failed to store verification record: %w", err)
 	}
-
+	
+	// Set response summary with information Step Functions will look for
+	basicEnvelope.AddSummary("verificationType", verificationContext.VerificationType)
+	basicEnvelope.AddSummary("resourcesValidated", []string{"referenceImage", "checkingImage", "layoutMetadata"})
+	basicEnvelope.AddSummary("contextEstablished", true)
+	basicEnvelope.AddSummary("stateStructureCreated", true)
+	
+	// Create extended envelope with verification context for Step Functions compatibility
+	envelope := NewExtendedEnvelope(basicEnvelope)
+	envelope.VerificationContext = verificationContext
+	
 	s.logger.Info("Verification initialized successfully", map[string]interface{}{
 		"verificationId": verificationContext.VerificationId,
 		"verificationType": verificationContext.VerificationType,
 		"status": verificationContext.Status,
+		"s3StateBucket": s.config.StateBucket,
 	})
-
-	return verificationContext, nil
+	
+	return envelope, nil
 }
 
-// validateRequest validates the request parameters
-func (s *InitializeService) validateRequest(request ProcessRequest) error {
+// createStateStructure creates the S3 state structure and saves the initialization context
+func (s *InitializeService) createStateStructure(ctx context.Context, verificationContext *schema.VerificationContext) (*s3state.Envelope, error) {
+	// Create the folder structure
+	err := s.s3StateManager.InitializeStateStructure(ctx, verificationContext.VerificationId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize state structure: %w", err)
+	}
+	
+	// Create envelope
+	envelope := s.s3StateManager.CreateEnvelope(verificationContext.VerificationId)
+	envelope.SetStatus(verificationContext.Status)
+	
+	// Save verification context to S3
+	err = s.s3StateManager.SaveContext(envelope, verificationContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save verification context: %w", err)
+	}
+	
+	return envelope, nil
+}
+
+// validateVerificationContext validates the verification context
+func (s *InitializeService) validateVerificationContext(verificationContext *schema.VerificationContext) error {
 	// Check verification type
-	if request.VerificationType == "" {
+	if verificationContext.VerificationType == "" {
 		return fmt.Errorf("%w: verificationType", ErrMissingRequiredField)
 	}
 	
 	// Verify verification type is supported
-	if request.VerificationType != schema.VerificationTypeLayoutVsChecking && 
-	   request.VerificationType != schema.VerificationTypePreviousVsCurrent {
-		return fmt.Errorf("%w: %s", ErrInvalidVerificationType, request.VerificationType)
+	if verificationContext.VerificationType != schema.VerificationTypeLayoutVsChecking && 
+	   verificationContext.VerificationType != schema.VerificationTypePreviousVsCurrent {
+		return fmt.Errorf("%w: %s", ErrInvalidVerificationType, verificationContext.VerificationType)
 	}
 
 	// Check required fields for all verification types
-	if request.ReferenceImageUrl == "" {
+	if verificationContext.ReferenceImageUrl == "" {
 		return fmt.Errorf("%w: referenceImageUrl", ErrMissingRequiredField)
 	}
-	if request.CheckingImageUrl == "" {
+	if verificationContext.CheckingImageUrl == "" {
 		return fmt.Errorf("%w: checkingImageUrl", ErrMissingRequiredField)
 	}
 	
 	// Check required fields specific to verification type
-	if request.VerificationType == schema.VerificationTypeLayoutVsChecking {
+	if verificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
 		// Layout vs. Checking requires layoutId and layoutPrefix
-		if request.LayoutId == 0 {
+		if verificationContext.LayoutId == 0 {
 			return fmt.Errorf("%w: layoutId required for %s", ErrMissingRequiredField, schema.VerificationTypeLayoutVsChecking)
 		}
-		if request.LayoutPrefix == "" {
+		if verificationContext.LayoutPrefix == "" {
 			return fmt.Errorf("%w: layoutPrefix required for %s", ErrMissingRequiredField, schema.VerificationTypeLayoutVsChecking)
 		}
 	}
 
 	// Validate S3 URLs format
-	_, _, err := s.s3URLParser.ParseS3URLs(request.ReferenceImageUrl, request.CheckingImageUrl)
+	_, _, err := s.s3URLParser.ParseS3URLs(verificationContext.ReferenceImageUrl, verificationContext.CheckingImageUrl)
 	if err != nil {
 		return err
 	}
 
 	// If reference and checking images are the same, reject
-	if request.ReferenceImageUrl == request.CheckingImageUrl {
+	if verificationContext.ReferenceImageUrl == verificationContext.CheckingImageUrl {
 		return ErrSameReferenceAndChecking
 	}
 
@@ -257,39 +237,18 @@ func (s *InitializeService) validateRequest(request ProcessRequest) error {
 }
 
 // verifyResources checks if all resources (images, layout) exist
-func (s *InitializeService) verifyResources(ctx context.Context, request ProcessRequest) (*schema.ResourceValidation, error) {
+func (s *InitializeService) verifyResources(ctx context.Context, verificationContext *schema.VerificationContext) (*schema.ResourceValidation, error) {
 	// Create validation result
 	resourceValidation := &schema.ResourceValidation{
 		ValidationTimestamp: schema.FormatISO8601(),
 	}
 	
-	// Determine image URLs based on request format
-	var referenceImageUrl, checkingImageUrl string
-	var verificationType string
-	var layoutId int
-	var layoutPrefix string
-	
-	if vc, ok := request.VerificationContext.(*schema.VerificationContext); ok {
-		// Get from verification context
-		referenceImageUrl = vc.ReferenceImageUrl
-		checkingImageUrl = vc.CheckingImageUrl
-		verificationType = vc.VerificationType
-		layoutId = vc.LayoutId
-		layoutPrefix = vc.LayoutPrefix
-	} else {
-		// Get from direct fields
-		referenceImageUrl = request.ReferenceImageUrl
-		checkingImageUrl = request.CheckingImageUrl
-		verificationType = request.VerificationType
-		layoutId = request.LayoutId
-		layoutPrefix = request.LayoutPrefix
-	}
-	
-	// Use a constant max size for all images (10MB)
-	const maxImageSize = 10 * 1024 * 1024
+	// Calculate max image size based on lambda payload limitations
+	// Typically Lambda has a 6MB payload limit, use a safe value below that
+	const maxImageSize = 5 * 1024 * 1024 // 5MB should be safe for Lambda payloads
 	
 	// Validate both images
-	imageURLs := []string{referenceImageUrl, checkingImageUrl}
+	imageURLs := []string{verificationContext.ReferenceImageUrl, verificationContext.CheckingImageUrl}
 	validationResult, err := s.s3Validator.ValidateImagesInParallel(ctx, imageURLs, maxImageSize)
 	if err != nil {
 		return resourceValidation, err
@@ -300,60 +259,19 @@ func (s *InitializeService) verifyResources(ctx context.Context, request Process
 	resourceValidation.CheckingImageExists = validationResult.CheckingImageExists
 	
 	// Verify layout exists in DynamoDB only for LAYOUT_VS_CHECKING
-	if verificationType == schema.VerificationTypeLayoutVsChecking {
-		exists, err := s.layoutRepo.VerifyLayoutExists(ctx, layoutId, layoutPrefix)
+	if verificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		exists, err := s.layoutRepo.VerifyLayoutExists(ctx, verificationContext.LayoutId, verificationContext.LayoutPrefix)
 		if err != nil {
 			return resourceValidation, fmt.Errorf("error checking layout: %w", err)
 		}
 		if !exists {
 			return resourceValidation, fmt.Errorf("layout with ID %d and prefix %s not found", 
-				layoutId, layoutPrefix)
+				verificationContext.LayoutId, verificationContext.LayoutPrefix)
 		}
 		resourceValidation.LayoutExists = true
 	}
 	
 	return resourceValidation, nil
-}
-
-// createHistoricalContext creates a historical context from a previous verification
-func (s *InitializeService) createHistoricalContext(previous *schema.VerificationContext) *HistoricalContext {
-	// Parse previous verification timestamp
-	previousTime, err := time.Parse(time.RFC3339, previous.VerificationAt)
-	if err != nil {
-		s.logger.Warn("Failed to parse previous verification timestamp", map[string]interface{}{
-			"previousVerificationId": previous.VerificationId,
-			"timestamp": previous.VerificationAt,
-		})
-		previousTime = time.Now().UTC() // Fallback to current time
-	}
-
-	// Calculate hours since last verification
-	hoursSince := time.Since(previousTime).Hours()
-
-	// Basic historical context
-	historicalContext := &HistoricalContext{
-		PreviousVerificationId:     previous.VerificationId,
-		PreviousVerificationAt:     previous.VerificationAt,
-		PreviousVerificationStatus: previous.Status,
-		HoursSinceLastVerification: hoursSince,
-	}
-
-	// Machine structure can be retrieved from previous verification context
-	// This is a simplified example, in a real implementation you would extract
-	// more detailed information from the previous verification
-	machineStructure := &MachineStructure{
-		RowCount:      6, // Default values, ideally extracted from previous verification
-		ColumnsPerRow: 10,
-		RowOrder:      []string{"A", "B", "C", "D", "E", "F"},
-		ColumnOrder:   []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
-	}
-	historicalContext.MachineStructure = machineStructure
-
-	// In practice, other fields would be extracted from the actual verification results
-	// stored in previous verification, such as checking status and verification summary.
-	// This would require the VerificationResults table to store this data.
-
-	return historicalContext
 }
 
 // generateVerificationId creates a unique verification ID
@@ -366,21 +284,57 @@ func (s *InitializeService) generateVerificationId() string {
 	return fmt.Sprintf("%s-%s", base, randomSuffix)
 }
 
-// createVerificationContext creates the verification context with a unique ID
-
 // Logger returns the service logger
 func (s *InitializeService) Logger() logger.Logger {
 	return s.logger
 }
-// In internal/initialize_service.go
-// Update the createVerificationContext method to add additional safety
 
-// createVerificationContext creates the verification context with a unique ID
-func (s *InitializeService) createVerificationContext(
-	request ProcessRequest, 
-	resourceValidation *schema.ResourceValidation,
-	historicalContext *HistoricalContext,
-) (*schema.VerificationContext, error) {
+// createVerificationContext creates a new verification context from the request
+func (s *InitializeService) createVerificationContext(request ProcessRequest) (*schema.VerificationContext, error) {
+	var verificationContext *schema.VerificationContext
+	
+	// If using the standardized schema format with VerificationContext
+	if request.SchemaVersion != "" && request.VerificationContext != nil {
+		// Try to use the provided verification context
+		if vc, ok := request.VerificationContext.(*schema.VerificationContext); ok {
+			verificationContext = vc
+			
+			// Ensure verificationId is set
+			if verificationContext.VerificationId == "" {
+				verificationContext.VerificationId = s.generateVerificationId()
+			}
+			
+			// Ensure verificationAt is set (critical for DynamoDB)
+			if verificationContext.VerificationAt == "" {
+				now := time.Now().UTC()
+				verificationContext.VerificationAt = now.Format(time.RFC3339)
+				s.logger.Info("Setting missing verificationAt", map[string]interface{}{
+					"verificationAt": verificationContext.VerificationAt,
+				})
+			}
+			
+			// Store schema version in log for tracking
+			s.logger.Info("Using schema version", map[string]interface{}{
+				"schemaVersion": request.SchemaVersion,
+			})
+			
+			s.logger.Info("Using provided verification context", map[string]interface{}{
+				"verificationId": verificationContext.VerificationId,
+				"verificationAt": verificationContext.VerificationAt,
+				"schemaVersion": request.SchemaVersion,
+			})
+			
+			return verificationContext, nil
+		}
+		
+		// If we can't use the provided verification context, log an error
+		s.logger.Error("Invalid verification context type", map[string]interface{}{
+			"type": fmt.Sprintf("%T", request.VerificationContext),
+		})
+		return nil, fmt.Errorf("invalid verification context type")
+	}
+	
+	// Create a new verification context from the request parameters
 	// Generate a unique verification ID
 	verificationId := s.generateVerificationId()
 
@@ -389,15 +343,14 @@ func (s *InitializeService) createVerificationContext(
 	isoTimestamp := now.Format(time.RFC3339)
 
 	// Create verification context
-	verificationContext := &schema.VerificationContext{
-		VerificationId:    verificationId,
-		VerificationAt:    isoTimestamp,
-		// Do not set Status field, as it's managed by the Step Functions state machine
-		VerificationType:  request.VerificationType,
-		VendingMachineId:  request.VendingMachineId,
-		ReferenceImageUrl: request.ReferenceImageUrl,
-		CheckingImageUrl:  request.CheckingImageUrl,
-		ResourceValidation: resourceValidation,
+	verificationContext = &schema.VerificationContext{
+		VerificationId:      verificationId,
+		VerificationAt:      isoTimestamp,
+		Status:              schema.StatusVerificationInitialized,
+		VerificationType:    request.VerificationType,
+		VendingMachineId:    request.VendingMachineId,
+		ReferenceImageUrl:   request.ReferenceImageUrl,
+		CheckingImageUrl:    request.CheckingImageUrl,
 		NotificationEnabled: request.NotificationEnabled,
 	}
 
@@ -408,51 +361,41 @@ func (s *InitializeService) createVerificationContext(
 	}
 
 	// Set previousVerificationId for PREVIOUS_VS_CURRENT
-	// Always include the field (even if empty) for PREVIOUS_VS_CURRENT verification type
 	if request.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		verificationContext.PreviousVerificationId = request.PreviousVerificationId
-		s.logger.Info("Setting previousVerificationId in context", map[string]interface{}{
-			"previousVerificationId": verificationContext.PreviousVerificationId,
-			"isEmpty": verificationContext.PreviousVerificationId == "",
-		})
-	}
-	
-	// Final verification - ensure required fields are not empty
-	if verificationContext.VerificationId == "" {
-		s.logger.Error("VerificationId is missing in the context", nil)
-		return nil, fmt.Errorf("required field verificationId is missing in the context")
-	}
-	
-	s.logger.Debug("Created verification context", map[string]interface{}{
-		"verificationId": verificationContext.VerificationId,
-		"verificationType": verificationContext.VerificationType,
-		"status": verificationContext.Status,
-	})
-
-	// Handle conversation configuration with safety checks
-	// Ensure we have valid values for the conversation configuration
-	conversationType := request.ConversationConfig.Type
-	maxTurns := request.ConversationConfig.MaxTurns
-	
-	// Apply defaults if values are not provided
-	if conversationType == "" {
-		conversationType = "two-turn"
-	}
-	if maxTurns <= 0 {
-		maxTurns = 2
-	}
-	
-	// Set the conversation configuration
-	verificationContext.ConversationType = conversationType
-	verificationContext.TurnConfig = &schema.TurnConfig{
-		MaxTurns:           maxTurns,
-		ReferenceImageTurn: 1,
-		CheckingImageTurn:  2,
+		
+		// If previous verification ID is not provided, try to find it
+		if verificationContext.PreviousVerificationId == "" {
+			// Use the context from the Process function
+			previousVerification, err := s.verificationRepo.FindPreviousVerification(context.Background(), request.ReferenceImageUrl)
+			if err == nil && previousVerification != nil {
+				verificationContext.PreviousVerificationId = previousVerification.VerificationId
+				s.logger.Info("Found previous verification", map[string]interface{}{
+					"previousVerificationId": verificationContext.PreviousVerificationId,
+				})
+			}
+		}
 	}
 
 	// Initialize turn timestamps
 	verificationContext.TurnTimestamps = &schema.TurnTimestamps{
 		Initialized: isoTimestamp,
+	}
+
+	// Set conversation configuration with defaults
+	verificationContext.ConversationType = "two-turn" // Default
+	verificationContext.TurnConfig = &schema.TurnConfig{
+		MaxTurns:           2, // Default
+		ReferenceImageTurn: 1,
+		CheckingImageTurn:  2,
+	}
+	
+	// Override defaults if provided
+	if request.ConversationConfig.Type != "" {
+		verificationContext.ConversationType = request.ConversationConfig.Type
+	}
+	if request.ConversationConfig.MaxTurns > 0 {
+		verificationContext.TurnConfig.MaxTurns = request.ConversationConfig.MaxTurns
 	}
 
 	// Set request metadata
@@ -466,6 +409,12 @@ func (s *InitializeService) createVerificationContext(
 		RequestTimestamp:  requestTimestamp,
 		ProcessingStarted: isoTimestamp,
 	}
+
+	s.logger.Debug("Created verification context", map[string]interface{}{
+		"verificationId": verificationContext.VerificationId,
+		"verificationType": verificationContext.VerificationType,
+		"status": verificationContext.Status,
+	})
 
 	return verificationContext, nil
 }

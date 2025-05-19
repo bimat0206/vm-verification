@@ -19,6 +19,7 @@ var (
 	ErrTableNotSpecified  = errors.New("table name not specified")
 	ErrMarshalingFailed   = errors.New("failed to marshal item")
 	ErrUnmarshalingFailed = errors.New("failed to unmarshal item")
+	ErrMissingPrimaryKey  = errors.New("missing primary key attributes")
 )
 
 // DynamoDBClient wraps DynamoDB operations with consistent error handling
@@ -86,6 +87,20 @@ func (c *DynamoDBClient) PutItem(
 		return nil, ErrTableNotSpecified
 	}
 	
+	// Validate and fix primary key issues before attempting to put the item
+	item = c.ensurePrimaryKeys(tableName, item)
+	
+	// Log the keys present in the item for debugging
+	keys := make([]string, 0, len(item))
+	for k := range item {
+		keys = append(keys, k)
+	}
+	
+	c.logger.Debug("Putting item in DynamoDB", map[string]interface{}{
+		"table": tableName,
+		"keys": keys,
+	})
+	
 	input := &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
@@ -106,10 +121,6 @@ func (c *DynamoDBClient) PutItem(
 		input.ExpressionAttributeValues = expressionAttrValues
 	}
 	
-	c.logger.Debug("Putting item in DynamoDB", map[string]interface{}{
-		"table": tableName,
-	})
-	
 	result, err := c.client.PutItem(ctx, input)
 	if err != nil {
 		var conditionCheckErr *types.ConditionalCheckFailedException
@@ -123,12 +134,130 @@ func (c *DynamoDBClient) PutItem(
 		
 		c.logger.Error("Failed to put item in DynamoDB", map[string]interface{}{
 			"table": tableName,
+			"keys": keys,
 			"error": err.Error(),
 		})
 		return nil, err
 	}
 	
 	return result, nil
+}
+
+// ensurePrimaryKeys ensures the required primary keys exist in the item
+// and fixes any case-sensitive key issues
+func (c *DynamoDBClient) ensurePrimaryKeys(tableName string, item map[string]types.AttributeValue) map[string]types.AttributeValue {
+	// Check for VerificationResults table
+	if tableName == c.config.VerificationTable {
+		// Handle case-sensitive keys for verificationId/VerificationId
+		_, hasLowerVerificationId := item["verificationId"]
+		upperVerificationId, hasUpperVerificationId := item["VerificationId"]
+		
+		if !hasLowerVerificationId && hasUpperVerificationId {
+			// Copy from uppercase to lowercase which is the expected key name
+			c.logger.Info("Fixed case sensitivity for verificationId", nil)
+			item["verificationId"] = upperVerificationId
+		}
+		
+		// Handle case-sensitive keys for verificationAt/VerificationAt
+		_, hasLowerVerificationAt := item["verificationAt"]
+		upperVerificationAt, hasUpperVerificationAt := item["VerificationAt"]
+		
+		if !hasLowerVerificationAt && hasUpperVerificationAt {
+			// Copy from uppercase to lowercase which is the expected key name
+			c.logger.Info("Fixed case sensitivity for verificationAt", nil)
+			item["verificationAt"] = upperVerificationAt
+		}
+		
+		// Validate both keys are present
+		if _, hasVerificationId := item["verificationId"]; !hasVerificationId {
+			c.logger.Error("Missing required partition key 'verificationId'", nil)
+		}
+		
+		if _, hasVerificationAt := item["verificationAt"]; !hasVerificationAt {
+			c.logger.Error("Missing required sort key 'verificationAt'", nil)
+		}
+	}
+	
+	// Check for layoutId and layoutPrefix for LayoutMetadata table
+	if tableName == c.config.LayoutTable {
+		// Handle case-sensitive keys for layoutId/LayoutId
+		_, hasLowerLayoutId := item["layoutId"]
+		upperLayoutId, hasUpperLayoutId := item["LayoutId"]
+		
+		if !hasLowerLayoutId && hasUpperLayoutId {
+			// Copy from uppercase to lowercase
+			c.logger.Info("Fixed case sensitivity for layoutId", nil)
+			item["layoutId"] = upperLayoutId
+		}
+		
+		// Handle case-sensitive keys for layoutPrefix/LayoutPrefix
+		_, hasLowerLayoutPrefix := item["layoutPrefix"]
+		upperLayoutPrefix, hasUpperLayoutPrefix := item["LayoutPrefix"]
+		
+		if !hasLowerLayoutPrefix && hasUpperLayoutPrefix {
+			// Copy from uppercase to lowercase
+			c.logger.Info("Fixed case sensitivity for layoutPrefix", nil)
+			item["layoutPrefix"] = upperLayoutPrefix
+		}
+	}
+	
+	return item
+}
+
+// validatePrimaryKey checks if the required primary key field(s) exist in the item
+// This is a critical validation to prevent DynamoDB ValidationException errors
+func (c *DynamoDBClient) validatePrimaryKey(tableName string, item map[string]types.AttributeValue) error {
+	// Check for verificationId and verificationAt for VerificationResults table
+	if tableName == c.config.VerificationTable {
+		// Check lowercase and uppercase variants for verificationId
+		_, hasLowerVerificationId := item["verificationId"]
+		_, hasUpperVerificationId := item["VerificationId"]
+		
+		if !hasLowerVerificationId && !hasUpperVerificationId {
+			c.logger.Error("Missing primary key 'verificationId' for table", map[string]interface{}{
+				"table": tableName,
+			})
+			return ErrMissingPrimaryKey
+		}
+		
+		// Check lowercase and uppercase variants for verificationAt
+		_, hasLowerVerificationAt := item["verificationAt"]
+		_, hasUpperVerificationAt := item["VerificationAt"]
+		
+		if !hasLowerVerificationAt && !hasUpperVerificationAt {
+			c.logger.Error("Missing sort key 'verificationAt' for table", map[string]interface{}{
+				"table": tableName,
+			})
+			return ErrMissingPrimaryKey
+		}
+	}
+	
+	// Check for layoutId and layoutPrefix for LayoutMetadata table
+	if tableName == c.config.LayoutTable {
+		// Check lowercase and uppercase variants for layoutId
+		_, hasLowerLayoutId := item["layoutId"]
+		_, hasUpperLayoutId := item["LayoutId"]
+		
+		if !hasLowerLayoutId && !hasUpperLayoutId {
+			c.logger.Error("Missing partition key 'layoutId' for table", map[string]interface{}{
+				"table": tableName,
+			})
+			return ErrMissingPrimaryKey
+		}
+		
+		// Check lowercase and uppercase variants for layoutPrefix
+		_, hasLowerLayoutPrefix := item["layoutPrefix"]
+		_, hasUpperLayoutPrefix := item["LayoutPrefix"]
+		
+		if !hasLowerLayoutPrefix && !hasUpperLayoutPrefix {
+			c.logger.Error("Missing sort key 'layoutPrefix' for table", map[string]interface{}{
+				"table": tableName,
+			})
+			return ErrMissingPrimaryKey
+		}
+	}
+	
+	return nil
 }
 
 // Query executes a query against a DynamoDB table or index
@@ -176,11 +305,13 @@ func (c *DynamoDBClient) Client() *dynamodb.Client {
 }
 
 // MarshalMap is a convenience wrapper around the attributevalue.MarshalMap function
+// with additional validation for required fields
 func MarshalMap(item interface{}) (map[string]types.AttributeValue, error) {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
 		return nil, ErrMarshalingFailed
 	}
+	
 	return av, nil
 }
 
