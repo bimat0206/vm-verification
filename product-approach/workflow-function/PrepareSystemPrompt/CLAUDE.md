@@ -20,19 +20,20 @@ go test ./...
 go build -o main cmd/main.go
 
 # Local testing with sample events
-./main < events/layout-vs-checking.json
+./main < events/initialization.json
+./main < events/s3-reference-input.json
 ```
 
 ### Build and Deploy as Container
 ```bash
 # Build the container
-docker build -t kootoro-prepare-system-prompt:v1.0.0 .
+docker build -t kootoro-prepare-system-prompt:v2.1.0 .
 
 # Tag for ECR
-docker tag kootoro-prepare-system-prompt:v1.0.0 ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepare-system-prompt:v1.0.0
+docker tag kootoro-prepare-system-prompt:v2.1.0 ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepare-system-prompt:v2.1.0
 
 # Push to ECR
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepare-system-prompt:v1.0.0
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepare-system-prompt:v2.1.0
 
 # Alternative build script if the main build fails
 ./retry-docker-build.sh
@@ -42,21 +43,23 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepar
 
 ### Core Components
 1. **Lambda Handler**: `cmd/main.go` - Entry point that processes events and returns responses
-2. **Template Management**: `internal/templates.go` - Handles loading and rendering Go templates with version support
-3. **Input Validation**: `internal/validator.go` - Comprehensive validation for input data
-4. **Bedrock Integration**: `internal/bedrock.go` - Amazon Bedrock API configuration
-5. **Data Processing**: `internal/processor.go` - Prepares data for template rendering
-6. **Utility Functions**: `internal/utils.go` - Helper functions for various operations
-7. **Type Definitions**: `internal/types.go` - Data structures used throughout the application
+2. **Configuration**: `internal/config/config.go` - Application configuration
+3. **Logging**: `internal/logging/logger.go` - Structured logging
+4. **Models**: `internal/models/` - Data models and conversions
+5. **State Management**: `internal/state/` - S3 state management
+6. **Template Management**: `internal/template/template_manager.go` - Template loading and rendering
+7. **Input Validation**: `internal/validation/` - Input validation with S3 helpers
 
 ### Data Flow
-1. Lambda receives verification context and metadata
-2. Input is validated based on verification type
-3. Template is loaded based on verification type and version
-4. Template data is constructed from input
-5. Template is rendered with the data
-6. Bedrock configuration is created
-7. Final response is assembled and returned
+1. Lambda receives verification context or S3 reference envelope
+2. Input is parsed and validated based on verification type
+3. State is loaded from S3 if needed
+4. Template is loaded based on verification type and version
+5. Template data is constructed from input
+6. Template is rendered with the data
+7. Bedrock configuration is created
+8. System prompt is stored in S3
+9. Final response with S3 references is assembled and returned
 
 ### Verification Types
 1. **LAYOUT_VS_CHECKING**: Compares a reference layout image with a real-time checking image
@@ -68,11 +71,12 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/kootoro-prepar
 |----------|-------------|---------|----------|
 | REFERENCE_BUCKET | S3 bucket for reference layout images | - | Yes |
 | CHECKING_BUCKET | S3 bucket for checking images | - | Yes |
+| STATE_BUCKET | S3 bucket for state management | - | Yes |
 | TEMPLATE_BASE_PATH | Path to template directory | /opt/templates | No |
-| ANTHROPIC_VERSION | Anthropic API version for Bedrock | bedrock-2023-05-31 | No |
+| COMPONENT_NAME | Component name for logging | PrepareSystemPrompt | No |
+| DATE_PARTITION_TIMEZONE | Timezone for date partitioning | UTC | No |
 | MAX_TOKENS | Maximum tokens for response | 24000 | No |
 | BUDGET_TOKENS | Tokens for Claude's thinking process | 16000 | No |
-| THINKING_TYPE | Claude's thinking mode | enabled | No |
 | PROMPT_VERSION | Default prompt version | 1.0.0 | No |
 | DEBUG | Enable debug logging | false | No |
 
@@ -90,15 +94,36 @@ Templates use Go's text/template format and are organized in the following struc
     └── v1.1.0.tmpl
 ```
 
-To add new templates:
-1. Create a new template file in the appropriate directory
-2. Use Go's text/template syntax
-3. The template will be automatically discovered
+## S3 State Management
+
+The function uses a date-based hierarchical storage system for managing state in S3, with the following structure:
+```
+{STATE_BUCKET}/
+└── {YYYY}/
+    └── {MM}/
+        └── {DD}/
+            └── {verificationId}/
+                ├── initialization.json     - Initial verification context
+                ├── prompts/                - System prompts
+                │   └── system-prompt.json  - Generated system prompt
+                ├── images/                 - Image data (if stored in S3)
+                └── processing/             - Processing artifacts
+```
+
+## Dependencies
+
+The application uses:
+1. AWS Lambda Go runtime
+2. AWS SDK Go v2 for S3 operations
+3. Shared packages:
+   - schema - Common data structures
+   - logger - Logging interface
+   - templateloader - Template loading and management
 
 ## Best Practices
 
 1. Always validate inputs before processing
-2. Use environment variables for configuration
+2. Use structured logging with verification context
 3. Maintain backward compatibility when updating templates
 4. Follow the established error handling pattern
 5. Ensure image formats are supported by Bedrock (JPEG/PNG only)

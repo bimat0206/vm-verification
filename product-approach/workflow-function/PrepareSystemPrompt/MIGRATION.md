@@ -1,86 +1,129 @@
-# Shared Package Migration Guide
+# PrepareSystemPrompt Refactoring Summary
 
-This document outlines the process of migrating the PrepareSystemPrompt function to use the shared packages.
+This document summarizes the major changes made during the v4.0.0 refactoring of the PrepareSystemPrompt Lambda function.
 
-## Shared Packages Used
+## Overview
 
-We've refactored the PrepareSystemPrompt function to use the following shared packages:
+The refactoring focused on:
+1. Creating a modular, maintainable architecture
+2. Integrating with shared packages
+3. Implementing date-based S3 state management
+4. Improving error handling and logging
+5. Supporting multiple input types
 
-1. **shared/schema**: Defines common data structures and validation logic
-2. **shared/templateloader**: Provides template loading, caching, and rendering
-3. **shared/s3utils**: Utilities for working with S3 including URL validation
+## Directory Structure Changes
 
-## Changes Made
+### Before
+```
+PrepareSystemPrompt/
+├── cmd/
+│   └── main.go
+├── internal/
+│   ├── bedrock.go
+│   ├── processor.go
+│   ├── templates.go
+│   ├── types.go
+│   ├── utils.go
+│   └── validator.go
+└── templates/
+    ├── layout-vs-checking/
+    │   └── v1.0.0.tmpl
+    └── previous-vs-current/
+        └── v1.1.0.tmpl
+```
 
-### 1. Dependencies
+### After
+```
+PrepareSystemPrompt/
+├── cmd/
+│   └── main.go
+├── internal/
+│   ├── adapters/
+│   │   ├── bedrock.go
+│   │   └── s3state.go
+│   ├── config/
+│   │   └── config.go
+│   ├── handlers/
+│   │   └── handler.go
+│   ├── models/
+│   │   ├── input.go
+│   │   ├── output.go
+│   │   └── template_data.go
+│   └── processors/
+│       ├── template.go
+│       └── validation.go
+├── templates/
+│   ├── layout-vs-checking/
+│   │   └── v1.0.0.tmpl
+│   └── previous-vs-current/
+│       └── v1.1.0.tmpl
+└── test/
+    └── test_input.json
+```
 
-The `go.mod` file was updated to include the shared packages. We set up proper replacement directives to point to the relative path of the shared packages.
+## Key Improvements
 
-### 2. Type Definitions
+### 1. Modular Architecture
 
-The original `internal/types.go` was refactored to:
+- **Clear Separation of Concerns**: Each package has a single responsibility
+- **Better Testability**: Components can be tested in isolation
+- **Enhanced Maintainability**: Maximum file size of ~200 lines
+- **Reduced Complexity**: Each component focuses on one aspect
 
-- Use the `schema.WorkflowState` as the primary data structure
-- Keep some local types like `TemplateData` which are specific to this function
-- Provide helper methods to extract data from the generic maps in `WorkflowState`
+### 2. Shared Package Integration
 
-### 3. Template Management
+- **Schema Package**: Data structures and constants
+- **Logger Package**: Structured logging
+- **S3State Package**: Standardized state management
+- **TemplateLoader Package**: Template loading and rendering
 
-The original `internal/templates.go` was replaced with:
+### 3. S3 State Management
 
-- Integration with `shared/templateloader` for template loading and caching
-- Helper functions to maintain backward compatibility with existing code
+- **Date-Based Hierarchical Storage**:
+  ```
+  {STATE_BUCKET}/
+  └── {YYYY}/
+      └── {MM}/
+          └── {DD}/
+              └── {verificationId}/
+                  ├── processing/initialization.json
+                  ├── prompts/system-prompt.json
+                  └── images/
+  ```
+- **S3 Reference-Based I/O**: Return references instead of full content
+- **Enhanced Error Handling**: Context-rich errors with date information
 
-### 4. Validation
+### 4. Dual Input Support
 
-The validation was updated to:
+- **S3 Reference Input**: For Step Functions integration
+- **Direct JSON Input**: For backward compatibility and testing
 
-- Use `shared/schema/validation` for standard validation
-- Use `shared/s3utils` for S3 URL validation
-- Keep function-specific validation logic
+### 5. Configuration Improvements
 
-### 5. Bedrock Integration
+- **Environment-Based Config**: All settings via environment variables
+- **Timezone Support**: Configurable timezone for date partitioning
+- **Template Versioning**: Configurable prompt versions
 
-The Bedrock integration was updated to:
+## Migration Approach
 
-- Use `schema.BedrockConfig` and `schema.Thinking` types
-- Keep function-specific request/response handling
+1. **Preserve Functionality**: Maintain all existing functionality
+2. **Incremental Changes**: Refactor one component at a time
+3. **Test Each Change**: Verify functionality after each major component
+4. **Document Changes**: Update README and CHANGELOG
 
-## Challenges
+## Testing
 
-During migration, we encountered several challenges:
-
-1. **Module Path Resolution**: Go module paths needed careful configuration to properly resolve the shared packages.
-
-2. **Type Compatibility**: The shared types sometimes required adaptation to work with existing code.
-
-3. **Dependency Management**: Managing dependencies across multiple packages required careful attention.
-
-## Integration Steps for Other Functions
-
-To integrate shared packages into other functions, follow these steps:
-
-1. **Update go.mod**: Add the shared packages and set up proper replacement directives.
-
-2. **Adapt Types**: Update code to use shared types where applicable, keeping function-specific types as needed.
-
-3. **Use Shared Utilities**: Replace custom implementations with shared utilities.
-
-4. **Test Thoroughly**: Ensure the function still works with sample events.
-
-## Benefits
-
-Using shared packages provides several benefits:
-
-1. **Standardized Data Structures**: Consistent types across functions
-2. **Code Reuse**: Avoid duplicating logic
-3. **Maintainability**: Easier to maintain and update
-4. **Consistency**: Ensure consistent behavior across functions
+Test both input types using the provided test input in `test/test_input.json`. Compare outputs to ensure compatibility with existing systems.
 
 ## Future Improvements
 
-Some potential future improvements:
+1. **Unit Tests**: Add comprehensive unit tests for each component
+2. **Integration Tests**: Add integration tests with mock S3 and Bedrock
+3. **Documentation**: Enhance with examples for each verification type
+4. **Error Handling**: Further improve error messages and recovery
+5. **Metrics**: Add performance metrics for monitoring
 
-1. **Better Documentation**: Add more documentation to shared packages
-2. **More Test Coverage**: Add tests for shared functionality
-3. **CI/CD Integration**: Ensure CI/CD verifies compatibility with shared packages
+## Conclusion
+
+This refactoring significantly improves the maintainability, testability, and scalability of the PrepareSystemPrompt Lambda function. The modular architecture and shared package integration ensure consistency with other components in the system.
+EOF < /dev/null

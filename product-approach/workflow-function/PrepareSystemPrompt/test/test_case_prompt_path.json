@@ -1,0 +1,26 @@
+{
+  "type": "direct",
+  "verificationContext": {
+    "verificationId": "verif-20250519-test",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-3245",
+    "verificationAt": "2025-05-19T13:00:00Z",
+    "status": "INITIALIZED"
+  },
+  "layoutMetadata": {
+    "layoutId": 12345,
+    "planogram": {
+      "id": "PLG-1234",
+      "version": "1.0.0",
+      "lastUpdated": "2025-01-01T00:00:00Z"
+    },
+    "productPositions": [
+      {
+        "position": "A1",
+        "productId": "PROD-123",
+        "productName": "Test Product",
+        "expectedCount": 10
+      }
+    ]
+  }
+}

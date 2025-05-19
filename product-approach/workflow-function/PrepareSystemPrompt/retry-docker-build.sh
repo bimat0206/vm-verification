@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e  # Exit immediately if a command fails
 
-# Configuration
+# Configuration - Edit these values if needed
 ECR_REPO="879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-prepare-system-prompt-f6d3xl"
 FUNCTION_NAME="kootoro-dev-lambda-prepare-system-prompt-f6d3xl"
 AWS_REGION="us-east-1"
-IMAGE_TAG="latest"
+IMAGE_TAG="latest"  # Updated version tag to match changelog
 
 echo "=== Kootoro PrepareSystemPrompt Docker Build ==="
 echo "ECR Repository: $ECR_REPO"
@@ -37,9 +37,22 @@ echo "Preparing build context..."
 BUILD_CONTEXT=$(mktemp -d)
 trap "rm -rf $BUILD_CONTEXT" EXIT
 
-# Copy function code
-cp -r ./cmd "$BUILD_CONTEXT/"
-cp -r ./internal "$BUILD_CONTEXT/"
+# Copy the new directory structure
+echo "Copying application code..."
+mkdir -p "$BUILD_CONTEXT/cmd" \
+         "$BUILD_CONTEXT/internal/adapters" \
+         "$BUILD_CONTEXT/internal/config" \
+         "$BUILD_CONTEXT/internal/handlers" \
+         "$BUILD_CONTEXT/internal/models" \
+         "$BUILD_CONTEXT/internal/processors"
+
+# Copy all subdirectories and files
+cp -r ./cmd/* "$BUILD_CONTEXT/cmd/"
+cp -r ./internal/adapters/* "$BUILD_CONTEXT/internal/adapters/"
+cp -r ./internal/config/* "$BUILD_CONTEXT/internal/config/"
+cp -r ./internal/handlers/* "$BUILD_CONTEXT/internal/handlers/"
+cp -r ./internal/models/* "$BUILD_CONTEXT/internal/models/"
+cp -r ./internal/processors/* "$BUILD_CONTEXT/internal/processors/"
 cp -r ./templates "$BUILD_CONTEXT/"
 cp go.mod go.sum "$BUILD_CONTEXT/"
 cp *.md "$BUILD_CONTEXT/" 2>/dev/null || true
@@ -49,7 +62,7 @@ mkdir -p "$BUILD_CONTEXT/shared"
 
 # Copy shared modules and fix import paths
 echo "Copying shared modules and fixing import paths..."
-for module in schema s3utils templateloader logger; do
+for module in schema s3state templateloader logger errors; do
     if [ -d "../shared/$module" ]; then
         cp -r "../shared/$module" "$BUILD_CONTEXT/shared/"
         echo "  ✓ Copied shared/$module"
@@ -76,7 +89,7 @@ RUN apk add --no-cache git
 # Copy go module files first for better caching
 COPY go.mod go.sum ./
 
-# Copy source code
+# Copy source code with new directory structure
 COPY ./cmd ./cmd
 COPY ./internal ./internal
 COPY *.md ./
@@ -86,9 +99,10 @@ COPY ./shared ./shared
 
 # Update go.mod to use local shared modules
 RUN go mod edit -replace=workflow-function/shared/schema=./shared/schema \
-    && go mod edit -replace=workflow-function/shared/s3utils=./shared/s3utils \
     && go mod edit -replace=workflow-function/shared/templateloader=./shared/templateloader \
-    && go mod edit -replace=workflow-function/shared/logger=./shared/logger
+    && go mod edit -replace=workflow-function/shared/logger=./shared/logger \
+    && go mod edit -replace=workflow-function/shared/s3state=./shared/s3state \
+    && go mod edit -replace=workflow-function/shared/error=./shared/errors
 
 # Download dependencies and build
 RUN go mod download && go mod tidy
@@ -106,8 +120,11 @@ COPY --from=build /main /main
 RUN mkdir -p /opt/templates
 COPY templates/ /opt/templates/
 
-# Set component name for logging
+# Set environment variables 
 ENV COMPONENT_NAME="PrepareSystemPrompt"
+ENV DATE_PARTITION_TIMEZONE="UTC"
+ENV TEMPLATE_BASE_PATH="/opt/templates"
+ENV DEBUG="false"
 
 ENTRYPOINT ["/main"]
 EOF
@@ -140,4 +157,3 @@ echo "=== Build and Deployment Complete ==="
 echo "Image: $ECR_REPO:$IMAGE_TAG"
 echo "Function: $FUNCTION_NAME"
 echo "========================================="
-
