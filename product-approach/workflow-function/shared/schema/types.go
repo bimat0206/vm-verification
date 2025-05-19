@@ -40,10 +40,4 @@ type TurnHistory struct {
 	AnalysisStage string     `json:"analysisStage"`
 }
 
-// TokenUsage represents token usage metrics
-type TokenUsage struct {
-	InputTokens   int `json:"inputTokens"`
-	OutputTokens  int `json:"outputTokens"`
-	ThinkingTokens int `json:"thinkingTokens,omitempty"`
-	TotalTokens   int `json:"totalTokens"`
-}
+// TokenUsage is defined in bedrock.go

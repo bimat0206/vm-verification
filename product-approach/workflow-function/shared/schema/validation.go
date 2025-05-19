@@ -110,7 +110,7 @@ func ValidateVerificationContext(ctx *VerificationContext) Errors {
 func ValidateWorkflowState(state *WorkflowState) Errors {
 	var errors Errors
 
-	// Check schema version - only support 1.2.0
+	// Check schema version - v2.0.0
 	if state.SchemaVersion == "" {
 		state.SchemaVersion = SchemaVersion
 	} else if state.SchemaVersion != SchemaVersion {
@@ -161,7 +161,7 @@ func ValidateWorkflowState(state *WorkflowState) Errors {
 	return errors
 }
 
-// ValidateImageInfo validates image information including Base64 data
+// ValidateImageInfo validates image information including S3 storage for Base64 data
 func ValidateImageInfo(img *ImageInfo, requireBase64 bool) Errors {
 	var errors Errors
 	
@@ -183,8 +183,9 @@ func ValidateImageInfo(img *ImageInfo, requireBase64 bool) Errors {
 	
 	// Base64 validation when required
 	if requireBase64 {
-		if img.Base64Data == "" {
-			errors = append(errors, ValidationError{Field: "base64Data", Message: "required for Bedrock API"})
+		// Check for S3 storage of Base64 data
+		if !img.HasBase64Data() {
+			errors = append(errors, ValidationError{Field: "base64S3Key", Message: "S3 key for Base64 data required for Bedrock API"})
 		}
 		if img.Format == "" {
 			errors = append(errors, ValidationError{Field: "format", Message: "required for Base64 data"})
@@ -209,7 +210,7 @@ func ValidateImageInfo(img *ImageInfo, requireBase64 bool) Errors {
 		// Validate Base64 size
 		if err := img.ValidateBase64Size(); err != nil {
 			errors = append(errors, ValidationError{
-				Field:   "base64Data",
+				Field:   "base64Size",
 				Message: err.Error(),
 			})
 		}
@@ -264,7 +265,7 @@ func ValidateImageData(images *ImageData, requireBase64 bool) Errors {
 	return errors
 }
 
-// ValidateBedrockMessages validates Bedrock message format
+// ValidateBedrockMessages validates Bedrock message format according to schema v2.0.0
 func ValidateBedrockMessages(messages []BedrockMessage) Errors {
 	var errors Errors
 	
@@ -330,15 +331,39 @@ func ValidateBedrockMessages(messages []BedrockMessage) Errors {
 							Message: "required",
 						})
 					}
-					if content.Image.Source.Type != "bytes" {
+					// Validate the updated v2.0.0 format with new field names
+					if content.Image.Source.Type != "base64" {
 						errors = append(errors, ValidationError{
 							Field:   fmt.Sprintf("messages[%d].content[%d].image.source.type", i, j),
-							Message: "must be 'bytes'",
+							Message: "must be 'base64'",
 						})
 					}
-					if content.Image.Source.Bytes == "" {
+					
+					if content.Image.Source.Media_type == "" {
 						errors = append(errors, ValidationError{
-							Field:   fmt.Sprintf("messages[%d].content[%d].image.source.bytes", i, j),
+							Field:   fmt.Sprintf("messages[%d].content[%d].image.source.media_type", i, j),
+							Message: "media type is required",
+						})
+					} else {
+						validMediaTypes := []string{"image/png", "image/jpeg", "image/jpg"}
+						isValidMediaType := false
+						for _, validType := range validMediaTypes {
+							if content.Image.Source.Media_type == validType {
+								isValidMediaType = true
+								break
+							}
+						}
+						if !isValidMediaType {
+							errors = append(errors, ValidationError{
+								Field:   fmt.Sprintf("messages[%d].content[%d].image.source.media_type", i, j),
+								Message: fmt.Sprintf("must be one of %v", validMediaTypes),
+							})
+						}
+					}
+					
+					if content.Image.Source.Data == "" {
+						errors = append(errors, ValidationError{
+							Field:   fmt.Sprintf("messages[%d].content[%d].image.source.data", i, j),
 							Message: "Base64 image data required",
 						})
 					}
