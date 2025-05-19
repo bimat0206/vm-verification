@@ -12,6 +12,7 @@ import (
 	"workflow-function/shared/s3state"
 	
 	"workflow-function/FetchImages/internal/config"
+	"workflow-function/FetchImages/internal/models"
 )
 
 // S3StateManager wraps the s3state.Manager to provide additional functionality
@@ -164,6 +165,27 @@ func (s *S3StateManager) AddSummary(envelope *s3state.Envelope, key string, valu
 
 // LoadEnvelope loads an envelope from the input
 func (s *S3StateManager) LoadEnvelope(input interface{}) (*s3state.Envelope, error) {
+	// Check if input is a FetchImagesRequest, and convert it to an Envelope
+	if req, ok := input.(*models.FetchImagesRequest); ok {
+		envelope := &s3state.Envelope{
+			VerificationID: req.VerificationId,
+			References:     req.S3References,
+			Status:         req.Status,
+			Summary:        make(map[string]interface{}),
+		}
+		
+		// If the conversion succeeded, return the envelope
+		if envelope.VerificationID != "" {
+			s.logger.Info("Created envelope from FetchImagesRequest", map[string]interface{}{
+				"verificationId": envelope.VerificationID,
+				"status":        envelope.Status,
+				"referenceCount": len(envelope.References),
+			})
+			return envelope, nil
+		}
+	}
+	
+	// For other input types, use the standard method
 	envelope, err := s3state.LoadEnvelope(input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load envelope: %w", err)

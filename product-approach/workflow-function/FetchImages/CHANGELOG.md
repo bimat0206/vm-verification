@@ -7,6 +7,7 @@
 - Fixed ContentLength handling in S3Repository to properly dereference pointer value
 - Removed unused imports (strings, aws, schema) to fix compiler warnings
 - Fixed proper initialization of ImageInfo struct with nil-safe property assignments
+- Fixed "unsupported input type: *models.FetchImagesRequest" error by enhancing S3StateManager.LoadEnvelope to handle FetchImagesRequest directly
 
 ## [4.0.0] - 2025-05-19
 
