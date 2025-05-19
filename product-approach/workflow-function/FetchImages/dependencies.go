@@ -6,9 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"workflow-function/shared/dbutils"
 	"workflow-function/shared/logger"
-	"workflow-function/shared/s3utils"
 )
 
 // ConfigVars contains configuration for the lambda function
@@ -25,8 +23,6 @@ type Dependencies struct {
 	logger    logger.Logger
 	s3Client  *s3.Client
 	dbClient  *dynamodb.Client
-	s3Utils   *s3utils.S3Utils
-	dbUtils   *dbutils.DynamoDBUtils
 	awsConfig aws.Config
 	config    ConfigVars
 }
@@ -40,9 +36,6 @@ func NewDependencies(awsConfig aws.Config) *Dependencies {
 	// Create logger
 	log := logger.New("kootoro-verification", "FetchImagesFunction")
 	
-	// Create S3Utils instance with config
-	s3Util := s3utils.NewWithConfig(awsConfig, log)
-	
 	// Load configuration early
 	config := LoadConfig()
 	
@@ -50,41 +43,33 @@ func NewDependencies(awsConfig aws.Config) *Dependencies {
 		logger:    log,
 		s3Client:  s3Client,
 		dbClient:  dbClient,
-		s3Utils:   s3Util,
 		awsConfig: awsConfig,
 		config:    config,
 	}
 }
 
-// ConfigureDbUtils sets up the DynamoDB utilities with config
+// ConfigureDbUtils sets up the DynamoDB configuration
 func (d *Dependencies) ConfigureDbUtils(config ConfigVars) {
-	// Convert our ConfigVars to the format expected by dbutils
-	dbConfig := dbutils.Config{
-		VerificationTable: config.VerificationTable,
-		LayoutTable:       config.LayoutTable,
-		DefaultTTLDays:    30, // 30 days default TTL
-	}
-	
-	d.dbUtils = dbutils.New(d.dbClient, d.logger, dbConfig)
+	// No wrapper initialization needed - using direct DynamoDB client
+	d.logger.Info("Configured direct DynamoDB access", map[string]interface{}{
+		"layoutTable":       config.LayoutTable,
+		"verificationTable": config.VerificationTable,
+	})
 }
 
-// NewS3WrapperWithSize creates a new S3UtilsWrapper with the configured max image size and hybrid storage settings
-func (d *Dependencies) NewS3WrapperWithSize(maxImageSize int64) *S3UtilsWrapper {
-	wrapper := NewS3Utils(d.awsConfig, d.logger, maxImageSize)
-	
-	// Configure hybrid storage settings
-	wrapper.SetTempBucket(d.config.TempBase64Bucket)
-	wrapper.SetMaxInlineSize(d.config.MaxInlineBase64Size)
-	
+// GetS3ClientWithConfig returns an S3 client with configuration for hybrid storage
+func (d *Dependencies) GetS3ClientWithConfig(maxImageSize int64) (*s3.Client, map[string]interface{}) {
 	// Log storage configuration for debugging
-	d.logger.Info("Configured S3 wrapper with hybrid storage", map[string]interface{}{
+	storageConfig := map[string]interface{}{
 		"maxImageSize":        maxImageSize,
 		"tempBase64Bucket":    d.config.TempBase64Bucket,
 		"maxInlineBase64Size": d.config.MaxInlineBase64Size,
 		"inlineThresholdMB":   float64(d.config.MaxInlineBase64Size) / 1024 / 1024,
-	})
+	}
 	
-	return wrapper
+	d.logger.Info("Configured direct S3 client with hybrid storage", storageConfig)
+	
+	return d.s3Client, storageConfig
 }
 
 // GetLogger returns the logger
@@ -102,16 +87,6 @@ func (d *Dependencies) GetDBClient() *dynamodb.Client {
 	return d.dbClient
 }
 
-// GetS3Utils returns the S3 utilities
-func (d *Dependencies) GetS3Utils() *s3utils.S3Utils {
-	return d.s3Utils
-}
-
-// GetDbUtils returns the DynamoDB utilities
-func (d *Dependencies) GetDbUtils() *dbutils.DynamoDBUtils {
-	return d.dbUtils
-}
-
 // GetAWSConfig returns the AWS config
 func (d *Dependencies) GetAWSConfig() aws.Config {
 	return d.awsConfig
@@ -120,6 +95,16 @@ func (d *Dependencies) GetAWSConfig() aws.Config {
 // GetConfig returns the configuration
 func (d *Dependencies) GetConfig() ConfigVars {
 	return d.config
+}
+
+// GetLayoutTable returns the layout table name
+func (d *Dependencies) GetLayoutTable() string {
+	return d.config.LayoutTable
+}
+
+// GetVerificationTable returns the verification table name
+func (d *Dependencies) GetVerificationTable() string {
+	return d.config.VerificationTable
 }
 
 // LoadConfig loads configuration from environment variables

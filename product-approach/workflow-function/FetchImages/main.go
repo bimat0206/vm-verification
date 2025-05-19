@@ -191,8 +191,9 @@ func Handler(ctx context.Context, event interface{}) (FetchImagesResponse, error
 	}
 
 	// Optionally update status in DynamoDB (commented out as per original)
-	// dbWrapper := NewDBUtils(deps.GetDbUtils())
-	// dbWrapper.UpdateVerificationStatus(ctx, verificationContext.VerificationId, string(schema.StatusImagesFetched))
+	// dbClient := deps.GetDBClient()
+	// verificationTable := deps.GetVerificationTable()
+	// UpdateVerificationStatus(ctx, dbClient, verificationTable, verificationContext.VerificationId, string(schema.StatusImagesFetched))
 
 	// Log successful completion with hybrid storage details
 	logger.Info("Successfully processed images with hybrid Base64 encoding", map[string]interface{}{

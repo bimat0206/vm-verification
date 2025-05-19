@@ -27,7 +27,9 @@ type FetchImagesRequest struct {
 
 // Storage method constants
 const (
+	// StorageMethodInline indicates Base64 data is stored inline in the response
 	StorageMethodInline      = "inline"
+	// StorageMethodS3Temporary indicates Base64 data is stored in S3 temporarily
 	StorageMethodS3Temporary = "s3-temporary"
 )
 

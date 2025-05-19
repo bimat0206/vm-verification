@@ -10,20 +10,15 @@ RUN apk add --no-cache \
 # Set up working directory
 WORKDIR /build
 
-# Copy the entire workflow-function directory (build context is workflow-function/)
-# This copies both FetchImages and shared directories
+# Copy the FetchImages directory and shared modules
 COPY . .
 
 # Verify the structure (for debugging - can be removed in production)
 RUN echo "Build context contents:" && ls -la
-RUN echo "FetchImages contents:" && ls -la FetchImages/
-RUN echo "Shared contents:" && ls -la shared/
+RUN echo "Shared modules:" && ls -la shared/
 
-# Set working directory to FetchImages for the build
-WORKDIR /build/FetchImages
-
-# Download dependencies
-RUN go mod tidy
+# Download dependencies and build
+RUN go mod download
 
 # Build the application for AWS Lambda ARM64 (Graviton)
 RUN --mount=type=cache,target=/root/.cache \
@@ -34,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache \
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Copy compiled binary from builder stage
-COPY --from=builder /build/FetchImages/main /var/task/main
+COPY --from=builder /build/main /var/task/main
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Set the binary as the Lambda handler

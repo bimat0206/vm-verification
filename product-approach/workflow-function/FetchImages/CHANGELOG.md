@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.0.0] - 2025-05-16
+
+### Changed
+- Refactored to remove dependencies on shared packages (s3utils and dbutils)
+- Implemented direct AWS SDK interactions for S3 and DynamoDB operations
+- Split codebase into multiple specialized files for better maintainability:
+  - s3url.go - S3 URL parsing and validation
+  - response_tracker.go - Response size tracking for Lambda limits
+  - storage_validation.go - Storage integrity validation
+  - storage_stats.go - Storage statistics functions
+  - db_models.go - Database models and helpers
+
+### Removed
+- Removed dependencies on workflow-function/shared/s3utils
+- Removed dependencies on workflow-function/shared/dbutils
+- Removed s3wrapper.go and dbwrapper.go files
+- Removed wrapper initialization in dependencies.go
+
 ## [2.0.3] - 2025-05-14
 
 ### Fixed

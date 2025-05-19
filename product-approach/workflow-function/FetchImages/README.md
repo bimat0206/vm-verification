@@ -11,43 +11,46 @@ This AWS Lambda function is designed to fetch image metadata (not the image byte
 - **Structured error handling and logging** for easy debugging.
 - **Configurable** via environment variables.
 - **Flexible input handling** supporting both direct Step Function invocations and Function URL requests.
+- **Dynamic response size management** with hybrid storage options for large images.
 
 ## Recent Updates
 
-### Version 2.0.3 (2025-05-14)
-- Fixed type mismatch error in parallel.go where s3Client (*s3.Client) was incorrectly passed to NewS3Utils function that expects aws.Config
-- Updated parallel fetch operations to directly pass AWS config to S3Utils constructor
-- Removed unused s3 package import in parallel.go
+### Version 3.0.0 (2025-05-16)
+- Refactored to remove dependencies on shared packages (s3utils and dbutils)
+- Implemented direct AWS SDK interactions for S3 and DynamoDB operations
+- Split codebase into multiple specialized files for better maintainability
 
 See the [CHANGELOG.md](CHANGELOG.md) for a complete history of changes.
 
 ## Project Structure
 
+```
 FetchImages/
 ├── main.go               # Lambda handler and orchestration
 ├── models.go             # Function-specific data structures and validation
-├── s3wrapper.go          # S3 wrapper for shared s3utils package
-├── dbwrapper.go          # DynamoDB wrapper for shared dbutils package
-├── parallel.go           # Parallel/concurrent fetch logic
+├── direct_operations.go  # Direct S3 and DynamoDB operations using AWS SDK
+├── s3url.go              # S3 URL parsing and validation
+├── db_models.go          # Database models and helpers
 ├── dependencies.go       # Dependency management and configuration
+├── parallel.go           # Parallel/concurrent fetch logic
+├── response_tracker.go   # Response size tracking for Lambda limits
+├── storage_validation.go # Storage integrity validation
+├── storage_stats.go      # Storage statistics functions
 ├── go.mod
 └── Dockerfile
-
-../shared/
-├── schema/               # Shared data models and constants
-├── logger/               # Standardized logging package
-├── s3utils/              # Common S3 operations
-└── dbutils/              # Common DynamoDB operations
-
+```
 
 ## Environment Variables
 
 - `DYNAMODB_LAYOUT_TABLE` (default: `LayoutMetadata`) - Name of the DynamoDB table containing layout metadata
 - `DYNAMODB_VERIFICATION_TABLE` (default: `VerificationResults`) - Name of the DynamoDB table containing verification results
+- `MAX_IMAGE_SIZE` (default: `104857600` - 100MB) - Maximum image size in bytes
+- `MAX_INLINE_BASE64_SIZE` (default: `2097152` - 2MB) - Maximum size for inline Base64 storage
+- `TEMP_BASE64_BUCKET` - S3 bucket for temporary Base64 storage (for large images)
 
 ## Building and Deployment
 
-The function uses shared packages, which requires a specialized build process. The recommended way to build the function is to use the included `build.sh` script:
+The function can be built using the included `build.sh` script:
 
 ```bash
 # Navigate to the FetchImages directory
@@ -65,13 +68,11 @@ chmod +x build.sh
 
 The build script:
 1. Creates a temporary directory with the correct module structure
-2. Copies both the function code and shared code with the right paths
+2. Copies the function code with the right paths
 3. Sets up proper Go module references
 4. Builds the Docker image
 5. Pushes the image to ECR
 6. Updates the Lambda function
-
-This approach ensures that the Go module resolution works correctly with the shared packages during the build.
 
 ### Automated Build Script
 
@@ -87,7 +88,7 @@ chmod +x build.sh
 ```
 
 The script:
-1. Creates a temporary build environment with both function and shared code
+1. Creates a temporary build environment
 2. Builds the Docker image
 3. Logs in to ECR
 4. Tags and pushes the image
@@ -348,6 +349,6 @@ You can test the handler locally using the AWS Lambda Go SDK or by simulating ev
 
 ## Extending
 
-- Implement more detailed DynamoDB unmarshalling as needed.
 - Add more logging or tracing.
 - Add unit tests (mocking AWS SDK clients).
+- Implement additional validation for input parameters.

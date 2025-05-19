@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 	"workflow-function/shared/logger"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	
 )
 
 // ParallelFetch executes the S3 and DynamoDB fetches concurrently with dynamic Base64 response size management
@@ -99,9 +100,8 @@ func ParallelFetch(
 		defer wg.Done()
 		fetchStart := time.Now()
 		
-		// Create S3 wrapper with shared response size tracker
-		s3Wrapper := deps.NewS3WrapperWithSize(config.MaxImageSize)
-		s3Wrapper.SetResponseSizeTracker(responseSizeTracker)
+		// Get S3 client with configuration
+		s3Client := deps.GetS3Client()
 		
 		// Log initial storage configuration with response size context
 		log.Debug("Processing reference image with dynamic response size awareness", map[string]interface{}{
@@ -109,11 +109,11 @@ func ParallelFetch(
 			"estimatedBase64Size":    estimatedSizes["reference"],
 			"totalEstimatedSize":     totalEstimated,
 			"maxUsableResponseSize":  MaxUsableResponseSize,
-			"storageConfig":          s3Wrapper.GetStorageConfig(),
+			"storageConfig":          config.GetStorageConfig(),
 		})
 		
-		// Download and encode image with dynamic storage decision
-		meta, err := s3Wrapper.GetS3ImageWithBase64(ctx, referenceUrl)
+		// Download and encode image with direct S3 client
+		meta, err := GetS3ImageWithBase64(ctx, s3Client, referenceUrl, config, responseSizeTracker, log)
 		
 		mu.Lock()
 		defer mu.Unlock()
@@ -136,7 +136,7 @@ func ParallelFetch(
 				"hasInlineData":         meta.HasInlineData(),
 				"hasS3Storage":          meta.HasS3Storage(),
 				"storageInfo":           meta.GetStorageInfo(),
-				"responseUtilization":   s3Wrapper.GetResponseSizeInfo()["utilizationPercentage"],
+				"responseUtilization":   float64(responseSizeTracker.GetTotalSize()) / float64(MaxUsableResponseSize) * 100,
 				"currentTotalBase64":    responseSizeTracker.GetTotalSize(),
 				"estimatedSize":         estimatedSizes["reference"],
 				"actualBase64Size":      getActualBase64Size(meta),
@@ -161,9 +161,8 @@ func ParallelFetch(
 		defer wg.Done()
 		fetchStart := time.Now()
 		
-		// Create S3 wrapper with shared response size tracker
-		s3Wrapper := deps.NewS3WrapperWithSize(config.MaxImageSize)
-		s3Wrapper.SetResponseSizeTracker(responseSizeTracker)
+		// Get S3 client with configuration
+		s3Client := deps.GetS3Client()
 		
 		// Log initial storage configuration with response size context
 		log.Debug("Processing checking image with dynamic response size awareness", map[string]interface{}{
@@ -172,11 +171,11 @@ func ParallelFetch(
 			"totalEstimatedSize":     totalEstimated,
 			"currentResponseSize":    responseSizeTracker.GetTotalSize(),
 			"maxUsableResponseSize":  MaxUsableResponseSize,
-			"storageConfig":          s3Wrapper.GetStorageConfig(),
+			"storageConfig":          config.GetStorageConfig(),
 		})
 		
-		// Download and encode image with dynamic storage decision
-		meta, err := s3Wrapper.GetS3ImageWithBase64(ctx, checkingUrl)
+		// Download and encode image with direct S3 client
+		meta, err := GetS3ImageWithBase64(ctx, s3Client, checkingUrl, config, responseSizeTracker, log)
 		
 		mu.Lock()
 		defer mu.Unlock()
@@ -199,7 +198,7 @@ func ParallelFetch(
 				"hasInlineData":         meta.HasInlineData(),
 				"hasS3Storage":          meta.HasS3Storage(),
 				"storageInfo":           meta.GetStorageInfo(),
-				"responseUtilization":   s3Wrapper.GetResponseSizeInfo()["utilizationPercentage"],
+				"responseUtilization":   float64(responseSizeTracker.GetTotalSize()) / float64(MaxUsableResponseSize) * 100,
 				"currentTotalBase64":    responseSizeTracker.GetTotalSize(),
 				"estimatedSize":         estimatedSizes["checking"],
 				"actualBase64Size":      getActualBase64Size(meta),
@@ -225,14 +224,14 @@ func ParallelFetch(
 			defer wg.Done()
 			fetchStart := time.Now()
 			
-			// Initialize the DB wrapper
-			var dbWrapper *DBUtilsWrapper
-			if deps.GetDbUtils() != nil {
-				dbWrapper = NewDBUtils(deps.GetDbUtils())
-			} else {
+			// Get DynamoDB client and table name
+			dbClient := deps.GetDBClient()
+			layoutTable := deps.GetLayoutTable()
+			
+			if dbClient == nil {
 				mu.Lock()
-				results.Errors = append(results.Errors, fmt.Errorf("dbUtils not initialized for layout metadata fetch"))
-				log.Error("dbUtils not initialized for layout metadata fetch", map[string]interface{}{
+				results.Errors = append(results.Errors, fmt.Errorf("DynamoDB client not initialized for layout metadata fetch"))
+				log.Error("DynamoDB client not initialized for layout metadata fetch", map[string]interface{}{
 					"layoutId":     layoutId,
 					"layoutPrefix": layoutPrefix,
 					"duration":     time.Since(fetchStart).Milliseconds(),
@@ -242,7 +241,7 @@ func ParallelFetch(
 			}
 			
 			// Validate layout exists first
-			exists, err := dbWrapper.ValidateLayoutExists(ctx, layoutId, layoutPrefix)
+			exists, err := ValidateLayoutExists(ctx, dbClient, layoutTable, layoutId, layoutPrefix)
 			if err != nil {
 				mu.Lock()
 				results.Errors = append(results.Errors, fmt.Errorf("failed to validate layout existence: %w", err))
@@ -269,7 +268,7 @@ func ParallelFetch(
 			}
 			
 			// Fetch the layout metadata
-			meta, err := dbWrapper.FetchLayoutMetadataWithFallback(ctx, layoutId, layoutPrefix)
+			meta, err := FetchLayoutMetadataWithFallback(ctx, dbClient, layoutTable, layoutId, layoutPrefix)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -302,14 +301,14 @@ func ParallelFetch(
 			defer wg.Done()
 			fetchStart := time.Now()
 			
-			// Initialize the DB wrapper
-			var dbWrapper *DBUtilsWrapper
-			if deps.GetDbUtils() != nil {
-				dbWrapper = NewDBUtils(deps.GetDbUtils())
-			} else {
+			// Get DynamoDB client and table name
+			dbClient := deps.GetDBClient()
+			verificationTable := deps.GetVerificationTable()
+			
+			if dbClient == nil {
 				mu.Lock()
-				results.Errors = append(results.Errors, fmt.Errorf("dbUtils not initialized for historical context fetch"))
-				log.Error("dbUtils not initialized for historical context fetch", map[string]interface{}{
+				results.Errors = append(results.Errors, fmt.Errorf("DynamoDB client not initialized for historical context fetch"))
+				log.Error("DynamoDB client not initialized for historical context fetch", map[string]interface{}{
 					"previousVerificationId": prevVerificationId,
 					"duration":               time.Since(fetchStart).Milliseconds(),
 				})
@@ -318,7 +317,7 @@ func ParallelFetch(
 			}
 			
 			// Fetch historical context
-			ctxObj, err := dbWrapper.FetchHistoricalContext(ctx, prevVerificationId)
+			ctxObj, err := FetchHistoricalContext(ctx, dbClient, verificationTable, prevVerificationId)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -391,8 +390,7 @@ func estimateImageBase64Size(ctx context.Context, deps *Dependencies, s3url, ima
 	log := deps.GetLogger()
 	
 	// Parse S3 URL
-	s3Utils := deps.GetS3Utils()
-	parsed, err := s3Utils.ParseS3URL(s3url)
+	parsed, err := ParseS3URL(s3url)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse S3 URL for %s image: %w", imageType, err)
 	}
@@ -400,8 +398,8 @@ func estimateImageBase64Size(ctx context.Context, deps *Dependencies, s3url, ima
 	// Get object metadata
 	s3Client := deps.GetS3Client()
 	headOutput, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: &parsed.Bucket,
-		Key:    &parsed.Key,
+		Bucket: aws.String(parsed.Bucket),
+		Key:    aws.String(parsed.Key),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get %s image metadata: %w", imageType, err)
@@ -537,10 +535,9 @@ func convertImageToS3Storage(
 	log logger.Logger,
 ) error {
 	config := deps.GetConfig()
-	s3Wrapper := deps.NewS3WrapperWithSize(config.MaxImageSize)
-	s3Wrapper.SetResponseSizeTracker(tracker)
+	s3Client := deps.GetS3Client()
 	
-	return s3Wrapper.ConvertToS3Storage(ctx, meta)
+	return ConvertImageToS3Storage(ctx, s3Client, config, meta, tracker, log)
 }
 
 // validateDynamicStorageIntegrity validates storage integrity with response size awareness
@@ -654,136 +651,4 @@ func logFinalResultsWithResponseSizeMetrics(
 		"estimationAccuracy":       estimationAccuracy,
 		"dynamicOptimizationUsed":  tracker.GetTotalSize() < estimatedSizes["reference"]+estimatedSizes["checking"],
 	})
-}
-
-// getDetailedStorageMethodStats returns detailed storage method statistics
-func getDetailedStorageMethodStats(results ParallelFetchResults) map[string]interface{} {
-	stats := map[string]interface{}{
-		"totalImages": 2,
-		"distribution": map[string]interface{}{
-			StorageMethodInline: map[string]interface{}{
-				"count": 0,
-				"images": []string{},
-				"totalSize": int64(0),
-			},
-			StorageMethodS3Temporary: map[string]interface{}{
-				"count": 0,
-				"images": []string{},
-				"savedResponseSize": int64(0),
-			},
-		},
-	}
-	
-	// Analyze reference image
-	if results.ReferenceMeta.StorageMethod != "" {
-		method := results.ReferenceMeta.StorageMethod
-		methodStats := stats["distribution"].(map[string]interface{})[method].(map[string]interface{})
-		methodStats["count"] = methodStats["count"].(int) + 1
-		methodStats["images"] = append(methodStats["images"].([]string), "reference")
-		
-		if method == StorageMethodInline {
-			methodStats["totalSize"] = methodStats["totalSize"].(int64) + int64(len(results.ReferenceMeta.Base64Data))
-		} else {
-			// Estimate saved response size for S3 storage
-			if results.ReferenceMeta.Size > 0 {
-				savedSize := int64(float64(results.ReferenceMeta.Size) * Base64ExpansionFactor)
-				methodStats["savedResponseSize"] = methodStats["savedResponseSize"].(int64) + savedSize
-			}
-		}
-	}
-	
-	// Analyze checking image
-	if results.CheckingMeta.StorageMethod != "" {
-		method := results.CheckingMeta.StorageMethod
-		methodStats := stats["distribution"].(map[string]interface{})[method].(map[string]interface{})
-		methodStats["count"] = methodStats["count"].(int) + 1
-		methodStats["images"] = append(methodStats["images"].([]string), "checking")
-		
-		if method == StorageMethodInline {
-			methodStats["totalSize"] = methodStats["totalSize"].(int64) + int64(len(results.CheckingMeta.Base64Data))
-		} else {
-			// Estimate saved response size for S3 storage
-			if results.CheckingMeta.Size > 0 {
-				savedSize := int64(float64(results.CheckingMeta.Size) * Base64ExpansionFactor)
-				methodStats["savedResponseSize"] = methodStats["savedResponseSize"].(int64) + savedSize
-			}
-		}
-	}
-	
-	// Add efficiency metrics
-	inlineStats := stats["distribution"].(map[string]interface{})[StorageMethodInline].(map[string]interface{})
-	s3Stats := stats["distribution"].(map[string]interface{})[StorageMethodS3Temporary].(map[string]interface{})
-	
-	stats["efficiency"] = map[string]interface{}{
-		"hybridStorageUsed":      inlineStats["count"].(int) > 0 && s3Stats["count"].(int) > 0,
-		"allInline":              inlineStats["count"].(int) == 2,
-		"allS3":                  s3Stats["count"].(int) == 2,
-		"inlinePercent":          float64(inlineStats["count"].(int)) / 2.0 * 100,
-		"s3Percent":              float64(s3Stats["count"].(int)) / 2.0 * 100,
-		"totalResponseSavings":   s3Stats["savedResponseSize"].(int64),
-	}
-	
-	return stats
-}
-
-// abs64 returns the absolute value of an int64
-func abs64(x int64) int64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-// validateHybridStorageIntegrity validates that both images have proper Base64 data with hybrid storage
-func validateHybridStorageIntegrity(results ParallelFetchResults, logger logger.Logger) []error {
-	var errors []error
-	
-	// Validate reference image
-	if !results.ReferenceMeta.HasBase64Data() {
-		err := fmt.Errorf("reference image missing Base64 data despite successful fetch (storage method: %s)", 
-			results.ReferenceMeta.StorageMethod)
-		errors = append(errors, err)
-		logger.Error("Reference image validation failed", map[string]interface{}{
-			"storageMethod": results.ReferenceMeta.StorageMethod,
-			"hasInline":     results.ReferenceMeta.HasInlineData(),
-			"hasS3":         results.ReferenceMeta.HasS3Storage(),
-			"error":         err.Error(),
-		})
-	}
-	
-	// Validate checking image
-	if !results.CheckingMeta.HasBase64Data() {
-		err := fmt.Errorf("checking image missing Base64 data despite successful fetch (storage method: %s)", 
-			results.CheckingMeta.StorageMethod)
-		errors = append(errors, err)
-		logger.Error("Checking image validation failed", map[string]interface{}{
-			"storageMethod": results.CheckingMeta.StorageMethod,
-			"hasInline":     results.CheckingMeta.HasInlineData(),
-			"hasS3":         results.CheckingMeta.HasS3Storage(),
-			"error":         err.Error(),
-		})
-	}
-	
-	// Validate storage method consistency
-	if err := results.ReferenceMeta.ValidateStorageMethod(); err != nil {
-		errors = append(errors, fmt.Errorf("reference image storage validation failed: %w", err))
-		logger.Error("Reference image storage method validation failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-	
-	if err := results.CheckingMeta.ValidateStorageMethod(); err != nil {
-		errors = append(errors, fmt.Errorf("checking image storage validation failed: %w", err))
-		logger.Error("Checking image storage method validation failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-	
-	if len(errors) == 0 {
-		logger.Info("Hybrid storage integrity validation passed", map[string]interface{}{
-			"referenceStorage": results.ReferenceMeta.StorageMethod,
-			"checkingStorage":  results.CheckingMeta.StorageMethod,
-		})
-	}
-	
-	return errors
 }
