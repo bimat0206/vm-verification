@@ -5,6 +5,37 @@ PrepareSystemPrompt function will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.7] - 2025-05-20
+
+### Fixed
+- **Critical**: Fixed reference forwarding issue that was causing "Reference image reference not found" errors in PrepareTurn1Prompt
+- Implemented comprehensive reference accumulation pattern to ensure complete data flow between workflow functions
+- Enhanced S3 state adapter to preserve all references from previous workflow steps
+- Fixed the root cause of missing images_metadata and processing_layout-metadata references
+- Ensured all verification data flows properly through the entire workflow pipeline
+
+### Technical Details
+- Added AccumulateAllReferences function to S3StateAdapter that properly combines incoming and outgoing references
+- Modified both S3 reference and direct JSON handlers to implement reference accumulation
+- Added detailed logging to track reference propagation for easier debugging
+- Implemented safer reference handling with null-checks and fallback mechanisms
+- Preserved backward compatibility with existing code while fixing forward reference management
+
+## [4.0.6] - 2025-05-19
+
+### Fixed
+- **Critical**: Fixed duplicate "prompts" directory in system prompt S3 storage paths that was causing empty prompt bucket issue
+- Modified S3StateAdapter.StoreSystemPrompt to build explicit path instead of using CategoryPrompts constant
+- Resolved S3 path structure from incorrect `prompts/YYYY/MM/DD/verificationId/prompts/system-prompt.json` to correct `YYYY/MM/DD/verificationId/prompts/system-prompt.json`
+- System prompts are now properly stored and retrievable at the expected S3 location
+- Ensured consistent S3 key generation across all storage operations
+
+### Technical Details
+- Changed StoreSystemPrompt method to explicitly construct the full S3 key path
+- Replaced `(*s.stateManager).StoreJSON(s3state.CategoryPrompts, key, prompt)` with `(*s.stateManager).StoreJSON("", key, prompt)` where key includes the full path
+- Updated path format to `{datePartition}/{verificationId}/prompts/system-prompt.json`
+- Maintained backward compatibility with existing path parsing logic
+
 ## [4.0.5] - 2025-05-19
 
 ### Fixed

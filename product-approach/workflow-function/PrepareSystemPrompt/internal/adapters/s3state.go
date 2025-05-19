@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	//"path/filepath"
 	"strings"
 	
 	"workflow-function/shared/logger"
@@ -312,10 +311,12 @@ func (s *S3StateAdapter) UpdateVerificationContextFromS3(state *schema.WorkflowS
 
 // StoreSystemPrompt stores a system prompt in S3 state
 func (s *S3StateAdapter) StoreSystemPrompt(datePartition, verificationID string, prompt *schema.SystemPrompt) (*s3state.Reference, error) {
-	// Option 2: Pass date/verifId as key and category as prompts
-	// This avoids duplication of the 'prompts' directory in the path
-	key := fmt.Sprintf("%s/%s", datePartition, verificationID)
-	ref, err := (*s.stateManager).StoreJSON(s3state.CategoryPrompts, key, prompt)
+	// Create the full key path including the prompts category
+	// Format: {datePartition}/{verificationId}/prompts/system-prompt.json
+	key := fmt.Sprintf("%s/%s/prompts/system-prompt.json", datePartition, verificationID)
+	
+	// Use empty category to avoid duplication since we're building the full path ourselves
+	ref, err := (*s.stateManager).StoreJSON("", key, prompt)
 	
 	if err != nil {
 		return nil, fmt.Errorf("failed to store system prompt: %w", err)
@@ -359,6 +360,36 @@ func (s *S3StateAdapter) CombineReferences(envelope *s3state.Envelope, refs map[
 	for name, ref := range refs {
 		envelope.AddReference(name, ref)
 	}
+}
+
+// AccumulateAllReferences preserves all input references and adds new references
+// This is critical for ensuring that references from previous steps in the workflow
+// are preserved and forwarded to subsequent steps
+func (s *S3StateAdapter) AccumulateAllReferences(inputReferences map[string]*s3state.Reference, newReferences map[string]*s3state.Reference) map[string]*s3state.Reference {
+	// Create a fresh output map to hold the complete reference collection
+	outputReferences := make(map[string]*s3state.Reference)
+	
+	// First phase: Preserve all incoming references from previous functions
+	for referenceKey, referenceValue := range inputReferences {
+		outputReferences[referenceKey] = referenceValue
+		s.logger.Info("Preserving input reference", map[string]interface{}{
+			"key": referenceKey,
+			"bucket": referenceValue.Bucket,
+			"s3_key": referenceValue.Key,
+		})
+	}
+	
+	// Second phase: Add all newly created references (overwrites if same key)
+	for referenceKey, referenceValue := range newReferences {
+		outputReferences[referenceKey] = referenceValue
+		s.logger.Info("Adding new reference", map[string]interface{}{
+			"key": referenceKey,
+			"bucket": referenceValue.Bucket,
+			"s3_key": referenceValue.Key,
+		})
+	}
+	
+	return outputReferences
 }
 
 // GetDatePartitionFromReference extracts the date partition from a reference

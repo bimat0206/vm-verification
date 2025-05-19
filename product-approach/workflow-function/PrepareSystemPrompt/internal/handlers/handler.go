@@ -9,6 +9,7 @@ import (
 	
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
+	"workflow-function/shared/s3state"
 	
 	"workflow-function/PrepareSystemPrompt/internal/adapters"
 	"workflow-function/PrepareSystemPrompt/internal/config"
@@ -254,11 +255,23 @@ func (h *Handler) processS3ReferenceInput(ctx context.Context, input *models.Inp
 		return nil, fmt.Errorf("failed to update workflow state: %w", err)
 	}
 	
-	// Create envelope
+	// Create envelope and preserve all input references while adding new ones
 	envelope := h.s3Adapter.CreateS3Envelope(verificationContext.VerificationId)
 	envelope.Status = schema.StatusPromptPrepared
-	envelope.AddReference("processing_initialization", stateRef)
-	envelope.AddReference("prompts_system", promptRef)
+	
+	// Create map of new references
+	newReferences := map[string]*s3state.Reference{
+		"processing_initialization": stateRef,
+		"prompts_system": promptRef,
+	}
+	
+	// Use AccumulateAllReferences to preserve all previous references
+	if input.S3Envelope != nil && input.S3Envelope.References != nil {
+		envelope.References = h.s3Adapter.AccumulateAllReferences(input.S3Envelope.References, newReferences)
+	} else {
+		// Just add the new references if no input references exist
+		envelope.References = newReferences
+	}
 	
 	// Create processing time in milliseconds
 	processingTimeMs := time.Since(start).Milliseconds()
@@ -356,11 +369,23 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 		return nil, fmt.Errorf("failed to store system prompt: %w", err)
 	}
 	
-	// Create envelope
+	// Create envelope and preserve all input references while adding new ones
 	envelope := h.s3Adapter.CreateS3Envelope(verificationContext.VerificationId)
 	envelope.Status = schema.StatusPromptPrepared
-	envelope.AddReference("processing_initialization", stateRef)
-	envelope.AddReference("prompts_system", promptRef)
+	
+	// Create map of new references
+	newReferences := map[string]*s3state.Reference{
+		"processing_initialization": stateRef,
+		"prompts_system": promptRef,
+	}
+	
+	// Use AccumulateAllReferences to preserve all previous references
+	if input.S3Envelope != nil && input.S3Envelope.References != nil {
+		envelope.References = h.s3Adapter.AccumulateAllReferences(input.S3Envelope.References, newReferences)
+	} else {
+		// Just add the new references if no input references exist
+		envelope.References = newReferences
+	}
 	
 	// Create processing time in milliseconds
 	processingTimeMs := time.Since(start).Milliseconds()
