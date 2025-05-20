@@ -114,14 +114,33 @@ func ValidateReferences(input *Input) error {
 	return nil
 }
 
+// CopyReferences is a helper function to copy references from one map to another
+func CopyReferences(dest, src map[string]*s3state.Reference) {
+	if dest == nil || src == nil {
+		return
+	}
+	
+	for k, v := range src {
+		dest[k] = v
+	}
+}
+
 // NewOutput creates a new output with initialized references map
-func NewOutput(verificationID, verificationType, status string) *Output {
-	return &Output{
+// Modified to accept and preserve existing references
+func NewOutput(verificationID, verificationType, status string, existingRefs map[string]*s3state.Reference) *Output {
+	out := &Output{
 		References:       make(map[string]*s3state.Reference),
 		VerificationID:   verificationID,
 		VerificationType: verificationType,
 		Status:           status,
 	}
+	
+	// Preserve all existing references
+	if existingRefs != nil {
+		CopyReferences(out.References, existingRefs)
+	}
+	
+	return out
 }
 
 // AddReference adds a reference to the output
@@ -133,19 +152,28 @@ func (o *Output) AddReference(category, dataType string, ref *s3state.Reference)
 }
 
 // EnvelopeToInput converts an S3 state envelope to input format
+// Enhanced to properly handle references
 func EnvelopeToInput(envelope *s3state.Envelope) (*Input, error) {
 	if envelope == nil {
 		return nil, errors.NewValidationError("Envelope is nil", nil)
 	}
 
 	input := &Input{
-		References:           envelope.References,
-		S3References:         envelope.References, // Also set S3References for compatibility
+		References:           make(map[string]*s3state.Reference),
+		S3References:         make(map[string]*s3state.Reference),
 		VerificationID:       envelope.VerificationID,
 		EnableS3StateManager: true,
 		TurnNumber:           1,                    // Always set to 1 for PrepareTurn1Prompt
 		IncludeImage:         "reference",          // Default to "reference" for Turn 1
-		Status:               "PROCESSING",         // Default status
+		Status:               envelope.Status,      // Use status from envelope
+	}
+	
+	// Ensure proper copying of all references to both maps for compatibility
+	if envelope.References != nil {
+		for k, v := range envelope.References {
+			input.References[k] = v
+			input.S3References[k] = v
+		}
 	}
 
 	// Check for available references to determine if we can proceed
@@ -181,5 +209,6 @@ func OutputToEnvelope(output *Output) *s3state.Envelope {
 	return &s3state.Envelope{
 		References:     output.References,
 		VerificationID: output.VerificationID,
+		Status:         output.Status,
 	}
 }

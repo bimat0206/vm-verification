@@ -5,6 +5,72 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.17] - 2025-05-20
+### Added
+Enhanced Reference Categorization and Logging:
+
+The ValidateInput method now analyzes and logs reference categories, making it easier to identify missing or incorrect references during validation.
+Categories are extracted from reference keys and counted to provide a high-level overview of the reference structure.
+
+
+New Base64 Reference Validation:
+
+Added a new ValidateImageReferences method that specifically checks for proper Base64 storage references in image data.
+This validation ensures that S3 temporary storage has both the bucket and key properly set when Base64 data is generated.
+Provides detailed logging about Base64 storage references for troubleshooting.
+
+
+Reference Structure Validation:
+
+Added a new ValidateReferenceStructure method to ensure that references contain all necessary categories.
+This validation checks for required categories such as initialization, images, and prompts to ensure the workflow can proceed correctly.
+Provides clear error messages when required categories are missing, with context about what was found versus what was expected.
+
+
+Reference Accumulation Validation:
+
+Implemented a new ValidateReferenceAccumulation method that compares input and output references to ensure all input references are preserved in the output.
+This validation is critical for enforcing the reference accumulation pattern across the workflow.
+Provides detailed logging about reference counts and accumulation metrics.
+Enhanced NewOutput Call:
+
+Modified the call to state.NewOutput() to include input.References as the fourth parameter, which ensures all existing references are preserved in the new output object.
+
+
+Updated SaveTurn1Prompt Call:
+
+Changed the call to stateSaver.SaveTurn1Prompt() to include the input parameter, which allows the saver to access and preserve the references from the input.
+
+
+Improved Logging:
+
+Added detailed logging with reference counts to track the reference accumulation process:
+
+Logs the reference count from the input
+Logs both input and output reference counts when processing is completed
+Calculates and logs the number of new references added during processing
+
+
+
+
+Additional Context in Log Messages:
+
+Added reference counts to log messages for better debugging and operational visibility
+Enhanced existing log messages with more context information
+
+### Fixed
+- Fixed reference accumulation pattern to maintain complete state context throughout workflow
+- Modified `NewOutput` in references.go to accept and preserve existing references
+- Added `CopyReferences` helper function for consistent reference handling
+- Enhanced `EnvelopeToInput` to ensure proper copying of all references
+- Updated `SaveTurn1Prompt` to accept input and preserve existing references
+- Improved image processor to ensure Base64 references are properly set and validated
+- Fixed missing Base64 storage reference in Turn 1 prompt imageReference object
+- Enhanced imageReference structure with explicit base64StorageReference field
+- Added comprehensive logging for reference accumulation and Base64 storage tracking
+- Fixed broken chain of state information affecting downstream functions
+- Implemented robust error handling for Base64 reference validation
+
 ## [4.0.16] - 2025-05-20
 
 ### Fixed

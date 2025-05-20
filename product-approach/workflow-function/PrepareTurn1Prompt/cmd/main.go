@@ -190,6 +190,7 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 		"verificationId":   input.VerificationID,
 		"turnNumber":       input.TurnNumber,
 		"includeImage":     input.IncludeImage,
+		"referenceCount":   len(input.References),
 	})
 	
 	// Create validator
@@ -207,6 +208,12 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 		})
 		return nil, errors.NewInternalError("state-loading", err)
 	}
+	
+	// Log reference count for monitoring
+	log.Info("Loaded workflow state with input references", map[string]interface{}{
+		"verificationId": input.VerificationID,
+		"referenceCount": len(input.References),
+	})
 	
 	// Validate workflow state
 	if err := validator.ValidateWorkflowState(workflowState); err != nil {
@@ -267,15 +274,16 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 	// Create state saver
 	stateSaver := state.NewSaver(s3StateManager, log)
 	
-	// Create output
+	// Create output with input references - passing input.References to preserve them
 	output := state.NewOutput(
 		workflowState.VerificationContext.VerificationId,
 		workflowState.VerificationContext.VerificationType,
 		workflowState.VerificationContext.Status,
+		input.References, // Pass input references for accumulation
 	)
 	
-	// Save results to S3
-	if err := stateSaver.SaveTurn1Prompt(workflowState, output); err != nil {
+	// Save results to S3 - passing input for reference preservation
+	if err := stateSaver.SaveTurn1Prompt(workflowState, input, output); err != nil {
 		log.Error("Failed to save Turn 1 prompt", map[string]interface{}{
 			"error":          err.Error(),
 			"verificationId": input.VerificationID,
@@ -283,12 +291,15 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 		return nil, errors.NewInternalError("state-saving", err)
 	}
 	
-	// Log completion
+	// Log completion with reference counts
 	duration := time.Since(start)
-	log.Info("Completed processing", map[string]interface{}{
-		"duration":       duration.String(),
-		"verificationId": input.VerificationID,
-		"templateUsed":   templateName,
+	log.Info("Completed processing with accumulated references", map[string]interface{}{
+		"duration":              duration.String(),
+		"verificationId":        input.VerificationID,
+		"templateUsed":          templateName,
+		"inputReferenceCount":   len(input.References),
+		"outputReferenceCount":  len(output.References),
+		"newReferencesAdded":    len(output.References) - len(input.References),
 	})
 	
 	log.LogOutputEvent(output)
