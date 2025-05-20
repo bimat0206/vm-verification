@@ -6,7 +6,7 @@
     "promptContent": {
       "systemMessage": "You are an AI assistant specialized in analyzing vending machine product placement. Your task is to compare a reference layout image with a checking image to identify discrepancies.\n\nThe machine configuration is FIXED: EXACTLY 6 rows (labeled A-F from Top to Bottom) and EXACTLY 10 slots per row (labeled 1-10 from Left to Right), totaling 60 positions.\n\nFor this verification:\n- Layout ID: 23591\n- Layout Prefix: 1q2w3e\n- Machine Structure: 6 rows × 10 columns\n- Expected Products: 3 types distributed across rows\n\nFocus on:\n1. Position discrepancies (correct row/column placement)\n2. Product identity (correct product in each position)\n3. Quantity (expected number of products)\n4. Label visibility (proper orientation)\n\nProvide analysis in the MANDATORY OUTPUT FORMAT specified, including detailed discrepancy reports for any mismatches found.",
       "templateVersion": "1.2.3",
-      "promptType": "LAYOUT_VERIFICATION",
+      "promptType": "LAYOUT_VERIFICATION"
     },
     "bedrockConfiguration": {
       "anthropicVersion": "bedrock-2023-05-31",
