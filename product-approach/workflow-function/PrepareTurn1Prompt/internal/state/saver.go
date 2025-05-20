@@ -59,14 +59,104 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 		return errors.NewValidationError("Current prompt has no messages", nil)
 	}
 
-	// Create prompt data structure
-	promptData := &schema.CurrentPrompt{
-		Messages:      state.CurrentPrompt.Messages,
-		TurnNumber:    state.CurrentPrompt.TurnNumber,
-		PromptId:      state.CurrentPrompt.PromptId,
-		CreatedAt:     state.CurrentPrompt.CreatedAt,
-		PromptVersion: state.CurrentPrompt.PromptVersion,
-		IncludeImage:  state.CurrentPrompt.IncludeImage,
+	// Get reference image if available
+	var refImage *schema.ImageInfo
+	if state.Images != nil {
+		refImage = state.Images.GetReference()
+	}
+
+	// Create content array for message structure according to schema
+	content := make([]map[string]interface{}, 0)
+
+	// First add text content from the first message
+	if len(state.CurrentPrompt.Messages) > 0 && len(state.CurrentPrompt.Messages[0].Content) > 0 {
+		textContent := map[string]interface{}{
+			"type": "text",
+			"text": state.CurrentPrompt.Messages[0].Content[0].Text,
+		}
+		content = append(content, textContent)
+	}
+
+	// Create message structure according to schema
+	messageStructure := map[string]interface{}{
+		"role": "user",
+		"content": content,
+	}
+
+	// Create contextual instructions for better documentation
+	contextualInstructions := map[string]interface{}{
+		"analysisObjective": "Analyze reference image in detail",
+	}
+
+	// Add machine structure if available
+	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking && state.LayoutMetadata != nil {
+		if machineStructure, ok := state.LayoutMetadata["machineStructure"].(map[string]interface{}); ok {
+			contextualInstructions["machineStructure"] = machineStructure
+		}
+	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent && state.HistoricalContext != nil {
+		if machineStructure, ok := state.HistoricalContext["machineStructure"].(map[string]interface{}); ok {
+			contextualInstructions["machineStructure"] = machineStructure
+		}
+	}
+
+	// Add use case specific guidance
+	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		contextualInstructions["useCaseSpecificGuidance"] = "Layout validation against reference planogram"
+	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		contextualInstructions["useCaseSpecificGuidance"] = "Baseline establishment from previous state"
+	}
+
+	// Create image reference
+	imageReference := map[string]interface{}{
+		"imageType": "reference",
+	}
+
+	// Add source URL if available
+	if refImage != nil && refImage.URL != "" {
+		imageReference["sourceUrl"] = refImage.URL
+
+		// Add base64 storage reference if available
+		if refImage.StorageMethod == "s3" && refImage.Base64S3Bucket != "" && refImage.GetBase64S3Key() != "" {
+			imageReference["base64StorageReference"] = map[string]interface{}{
+				"bucket": refImage.Base64S3Bucket,
+				"key": refImage.GetBase64S3Key(),
+			}
+		}
+	}
+
+	// Create generation metadata
+	generationMetadata := map[string]interface{}{
+		"promptSource": "TEMPLATE_BASED",
+		"contextSources": []string{"INITIALIZATION", "IMAGE_METADATA"},
+	}
+
+	// Add layout metadata if available
+	if state.LayoutMetadata != nil {
+		generationMetadata["contextSources"] = append(
+			generationMetadata["contextSources"].([]string),
+			"LAYOUT_METADATA",
+		)
+	}
+
+	// Add historical context if available
+	if state.HistoricalContext != nil {
+		generationMetadata["contextSources"] = append(
+			generationMetadata["contextSources"].([]string),
+			"HISTORICAL_CONTEXT",
+		)
+	}
+
+	// Create Turn 1 prompt data structure according to schema
+	promptData := map[string]interface{}{
+		"verificationId":   state.VerificationContext.VerificationId,
+		"promptType":       "TURN1",
+		"verificationType": state.VerificationContext.VerificationType,
+		"messageStructure": messageStructure,
+		"contextualInstructions": contextualInstructions,
+		"imageReference":   imageReference,
+		"templateVersion":  state.CurrentPrompt.PromptVersion,
+		"createdAt":        state.CurrentPrompt.CreatedAt,
+		"generationMetadata": generationMetadata,
 	}
 
 	// Save to S3
@@ -75,9 +165,9 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 	}
 
 	s.log.Info("Saved Turn 1 prompt data", map[string]interface{}{
-		"promptId":    promptData.PromptId,
-		"turnNumber":  promptData.TurnNumber,
-		"messageCount": len(promptData.Messages),
+		"verificationId": state.VerificationContext.VerificationId,
+		"promptType":    "TURN1",
+		"createdAt":     state.CurrentPrompt.CreatedAt,
 	})
 
 	return nil

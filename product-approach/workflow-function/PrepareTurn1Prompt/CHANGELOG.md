@@ -5,6 +5,14 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.16] - 2025-05-20
+
+### Fixed
+- Fixed compilation error in saver.go related to non-existent Base64Reference field
+- Updated S3 reference handling to use proper ImageInfo fields (Base64S3Bucket, Base64S3Key)
+- Improved compatibility with ImageInfo schema by using GetBase64S3Key() helper method
+- Fixed "refImage.Base64Reference undefined" error in state saver
+
 ## [4.0.15] - 2025-05-20
 
 ### Fixed
