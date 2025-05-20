@@ -72,13 +72,20 @@ func (m *manager) Retrieve(ref *Reference) ([]byte, error) {
 }
 
 // StoreJSON marshals data to JSON and stores it in S3
+// StoreJSON marshals data to JSON and stores it in S3
 func (m *manager) StoreJSON(category, key string, data interface{}) (*Reference, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
-	s3Key := fmt.Sprintf("%s/%s", category, key)
+	// Build S3 key properly handling empty categories
+	var s3Key string
+	if category == "" {
+		s3Key = key
+	} else {
+		s3Key = fmt.Sprintf("%s/%s", category, key)
+	}
 	
 	err = m.putObject(s3Key, jsonData, "application/json")
 	if err != nil {

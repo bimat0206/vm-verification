@@ -239,7 +239,10 @@ func (b *S3ImageInfoBuilder) WithVerificationContext(verificationId, imageType s
 
 // generateTempS3Key generates a unique S3 key for temporary Base64 storage
 func (b *S3ImageInfoBuilder) generateTempS3Key(imageType string) string {
-	timestamp := GetCurrentTimestamp()
+	timestamp := time.Now().UTC()
+	year := timestamp.Format("2006")
+	month := timestamp.Format("01")
+	day := timestamp.Format("02")
 	
 	verificationId := "unknown"
 	
@@ -249,8 +252,17 @@ func (b *S3ImageInfoBuilder) generateTempS3Key(imageType string) string {
 		}
 	}
 	
+	// Check if we have a state bucket prefix configured
+	if b.config != nil && b.config.StateBucketPrefix != "" {
+		// Use date-based path with verification ID as in the expected schema:
+		// {year}/{month}/{day}/{verificationId}/images/{imageType}-base64.base64
+		return fmt.Sprintf("%s/%s/%s/%s/images/%s-base64.base64",
+			year, month, day, verificationId, imageType)
+	}
+	
+	// Fallback to legacy path format
 	return fmt.Sprintf("%s%s/%s-%s.base64", 
-		TempBase64KeyPrefix, verificationId, imageType, timestamp)
+		TempBase64KeyPrefix, verificationId, imageType, GetCurrentTimestamp())
 }
 
 // convertToS3Metadata converts string map to AWS metadata format

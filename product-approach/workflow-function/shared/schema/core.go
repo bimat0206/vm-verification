@@ -71,6 +71,7 @@ type ResourceValidation struct {
 type S3StorageConfig struct {
 	TempBase64Bucket       string `json:"tempBase64Bucket"`
 	Base64RetrievalTimeout int    `json:"base64RetrievalTimeout"` // in milliseconds
+	StateBucketPrefix      string `json:"stateBucketPrefix,omitempty"` // for date-based path structure
 }
 
 // ImageData is defined in image_data.go

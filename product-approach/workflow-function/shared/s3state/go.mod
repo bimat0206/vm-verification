@@ -1,4 +1,4 @@
-module github.com/kootoro/s3state
+module workflow-function/shared/s3state
 
 go 1.19
 
