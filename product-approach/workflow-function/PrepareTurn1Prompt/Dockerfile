@@ -28,12 +28,21 @@ FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Copy compiled binary from builder stage
 COPY --from=builder /build/main /var/task/main
+
+# Copy templates with explicit directory structure preservation
 COPY --from=builder /build/templates /opt/templates
+# Ensure correct permissions
+RUN chmod -R 755 /opt/templates
+
+# Create directory structure listing for debugging
+RUN echo "Templates directory structure:" && \
+    ls -la /opt/templates && \
+    find /opt/templates -type f -name "*.tmpl" | sort
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Version information
-LABEL version="4.0.3"
-LABEL description="PrepareTurn1Prompt with fixed image processing and reference handling"
+LABEL version="4.0.11"
+LABEL description="PrepareTurn1Prompt with template loading fixes following PrepareSystemPrompt design"
 
 # Set the binary as the Lambda handler
 ENTRYPOINT ["/var/task/main"]

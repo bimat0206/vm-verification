@@ -89,23 +89,31 @@ func (p *PromptGenerator) addLayoutMetadataToTemplateData(state *schema.Workflow
 		data["MachineStructure"] = machineStructure
 
 		// Extract and set basic machine properties
-		if rowCount, ok := machineStructure["rowCount"].(int); ok {
+		// JSON numbers are parsed as float64 by default, so handle both int and float64 types
+		if rowCount, ok := machineStructure["rowCount"].(float64); ok {
+			data["RowCount"] = int(rowCount)
+		} else if rowCount, ok := machineStructure["rowCount"].(int); ok {
 			data["RowCount"] = rowCount
 		}
 
-		if columnsPerRow, ok := machineStructure["columnsPerRow"].(int); ok {
+		if columnsPerRow, ok := machineStructure["columnsPerRow"].(float64); ok {
+			data["ColumnCount"] = int(columnsPerRow)
+		} else if columnsPerRow, ok := machineStructure["columnsPerRow"].(int); ok {
 			data["ColumnCount"] = columnsPerRow
 		}
 
 		// Format row and column labels
 		if rowOrderInterface, ok := machineStructure["rowOrder"].([]interface{}); ok {
+			// Convert to string array for template functions to work
 			rowOrder := make([]string, 0, len(rowOrderInterface))
 			for _, row := range rowOrderInterface {
 				if rowStr, ok := row.(string); ok {
 					rowOrder = append(rowOrder, rowStr)
 				}
 			}
-			data["RowLabels"] = integration.FormatArrayToString(rowOrder)
+			// Store both formatted string and array for different uses
+			data["RowLabels"] = rowOrder
+			data["RowLabelsString"] = integration.FormatArrayToString(rowOrder)
 		}
 
 		if columnOrderInterface, ok := machineStructure["columnOrder"].([]interface{}); ok {
@@ -119,10 +127,24 @@ func (p *PromptGenerator) addLayoutMetadataToTemplateData(state *schema.Workflow
 		}
 
 		// Calculate total positions
-		if rowCount, ok := data["RowCount"].(int); ok {
-			if columnCount, ok := data["ColumnCount"].(int); ok {
-				data["TotalPositions"] = rowCount * columnCount
-			}
+		// Get rowCount and columnCount values, ensuring they are ints
+		var rowCount, columnCount int
+		
+		if rc, ok := data["RowCount"].(int); ok {
+			rowCount = rc
+		} else if rcf, ok := data["RowCount"].(float64); ok {
+			rowCount = int(rcf)
+		}
+		
+		if cc, ok := data["ColumnCount"].(int); ok {
+			columnCount = cc
+		} else if ccf, ok := data["ColumnCount"].(float64); ok {
+			columnCount = int(ccf)
+		}
+		
+		// Only set TotalPositions if both values are available
+		if rowCount > 0 && columnCount > 0 {
+			data["TotalPositions"] = rowCount * columnCount
 		}
 	}
 
@@ -162,23 +184,31 @@ func (p *PromptGenerator) addHistoricalContextToTemplateData(state *schema.Workf
 		data["MachineStructure"] = machineStructure
 
 		// Extract and set basic machine properties
-		if rowCount, ok := machineStructure["rowCount"].(int); ok {
+		// JSON numbers are parsed as float64 by default, so handle both int and float64 types
+		if rowCount, ok := machineStructure["rowCount"].(float64); ok {
+			data["RowCount"] = int(rowCount)
+		} else if rowCount, ok := machineStructure["rowCount"].(int); ok {
 			data["RowCount"] = rowCount
 		}
 
-		if columnsPerRow, ok := machineStructure["columnsPerRow"].(int); ok {
+		if columnsPerRow, ok := machineStructure["columnsPerRow"].(float64); ok {
+			data["ColumnCount"] = int(columnsPerRow)
+		} else if columnsPerRow, ok := machineStructure["columnsPerRow"].(int); ok {
 			data["ColumnCount"] = columnsPerRow
 		}
 
 		// Format row and column labels
 		if rowOrderInterface, ok := machineStructure["rowOrder"].([]interface{}); ok {
+			// Convert to string array for template functions to work
 			rowOrder := make([]string, 0, len(rowOrderInterface))
 			for _, row := range rowOrderInterface {
 				if rowStr, ok := row.(string); ok {
 					rowOrder = append(rowOrder, rowStr)
 				}
 			}
-			data["RowLabels"] = integration.FormatArrayToString(rowOrder)
+			// Store both formatted string and array for different uses
+			data["RowLabels"] = rowOrder
+			data["RowLabelsString"] = integration.FormatArrayToString(rowOrder)
 		}
 
 		if columnOrderInterface, ok := machineStructure["columnOrder"].([]interface{}); ok {
@@ -192,10 +222,24 @@ func (p *PromptGenerator) addHistoricalContextToTemplateData(state *schema.Workf
 		}
 
 		// Calculate total positions
-		if rowCount, ok := data["RowCount"].(int); ok {
-			if columnCount, ok := data["ColumnCount"].(int); ok {
-				data["TotalPositions"] = rowCount * columnCount
-			}
+		// Get rowCount and columnCount values, ensuring they are ints
+		var rowCount, columnCount int
+		
+		if rc, ok := data["RowCount"].(int); ok {
+			rowCount = rc
+		} else if rcf, ok := data["RowCount"].(float64); ok {
+			rowCount = int(rcf)
+		}
+		
+		if cc, ok := data["ColumnCount"].(int); ok {
+			columnCount = cc
+		} else if ccf, ok := data["ColumnCount"].(float64); ok {
+			columnCount = int(ccf)
+		}
+		
+		// Only set TotalPositions if both values are available
+		if rowCount > 0 && columnCount > 0 {
+			data["TotalPositions"] = rowCount * columnCount
 		}
 	}
 

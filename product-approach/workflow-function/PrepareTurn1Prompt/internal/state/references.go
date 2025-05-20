@@ -33,6 +33,7 @@ type Input struct {
 	EnableS3StateManager bool                          `json:"enableS3StateManager"`
 	Status               string                        `json:"status"`
 	SchemaVersion        string                        `json:"schemaVersion"`
+	Summary              map[string]interface{}        `json:"summary"` // Summary field from PrepareSystemPrompt
 }
 
 // Output represents the Lambda function output with S3 references

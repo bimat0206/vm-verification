@@ -32,17 +32,12 @@ func init() {
 	log = logger.New("vending-machine-verification", "PrepareTurn1Prompt")
 	
 	// Initialize template loader with base path from environment
-	templateBasePath := integration.GetEnvWithDefault("TEMPLATE_BASE_PATH", "")
-	if templateBasePath == "" {
-		log.Error("TEMPLATE_BASE_PATH environment variable is required", nil)
-		panic("TEMPLATE_BASE_PATH environment variable not set")
-	}
+	templateBasePath := integration.GetEnvWithDefault("TEMPLATE_BASE_PATH", "/opt/templates")
 	
-	// Create template loader config
+	// Create template loader config - don't set CustomFuncs explicitly as they're set in the templateloader by default
 	config := templateloader.Config{
 		BasePath:     templateBasePath,
 		CacheEnabled: true,
-		CustomFuncs:  templateloader.DefaultFunctions,
 	}
 	
 	// Initialize template loader
@@ -55,6 +50,12 @@ func init() {
 		})
 		panic(fmt.Sprintf("Failed to initialize template loader: %v", err))
 	}
+	
+	// Log discovered templates
+	log.Info("Template loader initialized", map[string]interface{}{
+		"basePath": templateBasePath,
+		"versions": templateLoader.(*templateloader.Loader).ListVersions("turn1-layout-vs-checking"),
+	})
 
 	// Initialize S3 state manager
 	s3Bucket := integration.GetEnvWithDefault("STATE_BUCKET", "")

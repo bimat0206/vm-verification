@@ -5,7 +5,78 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.4] - 2025-05-25
+## [4.0.11] - 2025-05-20
+
+### Fixed
+- Fixed template loading issues by following PrepareSystemPrompt design pattern
+- Simplified template loader initialization by removing explicit CustomFuncs
+- Added template version logging for debugging
+- Fixed default TEMPLATE_BASE_PATH value to match Docker container path
+- Made template path more robust with fallback to /opt/templates
+- Updated templateLoader initialization to avoid function conflicts
+
+## [4.0.10] - 2025-05-20
+
+### Fixed
+- Fixed template loading issues and Docker template path inconsistency
+- Fixed "template-loading: Internal error" by correcting Dockerfile template paths
+- Simplified template processing by using registered template functions
+- Fixed template function `sub` issue by replacing with `add` with negative number
+- Corrected template path in Dockerfile from `/build/docker_templates` to `/build/templates`
+- Removed unnecessary template directory copying in build script
+- Added more robust template path handling in the Docker container
+
+## [4.0.9] - 2025-05-20
+
+### Fixed
+- Fixed "template: turn1-layout-vs-checking:9:129: executing \"turn1-layout-vs-checking\" at <.RowCount>: invalid value; expected int" error
+- Enhanced type handling for machineStructure.rowCount and columnsPerRow by supporting both int and float64 types
+- Added robust type conversion for JSON numeric values (which default to float64 in Go)
+- Improved TotalPositions calculation to handle different numeric types
+- Made template data processing more resilient to different JSON number representations
+
+## [4.0.8] - 2025-05-20
+
+### Fixed
+- Fixed "Failed to process template: InternalException: Internal error in component: template-execution" error
+- Added custom template functions including "sub" for array indexing arithmetic
+- Updated layout-vs-checking template to use correct array indexing
+- Modified RowLabels handling to store both string format and array format for template access
+- Enhanced error logging for template execution with data key diagnostics
+- Added template execution error recovery with detailed debugging
+
+## [4.0.7] - 2025-05-20
+
+### Fixed
+- Fixed "Missing required field: verificationContext.verificationType" error by implementing robust loading of nested verification context structures
+- Enhanced initialization.json loading to handle both direct and nested verification context structures
+- Added fallback to raw JSON parsing with multiple structure handling attempts
+- Improved error handling with better logging of field extraction
+- Fixed missing verificationType field in nested structure by implementing proper structure traversal
+- Added additional validation to ensure verification context is never nil
+- Added JSON marshaling/unmarshaling to handle complex nested structures
+
+## [4.0.6] - 2025-05-20
+
+### Fixed
+- Fixed "Missing required field: verificationContext.verificationId" and "Missing required field: verificationContext.verificationType" errors by ensuring all required fields are properly set in the verification context
+- Added fallback mechanism to use top-level verificationId and verificationType when missing in the verification context
+- Added support for extracting verificationType from input.Summary field when available
+- Added support for setting missing verification context fields from input (verificationType, status)
+- Added automatic generation of verificationAt timestamp when missing
+- Enhanced error handling for verification context validation
+- Added detailed logging of verification context fields for easier troubleshooting
+
+## [4.0.5] - 2025-05-20
+
+### Fixed
+- Fixed "failed to load images from metadata" error by updating the loadImagesFromMetadata method to handle both new and old metadata formats
+- Added support for the complex metadata structure produced by FetchImages function
+- Implemented backward compatibility for old metadata format
+- Added helper functions for extracting values from complex metadata structure
+- Enhanced error handling and logging for metadata processing
+
+## [4.0.4] - 2025-05-20
 
 ### Fixed
 - Fixed duplicate case error in processor.go for "s3-temporary" storage method
@@ -20,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced deprecated constants with string literals for storage methods
 - Simplified image loading from S3 URLs
 - Fixed error handling in URL processing
+- Fixed "Reference image not found in metadata" error by updating loader.go to use "referenceImage" and "checkingImage" keys instead of "reference" and "checking" to match the actual S3 bucket metadata format
 
 ## [4.0.2] - 2025-05-20
 

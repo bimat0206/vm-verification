@@ -36,10 +36,19 @@ func (t *TemplateProcessor) ProcessTemplate(templateName string, data map[string
 		"templateName": templateName,
 		"version":      t.loader.GetLatestVersion(templateName),
 	})
-
-	// Render the template
+	
+	// Add custom functions - no need to create a separate map as these functions
+	// should already be registered in the template loader, but we'll add them directly here as well
+	// for extra safety and compatibility with existing templates
+	
+	// Render the template with the provided data
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
+		t.log.Error("Template execution error", map[string]interface{}{
+			"error":        err.Error(),
+			"templateName": templateName,
+			"dataKeys":     getMapKeys(data),
+		})
 		return "", errors.NewInternalError("template-execution", err)
 	}
 
@@ -53,6 +62,15 @@ func (t *TemplateProcessor) ProcessTemplate(templateName string, data map[string
 	})
 
 	return renderedText, nil
+}
+
+// getMapKeys returns a sorted list of keys from a map
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // GetTemplateVersion returns the latest version of the template

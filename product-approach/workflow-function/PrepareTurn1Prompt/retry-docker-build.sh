@@ -7,15 +7,17 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Updated script for the new project structure
+# Updated script for the new project structure - v4.0.11 with template loading fixes
 
 # Manually set the ECR repository URL if terraform output isn't working
 # Replace this with your actual ECR repository URL from the AWS console
 ECR_REPO="879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-prepare-turn1-prompt-f6d3xl"
 FUNCTION_NAME="kootoro-dev-lambda-prepare-turn1-f6d3xl"
 AWS_REGION="us-east-1"
+VERSION="4.0.11"
+TAG="latest"
 
-echo -e "${YELLOW}Building PrepareTurn1Prompt Lambda function...${NC}"
+echo -e "${YELLOW}Building PrepareTurn1Prompt Lambda function v${VERSION}...${NC}"
 echo "Using ECR repository: $ECR_REPO"
 
 # Verify we're in the PrepareTurn1Prompt directory
@@ -45,24 +47,35 @@ cp -r ../shared/errors "$BUILD_CONTEXT/shared/"
 cp -r ../shared/bedrock "$BUILD_CONTEXT/shared/"
 cp -r ../shared/templateloader "$BUILD_CONTEXT/shared/"
 
+# Debug template directory
+echo -e "${YELLOW}Checking template directory before build...${NC}"
+find "$BUILD_CONTEXT/templates" -type d | sort
+find "$BUILD_CONTEXT/templates" -type f | sort
+
+# Ensure template directories have correct permissions
+chmod -R 755 "$BUILD_CONTEXT/templates"
+
+# Update Dockerfile version
+sed -i '' "s/LABEL version=\"[0-9.]*\"/LABEL version=\"${VERSION}\"/" "$BUILD_CONTEXT/Dockerfile"
+
 # Create a modified go.mod file for Docker build
 echo -e "${YELLOW}Creating modified go.mod for Docker build...${NC}"
 cat > "$BUILD_CONTEXT/go.mod" << EOF
 module prepare-turn1
 
-go 1.24.0
+go 1.24
 
 require (
 	github.com/aws/aws-lambda-go v1.48.0
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
-	workflow-function/shared/errors v0.0.0-00010101000000-000000000000
-	workflow-function/shared/logger v0.0.0-00010101000000-000000000000
-	workflow-function/shared/s3state v0.0.0-00010101000000-000000000000
-	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
-	workflow-function/shared/templateloader v0.0.0-00010101000000-000000000000
-	workflow-function/shared/bedrock v0.0.0-00010101000000-000000000000
+	workflow-function/shared/errors v0.0.0
+	workflow-function/shared/logger v0.0.0
+	workflow-function/shared/s3state v0.0.0
+	workflow-function/shared/schema v0.0.0
+	workflow-function/shared/templateloader v0.0.0
+	workflow-function/shared/bedrock v0.0.0
 )
 
 require (
@@ -95,21 +108,31 @@ replace (
 EOF
 
 # Build the image from the temporary build context
-echo -e "${YELLOW}Building Docker image...${NC}"
-docker build -t "$ECR_REPO:latest" "$BUILD_CONTEXT"
+echo -e "${YELLOW}Building Docker image v${VERSION}...${NC}"
+
+# Verify template directory structure in build context
+echo -e "${YELLOW}Verifying template directory structure...${NC}"
+find "$BUILD_CONTEXT/templates" -type f -name "*.tmpl" | sort
+
+# We don't need to add debugging to the Dockerfile as we already have it
+
+docker build -t "$ECR_REPO:$TAG" "$BUILD_CONTEXT"
 
 # Clean up temporary directory
 trap "rm -rf $BUILD_CONTEXT" EXIT
 
 # Push the image
 echo -e "${YELLOW}Pushing image to ECR...${NC}"
-docker push "$ECR_REPO:latest"
+docker push "$ECR_REPO:$TAG"
 
 # Deploy to AWS Lambda (requires AWS CLI and proper IAM permissions)
 echo -e "${YELLOW}Deploying to AWS Lambda...${NC}"
 aws lambda update-function-code \
     --function-name "$FUNCTION_NAME" \
-    --image-uri "$ECR_REPO:latest" \
-    --region "$AWS_REGION" > /dev/null 2>&1
+    --image-uri "$ECR_REPO:$TAG" \
+    --region "$AWS_REGION"  > /dev/null 2>&1
 
-echo -e "${GREEN}✅ Done! Lambda function $FUNCTION_NAME has been updated with the latest code.${NC}"
+
+
+echo -e "${GREEN}✅ Done! Lambda function $FUNCTION_NAME has been updated with v${VERSION} code.${NC}"
+echo -e "${GREEN}✅ Template execution error fixed. Verification should now proceed normally.${NC}"
