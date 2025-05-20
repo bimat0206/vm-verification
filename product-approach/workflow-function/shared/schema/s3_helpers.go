@@ -244,21 +244,26 @@ func (b *S3ImageInfoBuilder) generateTempS3Key(imageType string) string {
 	month := timestamp.Format("01")
 	day := timestamp.Format("02")
 	
-	verificationId := "unknown"
+	// Check if we have a state bucket prefix configured first
+	if b.config != nil && b.config.StateBucketPrefix != "" {
+		// Use the provided StateBucketPrefix directly, which should already include the verification ID
+		// This avoids the "unknown" fallback issue
+		return fmt.Sprintf("%s/%s-base64.base64", b.config.StateBucketPrefix, imageType)
+	}
+	
+	// If no prefix is configured, fall back to extracting verification ID from metadata
+	verificationId := "ERROR-MISSING-VERIFICATION-ID"
 	
 	if b.imageInfo.Metadata != nil {
-		if vid, ok := b.imageInfo.Metadata["_verificationId"].(string); ok {
+		if vid, ok := b.imageInfo.Metadata["_verificationId"].(string); ok && vid != "" {
 			verificationId = vid
 		}
 	}
 	
-	// Check if we have a state bucket prefix configured
-	if b.config != nil && b.config.StateBucketPrefix != "" {
-		// Use date-based path with verification ID as in the expected schema:
-		// {year}/{month}/{day}/{verificationId}/images/{imageType}-base64.base64
-		return fmt.Sprintf("%s/%s/%s/%s/images/%s-base64.base64",
-			year, month, day, verificationId, imageType)
-	}
+	// Use date-based path with verification ID as in the expected schema:
+	// {year}/{month}/{day}/{verificationId}/images/{imageType}-base64.base64
+	return fmt.Sprintf("%s/%s/%s/%s/images/%s-base64.base64",
+		year, month, day, verificationId, imageType)
 	
 	// Fallback to legacy path format
 	return fmt.Sprintf("%s%s/%s-%s.base64", 
@@ -287,11 +292,13 @@ func (b *S3ImageInfoBuilder) buildTaggingString(tags map[string]string) *string 
 // getVerificationId extracts verification ID from metadata
 func (b *S3ImageInfoBuilder) getVerificationId() string {
 	if b.imageInfo.Metadata != nil {
-		if vid, ok := b.imageInfo.Metadata["_verificationId"].(string); ok {
+		if vid, ok := b.imageInfo.Metadata["_verificationId"].(string); ok && vid != "" {
 			return vid
 		}
 	}
-	return "unknown"
+	
+	// Use a more descriptive error indicator instead of "unknown"
+	return "ERROR-MISSING-VERIFICATION-ID"
 }
 
 // Upload uploads the image data to S3

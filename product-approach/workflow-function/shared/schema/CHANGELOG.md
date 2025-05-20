@@ -1,81 +1,79 @@
 # Changelog
 
-All notable changes to the shared schema package will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [2.0.1] - 2025-05-23
-
-### Fixed
-- Added vendor directory to ensure proper dependency resolution for AWS SDK packages
-- Fixed import issues with AWS SDK packages by using vendored dependencies
-- Improved build reliability across different environments
-
-## [2.0.0] - 2025-05-22
-
-### Changed
-- Updated schema version to 2.0.0 to align with JSON schema definitions
-- Updated BedrockImageSource structure with new field naming convention:
-  - Changed `Type` field from "bytes" to "base64"
-  - Renamed `Bytes` field to `Data`
-  - Added `Media_type` field for content type information (e.g., "image/jpeg")
-- Refactored s3_helpers.go to avoid duplication with base64_helpers.go:
-  - Made `Base64ImageHelpers` a private type with a public singleton instance
-  - Created consistent naming patterns across all helper types
-  - Improved implementation of the builder pattern
-- Updated validation to enforce stricter JSON schema compliance
-- Fixed string comparison in ValidateImageFormat to use strings.EqualFold for case-insensitive matching
-- Improved error message formatting for validation errors
+## [2.1.0] - 2025-05-20
 
 ### Added
-- Enhanced support for metadata in BedrockMessage format
-- Added getMediaType method to BedrockMessageBuilder for content type determination
-- Added custom type imageProcessor for better backward compatibility
-- Added more specific error messages for S3 retrieval failures
-- Added documentation for schema version 2.0.0 compatibility
+- Added `CompleteSystemPrompt` struct that matches the expected JSON schema format
+- Added related structs for system prompt components:
+  - `PromptContent`
+  - `BedrockConfiguration`
+  - `ContextInformation`
+  - `LayoutInformation`
+  - `HistoricalContext`
+  - `OutputSpecification`
+  - `ProcessingMetadata`
+- Added `ConvertToCompleteSystemPrompt` function to convert from simple SystemPrompt to CompleteSystemPrompt
+- Added support for the complete system prompt format with all required fields
 
 ### Fixed
-- Unused results in array operations (S3 tags generation)
-- Inconsistencies between method signatures and implementations
-- Updated ImageData.UpdateStorageSummary to work with refactored code
-- Fixed BedrockValidation to properly validate v2.0.0 message format
+- Fixed issue where PrepareTurn1Prompt function was failing due to missing fields in system-prompt.json
 
-## [1.3.0] - 2025-05-19
+## [2.0.1] - 2025-05-20
 
-### Changed
-- Migrated to S3-only storage for Base64 data
-- Removed inline Base64 storage support
-- Split large codebase into multiple files for better maintainability:
-  - constants.go: All constants
-  - core.go: Core types and helper functions
-  - image_info.go: ImageInfo struct and methods
-  - image_data.go: ImageData struct and methods
-  - bedrock.go: Bedrock-related types and functions
-  - s3_helpers.go: S3 storage helpers (replacing base64_helpers.go)
-  - validation.go: Validation functions
-  - types.go: Additional type definitions
-- Updated validation to check for S3 storage instead of inline Base64 data
-- Renamed HybridStorageConfig to S3StorageConfig
-- Renamed HybridBase64Retriever to S3Base64Retriever
-- Renamed HybridImageInfoBuilder to S3ImageInfoBuilder
-- Renamed HybridImageDataProcessor to S3ImageDataProcessor
+### Fixed
+- Fixed S3 path issue where "unknown" was used as a fallback for verification ID in `generateTempS3Key` method
+- Modified `generateTempS3Key` to use the provided `StateBucketPrefix` directly when available
+- Changed fallback value from "unknown" to "ERROR-MISSING-VERIFICATION-ID" to make issues more visible
+- Enhanced `getVerificationId` method to validate that verification IDs are not empty
+- Improved error handling for missing verification IDs in S3 path generation
 
-### Removed
-- Inline Base64 storage support
-- Base64Data field from ImageInfo
-- StorageMethodInline constant
-- DefaultBase64SizeThreshold constant
-- TotalInlineSize field from ImageData
-
-## [1.0.0] - 2025-05-14
+## [2.0.0] - 2025-05-15
 
 ### Added
-- Initial implementation of shared schema package
-- Core data models: VerificationContext, ImageData, ConversationState, etc.
-- Status constants with explicit state transitions aligned with Step Functions
-- Validation functions for verification context and workflow state
-- ErrorInfo structure for standardized error reporting
+- Added support for Bedrock API v2.0.0 message format
+- Added `BedrockMessageBuilder` for creating Bedrock messages with S3 retrieval
+- Added `S3Base64Retriever` for retrieving Base64 data from S3
+- Added `S3ImageInfoBuilder` for creating image info with S3 storage
+- Added `S3ImageDataProcessor` for processing image data with S3 storage
+
+### Changed
+- Updated Bedrock message format to match JSON schema v2.0.0
+- Changed `BedrockImageSource.Type` from "bytes" to "base64"
+- Renamed `BedrockImageSource.Bytes` to `BedrockImageSource.Data`
+- Added `BedrockImageSource.Media_type` field for content type
+- Enhanced validation for Bedrock message format
+- Updated schema version to "2.0.0"
+
+### Fixed
+- Fixed compatibility issues with Bedrock API v2.0.0
+- Improved error handling for S3 operations
+- Enhanced validation for image formats and sizes
+
+## [1.3.0] - 2025-05-10
+
+### Added
+- Added S3-based Base64 storage for Bedrock API integration
+- Added `S3StorageConfig` for configuring S3 storage
+- Added helper functions for S3 operations
+- Added support for date-based hierarchical path structure
+- Added validation for S3-based Base64 storage
+
+### Changed
+- Split package into multiple files for better maintainability
+- Enhanced ImageInfo struct with S3 storage fields
+- Updated schema version to "1.3.0"
+
+### Fixed
+- Fixed memory usage issues with large Base64 data
+- Improved error handling for Base64 operations
+- Enhanced validation for image formats and sizes
+
+## [1.0.0] - 2025-05-01
+
+### Added
+- Initial release of the schema package
+- Core data structures for verification workflow
+- Status constants for state transitions
+- Validation functions for data integrity
 - Helper functions for common operations
-- Comprehensive README with usage instructions
-- Backward compatibility support
+- Basic Bedrock message format support
