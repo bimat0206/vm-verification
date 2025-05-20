@@ -5,6 +5,41 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.15] - 2025-05-20
+
+### Fixed
+- Fixed inconsistent S3 reference key generation 
+- Updated the s3state.SaveToEnvelope method to ensure consistent reference keys in output
+- Fixed issue where "processing_turn1-metrics" reference was missing from output
+- Added proper logging for all stored S3 references
+- Ensured metrics files are properly referenced in function output
+
+## [4.0.14] - 2025-05-20
+
+### Fixed
+- Fixed incorrect S3 path structure for storing prompts
+- Updated SaveToEnvelope method to correctly use date-based path structure
+- Fixed path format to use YYYY/MM/DD/verificationID/category/filename pattern
+- Resolved issue where prompts were stored in the wrong S3 location
+- Ensured proper extraction of date components from verification ID
+
+## [4.0.13] - 2025-05-20
+
+### Fixed
+- Fixed unclosed conditional statements in turn1-layout-vs-checking template
+- Added missing {{end}} tags for if statements in template
+- Fixed empty schemaVersion field in initialization.json
+- Updated schemaVersion to "2.0" to match expected format
+- Resolved "failed to process template: InternalException: Internal error in component: template-loading" error
+
+## [4.0.12] - 2025-05-20
+
+### Fixed
+- Fixed template loading error in turn1-previous-vs-current template
+- Updated template to use array indexing with add function instead of split function
+- Harmonized template function usage across all templates
+- Resolved "internal error in component: template-loading" issue
+
 ## [4.0.11] - 2025-05-20
 
 ### Fixed

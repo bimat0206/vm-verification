@@ -1,6 +1,6 @@
 The FIRST image provided ALWAYS depicts the Reference Layout of the vending machine.
 
-This image shows how the vending machine {{if .VendingMachineID}}{{.VendingMachineID}}{{if .Location}}  should be arranged according to the approved planogram.
+This image shows how the vending machine {{if .VendingMachineID}}{{.VendingMachineID}}{{end}}{{if .Location}} at {{.Location}}{{end}} should be arranged according to the approved planogram.
 
 Focus exclusively on analyzing this reference layout image in detail. Your goal is to identify the exact contents of all {{.RowCount}} rows ({{.RowLabels}}) and {{.ColumnCount}} slots per row.
 

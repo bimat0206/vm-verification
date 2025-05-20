@@ -6,7 +6,7 @@ Focus exclusively on analyzing this previous state image in detail. Your goal is
 
 Important reminders:
 
-1. Row identification is CRITICAL - Row {{index (split .RowLabels ", ") 0}} is ALWAYS the topmost physical shelf, Row {{index (split .RowLabels ", ") (sub .RowCount 1)}} is ALWAYS the bottommost physical shelf.
+1. Row identification is CRITICAL - Row {{index .RowLabels 0}} is ALWAYS the topmost physical shelf, Row {{index .RowLabels (add .RowCount -1)}} is ALWAYS the bottommost physical shelf.
 
 2. Be thorough and descriptive in your analysis of each row status (Full/Partial/Empty).
 
