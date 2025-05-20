@@ -1,366 +1,230 @@
+// Package processor provides Turn1 processing capabilities
 package processor
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"workflow-function/ProcessTurn1Response/internal/parser"
-	"workflow-function/ProcessTurn1Response/internal/storage"
-	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
+	"workflow-function/ProcessTurn1Response/internal/types"
+	"workflow-function/ProcessTurn1Response/internal/validator"
 )
 
-// ProcessingResult represents the result of Turn 1 response processing
-type ProcessingResult struct {
-	// SourceType indicates the source of the analysis
-	SourceType string
-	
-	// AnalysisData contains the extracted analysis data
-	AnalysisData map[string]interface{}
-	
-	// ContextForTurn2 contains prepared context for Turn 2
-	ContextForTurn2 map[string]interface{}
-	
-	// ProcessingPath indicates which processing path was used
-	ProcessingPath string
+// Processor interface defines the contract for processing Turn1 responses
+type Processor interface {
+	// ProcessTurn1Response processes the Turn1 response based on the processing path
+	ProcessTurn1Response(ctx context.Context, responseContent string, processingPath types.ProcessingPath, historicalData *types.HistoricalEnhancement) (*types.Turn1ProcessingResult, error)
 }
 
-// Parser is an alias for parser.Parser
-type Parser interface {
-	// ParseValidationResponse parses validation indicators from response
-	ParseValidationResponse(response map[string]interface{}) map[string]interface{}
-	
-	// ParseVisualAnalysis parses visual analysis from response
-	ParseVisualAnalysis(response map[string]interface{}) map[string]interface{}
-	
-	// ParseMachineStructure parses machine structure from response
-	ParseMachineStructure(response map[string]interface{}) map[string]interface{}
-	
-	// ParseMachineState parses machine state from response
-	ParseMachineState(response map[string]interface{}) map[string]interface{}
-	
-	// ExtractObservations extracts observations from response
-	ExtractObservations(response map[string]interface{}) map[string]interface{}
+// DefaultProcessor implements the Processor interface
+type DefaultProcessor struct {
+	logger     *slog.Logger
+	parser     parser.Parser
+	validator  validator.ValidatorInterface
 }
 
-// Validator handles validation of processing results
-type Validator struct {
-	logger logger.Logger
-}
-
-// ValidateReferenceAnalysis validates the reference analysis
-func (v *Validator) ValidateReferenceAnalysis(analysis map[string]interface{}) error {
-	// This is a placeholder implementation
-	if analysis == nil {
-		return fmt.Errorf("analysis is nil")
-	}
-	return nil
-}
-
-// NewParser creates a new Parser instance
-func NewParser(log logger.Logger) Parser {
-	return parser.NewParser(log)
-}
-
-// NewValidator creates a new Validator instance
-func NewValidator(log logger.Logger) *Validator {
-	return &Validator{
-		logger: log,
+// New creates a new processor instance
+func New(logger *slog.Logger) Processor {
+	// Adapt slog logger to shared logger interface for validator
+	logAdapter := NewSlogLoggerAdapter(logger)
+	
+	return &DefaultProcessor{
+		logger:    logger,
+		parser:    parser.New(logger),
+		validator: validator.NewValidator(logAdapter),
 	}
 }
 
-// Processor handles the core processing logic for Turn 1 responses
-type Processor struct {
-	log    logger.Logger
-	deps   *storage.Dependencies
-	parser Parser
-}
+// ProcessTurn1Response processes the Turn1 response based on the processing path
+func (p *DefaultProcessor) ProcessTurn1Response(
+	ctx context.Context,
+	responseContent string,
+	processingPath types.ProcessingPath,
+	historicalData *types.HistoricalEnhancement,
+) (*types.Turn1ProcessingResult, error) {
+	startTime := TimeNow()
+	
+	p.logger.Info("Starting Turn1 response processing", 
+		"processingPath", processingPath,
+		"contentLength", len(responseContent),
+		"hasHistoricalData", historicalData != nil,
+	)
 
-// NewProcessor creates a new processor instance
-func NewProcessor(log logger.Logger, deps *storage.Dependencies) *Processor {
-	return &Processor{
-		log:    log,
-		deps:   deps, // Only needed for minimal conversation history updates
-		parser: NewParser(log),
+	// Create processing metadata
+	metadata := &types.ProcessingMetadata{
+		ProcessingStartTime: startTime,
+		ProcessingPath:      processingPath,
+		ResponseSize:        int64(len(responseContent)),
 	}
-}
 
-// ProcessTurn1Response processes the Turn 1 response based on verification type
-func (p *Processor) ProcessTurn1Response(ctx context.Context, input schema.WorkflowState) (schema.WorkflowState, error) {
-	log := p.log.WithFields(map[string]interface{}{
-		"verificationType": input.VerificationContext.VerificationType,
-		"verificationId":   input.VerificationContext.VerificationId,
-	})
+	// Initialize result with common fields
+	result := &types.Turn1ProcessingResult{
+		Status:             "PROCESSING",
+		SourceType:         processingPath,
+		ProcessingMetadata: metadata,
+	}
 
-	log.Info("Starting Turn 1 response processing", nil)
-
-	// Determine processing path
-	processingPath := p.determineProcessingPath(input)
-	log.Info("Processing path determined", map[string]interface{}{
-		"path": processingPath,
-	})
-
-	// Route to appropriate processing method
-	var result *ProcessingResult
+	// Select the appropriate processing path handler
+	var processor PathProcessor
 	var err error
 
 	switch processingPath {
-	case "UC1_VALIDATION":
-		result, err = p.processValidationFlow(input)
-	case "UC2_HISTORICAL_ENHANCEMENT":
-		result, err = p.processHistoricalEnhancement(input)
-	case "UC2_FRESH_EXTRACTION":
-		result, err = p.processFreshExtraction(input)
+	case types.PathValidationFlow:
+		processor = NewValidationFlowProcessor(p.logger, p.parser, p.validator)
+	case types.PathHistoricalEnhancement:
+		processor = NewHistoricalEnhancementProcessor(p.logger, p.parser, p.validator)
+	case types.PathFreshExtraction:
+		processor = NewFreshExtractionProcessor(p.logger, p.parser, p.validator)
 	default:
-		return input, fmt.Errorf("unknown processing path: %s", processingPath)
+		return nil, NewProcessingError("Unknown processing path", processingPath.String())
 	}
 
+	// Process using the selected handler
+	err = processor.Process(ctx, responseContent, historicalData, result)
 	if err != nil {
-		log.Error("Processing failed", map[string]interface{}{
-			"error": err.Error(),
-			"path":  processingPath,
-		})
-		return input, err
+		return nil, err
 	}
 
-	// Build output workflow state
-	output := p.buildOutputState(input, result)
+	// Set completion time and duration
+	metadata.ProcessingEndTime = TimeNow()
+	metadata.ProcessingDuration = metadata.ProcessingEndTime.Sub(metadata.ProcessingStartTime)
 	
-	log.Info("Turn 1 response processing completed", map[string]interface{}{
-		"sourceType":    result.SourceType,
-		"analysisItems": len(result.AnalysisData),
-	})
+	// Update status based on success
+	result.Status = "EXTRACTION_COMPLETE"
+	
+	p.logger.Info("Turn1 response processing completed", 
+		"duration", metadata.ProcessingDuration.String(),
+		"extractedElements", metadata.ExtractedElements,
+	)
 
-	return output, nil
+	return result, nil
 }
 
-// determineProcessingPath determines which processing path to take
-func (p *Processor) determineProcessingPath(input schema.WorkflowState) string {
-	verificationType := input.VerificationContext.VerificationType
-	
-	// Check verification type constants from schema
-	if verificationType == schema.VerificationTypeLayoutVsChecking {
-		return "UC1_VALIDATION"
-	}
-	
-	if verificationType == schema.VerificationTypePreviousVsCurrent {
-		// Check if historical data is available
-		if input.HistoricalContext != nil && len(input.HistoricalContext) > 0 {
-			return "UC2_HISTORICAL_ENHANCEMENT"
-		}
-		return "UC2_FRESH_EXTRACTION"
-	}
-	
-	return "UNKNOWN"
+// TimeFormat is the standard time format for timestamps
+const TimeFormat = time.RFC3339
+
+// TimeNow returns the current time, can be mocked for testing
+var TimeNow = func() time.Time {
+	return time.Now()
 }
 
-// processValidationFlow handles UC1 validation flow
-func (p *Processor) processValidationFlow(input schema.WorkflowState) (*ProcessingResult, error) {
-	response := input.Turn1Response
-	
-	// Parse the response for validation indicators
-	validationResults := p.parser.ParseValidationResponse(response)
-	
-	// Extract basic observations
-	observations := p.parser.ExtractObservations(response)
-	
-	// Create analysis data
-	analysisData := map[string]interface{}{
-		"status":            "VALIDATION_COMPLETE",
-		"sourceType":        "REFERENCE_VALIDATION",
-		"validationResults": validationResults,
-		"basicObservations": observations,
-		"contextForTurn2": map[string]interface{}{
-			"referenceValidated":    true,
-			"useSystemPromptReference": true,
-			"validationPassed":     validationResults["structureConfirmed"],
-			"readyForTurn2":        true,
-		},
-	}
-	
-	return &ProcessingResult{
-		SourceType:      "REFERENCE_VALIDATION",
-		AnalysisData:    analysisData,
-		ContextForTurn2: analysisData["contextForTurn2"].(map[string]interface{}),
-		ProcessingPath:  "UC1_VALIDATION",
-	}, nil
+// FormatTime formats a time according to the standard format
+func FormatTime(t time.Time) string {
+	return t.Format(TimeFormat)
 }
 
-// processHistoricalEnhancement handles UC2 with historical context
-func (p *Processor) processHistoricalEnhancement(input schema.WorkflowState) (*ProcessingResult, error) {
-	response := input.Turn1Response
-	historicalContext := input.HistoricalContext
-	
-	// Parse visual confirmation from response
-	visualAnalysis := p.parser.ParseVisualAnalysis(response)
-	
-	// Extract and enhance historical baseline
-	enhancedBaseline := p.enhanceHistoricalBaseline(historicalContext, visualAnalysis)
-	
-	// Create analysis data
-	analysisData := map[string]interface{}{
-		"status":             "EXTRACTION_COMPLETE",
-		"sourceType":         "HISTORICAL_WITH_VISUAL_CONFIRMATION",
-		"historicalBaseline": enhancedBaseline,
-		"machineStructure":   p.extractMachineStructure(historicalContext),
-		"knownIssues":        p.extractKnownIssues(historicalContext),
-		"contextForTurn2": map[string]interface{}{
-			"baselineEstablished":    true,
-			"useHistoricalAsReference": true,
-			"focusAreas":            p.identifyFocusAreas(historicalContext),
-			"knownIssues":           p.extractKnownIssuesList(historicalContext),
-		},
-	}
-	
-	return &ProcessingResult{
-		SourceType:      "HISTORICAL_WITH_VISUAL_CONFIRMATION",
-		AnalysisData:    analysisData,
-		ContextForTurn2: analysisData["contextForTurn2"].(map[string]interface{}),
-		ProcessingPath:  "UC2_HISTORICAL_ENHANCEMENT",
-	}, nil
-}
+// ProcessorOption is a function for configuring a processor
+type ProcessorOption func(*DefaultProcessor)
 
-// processFreshExtraction handles UC2 without historical context
-func (p *Processor) processFreshExtraction(input schema.WorkflowState) (*ProcessingResult, error) {
-	response := input.Turn1Response
-	
-	// Parse comprehensive analysis from response
-	extractedStructure := p.parser.ParseMachineStructure(response)
-	extractedState := p.parser.ParseMachineState(response)
-	
-	// Create analysis data
-	analysisData := map[string]interface{}{
-		"status":              "EXTRACTION_COMPLETE",
-		"sourceType":          "FRESH_VISUAL_ANALYSIS",
-		"extractedStructure":  extractedStructure,
-		"extractedState":     extractedState,
-		"contextForTurn2": map[string]interface{}{
-			"baselineSource":        "EXTRACTED_STATE",
-			"useHistoricalData":     false,
-			"extractedDataAvailable": true,
-			"readyForTurn2":         true,
-		},
-	}
-	
-	return &ProcessingResult{
-		SourceType:      "FRESH_VISUAL_ANALYSIS",
-		AnalysisData:    analysisData,
-		ContextForTurn2: analysisData["contextForTurn2"].(map[string]interface{}),
-		ProcessingPath:  "UC2_FRESH_EXTRACTION",
-	}, nil
-}
-
-// enhanceHistoricalBaseline combines historical data with visual analysis
-func (p *Processor) enhanceHistoricalBaseline(historical map[string]interface{}, visual map[string]interface{}) map[string]interface{} {
-	enhanced := make(map[string]interface{})
-	
-	// Copy historical data
-	for key, value := range historical {
-		enhanced[key] = value
-	}
-	
-	// Add visual confirmations
-	if visual != nil {
-		enhanced["visualConfirmation"] = visual
-		enhanced["enhancementTimestamp"] = schema.FormatISO8601()
-	}
-	
-	return enhanced
-}
-
-// extractMachineStructure extracts machine structure from context
-func (p *Processor) extractMachineStructure(context map[string]interface{}) map[string]interface{} {
-	if structure, ok := context["machineStructure"].(map[string]interface{}); ok {
-		return structure
-	}
-	
-	// Return default structure if not found
-	return map[string]interface{}{
-		"extracted": false,
-		"fallback":  true,
+// WithParser sets a custom parser for the processor
+func WithParser(p parser.Parser) ProcessorOption {
+	return func(dp *DefaultProcessor) {
+		dp.parser = p
 	}
 }
 
-// extractKnownIssues extracts known issues from historical context
-func (p *Processor) extractKnownIssues(context map[string]interface{}) map[string]interface{} {
-	issues := make(map[string]interface{})
-	
-	// Extract verification summary if available
-	if summary, ok := context["verificationSummary"].(map[string]interface{}); ok {
-		// Convert summary fields to known issues format
-		for key, value := range summary {
-			if contains(key, "empty") ||
-			   contains(key, "incorrect") ||
-			   contains(key, "missing") ||
-			   contains(key, "discrepant") {
-				issues[key] = value
-			}
-		}
+// WithValidator sets a custom validator for the processor
+func WithValidator(v validator.ValidatorInterface) ProcessorOption {
+	return func(dp *DefaultProcessor) {
+		dp.validator = v
 	}
-	
-	return issues
 }
 
-// identifyFocusAreas identifies areas that need special attention in Turn 2
-func (p *Processor) identifyFocusAreas(context map[string]interface{}) []string {
-	focusAreas := []string{}
+// NewWithOptions creates a new processor with options
+func NewWithOptions(logger *slog.Logger, options ...ProcessorOption) Processor {
+	// Adapt slog logger to shared logger interface for validator
+	logAdapter := NewSlogLoggerAdapter(logger)
 	
-	// Extract areas with known issues
-	if checkingStatus, ok := context["checkingStatus"].(map[string]interface{}); ok {
-		for key, value := range checkingStatus {
-			if status, ok := value.(string); ok {
-				if contains(status, "empty") ||
-				   contains(status, "incorrect") ||
-				   contains(status, "changed") {
-					focusAreas = append(focusAreas, key)
-				}
-			}
-		}
+	proc := &DefaultProcessor{
+		logger:    logger,
+		parser:    parser.New(logger),
+		validator: validator.NewValidator(logAdapter),
 	}
 	
-	return focusAreas
+	for _, option := range options {
+		option(proc)
+	}
+	
+	return proc
 }
 
-// extractKnownIssuesList extracts a list of known issue types
-func (p *Processor) extractKnownIssuesList(context map[string]interface{}) []string {
-	issues := []string{}
-	
-	if summary, ok := context["verificationSummary"].(map[string]interface{}); ok {
-		if status, ok := summary["verificationStatus"].(string); ok && status != "CORRECT" {
-			// Parse outcome for issue types
-			if outcome, ok := summary["verificationOutcome"].(string); ok {
-				if contains(outcome, "empty") {
-					issues = append(issues, "empty_rows")
-				}
-				if contains(outcome, "incorrect") {
-					issues = append(issues, "incorrect_products")
-				}
-			}
-		}
-	}
-	
-	return issues
+// Error types
+
+// ProcessingError represents an error during Turn1 response processing
+type ProcessingError struct {
+	Message   string
+	Details   string
+	Category  string
 }
 
-// buildOutputState constructs the output workflow state
-func (p *Processor) buildOutputState(input schema.WorkflowState, result *ProcessingResult) schema.WorkflowState {
-	output := input
-	
-	// Set reference analysis
-	output.ReferenceAnalysis = result.AnalysisData
-	
-	// Update schema version
-	output.SchemaVersion = schema.SchemaVersion
-	
-	// Add processing metadata
-	if output.ReferenceAnalysis != nil {
-		output.ReferenceAnalysis["processingMetadata"] = map[string]interface{}{
-			"processingPath":   result.ProcessingPath,
-			"processedAt":      schema.FormatISO8601(),
-			"sourceType":       result.SourceType,
-			"contextPrepared":  true,
-		}
+// NewProcessingError creates a new ProcessingError
+func NewProcessingError(message, details string) *ProcessingError {
+	return &ProcessingError{
+		Message:  message,
+		Details:  details,
+		Category: "PROCESSING_ERROR",
 	}
-	
-	return output
+}
+
+// Error implements the error interface
+func (e *ProcessingError) Error() string {
+	if e.Details != "" {
+		return fmt.Sprintf("%s: %s", e.Message, e.Details)
+	}
+	return e.Message
+}
+
+// ParsingError represents an error during response parsing
+type ParsingError struct {
+	Message   string
+	InnerErr  error
+	Category  string
+}
+
+// NewParsingError creates a new ParsingError
+func NewParsingError(message string, err error) *ParsingError {
+	return &ParsingError{
+		Message:  message,
+		InnerErr: err,
+		Category: "PARSING_ERROR",
+	}
+}
+
+// Error implements the error interface
+func (e *ParsingError) Error() string {
+	if e.InnerErr != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.InnerErr)
+	}
+	return e.Message
+}
+
+// ValidationError represents an error during validation
+type ValidationError struct {
+	Message   string
+	Field     string
+	Expected  interface{}
+	Actual    interface{}
+	Category  string
+}
+
+// NewValidationError creates a new ValidationError
+func NewValidationError(message, field string, expected, actual interface{}) *ValidationError {
+	return &ValidationError{
+		Message:  message,
+		Field:    field,
+		Expected: expected,
+		Actual:   actual,
+		Category: "VALIDATION_ERROR",
+	}
+}
+
+// Error implements the error interface
+func (e *ValidationError) Error() string {
+	if e.Field != "" {
+		return fmt.Sprintf("%s: field '%s', expected: %v, actual: %v", 
+			e.Message, e.Field, e.Expected, e.Actual)
+	}
+	return e.Message
 }

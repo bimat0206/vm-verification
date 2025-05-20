@@ -1,5 +1,74 @@
 # Changelog
 
+## [2.1.0] - 2025-05-21
+
+### Added
+- New logger adapter for improved compatibility between slog and shared logger interfaces
+- Additional helper functions for counting elements in complex data structures
+- Better error detection and handling in state management operations
+
+### Changed
+- Improved Dockerfile with more efficient multi-stage build based on FetchImages approach
+- Enhanced build script (retry-docker-build.sh) with better error handling and temporary build context
+- Consolidated duplicate operation constants in state package
+- Refactored validator integration to use ValidatorInterface consistently
+- Simplified processor components by removing duplicate utility functions
+- Removed redundant handler in processor package to align with new architecture
+
+### Fixed
+- Resolved compiler errors in type signatures for handler.handleError function
+- Fixed incorrect return type in LoadReferenceImage method
+- Corrected type mismatch in observations assignment (now properly using []string)
+- Fixed invalid len() operations on struct pointers with helper functions
+- Resolved duplicate method declarations across multiple packages
+- Fixed import errors in multiple packages
+- Ensured proper return types for all methods in the state manager
+
+## [2.0.0] - 2025-05-21
+
+### Added
+- Complete architectural transformation to reference-based S3 state management
+- New state management layer in internal/state for S3-based workflow state
+- Comprehensive error handling system in internal/errors with custom error types
+- Specialized error handling for each component (state, handler, processor)
+- Error categorization by type (Input, Process, State, System) with standardized codes
+- Test examples demonstrating all aspects of error handling
+- Storage-specific error types for S3 and DynamoDB operations
+
+### Changed
+- Reorganized folder structure following architecture transformation guide
+- Transformed handler layer into a workflow coordinator in internal/handler
+- Evolved processor layer to use strategy pattern with specialized path processors
+- Refined parser layer to focus purely on data extraction
+- All components now use the S3StateManager for state operations
+- Updated README.md with detailed architecture documentation
+- Moved from in-memory data processing to reference-based state management
+- Error propagation now includes operation context and severity levels
+- API responses use standardized error formats with detailed information
+
+### Removed
+- Direct DynamoDB operations from processor and handler layers
+- In-memory complete state passing between components
+- Custom state storage logic in favor of shared S3StateManager
+- Redundant validation code replaced by comprehensive validator
+
+## [1.4.0] - 2025-05-20
+
+### Added
+- New comprehensive validator layer implementation in validator/validator.go
+- Validator interface for improved testability and integration
+- Enhanced validation for each processing path (Validation Flow, Historical Enhancement, Fresh Extraction)
+- Integration with shared schema types for consistent validation
+- Unit tests for all validator functionality
+- Detailed documentation in validator/README.md
+- Backward compatibility layer for existing code
+
+### Changed
+- Refactored validation logic to use schema types where appropriate
+- Enhanced error reporting with more detailed validation messages
+- Improved validation completeness measurements
+- Better integration with shared schema types
+
 ## [1.3.0] - 2025-05-17
 
 ### Changed

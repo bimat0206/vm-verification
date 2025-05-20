@@ -185,6 +185,24 @@ type ValidationResult struct {
 	ActualValue interface{} `json:"actualValue,omitempty"`
 }
 
+// ParsingConfig defines configuration for the parser
+type ParsingConfig struct {
+	// StrictParsing requires exact pattern matches with no fallbacks
+	StrictParsing bool `json:"strictParsing"`
+	
+	// IncludeThinking includes thinking/reasoning sections in parsing
+	IncludeThinking bool `json:"includeThinking"`
+	
+	// CustomPatterns allows for custom parsing patterns
+	CustomPatterns map[string]string `json:"customPatterns,omitempty"`
+	
+	// FallbackMode enables progressive fallback parsing strategies
+	FallbackMode bool `json:"fallbackMode"`
+	
+	// MaxResponseSize limits the size of response to parse
+	MaxResponseSize int64 `json:"maxResponseSize"`
+}
+
 // ParsingContext holds context information for parsing operations
 type ParsingContext struct {
 	// VerificationType indicates the type of verification

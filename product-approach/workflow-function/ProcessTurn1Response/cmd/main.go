@@ -2,33 +2,41 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"workflow-function/ProcessTurn1Response/internal/dependencies"
-	"workflow-function/ProcessTurn1Response/internal/processor"
-	"workflow-function/shared/logger"
+	"workflow-function/ProcessTurn1Response/internal/handler"
 	"workflow-function/shared/schema"
 )
 
 func main() {
 	// Initialize logger
-	log := logger.New("verification-service", "ProcessTurn1Response")
+	logHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+	logger := slog.New(logHandler).With(
+		"service", "verification-service",
+		"function", "ProcessTurn1Response",
+	)
 	
 	// Log startup
-	log.Info("ProcessTurn1Response Lambda function starting", map[string]interface{}{
-		"schemaVersion": schema.SchemaVersion,
-		"goVersion":     os.Getenv("GO_VERSION"),
-	})
+	logger.Info("ProcessTurn1Response Lambda function starting",
+		"schemaVersion", schema.SchemaVersion,
+		"goVersion", os.Getenv("GO_VERSION"),
+	)
 
-	// Initialize global dependencies
-	dependencies.GlobalDependencies = dependencies.NewDependencies(log)
+	// Global dependencies have been moved to state-based dependency management
 
 	// Create handler with dependencies
-	handler := processor.NewHandler(log)
+	h, err := handler.New(logger)
+	if err != nil {
+		logger.Error("Failed to initialize handler", "error", err)
+		os.Exit(1)
+	}
 
 	// Start Lambda runtime
-	lambda.Start(func(ctx context.Context, input schema.WorkflowState) (schema.WorkflowState, error) {
-		return handler.Handle(ctx, input)
+	lambda.Start(func(ctx context.Context, input interface{}) (interface{}, error) {
+		return h.Handle(ctx, input)
 	})
 }
