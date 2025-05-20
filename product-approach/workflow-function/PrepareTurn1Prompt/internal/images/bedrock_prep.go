@@ -1,10 +1,8 @@
 package images
 
 import (
-	"context"
 	"encoding/base64"
 	"workflow-function/shared/errors"
-	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
 )
 

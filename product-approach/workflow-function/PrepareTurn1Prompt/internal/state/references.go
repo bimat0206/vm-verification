@@ -151,6 +151,29 @@ func (o *Output) AddReference(category, dataType string, ref *s3state.Reference)
 	o.References[GetReferenceKey(category, dataType)] = ref
 }
 
+// BuildS3Key creates a consistent S3 key path using verification ID, category, and filename
+// NOTE: This function is NOT needed when using s3Manager.SaveToEnvelope which already handles
+// adding the verification ID to the path. It's kept for other direct S3 operations.
+func BuildS3Key(verificationID, category, filename string) string {
+	// When using with s3Manager.SaveToEnvelope, just return category/filename
+	// as SaveToEnvelope will add the verificationID
+	return category + "/" + filename
+	
+	// LEGACY APPROACH - DO NOT USE WITH SaveToEnvelope
+	/*
+	if verificationID == "" {
+		return filename
+	}
+	
+	// Handle date-based paths (YYYY/MM/DD) that might be in the verification ID
+	if len(verificationID) > 10 && verificationID[4] == '/' && verificationID[7] == '/' {
+		return verificationID + "/" + category + "/" + filename
+	}
+	
+	return verificationID + "/" + category + "/" + filename
+	*/
+}
+
 // EnvelopeToInput converts an S3 state envelope to input format
 // Enhanced to properly handle references
 func EnvelopeToInput(envelope *s3state.Envelope) (*Input, error) {

@@ -195,6 +195,7 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 	}
 
 	// Save to S3 and update envelope references
+	// Let the S3Manager handle the verificationId prefix in the path
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryPrompts, KeyTurn1Prompt, promptData); err != nil {
 		return errors.NewInternalError("prompt-save", err)
 	}
@@ -266,6 +267,7 @@ func (s *Saver) saveProcessingMetrics(state *schema.WorkflowState, envelope *s3s
 	}
 
 	// Save to S3 and update envelope references
+	// Let the S3Manager handle the verificationId prefix in the path
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryProcessing, KeyTurn1Metrics, metrics); err != nil {
 		return errors.NewInternalError("metrics-save", err)
 	}
