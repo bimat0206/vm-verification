@@ -1,3 +1,4 @@
+
 package validation
 
 import (
@@ -34,22 +35,25 @@ func (v *Validator) ValidateStateReferences(refs *internal.StateReferences) erro
 
 	var missingRefs []string
 
-	// Required references
-	if refs.VerificationContext == nil {
-		missingRefs = append(missingRefs, "VerificationContext")
+	// Required references (aligned with the correct folder structure)
+	if refs.Initialization == nil {
+		missingRefs = append(missingRefs, "Initialization")
 	}
 
 	if refs.SystemPrompt == nil {
 		missingRefs = append(missingRefs, "SystemPrompt")
 	}
 
-	if refs.BedrockConfig == nil {
-		missingRefs = append(missingRefs, "BedrockConfig")
+	if refs.ImageMetadata == nil {
+		v.logger.Warn("No ImageMetadata reference provided", nil)
 	}
 
-	// Check for images
-	if refs.Images == nil {
-		v.logger.Warn("No Images reference provided", nil)
+	// Validate use case specific refs based on verification type
+	// Since we don't know the verification type yet, we'll check both
+	// but only log warnings if they're missing
+
+	if refs.LayoutMetadata == nil && refs.HistoricalContext == nil {
+		v.logger.Warn("Neither LayoutMetadata nor HistoricalContext reference provided", nil)
 	}
 
 	if len(missingRefs) > 0 {
@@ -59,6 +63,19 @@ func (v *Validator) ValidateStateReferences(refs *internal.StateReferences) erro
 		return wferrors.NewValidationError("Missing required state references", map[string]interface{}{
 			"missingRefs": missingRefs,
 		})
+	}
+
+	// Validate date partition format
+	if refs.DatePartition == "" {
+		v.logger.Warn("Date partition is empty, using current date", nil)
+	} else {
+		// Check if date partition format is correct (YYYY/MM/DD/verificationId)
+		parts := len(refs.DatePartition)
+		if parts < 10 { // minimum length of "YYYY/MM/DD"
+			v.logger.Warn("Date partition format may be incorrect", map[string]interface{}{
+				"datePartition": refs.DatePartition,
+			})
+		}
 	}
 
 	v.logger.Info("State references validation passed", nil)
@@ -92,6 +109,11 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 		return err
 	}
 
+	// Validate use case specific data
+	if err := v.validateUseCaseData(state); err != nil {
+		return err
+	}
+
 	// Validate Bedrock config
 	if err := v.validateBedrockConfig(state); err != nil {
 		return err
@@ -100,6 +122,7 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 	v.logger.Info("WorkflowState validation passed", map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId,
 		"status":         state.VerificationContext.Status,
+		"verificationType": state.VerificationContext.VerificationType,
 	})
 
 	return nil
@@ -117,6 +140,42 @@ func (v *Validator) validateRequiredFields(state *schema.WorkflowState) error {
 
 	if state.VerificationContext == nil {
 		return wferrors.NewValidationError("VerificationContext is nil", nil)
+	}
+
+	return nil
+}
+
+// validateUseCaseData validates the use case specific data based on verification type
+func (v *Validator) validateUseCaseData(state *schema.WorkflowState) error {
+	if state.VerificationContext == nil {
+		return nil // Already validated in validateRequiredFields
+	}
+
+	// Validate based on verification type
+	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		// For UC1: Check layout metadata
+		if state.LayoutMetadata == nil {
+			v.logger.Warn("LayoutMetadata is missing for LAYOUT_VS_CHECKING verification", nil)
+		}
+		
+		// Validate required UC1 fields
+		if state.VerificationContext.LayoutId == 0 {
+			v.logger.Warn("LayoutId is missing for LAYOUT_VS_CHECKING verification", nil)
+		}
+		
+		if state.VerificationContext.LayoutPrefix == "" {
+			v.logger.Warn("LayoutPrefix is missing for LAYOUT_VS_CHECKING verification", nil)
+		}
+	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		// For UC2: Check historical context
+		if state.HistoricalContext == nil {
+			v.logger.Warn("HistoricalContext is missing for PREVIOUS_VS_CURRENT verification", nil)
+		}
+		
+		// Validate required UC2 fields
+		if state.VerificationContext.PreviousVerificationId == "" {
+			v.logger.Warn("PreviousVerificationId is missing for PREVIOUS_VS_CURRENT verification", nil)
+		}
 	}
 
 	return nil
@@ -246,12 +305,24 @@ func (v *Validator) ValidateImageData(images *schema.ImageData) error {
 		})
 	}
 
+	// Verify Base64 is stored with correct file extension (.base64)
+	if imageInfo.Base64S3Key != "" && !v.hasCorrectBase64Extension(imageInfo.Base64S3Key) {
+		v.logger.Warn("Base64 data S3 key does not use .base64 extension", map[string]interface{}{
+			"key": imageInfo.Base64S3Key,
+		})
+	}
+
 	v.logger.Info("ImageData validation passed", map[string]interface{}{
 		"format": imageInfo.Format,
 		"url":    imageInfo.URL,
 	})
 
 	return nil
+}
+
+// hasCorrectBase64Extension checks if an S3 key has the .base64 extension
+func (v *Validator) hasCorrectBase64Extension(key string) bool {
+	return len(key) > 7 && key[len(key)-7:] == ".base64"
 }
 
 // ValidateTurnResponse validates the Turn1 response

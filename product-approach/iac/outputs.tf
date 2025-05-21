@@ -5,7 +5,7 @@ output "s3_bucket_names" {
     reference = module.s3_buckets[0].reference_bucket_name
     checking  = module.s3_buckets[0].checking_bucket_name
     results   = module.s3_buckets[0].results_bucket_name
-    temp_base64 = module.s3_buckets[0].temp_base64_bucket_name
+    state = module.s3_buckets[0].state_bucket_name
   } : {}
 }
 
@@ -15,7 +15,7 @@ output "s3_bucket_arns" {
     reference = module.s3_buckets[0].reference_bucket_arn
     checking  = module.s3_buckets[0].checking_bucket_arn
     results   = module.s3_buckets[0].results_bucket_arn
-    temp_base64 = module.s3_buckets[0].temp_base64_bucket_arn
+    state = module.s3_buckets[0].state_bucket_arn
   } : {}
 }
 

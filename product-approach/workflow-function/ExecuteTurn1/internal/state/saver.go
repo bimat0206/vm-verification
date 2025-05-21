@@ -1,8 +1,10 @@
+
 package state
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -33,6 +35,13 @@ func NewSaver(stateManager s3state.Manager, s3Client *s3.Client, logger logger.L
 	}
 }
 
+// generateDatePath creates a S3 path with date partitioning
+func generateDatePath(verificationId string) string {
+	now := time.Now().UTC()
+	return fmt.Sprintf("%04d/%02d/%02d/%s", 
+		now.Year(), now.Month(), now.Day(), verificationId)
+}
+
 // SaveWorkflowState saves the workflow state to S3 and returns references
 func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowState) (*internal.StateReferences, error) {
 	if state == nil {
@@ -50,6 +59,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 		"status":         state.VerificationContext.Status,
 	})
 
+	// Generate date-based path
+	datePath := generateDatePath(verificationId)
+
 	// Create envelope for references
 	envelope := s3state.NewEnvelope(verificationId)
 	envelope.SetStatus(state.VerificationContext.Status)
@@ -57,6 +69,7 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	// Add verification context to summary
 	envelope.AddSummary("status", state.VerificationContext.Status)
 	envelope.AddSummary("verificationAt", state.VerificationContext.VerificationAt)
+	envelope.AddSummary("datePartition", datePath)
 	
 	// Add turn information to summary if available
 	if state.ConversationState != nil {
@@ -67,49 +80,62 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	// Save each component of the state
 	var saveErrors []error
 
-	// Save verification context
-	if state.VerificationContext != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "contexts", "verification-context.json", state.VerificationContext)
-		if err != nil {
-			saveErrors = append(saveErrors, fmt.Errorf("failed to save verification context: %w", err))
+	// Save verification context as initialization.json
+	err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileInitialization, state.VerificationContext)
+	if err != nil {
+		saveErrors = append(saveErrors, fmt.Errorf("failed to save initialization data: %w", err))
+	}
+
+	// Save use case specific data
+	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		// UC1: Save layout metadata
+		if state.LayoutMetadata != nil {
+			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileLayoutMetadata, state.LayoutMetadata)
+			if err != nil {
+				saveErrors = append(saveErrors, fmt.Errorf("failed to save layout metadata: %w", err))
+			}
+		}
+	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		// UC2: Save historical context
+		if state.HistoricalContext != nil {
+			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileHistoricalContext, state.HistoricalContext)
+			if err != nil {
+				saveErrors = append(saveErrors, fmt.Errorf("failed to save historical context: %w", err))
+			}
 		}
 	}
 
-	// Save current prompt
+	// Save current prompt as system-prompt.json
 	if state.CurrentPrompt != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "prompts", "system-prompt.json", state.CurrentPrompt)
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryPrompts, FileSystemPrompt, state.CurrentPrompt)
 		if err != nil {
-			saveErrors = append(saveErrors, fmt.Errorf("failed to save current prompt: %w", err))
+			saveErrors = append(saveErrors, fmt.Errorf("failed to save system prompt: %w", err))
 		}
 	}
 
-	// Save images
+	// Save images metadata
 	if state.Images != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "images", "image-data.json", state.Images)
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryImages, FileImageMetadata, state.Images)
 		if err != nil {
-			saveErrors = append(saveErrors, fmt.Errorf("failed to save images: %w", err))
+			saveErrors = append(saveErrors, fmt.Errorf("failed to save images metadata: %w", err))
 		}
-	}
-
-	// Save Bedrock config
-	if state.BedrockConfig != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "configs", "bedrock-config.json", state.BedrockConfig)
-		if err != nil {
-			saveErrors = append(saveErrors, fmt.Errorf("failed to save Bedrock config: %w", err))
-		}
+		
+		// Note: Base64 image data should be saved separately with .base64 extension
+		// by the FetchImages function. Here we just use the metadata.
 	}
 
 	// Save conversation state
 	if state.ConversationState != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "conversations", "conversation-state.json", state.ConversationState)
+		// Store in processing/ category since it's part of the workflow state
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, "conversation-state.json", state.ConversationState)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save conversation state: %w", err))
 		}
 	}
 
-	// Save Turn1 response if available
+	// Save Turn1 response
 	if state.Turn1Response != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, "responses", "turn1-response.json", state.Turn1Response)
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryResponses, FileTurn1Response, state.Turn1Response)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save Turn1 response: %w", err))
 		}
@@ -127,17 +153,25 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	// Convert envelope to state references
 	stateRefs := &internal.StateReferences{
 		VerificationId:     verificationId,
-		VerificationContext: envelope.GetReference("contexts_verification-context"),
-		SystemPrompt:        envelope.GetReference("prompts_system-prompt"),
-		Images:              envelope.GetReference("images_image-data"),
-		BedrockConfig:       envelope.GetReference("configs_bedrock-config"),
-		ConversationState:   envelope.GetReference("conversations_conversation-state"),
-		Turn1Response:       envelope.GetReference("responses_turn1-response"),
+		DatePartition:      datePath,
+		Initialization:     envelope.GetReference(fmt.Sprintf("%s_%s", CategoryProcessing, strings.TrimSuffix(FileInitialization, ".json"))),
+		SystemPrompt:       envelope.GetReference(fmt.Sprintf("%s_%s", CategoryPrompts, strings.TrimSuffix(FileSystemPrompt, ".json"))),
+		ImageMetadata:      envelope.GetReference(fmt.Sprintf("%s_%s", CategoryImages, strings.TrimSuffix(FileImageMetadata, ".json"))),
+		ConversationState: envelope.GetReference(fmt.Sprintf("%s_%s", CategoryProcessing, "conversation-state")),
+		Turn1Response:     envelope.GetReference(fmt.Sprintf("%s_%s", CategoryResponses, strings.TrimSuffix(FileTurn1Response, ".json"))),
+	}
+	
+	// Add use case specific references
+	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		stateRefs.LayoutMetadata = envelope.GetReference(fmt.Sprintf("%s_%s", CategoryProcessing, strings.TrimSuffix(FileLayoutMetadata, ".json")))
+	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		stateRefs.HistoricalContext = envelope.GetReference(fmt.Sprintf("%s_%s", CategoryProcessing, strings.TrimSuffix(FileHistoricalContext, ".json")))
 	}
 
 	s.logger.Info("Workflow state saved successfully", map[string]interface{}{
 		"verificationId": verificationId,
 		"status":         state.VerificationContext.Status,
+		"datePartition":  datePath,
 		"references":     len(envelope.References),
 	})
 
@@ -159,9 +193,12 @@ func (s *Saver) SaveTurn1Response(ctx context.Context, verificationId string, tu
 		"turnId":         turnResponse.TurnId,
 	})
 
-	// Store the turn response directly
-	ref, err := s.stateManager.StoreJSON("responses", 
-		fmt.Sprintf("%s/turn1-response.json", verificationId), turnResponse)
+	// Generate date-based path
+	datePath := generateDatePath(verificationId)
+	
+	// Store the turn response in the responses category
+	ref, err := s.stateManager.StoreJSON(CategoryResponses, 
+		fmt.Sprintf("%s/%s", datePath, FileTurn1Response), turnResponse)
 	if err != nil {
 		s.logger.Error("Failed to save Turn1 response", map[string]interface{}{
 			"error": err.Error(),
@@ -192,6 +229,9 @@ func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, 
 		"thinkingLength": len(thinking),
 	})
 
+	// Generate date-based path
+	datePath := generateDatePath(verificationId)
+	
 	// Create a wrapper object for the thinking content
 	thinkingObj := map[string]interface{}{
 		"verificationId": verificationId,
@@ -200,9 +240,9 @@ func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, 
 		"length":         len(thinking),
 	}
 
-	// Store the thinking content
-	ref, err := s.stateManager.StoreJSON("thinking", 
-		fmt.Sprintf("%s/turn1-thinking.json", verificationId), thinkingObj)
+	// Store the thinking content in the responses category
+	ref, err := s.stateManager.StoreJSON(CategoryResponses, 
+		fmt.Sprintf("%s/%s", datePath, FileTurn1Thinking), thinkingObj)
 	if err != nil {
 		s.logger.Error("Failed to save thinking content", map[string]interface{}{
 			"error": err.Error(),

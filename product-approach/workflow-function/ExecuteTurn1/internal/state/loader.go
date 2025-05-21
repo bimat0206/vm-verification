@@ -1,8 +1,10 @@
+
 package state
 
 import (
 	"context"
 	"fmt"
+	//"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,6 +15,34 @@ import (
 	wferrors "workflow-function/shared/errors"
 	
 	"workflow-function/ExecuteTurn1/internal"
+)
+
+// Category constants
+const (
+	CategoryProcessing = "processing"
+	CategoryImages     = "images"
+	CategoryPrompts    = "prompts"
+	CategoryResponses  = "responses"
+)
+
+// File name constants
+const (
+	// Processing category
+	FileInitialization   = "initialization.json"
+	FileLayoutMetadata   = "layout-metadata.json"
+	FileHistoricalContext = "historical-context.json"
+	
+	// Images category
+	FileImageMetadata    = "metadata.json"
+	FileReferenceBase64  = "reference-base64.base64"
+	FileCheckingBase64   = "checking-base64.base64"
+	
+	// Prompts category
+	FileSystemPrompt     = "system-prompt.json"
+	
+	// Responses category
+	FileTurn1Response    = "turn1-response.json"
+	FileTurn1Thinking    = "turn1-thinking.json"
 )
 
 // Loader handles loading state from S3 references
@@ -55,23 +85,23 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 	// Load each component of the state in parallel
 	var loadErrors []error
 
-	// Load verification context
-	if refs.VerificationContext != nil {
-		verificationContext, err := l.LoadVerificationContext(ctx, refs.VerificationContext)
+	// Load verification context (initialization data)
+	if refs.Initialization != nil {
+		verificationContext, err := l.LoadVerificationContext(ctx, refs.Initialization)
 		if err != nil {
 			loadErrors = append(loadErrors, fmt.Errorf("failed to load verification context: %w", err))
 		} else {
 			state.VerificationContext = verificationContext
 		}
 	} else {
-		loadErrors = append(loadErrors, fmt.Errorf("missing verification context reference"))
+		loadErrors = append(loadErrors, fmt.Errorf("missing initialization reference"))
 	}
 
-	// Load current prompt
+	// Load system prompt
 	if refs.SystemPrompt != nil {
 		currentPrompt, err := l.LoadCurrentPrompt(ctx, refs.SystemPrompt)
 		if err != nil {
-			loadErrors = append(loadErrors, fmt.Errorf("failed to load current prompt: %w", err))
+			loadErrors = append(loadErrors, fmt.Errorf("failed to load system prompt: %w", err))
 		} else {
 			state.CurrentPrompt = currentPrompt
 		}
@@ -80,8 +110,8 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 	}
 
 	// Load images
-	if refs.Images != nil {
-		images, err := l.LoadImages(ctx, refs.Images)
+	if refs.ImageMetadata != nil {
+		images, err := l.LoadImages(ctx, refs.ImageMetadata)
 		if err != nil {
 			loadErrors = append(loadErrors, fmt.Errorf("failed to load images: %w", err))
 		} else {
@@ -89,9 +119,9 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 		}
 	}
 
-	// Load Bedrock config
-	if refs.BedrockConfig != nil {
-		bedrockConfig, err := l.LoadBedrockConfig(ctx, refs.BedrockConfig)
+	// Load Bedrock config - stored with system prompt
+	if refs.SystemPrompt != nil {
+		bedrockConfig, err := l.LoadBedrockConfig(ctx, refs.SystemPrompt)
 		if err != nil {
 			loadErrors = append(loadErrors, fmt.Errorf("failed to load Bedrock config: %w", err))
 		} else {
@@ -99,6 +129,35 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 		}
 	} else {
 		loadErrors = append(loadErrors, fmt.Errorf("missing Bedrock config reference"))
+	}
+
+	// Load use case specific data (if available) based on verification type
+	if state.VerificationContext != nil {
+		if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+			// UC1: Load layout metadata
+			if refs.LayoutMetadata != nil {
+				layoutMetadata, err := l.LoadLayoutMetadata(ctx, refs.LayoutMetadata)
+				if err != nil {
+					l.logger.Warn("Failed to load layout metadata", map[string]interface{}{
+						"error": err.Error(),
+					})
+				} else {
+					state.LayoutMetadata = layoutMetadata
+				}
+			}
+		} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+			// UC2: Load historical context
+			if refs.HistoricalContext != nil {
+				historicalContext, err := l.LoadHistoricalContext(ctx, refs.HistoricalContext)
+				if err != nil {
+					l.logger.Warn("Failed to load historical context", map[string]interface{}{
+						"error": err.Error(),
+					})
+				} else {
+					state.HistoricalContext = historicalContext
+				}
+			}
+		}
 	}
 
 	// Load conversation state if available
@@ -150,7 +209,7 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 	return state, nil
 }
 
-// LoadVerificationContext loads the verification context from S3
+// LoadVerificationContext loads the verification context (initialization data) from S3
 func (l *Loader) LoadVerificationContext(ctx context.Context, ref *s3state.Reference) (*schema.VerificationContext, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("verification context reference is nil")
@@ -163,6 +222,36 @@ func (l *Loader) LoadVerificationContext(ctx context.Context, ref *s3state.Refer
 	}
 
 	return &verificationContext, nil
+}
+
+// LoadLayoutMetadata loads the layout metadata from S3 (UC1)
+func (l *Loader) LoadLayoutMetadata(ctx context.Context, ref *s3state.Reference) (map[string]interface{}, error) {
+	if ref == nil {
+		return nil, fmt.Errorf("layout metadata reference is nil")
+	}
+
+	var layoutMetadata map[string]interface{}
+	err := l.stateManager.RetrieveJSON(ref, &layoutMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return layoutMetadata, nil
+}
+
+// LoadHistoricalContext loads the historical context from S3 (UC2)
+func (l *Loader) LoadHistoricalContext(ctx context.Context, ref *s3state.Reference) (map[string]interface{}, error) {
+	if ref == nil {
+		return nil, fmt.Errorf("historical context reference is nil")
+	}
+
+	var historicalContext map[string]interface{}
+	err := l.stateManager.RetrieveJSON(ref, &historicalContext)
+	if err != nil {
+		return nil, err
+	}
+
+	return historicalContext, nil
 }
 
 // LoadCurrentPrompt loads the current prompt from S3
@@ -201,13 +290,28 @@ func (l *Loader) LoadBedrockConfig(ctx context.Context, ref *s3state.Reference) 
 		return nil, fmt.Errorf("Bedrock config reference is nil")
 	}
 
-	var bedrockConfig schema.BedrockConfig
-	err := l.stateManager.RetrieveJSON(ref, &bedrockConfig)
+	// Try to load from metadata in system prompt first
+	var systemPrompt schema.SystemPrompt
+	err := l.stateManager.RetrieveJSON(ref, &systemPrompt)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bedrockConfig, nil
+	// Extract Bedrock config from system prompt metadata
+	if systemPrompt.BedrockConfig != nil {
+		return systemPrompt.BedrockConfig, nil
+	}
+
+	// Fallback to creating a default config
+	return &schema.BedrockConfig{
+		AnthropicVersion: "bedrock-2023-05-31",
+		MaxTokens:        4096,
+		Temperature:      0.7,
+		Thinking: &schema.Thinking{
+			Type:         "thinking",
+			BudgetTokens: 16000,
+		},
+	}, nil
 }
 
 // LoadConversationState loads the conversation state from S3

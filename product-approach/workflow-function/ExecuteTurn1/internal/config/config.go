@@ -18,7 +18,7 @@ type Config struct {
 	StateTimeout        time.Duration `env:"STATE_TIMEOUT" envDefault:"30s"`
 	
 	// Bedrock Configuration  
-	BedrockModelID      string        `env:"BEDROCK_MODEL_ID,required"`
+	BedrockModel        string        `env:"BEDROCK_MODEL,required"` // Changed from BEDROCK_MODEL_ID
 	BedrockRegion       string        `env:"BEDROCK_REGION,required"`
 	AnthropicVersion    string        `env:"ANTHROPIC_VERSION,required"`
 	MaxTokens           int           `env:"MAX_TOKENS" envDefault:"4096"`
@@ -27,8 +27,6 @@ type Config struct {
 	ThinkingBudgetTokens int          `env:"THINKING_BUDGET_TOKENS" envDefault:"16000"`
 	
 	// Image Processing Configuration
-	EnableHybridStorage bool          `env:"ENABLE_HYBRID_STORAGE" envDefault:"true"`
-	TempBase64Bucket    string        `env:"TEMP_BASE64_BUCKET"`
 	Base64SizeThreshold int64         `env:"BASE64_SIZE_THRESHOLD" envDefault:"1048576"` // 1MB default
 	
 	// Timeouts and Performance Settings
@@ -47,7 +45,7 @@ func New(log logger.Logger) (*Config, error) {
 		StateTimeout:        time.Duration(getenvInt("STATE_TIMEOUT", 30)) * time.Second,
 		
 		// Bedrock Configuration
-		BedrockModelID:      getenv("BEDROCK_MODEL_ID", ""),
+		BedrockModel:        getenv("BEDROCK_MODEL", ""), // Changed from BEDROCK_MODEL_ID
 		BedrockRegion:       getenv("BEDROCK_REGION", getenv("AWS_REGION", "")),
 		AnthropicVersion:    getenv("ANTHROPIC_VERSION", "bedrock-2023-05-31"),
 		MaxTokens:           getenvInt("MAX_TOKENS", 4096),
@@ -56,8 +54,6 @@ func New(log logger.Logger) (*Config, error) {
 		ThinkingBudgetTokens: getenvInt("THINKING_BUDGET_TOKENS", 16000),
 		
 		// Image Processing Configuration
-		EnableHybridStorage: getenvBool("ENABLE_HYBRID_STORAGE", true),
-		TempBase64Bucket:    getenv("TEMP_BASE64_BUCKET", ""),
 		Base64SizeThreshold: getenvInt64("BASE64_SIZE_THRESHOLD", 1048576), // 1MB default
 		
 		// Timeouts and Performance Settings
@@ -73,10 +69,9 @@ func New(log logger.Logger) (*Config, error) {
 
 	log.Info("Loaded configuration", map[string]interface{}{ 
 		"stateBucket":       cfg.StateBucket,
-		"bedrockModelID":    cfg.BedrockModelID,
+		"bedrockModel":      cfg.BedrockModel, // Changed from bedrockModelID
 		"bedrockRegion":     cfg.BedrockRegion,
 		"anthropicVersion":  cfg.AnthropicVersion,
-		"enableHybridStorage": cfg.EnableHybridStorage,
 		"thinkingEnabled":   cfg.ThinkingType != "",
 	})
 	
@@ -93,8 +88,8 @@ func (c *Config) Validate(log logger.Logger) error {
 	}
 	
 	// Required Bedrock configuration
-	if c.BedrockModelID == "" {
-		missing = append(missing, "BEDROCK_MODEL_ID")
+	if c.BedrockModel == "" {
+		missing = append(missing, "BEDROCK_MODEL") // Changed from BEDROCK_MODEL_ID
 	}
 	
 	if c.BedrockRegion == "" {
@@ -103,11 +98,6 @@ func (c *Config) Validate(log logger.Logger) error {
 	
 	if c.AnthropicVersion == "" {
 		missing = append(missing, "ANTHROPIC_VERSION")
-	}
-	
-	// Conditional requirements
-	if c.EnableHybridStorage && c.TempBase64Bucket == "" {
-		missing = append(missing, "TEMP_BASE64_BUCKET (required when ENABLE_HYBRID_STORAGE=true)")
 	}
 	
 	if len(missing) > 0 {
@@ -133,8 +123,8 @@ func (c *Config) Validate(log logger.Logger) error {
 // GetHybridStorageConfig returns the hybrid storage configuration for S3/Base64 handling
 func (c *Config) GetHybridStorageConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":          c.EnableHybridStorage,
-		"tempBucket":       c.TempBase64Bucket,
+		"enabled":          false, // Set to false since we removed the config option
+		"tempBucket":       "", // Empty since we removed the config option  
 		"sizeThreshold":    c.Base64SizeThreshold,
 		"retrievalTimeout": c.StateTimeout.Milliseconds(),
 	}
@@ -143,7 +133,7 @@ func (c *Config) GetHybridStorageConfig() map[string]interface{} {
 // GetBedrockConfig returns the Bedrock API configuration
 func (c *Config) GetBedrockConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"modelId":          c.BedrockModelID,
+		"modelId":          c.BedrockModel, // Changed from c.BedrockModelID
 		"region":           c.BedrockRegion,
 		"anthropicVersion": c.AnthropicVersion,
 		"maxTokens":        c.MaxTokens,

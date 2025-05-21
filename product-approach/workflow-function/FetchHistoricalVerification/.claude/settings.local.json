@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(go build:*)",
+      "Bash(go mod:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(GO111MODULE=on go build -mod=mod ./cmd)",
+      "Bash(GOWORK=off go build ./cmd)"
+    ],
+    "deny": []
+  }
+}

@@ -60,11 +60,18 @@ func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, outpu
 	// Update output status
 	output.Status = state.VerificationContext.Status
 
+	// Calculate the new references count properly in Go
+	var inputRefCount int
+	if input != nil && input.References != nil {
+		inputRefCount = len(input.References)
+	}
+	newRefCount := len(envelope.References) - inputRefCount
+
 	s.log.Info("Successfully saved Turn 1 prompt with reference accumulation", map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId, 
 		"status": state.VerificationContext.Status,
 		"totalReferences": len(output.References),
-		"newReferences": len(envelope.References) - (input != nil ? len(input.References) : 0),
+		"newReferences": newRefCount,
 	})
 
 	return nil
@@ -190,7 +197,7 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 		"generationMetadata": generationMetadata,
 	}
 
-	// Save to S3 and update envelope references
+	// Save to S3 and update envelope references - KEY FIX: Use standard category and filename constants
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryPrompts, KeyTurn1Prompt, promptData); err != nil {
 		return errors.NewInternalError("prompt-save", err)
 	}
@@ -201,6 +208,7 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 		"promptType":    "TURN1",
 		"createdAt":     state.CurrentPrompt.CreatedAt,
 		"hasBase64Reference": imageReference["base64StorageReference"] != nil,
+		"referenceKey": GetReferenceKey(CategoryPrompts, "turn1-prompt"),
 	})
 
 	return nil
@@ -261,7 +269,7 @@ func (s *Saver) saveProcessingMetrics(state *schema.WorkflowState, envelope *s3s
 		}
 	}
 
-	// Save to S3 and update envelope references
+	// KEY FIX: Use standard category and filename constants
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryProcessing, KeyTurn1Metrics, metrics); err != nil {
 		return errors.NewInternalError("metrics-save", err)
 	}
@@ -269,6 +277,7 @@ func (s *Saver) saveProcessingMetrics(state *schema.WorkflowState, envelope *s3s
 	s.log.Info("Saved Turn 1 processing metrics", map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId,
 		"turnNumber":     state.CurrentPrompt.TurnNumber,
+		"referenceKey": GetReferenceKey(CategoryProcessing, "turn1-metrics"),
 		"base64RefsIncluded": state.Images != nil && state.Images.Reference != nil && 
 			state.Images.Reference.Base64S3Bucket != "" && state.Images.Reference.GetBase64S3Key() != "",
 	})

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -20,6 +21,7 @@ type Manager interface {
 	StoreJSON(category, key string, data interface{}) (*Reference, error)
 	RetrieveJSON(ref *Reference, target interface{}) error
 	SaveToEnvelope(envelope *Envelope, category, filename string, data interface{}) error
+	GetStateBucket() string
 }
 
 // manager implements the Manager interface
@@ -39,6 +41,11 @@ func New(bucket string) (Manager, error) {
 		s3Client: s3.NewFromConfig(cfg),
 		bucket:   bucket,
 	}, nil
+}
+
+// GetStateBucket returns the configured state bucket name
+func (m *manager) GetStateBucket() string {
+	return m.bucket
 }
 
 // Store saves raw bytes to S3 with category-based organization
@@ -71,7 +78,6 @@ func (m *manager) Retrieve(ref *Reference) ([]byte, error) {
 	return data, nil
 }
 
-// StoreJSON marshals data to JSON and stores it in S3
 // StoreJSON marshals data to JSON and stores it in S3
 func (m *manager) StoreJSON(category, key string, data interface{}) (*Reference, error) {
 	jsonData, err := json.Marshal(data)
@@ -118,45 +124,85 @@ func (m *manager) RetrieveJSON(ref *Reference, target interface{}) error {
 	return nil
 }
 
+// isDatePath checks if a path contains a date-based hierarchy (YYYY/MM/DD)
+func isDatePath(path string) bool {
+	// Match pattern like "2025/05/20" at the beginning of path
+	re := regexp.MustCompile(`^(\d{4}/\d{2}/\d{2})`)
+	return re.MatchString(path)
+}
+
+// extractVerificationID extracts verification ID from path component
+func extractVerificationID(pathComponent string) (string, bool) {
+	// Check if the component starts with "verif-" which is a common prefix
+	if strings.HasPrefix(pathComponent, "verif-") {
+		return pathComponent, true
+	}
+	return "", false
+}
+
 // SaveToEnvelope stores data and adds reference to envelope
 func (m *manager) SaveToEnvelope(envelope *Envelope, category, filename string, data interface{}) error {
 	if envelope == nil {
 		return fmt.Errorf("envelope is nil")
 	}
 
-	// Check for potential duplication of verification ID in category path
-	// Example: If category="2025/05/19/verif-123/images" and envelope.VerificationID="verif-123",
-	// we should not add verification ID again to the key
+	// Create current date components for hierarchical path
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	day := now.Format("02")
+	
+	// Generate the date-based path prefix
+	datePath := fmt.Sprintf("%s/%s/%s", year, month, day)
+	
+	// Build the S3 key with date-based hierarchy
 	var key string
-	if strings.Contains(category, envelope.VerificationID) {
-		// Category already includes verification ID, don't add it again
-		key = filename
-	} else {
-		// If the category path contains date segments (like "2025/05/19"), 
-		// we want to avoid duplication but still maintain proper organization
-		if strings.Count(category, "/") >= 2 && len(strings.Split(category, "/")) >= 3 {
-			// This likely means we have a date-based path structure already
-			// In this case, just use the filename directly
-			key = filename
+	
+	// Check if category already contains a date path or verification ID
+	if isDatePath(category) {
+		// Category already contains date path, don't add it again
+		if strings.Contains(category, envelope.VerificationID) {
+			// Both date path and verification ID are present
+			key = fmt.Sprintf("%s/%s.json", category, filename)
 		} else {
-			// Otherwise, generate key with verification ID
-			key = fmt.Sprintf("%s/%s", envelope.VerificationID, filename)
+			// Date path present but no verification ID
+			key = fmt.Sprintf("%s/%s/%s.json", category, envelope.VerificationID, filename)
 		}
+	} else if strings.Contains(category, envelope.VerificationID) {
+		// Category contains verification ID but no date path
+		key = fmt.Sprintf("%s/%s/%s.json", datePath, category, filename)
+	} else {
+		// Standard case: neither date path nor verification ID in category
+		key = fmt.Sprintf("%s/%s/%s/%s.json", datePath, envelope.VerificationID, category, filename)
 	}
 	
 	// Store the data
-	ref, err := m.StoreJSON(category, key, data)
+	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-
+	
+	err = m.putObject(key, jsonData, "application/json")
+	if err != nil {
+		return fmt.Errorf("failed to store JSON object: %w", err)
+	}
+	
+	// Create reference
+	ref := &Reference{
+		Bucket: m.bucket,
+		Key:    key,
+		Size:   int64(len(jsonData)),
+	}
+	
 	// Initialize references map if needed
 	if envelope.References == nil {
 		envelope.References = make(map[string]*Reference)
 	}
-
-	// Add reference to envelope
-	envelope.References[fmt.Sprintf("%s_%s", category, strings.TrimSuffix(filename, ".json"))] = ref
+	
+	// Create clean reference key without path components
+	// Simply use {category}_{filename} format
+	refKey := fmt.Sprintf("%s_%s", category, strings.TrimSuffix(filename, ".json"))
+	envelope.References[refKey] = ref
 	
 	return nil
 }

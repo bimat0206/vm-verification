@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go get:*)",
+      "Bash(go mod:*)",
+      "Bash(grep:*)",
+      "Bash(go build:*)",
+      "Bash(GOWORK=off go build -o /tmp/s3state)"
+    ],
+    "deny": []
+  }
+}

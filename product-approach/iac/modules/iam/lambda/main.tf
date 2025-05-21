@@ -14,7 +14,7 @@ resource "aws_iam_role" "lambda_execution_role" {
       }
     ]
   })
-  
+
   # Don't add tags here as they're provided by default_tags in the provider
 }
 
@@ -36,7 +36,7 @@ resource "aws_iam_role_policy_attachment" "s3_access" {
 # DynamoDB access policy
 resource "aws_iam_policy" "dynamodb_access" {
   count = length(var.dynamodb_table_arns) > 0 ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-dynamodb-access-${var.name_suffix}"
   description = "Policy for Lambda to access DynamoDB tables"
 
@@ -79,7 +79,7 @@ resource "aws_iam_role_policy_attachment" "dynamodb_access" {
 # ECR access policy
 resource "aws_iam_policy" "ecr_access" {
   count = length(var.ecr_repository_arns) > 0 ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-ecr-access-${var.name_suffix}"
   description = "Policy for Lambda to access ECR repositories"
 
@@ -120,7 +120,7 @@ resource "aws_iam_role_policy_attachment" "ecr_access" {
 # Bedrock access policy
 resource "aws_iam_policy" "bedrock_access" {
   count = var.bedrock_model_arn != "" ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-bedrock-access-${var.name_suffix}"
   description = "Policy for Lambda to access Amazon Bedrock models"
 
@@ -134,11 +134,11 @@ resource "aws_iam_policy" "bedrock_access" {
           "bedrock:InvokeModelWithResponseStream"
 
         ]
-        Effect   = "Allow"
+        Effect = "Allow"
         #Resource = var.bedrock_model_arn
         Resource = [
-              "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-*",
-    "arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-*"
+          "arn:aws:bedrock:*:*:foundation-model/anthropic.claude-*",
+          "arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-*"
         ]
       },
       {
@@ -163,7 +163,7 @@ resource "aws_iam_role_policy_attachment" "bedrock_access" {
 # SNS publish policy
 resource "aws_iam_policy" "sns_publish" {
   count = var.sns_topic_arns != null ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-sns-publish-${var.name_suffix}"
   description = "Policy for Lambda to publish messages to SNS topics"
 
@@ -191,7 +191,7 @@ resource "aws_iam_role_policy_attachment" "sns_publish" {
 # Step Functions access policy
 resource "aws_iam_policy" "step_functions_access" {
   count = var.step_functions_arns != null ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-step-functions-access-${var.name_suffix}"
   description = "Policy for Lambda to start and describe Step Functions executions"
 
@@ -221,7 +221,7 @@ resource "aws_iam_role_policy_attachment" "step_functions_access" {
 # Secrets Manager access policy
 resource "aws_iam_policy" "secrets_manager_access" {
   count = var.secrets_manager_arns != null ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-secrets-manager-access-${var.name_suffix}"
   description = "Policy for Lambda to access Secrets Manager secrets"
 
@@ -262,7 +262,7 @@ resource "aws_iam_role_policy_attachment" "vpc_access" {
 
 resource "aws_iam_policy" "s3_access" {
   count = length(var.s3_bucket_arns) > 0 ? 1 : 0
-  
+
   name        = "${var.project_name}-${var.environment}-lambda-s3-access-${var.name_suffix}"
   description = "Policy for Lambda to access S3 buckets including temporary Base64 storage"
 
@@ -281,19 +281,6 @@ resource "aws_iam_policy" "s3_access" {
         ]
         Effect   = "Allow"
         Resource = concat(var.s3_bucket_arns, [for arn in var.s3_bucket_arns : "${arn}/*"])
-      },
-      # Specific permissions for temporary Base64 bucket
-      {
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Effect   = "Allow"
-        Resource = [
-          for arn in var.s3_bucket_arns : 
-          "${arn}/temp-base64/*" if can(regex("temp-base64", arn))
-        ]
       }
     ]
   })

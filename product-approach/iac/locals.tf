@@ -19,7 +19,7 @@ locals {
     reference = lower(join("-", compact([local.name_prefix, "s3", "reference", local.name_suffix]))),
     checking  = lower(join("-", compact([local.name_prefix, "s3", "checking", local.name_suffix]))),
     results   = lower(join("-", compact([local.name_prefix, "s3", "results", local.name_suffix]))),
-    temp_base64 = lower(join("-", compact([local.name_prefix, "s3", "temp-base64", local.name_suffix])))
+    state = lower(join("-", compact([local.name_prefix, "s3", "state", local.name_suffix])))
   }
 
   # DynamoDB table names
@@ -258,6 +258,7 @@ locals {
     REFERENCE_BUCKET                 = local.s3_buckets.reference
     CHECKING_BUCKET                  = local.s3_buckets.checking
     RESULTS_BUCKET                   = local.s3_buckets.results
+          STATE_BUCKET          = local.s3_buckets.state
   }
 },
     fetch_historical_verification = {
@@ -269,6 +270,7 @@ locals {
   DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
+        STATE_BUCKET          = local.s3_buckets.state
 }
     },
     fetch_images = {
@@ -281,7 +283,7 @@ locals {
   CHECKING_BUCKET     = local.s3_buckets.checking
   DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
   LOG_LEVEL           = "INFO"
-  TEMP_BASE64_BUCKET         = local.s3_buckets.temp_base64
+  STATE_BUCKET         = local.s3_buckets.state
   MAX_INLINE_BASE64_SIZE     = "1048576"  # 2MB in bytes
 }
     },
@@ -300,6 +302,7 @@ locals {
   LOG_LEVEL                  = "INFO"
   REFERENCE_BUCKET                 = local.s3_buckets.reference
   CHECKING_BUCKET                  = local.s3_buckets.checking
+        STATE_BUCKET          = local.s3_buckets.state
 }
     },
     # Replace consolidated prepare_turn_prompt with two separate functions
@@ -317,8 +320,7 @@ locals {
         TURN_NUMBER                = "1"
           REFERENCE_BUCKET                 = local.s3_buckets.reference
           CHECKING_BUCKET                  = local.s3_buckets.checking
-              TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
-    BASE64_RETRIEVAL_TIMEOUT    = "5000"
+              STATE_BUCKET          = local.s3_buckets.state
     TEMPLATE_BASE_PATH="/opt/templates"
       }
     },
@@ -336,8 +338,7 @@ locals {
         TURN_NUMBER                = "2"
           REFERENCE_BUCKET                 = local.s3_buckets.reference
           CHECKING_BUCKET                  = local.s3_buckets.checking
-              TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
-    BASE64_RETRIEVAL_TIMEOUT    = "5000"
+              STATE_BUCKET          = local.s3_buckets.state
         TEMPLATE_BASE_PATH="/opt/templates"
       }
     },
@@ -358,9 +359,8 @@ locals {
         TURN_NUMBER                = "1"
         RETRY_MAX_ATTEMPTS = "3"
         RETRY_BASE_DELAY = "2000"
-            TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
-    BASE64_RETRIEVAL_TIMEOUT    = "5000"  # 5 seconds
-    MAX_INLINE_BASE64_SIZE      = "2097152"
+            STATE_BUCKET          = local.s3_buckets.state
+
       }
     },
     
@@ -378,9 +378,9 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
-            TEMP_BASE64_BUCKET          = local.s3_buckets.temp_base64
-    BASE64_RETRIEVAL_TIMEOUT    = "5000"  # 5 seconds
-    MAX_INLINE_BASE64_SIZE      = "2097152"
+            STATE_BUCKET          = local.s3_buckets.state
+
+
       }
     },
     process_turn1_response = {
@@ -391,6 +391,7 @@ locals {
       environment_variables = {
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
+  STATE_BUCKET          = local.s3_buckets.state
 }
     },
     process_turn2_response = {
@@ -401,6 +402,7 @@ locals {
       environment_variables = {
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
+  STATE_BUCKET          = local.s3_buckets.state
 }
     },
     finalize_results = {
@@ -412,6 +414,7 @@ locals {
   DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   LOG_LEVEL                  = "INFO"
+  STATE_BUCKET          = local.s3_buckets.state
 }
     },
     store_results = {
@@ -424,6 +427,7 @@ locals {
   DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
   RESULTS_BUCKET             = local.s3_buckets.results
   LOG_LEVEL                  = "INFO"
+  STATE_BUCKET          = local.s3_buckets.state
 }
     },
     notify = {

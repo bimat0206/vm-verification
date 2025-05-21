@@ -5,6 +5,15 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.18] - 2025-05-20
+### Fixed
+- Fixed duplicated verification IDs in S3 paths for `prompts_turn1-prompt` and `processing_turn1-metrics`
+- Modified s3state SaveToEnvelope usage to avoid double-adding verification ID to paths
+- Updated BuildS3Key helper function to work correctly with SaveToEnvelope
+- Removed unused imports in `bedrock_prep.go` ("context" and "workflow-function/shared/s3state")
+- Fixed S3 key structure to follow the standard format: `verificationId/category/filename.json`
+- Resolved path duplication issue causing incorrect S3 keys like `verificationId/category/verificationId/category/filename.json`
+
 ## [4.0.17] - 2025-05-20
 ### Added
 Enhanced Reference Categorization and Logging:
