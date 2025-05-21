@@ -1,4 +1,3 @@
-
 package state
 
 import (
@@ -8,12 +7,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	
+
+	wferrors "workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
-	wferrors "workflow-function/shared/errors"
-	
+
 	"workflow-function/ExecuteTurn1/internal"
 )
 
@@ -178,46 +177,10 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	return stateRefs, nil
 }
 
-// SaveTurn1Response saves just the Turn1 response and returns updated references
-func (s *Saver) SaveTurn1Response(ctx context.Context, verificationId string, turnResponse *schema.TurnResponse) (*s3state.Reference, error) {
-	if turnResponse == nil {
-		return nil, wferrors.NewValidationError("TurnResponse is nil", nil)
-	}
-
-	// Add timeout to context
-	ctx, cancel := context.WithTimeout(ctx, s.timeout)
-	defer cancel()
-	
-	s.logger.Info("Saving Turn1 response to S3", map[string]interface{}{
-		"verificationId": verificationId,
-		"turnId":         turnResponse.TurnId,
-	})
-
-	// Generate date-based path
-	datePath := generateDatePath(verificationId)
-	
-	// Store the turn response in the responses category
-	ref, err := s.stateManager.StoreJSON(CategoryResponses, 
-		fmt.Sprintf("%s/%s", datePath, FileTurn1Response), turnResponse)
-	if err != nil {
-		s.logger.Error("Failed to save Turn1 response", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil, wferrors.WrapError(err, "state", "failed to save Turn1 response", false)
-	}
-
-	s.logger.Info("Turn1 response saved successfully", map[string]interface{}{
-		"reference": ref.String(),
-	})
-
-	return ref, nil
-}
-
-// SaveThinkingContent extracts and saves thinking content separately
-func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, thinking string) (*s3state.Reference, error) {
-	if thinking == "" {
-		s.logger.Info("No thinking content to save", nil)
-		return nil, nil
+// SaveThinkingContent saves the thinking content separately and returns a reference
+func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, thinkingContent string) (*s3state.Reference, error) {
+	if thinkingContent == "" {
+		return nil, wferrors.NewValidationError("ThinkingContent is empty", nil)
 	}
 
 	// Add timeout to context
@@ -225,24 +188,19 @@ func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, 
 	defer cancel()
 	
 	s.logger.Info("Saving thinking content to S3", map[string]interface{}{
-		"verificationId":  verificationId,
-		"thinkingLength": len(thinking),
+		"verificationId": verificationId,
 	})
 
 	// Generate date-based path
 	datePath := generateDatePath(verificationId)
 	
-	// Create a wrapper object for the thinking content
-	thinkingObj := map[string]interface{}{
-		"verificationId": verificationId,
-		"timestamp":      time.Now().UTC().Format(time.RFC3339),
-		"content":        thinking,
-		"length":         len(thinking),
-	}
-
 	// Store the thinking content in the responses category
 	ref, err := s.stateManager.StoreJSON(CategoryResponses, 
-		fmt.Sprintf("%s/%s", datePath, FileTurn1Thinking), thinkingObj)
+		fmt.Sprintf("%s/turn1-thinking.json", datePath), map[string]interface{}{
+			"verificationId": verificationId,
+			"thinking": thinkingContent,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		})
 	if err != nil {
 		s.logger.Error("Failed to save thinking content", map[string]interface{}{
 			"error": err.Error(),
@@ -255,4 +213,83 @@ func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, 
 	})
 
 	return ref, nil
+}
+
+// SaveTurn1Response saves the Turn1 response with thinking content included
+func (s *Saver) SaveTurn1Response(ctx context.Context, verificationId string, turnResponse *schema.TurnResponse) (*s3state.Reference, error) {
+    if turnResponse == nil {
+        return nil, wferrors.NewValidationError("TurnResponse is nil", nil)
+    }
+
+    // Add timeout to context
+    ctx, cancel := context.WithTimeout(ctx, s.timeout)
+    defer cancel()
+    
+    s.logger.Info("Saving Turn1 response to S3", map[string]interface{}{
+        "verificationId": verificationId,
+        "turnId":         turnResponse.TurnId,
+    })
+
+    // Generate date-based path
+    datePath := generateDatePath(verificationId)
+    
+    // Create the Turn1 response object in the new format with thinking content included
+    turn1ResponseWithThinking := map[string]interface{}{
+        "verificationId":   verificationId,
+        "turnId":           turnResponse.TurnId,
+        "analysisStage":    "REFERENCE_ANALYSIS",
+        "verificationType": "LAYOUT_VS_CHECKING", // This should be from the actual verification context
+        "response": map[string]interface{}{
+            "content": []map[string]interface{}{
+                {
+                    "type": "text",
+                    "text": turnResponse.Response.Content,
+                },
+            },
+        },
+        "tokenUsage": map[string]interface{}{
+            "input":    turnResponse.TokenUsage.InputTokens,
+            "output":   turnResponse.TokenUsage.OutputTokens,
+            "thinking": turnResponse.TokenUsage.ThinkingTokens,
+            "total":    turnResponse.TokenUsage.TotalTokens,
+        },
+        "latencyMs":  turnResponse.LatencyMs,
+        "timestamp":  turnResponse.Timestamp,
+        "status":     "SUCCESS",
+    }
+    
+    // Add thinking content if available
+    if turnResponse.Metadata != nil && turnResponse.Metadata["thinking"] != nil {
+        if thinkingContent, ok := turnResponse.Metadata["thinking"].(string); ok && thinkingContent != "" {
+            // Add thinking to the response object
+            thinking := turnResponse.Metadata["thinking"].(string)
+            responseMap := turn1ResponseWithThinking["response"].(map[string]interface{})
+            responseMap["thinking"] = thinking
+        }
+    }
+    
+    // Add bedrock metadata if available
+    if turnResponse.Metadata != nil {
+        turn1ResponseWithThinking["bedrockMetadata"] = map[string]interface{}{
+            "modelId":    turnResponse.Metadata["modelId"],
+            "requestId":  "req-" + verificationId,
+            "stopReason": turnResponse.Response.StopReason,
+        }
+    }
+    
+    // Store the turn response in the responses category
+    ref, err := s.stateManager.StoreJSON(CategoryResponses, 
+        fmt.Sprintf("%s/%s", datePath, FileTurn1Response), turn1ResponseWithThinking)
+    if err != nil {
+        s.logger.Error("Failed to save Turn1 response", map[string]interface{}{
+            "error": err.Error(),
+        })
+        return nil, wferrors.WrapError(err, "state", "failed to save Turn1 response", false)
+    }
+
+    s.logger.Info("Turn1 response saved successfully", map[string]interface{}{
+        "reference": ref.String(),
+    })
+
+    return ref, nil
 }

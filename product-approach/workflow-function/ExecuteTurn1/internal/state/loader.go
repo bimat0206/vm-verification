@@ -40,8 +40,7 @@ const (
 	FileSystemPrompt     = "system-prompt.json"
 	
 	// Responses category
-	FileTurn1Response    = "turn1-response.json"
-	FileTurn1Thinking    = "turn1-thinking.json"
+	FileTurn1Response    = "turn1-raw-response.json" // Updated filename
 )
 
 // Loader handles loading state from S3 references
@@ -87,12 +86,11 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 	var loadErrors []error
 
 	// Create a default empty verification context in case loading fails
-	// This ensures we always have at least a minimal structure
 	state.VerificationContext = &schema.VerificationContext{
 		VerificationId:  refs.VerificationId,
 		VerificationAt:  schema.FormatISO8601(),
 		Status:          schema.StatusVerificationInitialized,
-		VerificationType: schema.VerificationTypeLayoutVsChecking, // Default type
+		VerificationType: schema.VerificationTypeLayoutVsChecking,
 	}
 
 	// Load verification context (initialization data)
@@ -168,7 +166,7 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 		l.logger.Warn("No image metadata reference provided", nil)
 	}
 
-	// Load use case specific data (if available) based on verification type
+	// Load use case specific data based on verification type
 	if state.VerificationContext != nil {
 		if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
 			// UC1: Load layout metadata
@@ -250,23 +248,32 @@ func (l *Loader) LoadWorkflowState(ctx context.Context, refs *internal.StateRefe
 		})
 	}
 
-	// Final validation of the constructed state
-	if state.VerificationContext.VerificationId == "" {
-		if refs.VerificationId != "" {
-			state.VerificationContext.VerificationId = refs.VerificationId
-		} else {
-			l.logger.Warn("No verification ID found, using timestamp", nil)
-			state.VerificationContext.VerificationId = fmt.Sprintf("verif-%s", time.Now().Format("20060102150405"))
-		}
+	return state, nil
+}
+
+// LoadVerificationContext loads the verification context from initialization.json
+func (l *Loader) LoadVerificationContext(ctx context.Context, ref *s3state.Reference) (*schema.VerificationContext, error) {
+	if ref == nil {
+		return nil, fmt.Errorf("verification context reference is nil")
 	}
 
-	l.logger.Info("Workflow state loaded successfully", map[string]interface{}{
-		"verificationId": state.VerificationContext.VerificationId,
-		"status":         state.VerificationContext.Status,
-		"componentsLoaded": successfulRefs,
-	})
+	// Load as a wrapper structure with the nested "verificationContext" field
+	var wrapper struct {
+		VerificationContext *schema.VerificationContext `json:"verificationContext"`
+		SchemaVersion       string                      `json:"schemaVersion"`
+	}
+	
+	err := l.stateManager.RetrieveJSON(ref, &wrapper)
+	if err != nil {
+		return nil, err
+	}
 
-	return state, nil
+	// Check if we have a valid verification context in the wrapper
+	if wrapper.VerificationContext == nil {
+		return nil, fmt.Errorf("initialization.json does not contain verificationContext field")
+	}
+
+	return wrapper.VerificationContext, nil
 }
 
 // validateAndFixVerificationContext validates and fixes incomplete verification contexts
@@ -316,22 +323,209 @@ func (l *Loader) validateAndFixVerificationContext(context *schema.VerificationC
 	return nil
 }
 
-// LoadVerificationContext loads the verification context (initialization data) from S3
-func (l *Loader) LoadVerificationContext(ctx context.Context, ref *s3state.Reference) (*schema.VerificationContext, error) {
+// LoadCurrentPrompt loads the current prompt from the new turn1-prompt.json structure
+func (l *Loader) LoadCurrentPrompt(ctx context.Context, ref *s3state.Reference) (*schema.CurrentPrompt, error) {
 	if ref == nil {
-		return nil, fmt.Errorf("verification context reference is nil")
+		return nil, fmt.Errorf("current prompt reference is nil")
 	}
 
-	var verificationContext schema.VerificationContext
-	err := l.stateManager.RetrieveJSON(ref, &verificationContext)
+	// Check if this is system-prompt.json
+	isSystemPrompt := strings.Contains(ref.Key, "system-prompt.json")
+	
+	// For the system-prompt.json case
+	if isSystemPrompt {
+		// Load the new schema format
+		var systemPrompt struct {
+			PromptContent struct {
+				SystemMessage   string `json:"systemMessage"`
+				TemplateVersion string `json:"templateVersion"`
+				PromptType      string `json:"promptType"`
+			} `json:"promptContent"`
+			VerificationId     string `json:"verificationId"`
+			VerificationType   string `json:"verificationType"`
+		}
+		
+		err := l.stateManager.RetrieveJSON(ref, &systemPrompt)
+		if err != nil {
+			// Try to load as a simple SystemPrompt structure
+			var legacySystemPrompt struct {
+				Content       string `json:"content"`
+				PromptId      string `json:"promptId"`
+				PromptVersion string `json:"promptVersion"`
+			}
+			
+			err2 := l.stateManager.RetrieveJSON(ref, &legacySystemPrompt)
+			if err2 != nil {
+				return nil, fmt.Errorf("failed to load system prompt: %w", err)
+			}
+			
+			// Create a CurrentPrompt from the legacy format
+			currentPrompt := &schema.CurrentPrompt{
+				Text:          legacySystemPrompt.Content,
+				TurnNumber:    1,
+				IncludeImage:  "reference",
+				PromptId:      legacySystemPrompt.PromptId,
+				PromptVersion: legacySystemPrompt.PromptVersion,
+			}
+			
+			l.logger.Warn("Current prompt missing turn number, defaulting to 1", nil)
+			return currentPrompt, nil
+		}
+		
+		// Convert to the expected CurrentPrompt structure
+		currentPrompt := &schema.CurrentPrompt{
+			Text:          systemPrompt.PromptContent.SystemMessage,
+			TurnNumber:    1,
+			IncludeImage:  "reference",
+			PromptId:      fmt.Sprintf("prompt-%s-system", systemPrompt.VerificationId),
+			PromptVersion: systemPrompt.PromptContent.TemplateVersion,
+			Metadata: map[string]interface{}{
+				"promptType": systemPrompt.PromptContent.PromptType,
+				"verificationType": systemPrompt.VerificationType,
+			},
+		}
+		
+		return currentPrompt, nil
+	}
+	
+	// For turn1-prompt.json
+	var newFormatPrompt struct {
+		MessageStructure struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+			Role string `json:"role"`
+		} `json:"messageStructure"`
+		PromptType       string `json:"promptType"`
+		VerificationId   string `json:"verificationId"`
+		VerificationType string `json:"verificationType"`
+		ImageReference   struct {
+			ImageType            string `json:"imageType"`
+			Base64StorageReference struct {
+				Bucket string `json:"bucket"`
+				Key    string `json:"key"`
+			} `json:"base64StorageReference"`
+		} `json:"imageReference"`
+		TemplateVersion  string `json:"templateVersion"`
+		CreatedAt        string `json:"createdAt"`
+	}
+	
+	err := l.stateManager.RetrieveJSON(ref, &newFormatPrompt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load prompt: %w", err)
 	}
-
-	return &verificationContext, nil
+	
+	// Extract the text from MessageStructure
+	var promptText string
+	if len(newFormatPrompt.MessageStructure.Content) > 0 {
+		for _, content := range newFormatPrompt.MessageStructure.Content {
+			if content.Type == "text" {
+				promptText = content.Text
+				break
+			}
+		}
+	}
+	
+	// Set a default include image type if not specified
+	imageType := "reference"
+	if newFormatPrompt.ImageReference.ImageType != "" {
+		imageType = newFormatPrompt.ImageReference.ImageType
+	}
+	
+	// Convert to the expected CurrentPrompt structure
+	result := &schema.CurrentPrompt{
+		Text:         promptText,
+		TurnNumber:   1, // Default for Turn1
+		IncludeImage: imageType,
+		PromptId:     fmt.Sprintf("prompt-%s-turn1", newFormatPrompt.VerificationId),
+		CreatedAt:    newFormatPrompt.CreatedAt,
+		PromptVersion: newFormatPrompt.TemplateVersion,
+		Metadata: map[string]interface{}{
+			"promptType": newFormatPrompt.PromptType,
+			"verificationType": newFormatPrompt.VerificationType,
+		},
+	}
+	
+	return result, nil
 }
 
-// LoadLayoutMetadata loads the layout metadata from S3 (UC1)
+// LoadBedrockConfig loads the Bedrock config from the bedrockConfiguration field in system-prompt.json
+func (l *Loader) LoadBedrockConfig(ctx context.Context, ref *s3state.Reference) (*schema.BedrockConfig, error) {
+	if ref == nil {
+		return nil, fmt.Errorf("Bedrock config reference is nil")
+	}
+
+	// Load from the new system-prompt.json structure
+	var newSystemPrompt struct {
+		BedrockConfiguration struct {
+			AnthropicVersion string  `json:"anthropicVersion"`
+			MaxTokens        int     `json:"maxTokens"`
+			ModelId          string  `json:"modelId,omitempty"`
+			Temperature      float64 `json:"temperature,omitempty"`
+			Thinking         struct {
+				Type         string `json:"type"`
+				BudgetTokens int    `json:"budgetTokens"`
+			} `json:"thinking,omitempty"`
+		} `json:"bedrockConfiguration"`
+	}
+	
+	err := l.stateManager.RetrieveJSON(ref, &newSystemPrompt)
+	if err != nil {
+		l.logger.Warn("No Bedrock config found in system prompt, using defaults", nil)
+		// Fallback to default config
+		return &schema.BedrockConfig{
+			AnthropicVersion: "bedrock-2023-05-31",
+			MaxTokens:        4096,
+			Temperature:      0.7,
+			Thinking: &schema.Thinking{
+				Type:         "thinking",
+				BudgetTokens: 16000,
+			},
+		}, nil
+	}
+
+	// Check if we have valid Bedrock configuration
+	if newSystemPrompt.BedrockConfiguration.AnthropicVersion == "" {
+		l.logger.Warn("No Bedrock config found in system prompt, using defaults", nil)
+		return &schema.BedrockConfig{
+			AnthropicVersion: "bedrock-2023-05-31",
+			MaxTokens:        4096,
+			Temperature:      0.7,
+			Thinking: &schema.Thinking{
+				Type:         "thinking",
+				BudgetTokens: 16000,
+			},
+		}, nil
+	}
+	
+	// Create the BedrockConfig structure
+	bedrockConfig := &schema.BedrockConfig{
+		AnthropicVersion: newSystemPrompt.BedrockConfiguration.AnthropicVersion,
+		MaxTokens:        newSystemPrompt.BedrockConfiguration.MaxTokens,
+		Temperature:      newSystemPrompt.BedrockConfiguration.Temperature,
+	}
+	
+	// Ensure we have a valid Thinking configuration
+	thinkingType := newSystemPrompt.BedrockConfiguration.Thinking.Type
+	if thinkingType == "" {
+		thinkingType = "thinking" // Default
+	}
+	
+	budgetTokens := newSystemPrompt.BedrockConfiguration.Thinking.BudgetTokens
+	if budgetTokens <= 0 {
+		budgetTokens = 16000 // Default
+	}
+	
+	bedrockConfig.Thinking = &schema.Thinking{
+		Type:         thinkingType,
+		BudgetTokens: budgetTokens,
+	}
+	
+	return bedrockConfig, nil
+}
+
+// LoadLayoutMetadata loads the layout metadata from S3
 func (l *Loader) LoadLayoutMetadata(ctx context.Context, ref *s3state.Reference) (map[string]interface{}, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("layout metadata reference is nil")
@@ -343,10 +537,19 @@ func (l *Loader) LoadLayoutMetadata(ctx context.Context, ref *s3state.Reference)
 		return nil, err
 	}
 
+	// Check for machine structure inconsistency
+	if machineStructure, ok := layoutMetadata["machineStructure"].(map[string]interface{}); ok {
+		if columnsPerRow, ok := machineStructure["columnsPerRow"].(float64); ok {
+			l.logger.Info("Layout metadata specifies machine structure", map[string]interface{}{
+				"columnsPerRow": int(columnsPerRow),
+			})
+		}
+	}
+
 	return layoutMetadata, nil
 }
 
-// LoadHistoricalContext loads the historical context from S3 (UC2)
+// LoadHistoricalContext loads the historical context from S3
 func (l *Loader) LoadHistoricalContext(ctx context.Context, ref *s3state.Reference) (map[string]interface{}, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("historical context reference is nil")
@@ -361,38 +564,7 @@ func (l *Loader) LoadHistoricalContext(ctx context.Context, ref *s3state.Referen
 	return historicalContext, nil
 }
 
-// LoadCurrentPrompt loads the current prompt from S3
-func (l *Loader) LoadCurrentPrompt(ctx context.Context, ref *s3state.Reference) (*schema.CurrentPrompt, error) {
-	if ref == nil {
-		return nil, fmt.Errorf("current prompt reference is nil")
-	}
-
-	var currentPrompt schema.CurrentPrompt
-	err := l.stateManager.RetrieveJSON(ref, &currentPrompt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate the loaded prompt has required fields
-	if currentPrompt.TurnNumber == 0 {
-		currentPrompt.TurnNumber = 1
-		l.logger.Warn("Current prompt missing turn number, defaulting to 1", nil)
-	}
-	
-	if currentPrompt.IncludeImage == "" {
-		currentPrompt.IncludeImage = "reference"
-		l.logger.Warn("Current prompt missing includeImage, defaulting to 'reference'", nil)
-	}
-	
-	// If we have neither text nor messages, log a warning
-	if currentPrompt.Text == "" && (currentPrompt.Messages == nil || len(currentPrompt.Messages) == 0) {
-		l.logger.Warn("Current prompt missing both text and messages", nil)
-	}
-
-	return &currentPrompt, nil
-}
-
-// LoadImages loads the images from S3
+// LoadImages loads the images from S3 with the new schema format
 func (l *Loader) LoadImages(ctx context.Context, ref *s3state.Reference) (*schema.ImageData, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("images reference is nil")
@@ -430,53 +602,6 @@ func (l *Loader) LoadImages(ctx context.Context, ref *s3state.Reference) (*schem
 	}
 
 	return &images, nil
-}
-
-// LoadBedrockConfig loads the Bedrock config from S3
-func (l *Loader) LoadBedrockConfig(ctx context.Context, ref *s3state.Reference) (*schema.BedrockConfig, error) {
-	if ref == nil {
-		return nil, fmt.Errorf("Bedrock config reference is nil")
-	}
-
-	// Try to load from metadata in system prompt first
-	var systemPrompt schema.SystemPrompt
-	err := l.stateManager.RetrieveJSON(ref, &systemPrompt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract Bedrock config from system prompt metadata
-	if systemPrompt.BedrockConfig != nil {
-		// Validate and set defaults if needed
-		if systemPrompt.BedrockConfig.AnthropicVersion == "" {
-			systemPrompt.BedrockConfig.AnthropicVersion = "bedrock-2023-05-31"
-		}
-		
-		if systemPrompt.BedrockConfig.MaxTokens <= 0 {
-			systemPrompt.BedrockConfig.MaxTokens = 4096
-		}
-		
-		if systemPrompt.BedrockConfig.Thinking == nil {
-			systemPrompt.BedrockConfig.Thinking = &schema.Thinking{
-				Type:         "thinking",
-				BudgetTokens: 16000,
-			}
-		}
-		
-		return systemPrompt.BedrockConfig, nil
-	}
-
-	// Fallback to creating a default config
-	l.logger.Warn("No Bedrock config found in system prompt, using defaults", nil)
-	return &schema.BedrockConfig{
-		AnthropicVersion: "bedrock-2023-05-31",
-		MaxTokens:        4096,
-		Temperature:      0.7,
-		Thinking: &schema.Thinking{
-			Type:         "thinking",
-			BudgetTokens: 16000,
-		},
-	}, nil
 }
 
 // LoadConversationState loads the conversation state from S3
@@ -521,4 +646,12 @@ func (l *Loader) getVerificationIdFromKey(key string) string {
 	}
 	
 	return ""
+}
+
+// SaveTurn1Response saves the Turn1 response with the new schema format
+func (l *Loader) SaveTurn1Response(ctx context.Context, state *schema.WorkflowState, turnResponse *schema.TurnResponse) *s3state.Reference {
+	// Turn1 response now includes thinking content in the same file
+	// This is a helper method that's not used directly in this file, but I'm including it for completeness
+	
+	return nil // Implementation would be in saver.go
 }

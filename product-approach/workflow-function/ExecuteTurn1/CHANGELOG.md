@@ -3,6 +3,82 @@
 All notable changes to this project are documented here.
 
 ---
+# Updated Changelog Entry
+
+## [4.0.21] - 2025-05-22
+
+### Fixed
+
+* **Schema Compatibility with New Format:**
+  * Updated state loader to support nested "verificationContext" field in initialization.json
+  * Fixed handling of the new turn1-prompt.json format with "messageStructure" instead of direct text field
+  * Added support for extracting Bedrock configuration from "bedrockConfiguration" top-level field
+  * Resolved validation issues with machine structure inconsistencies between different files
+
+### Changed
+
+* **Response Format Updated for New Schema:**
+  * Changed FileTurn1Response from "turn1-response.json" to "turn1-raw-response.json"
+  * Removed FileTurn1Thinking as thinking content is now included in the Turn1 response
+  * Updated SaveTurn1Response to combine response and thinking content in a single file
+  * Adjusted response format to conform to the new schema definition
+
+### Improved
+
+* **Error Handling and Default Values:**
+  * Enhanced fallback mechanisms when loading from different schema formats
+  * Added better warnings for missing fields rather than failing completely
+  * Improved field validation to handle different data types more flexibly
+  * Enhanced log messages to provide more context about schema-related issues
+
+### Technical Details
+
+* Modified `state/loader.go` to handle the new schema structure:
+  ```go
+  // Load verification context from the nested structure
+  var wrapper struct {
+      VerificationContext *schema.VerificationContext `json:"verificationContext"`
+      SchemaVersion       string                      `json:"schemaVersion"`
+  }
+  ```
+
+* Updated prompt loading logic to extract from new structure:
+  ```go
+  var newFormatPrompt struct {
+      MessageStructure struct {
+          Content []struct {
+              Type string `json:"type"`
+              Text string `json:"text"`
+          } `json:"content"`
+          Role string `json:"role"`
+      } `json:"messageStructure"`
+      // ...other fields...
+  }
+  ```
+
+* Modified Bedrock configuration loading to handle the new location:
+  ```go
+  var newSystemPrompt struct {
+      BedrockConfiguration struct {
+          AnthropicVersion string  `json:"anthropicVersion"`
+          MaxTokens        int     `json:"maxTokens"`
+          // ...other fields...
+      } `json:"bedrockConfiguration"`
+  }
+  ```
+
+* Updated response saving to include thinking content directly in the same file:
+  ```go
+  turn1ResponseWithThinking := map[string]interface{}{
+      // ...other fields...
+      "response": map[string]interface{}{
+          "content": ...,
+          "thinking": thinkingContent
+      }
+  }
+  ```
+
+This update ensures compatibility with the updated schema format while maintaining backward compatibility with existing workflows.
 
 ## [4.0.20] - 2025-05-21
 

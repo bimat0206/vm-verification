@@ -4,7 +4,7 @@ package internal
 import (
 	"fmt"
 	"strings"
-
+	"strconv"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
 )
@@ -19,26 +19,23 @@ const (
 )
 
 // Standard filenames for each category - matching design specifications
+// In state/saver.go, update the file name constants
 const (
-	// Processing category files
-	FileInitialization   = "initialization.json"
-	FileLayoutMetadata   = "layout-metadata.json"
-	FileHistoricalContext = "historical-context.json"
-	FileConversationState = "conversation-state.json"
-	
-	// Images category files
-	FileImageMetadata    = "metadata.json"
-	FileReferenceBase64  = "reference-base64.base64"
-	FileCheckingBase64   = "checking-base64.base64"
-	
-	// Prompts category files
-	FileSystemPrompt     = "system-prompt.json"
-	
-	// Responses category files
-	FileTurn1Response    = "turn1-response.json"
-	FileTurn1Thinking    = "turn1-thinking.json"
-	FileTurn2Response    = "turn2-response.json"
-	FileTurn2Thinking    = "turn2-thinking.json"
+    // Processing category
+    FileInitialization   = "initialization.json"
+    FileLayoutMetadata   = "layout-metadata.json"
+    FileHistoricalContext = "historical-context.json"
+    
+    // Images category
+    FileImageMetadata    = "metadata.json"
+    FileReferenceBase64  = "reference-base64.base64"
+    FileCheckingBase64   = "checking-base64.base64"
+    
+    // Prompts category
+    FileSystemPrompt     = "system-prompt.json"
+    
+    // Responses category
+    FileTurn1Response    = "turn1-raw-response.json" // Updated filename
 )
 
 // S3 path date components
@@ -114,70 +111,97 @@ type StepFunctionOutput struct {
 }
 
 // MapS3References maps dynamic S3 references to structured StateReferences
+// MapS3References maps dynamic S3 references to structured StateReferences
 func (input *StepFunctionInput) MapS3References() *StateReferences {
-	// If StateReferences already exists, use it
-	if input.StateReferences != nil {
-		return input.StateReferences
-	}
-	
-	// If no S3References map, can't proceed with mapping
-	if input.S3References == nil || len(input.S3References) == 0 {
-		return nil
-	}
-	
-	// Create new StateReferences
-	refs := &StateReferences{
-		VerificationId: input.VerificationId,
-	}
-	
-	// Extract date partition if present in any reference
-	for _, refMap := range input.S3References {
-		if refKey, ok := refMap["key"].(string); ok {
-			parts := strings.Split(refKey, "/")
-			if len(parts) >= 4 && len(parts[0]) == 4 && len(parts[1]) == 2 && len(parts[2]) == 2 {
-				refs.DatePartition = fmt.Sprintf("%s/%s/%s", parts[0], parts[1], parts[2])
-				break
-			}
-		}
-	}
-	
-	// Convert each raw map to an s3state.Reference and map to specific fields
-	for key, refMap := range input.S3References {
-		ref := convertMapToReference(refMap)
-		if ref != nil {
-			// Map to specific fields based on key
-			mapReferenceToField(refs, key, ref)
-		}
-	}
-	
-	return refs
+    // If StateReferences already exists, use it
+    if input.StateReferences != nil {
+        return input.StateReferences
+    }
+    
+    // If no S3References map, can't proceed with mapping
+    if input.S3References == nil || len(input.S3References) == 0 {
+        return nil
+    }
+    
+    // Create new StateReferences
+    refs := &StateReferences{
+        VerificationId: input.VerificationId,
+    }
+    
+    // Extract date partition if present in any reference
+    for _, refMap := range input.S3References {
+        if refKey, ok := refMap["key"].(string); ok {
+            parts := strings.Split(refKey, "/")
+            if len(parts) >= 4 {
+                // Check if first three parts form a date pattern (YYYY/MM/DD)
+                if isYearMonthDay(parts[0], parts[1], parts[2]) {
+                    refs.DatePartition = fmt.Sprintf("%s/%s/%s", parts[0], parts[1], parts[2])
+                    break
+                }
+            }
+        }
+    }
+    
+    // Convert each raw map to an s3state.Reference and map to specific fields
+    for key, refMap := range input.S3References {
+        ref := convertMapToReference(refMap)
+        if ref != nil {
+            mapReferenceToField(refs, key, ref)
+        }
+    }
+    
+    return refs
 }
 
-// convertMapToReference converts a map to an s3state.Reference
-func convertMapToReference(refMap map[string]interface{}) *s3state.Reference {
-	ref := &s3state.Reference{}
-	
-	// Extract bucket
-	if bucket, ok := refMap["bucket"].(string); ok {
-		ref.Bucket = bucket
-	} else {
-		return nil // Bucket is required
-	}
-	
-	// Extract key
-	if key, ok := refMap["key"].(string); ok {
-		ref.Key = key
-	} else {
-		return nil // Key is required
-	}
-	
-	// Extract size if present
-	if size, ok := refMap["size"].(float64); ok {
-		ref.Size = int64(size)
-	}
-	
-	return ref
+// Helper to check if parts form a date pattern
+func isYearMonthDay(year, month, day string) bool {
+    // Simple check if these could be a date
+    if len(year) != 4 || len(month) != 2 || len(day) != 2 {
+        return false
+    }
+    
+    // Check if all are numeric
+    _, yearErr := strconv.Atoi(year)
+    _, monthErr := strconv.Atoi(month)
+    _, dayErr := strconv.Atoi(day)
+    
+    return yearErr == nil && monthErr == nil && dayErr == nil
 }
+
+// Improved conversion from map to reference with better type handling
+func convertMapToReference(refMap map[string]interface{}) *s3state.Reference {
+    ref := &s3state.Reference{}
+    
+    // Extract bucket
+    if bucket, ok := refMap["bucket"].(string); ok {
+        ref.Bucket = bucket
+    } else {
+        return nil // Bucket is required
+    }
+    
+    // Extract key
+    if key, ok := refMap["key"].(string); ok {
+        ref.Key = key
+    } else {
+        return nil // Key is required
+    }
+    
+    // Extract size with flexible type handling
+    if size, ok := refMap["size"].(float64); ok {
+        ref.Size = int64(size)
+    } else if size, ok := refMap["size"].(int64); ok {
+        ref.Size = size
+    } else if size, ok := refMap["size"].(int); ok {
+        ref.Size = int64(size)
+    } else if sizeStr, ok := refMap["size"].(string); ok {
+        if sizeVal, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+            ref.Size = sizeVal
+        }
+    }
+    
+    return ref
+}
+
 
 // mapReferenceToField maps a reference to the appropriate field in StateReferences
 func mapReferenceToField(refs *StateReferences, key string, ref *s3state.Reference) {

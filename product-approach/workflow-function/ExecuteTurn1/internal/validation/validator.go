@@ -2,7 +2,7 @@ package validation
 
 import (
 	"fmt"
-
+	"strings"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 	wferrors "workflow-function/shared/errors"
@@ -144,28 +144,51 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 }
 
 // validateRequiredFields checks for nil pointers in critical fields
+// validateRequiredFields checks for nil pointers in critical fields with more flexibility
 func (v *Validator) validateRequiredFields(state *schema.WorkflowState) error {
-	var missingFields []string
-	
-	if state.CurrentPrompt == nil {
-		missingFields = append(missingFields, "CurrentPrompt")
-	}
+    var missingFields []string
+    
+    if state.CurrentPrompt == nil {
+        missingFields = append(missingFields, "CurrentPrompt")
+    }
 
-	if state.BedrockConfig == nil {
-		missingFields = append(missingFields, "BedrockConfig")
-	}
+    if state.BedrockConfig == nil {
+        missingFields = append(missingFields, "BedrockConfig")
+    }
 
-	if state.VerificationContext == nil {
-		missingFields = append(missingFields, "VerificationContext")
-	}
-	
-	if len(missingFields) > 0 {
-		return wferrors.NewValidationError("Missing required fields in WorkflowState", map[string]interface{}{
-			"missingFields": missingFields,
-		})
-	}
+    if state.VerificationContext == nil {
+        missingFields = append(missingFields, "VerificationContext")
+    } else {
+        // Provide more detailed validation for VerificationContext
+        var contextErrors []string
+        
+        if state.VerificationContext.VerificationId == "" {
+            contextErrors = append(contextErrors, "VerificationId")
+        }
+        
+        // Only warn about other missing fields so the process can continue
+        if state.VerificationContext.VerificationAt == "" || 
+           state.VerificationContext.Status == "" || 
+           state.VerificationContext.VerificationType == "" {
+            v.logger.Warn("VerificationContext missing some recommended fields", map[string]interface{}{
+                "hasVerificationAt": state.VerificationContext.VerificationAt != "",
+                "hasStatus": state.VerificationContext.Status != "",
+                "hasVerificationType": state.VerificationContext.VerificationType != "",
+            })
+        }
+        
+        if len(contextErrors) > 0 {
+            missingFields = append(missingFields, fmt.Sprintf("VerificationContext fields: %s", strings.Join(contextErrors, ", ")))
+        }
+    }
+    
+    if len(missingFields) > 0 {
+        return wferrors.NewValidationError("Missing required fields in WorkflowState", map[string]interface{}{
+            "missingFields": missingFields,
+        })
+    }
 
-	return nil
+    return nil
 }
 
 // validateUseCaseData validates the use case specific data based on verification type
