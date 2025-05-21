@@ -55,20 +55,34 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 		return nil, wferrors.NewValidationError("Input is nil", nil)
 	}
 	
-	// Check if we should use StateReferences or S3References
-	if input.StateReferences == nil && input.S3References == nil {
+	// Check if we have either type of references
+	hasStateRefs := input.StateReferences != nil
+	hasS3Refs := input.S3References != nil && len(input.S3References) > 0
+	
+	if !hasStateRefs && !hasS3Refs {
 		return nil, wferrors.NewValidationError("Neither StateReferences nor S3References is provided", nil)
 	}
 	
-	// Use S3References if StateReferences is nil
+	// Map the S3References to StateReferences format using the new method
 	if input.StateReferences == nil {
-		input.StateReferences = input.S3References
+		input.StateReferences = input.MapS3References()
 	}
 	
-	// Check if VerificationId is provided
+	// Validate that we have a proper StateReferences object after mapping
+	if input.StateReferences == nil {
+		return nil, wferrors.NewValidationError("Failed to map references from input", nil)
+	}
+	
+	// Check if VerificationId is provided and consistent
 	verificationId := input.StateReferences.VerificationId
 	if verificationId == "" {
-		return nil, wferrors.NewValidationError("VerificationId is required", nil)
+		// Try to get from direct input if not in StateReferences
+		verificationId = input.VerificationId
+		if verificationId == "" {
+			return nil, wferrors.NewValidationError("VerificationId is required", nil)
+		}
+		// Set it in the StateReferences for consistency
+		input.StateReferences.VerificationId = verificationId
 	}
 
 	// Set up context-aware logger
@@ -98,9 +112,6 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 		return h.handleError(err, "state_references_validation_failed", log)
 	}
 
-	// Rest of the function remains the same...
-	// Continue with the existing HandleRequest implementation
-	
 	// Step 2: Load state from S3 references
 	state, err := h.stateLoader.LoadWorkflowState(ctx, input.StateReferences)
 	if err != nil {
@@ -200,7 +211,7 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 	})
 
 	// Step 9: Return lightweight references with correct organization
-	return &internal.StepFunctionOutput{
+	output := &internal.StepFunctionOutput{
 		StateReferences: updatedRefs,
 		Status:          schema.StatusTurn1Completed,
 		Summary: map[string]interface{}{
@@ -209,7 +220,12 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 			"status":        schema.StatusTurn1Completed,
 			"datePartition": updatedRefs.DatePartition,
 		},
-	}, nil
+	}
+	
+	// Ensure S3References is populated for step function compatibility
+	output.S3References = output.StateReferences
+	
+	return output, nil
 }
 
 // processImages handles image Base64 generation using hybrid storage
@@ -260,9 +276,6 @@ func (h *Handler) processImages(ctx context.Context, images *schema.ImageData, l
 	})
 	return nil
 }
-
-// Other methods remain the same...
-// Include the updateWorkflowState and handleError methods as they were
 
 // updateWorkflowState updates the workflow state with Turn 1 results
 func (h *Handler) updateWorkflowState(state *schema.WorkflowState, turnResponse *schema.TurnResponse, log logger.Logger) {
@@ -329,7 +342,7 @@ func (h *Handler) handleError(err error, code string, log logger.Logger) (*inter
 	})
 
 	// Return an error response with minimal details
-	return &internal.StepFunctionOutput{
+	output := &internal.StepFunctionOutput{
 		Status: schema.StatusBedrockProcessingFailed,
 		Error: &schema.ErrorInfo{
 			Code:      wfErr.Code,
@@ -342,5 +355,12 @@ func (h *Handler) handleError(err error, code string, log logger.Logger) (*inter
 			"status":    schema.StatusBedrockProcessingFailed,
 			"retryable": wfErr.Retryable,
 		},
-	}, nil
+	}
+	
+	// Ensure S3References is populated for step function compatibility
+	if output.StateReferences != nil {
+		output.S3References = output.StateReferences
+	}
+	
+	return output, nil
 }

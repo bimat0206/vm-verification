@@ -1,4 +1,3 @@
-
 package validation
 
 import (
@@ -34,31 +33,42 @@ func (v *Validator) ValidateStateReferences(refs *internal.StateReferences) erro
 	}
 
 	var missingRefs []string
+	var optionalMissing []string
 
-	// Required references (aligned with the correct folder structure)
+	// Required references - critical for functionality
 	if refs.Initialization == nil {
-		missingRefs = append(missingRefs, "Initialization")
+		missingRefs = append(missingRefs, "Initialization (processing_initialization)")
 	}
 
 	if refs.SystemPrompt == nil {
-		missingRefs = append(missingRefs, "SystemPrompt")
+		missingRefs = append(missingRefs, "SystemPrompt (prompts_system)")
 	}
 
+	// Optional references - log warnings but don't fail validation
 	if refs.ImageMetadata == nil {
-		v.logger.Warn("No ImageMetadata reference provided", nil)
+		optionalMissing = append(optionalMissing, "ImageMetadata (images_metadata)")
 	}
 
-	// Validate use case specific refs based on verification type
+	// Validate use case specific refs based on other references
 	// Since we don't know the verification type yet, we'll check both
 	// but only log warnings if they're missing
-
 	if refs.LayoutMetadata == nil && refs.HistoricalContext == nil {
-		v.logger.Warn("Neither LayoutMetadata nor HistoricalContext reference provided", nil)
+		optionalMissing = append(optionalMissing, "LayoutMetadata or HistoricalContext")
 	}
 
+	// Log warnings for optional missing references
+	if len(optionalMissing) > 0 {
+		v.logger.Warn("Optional state references are missing, but continuing", map[string]interface{}{
+			"missingOptionalRefs": optionalMissing,
+			"verificationId": refs.VerificationId,
+		})
+	}
+
+	// Return error only if critical references are missing
 	if len(missingRefs) > 0 {
 		v.logger.Error("Missing required state references", map[string]interface{}{
 			"missingRefs": missingRefs,
+			"verificationId": refs.VerificationId,
 		})
 		return wferrors.NewValidationError("Missing required state references", map[string]interface{}{
 			"missingRefs": missingRefs,
@@ -78,7 +88,12 @@ func (v *Validator) ValidateStateReferences(refs *internal.StateReferences) erro
 		}
 	}
 
-	v.logger.Info("State references validation passed", nil)
+	v.logger.Info("State references validation passed", map[string]interface{}{
+		"verificationId": refs.VerificationId,
+		"hasInitialization": refs.Initialization != nil,
+		"hasSystemPrompt": refs.SystemPrompt != nil, 
+		"hasImageMetadata": refs.ImageMetadata != nil,
+	})
 	return nil
 }
 
@@ -130,16 +145,24 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 
 // validateRequiredFields checks for nil pointers in critical fields
 func (v *Validator) validateRequiredFields(state *schema.WorkflowState) error {
+	var missingFields []string
+	
 	if state.CurrentPrompt == nil {
-		return wferrors.NewValidationError("CurrentPrompt is nil", nil)
+		missingFields = append(missingFields, "CurrentPrompt")
 	}
 
 	if state.BedrockConfig == nil {
-		return wferrors.NewValidationError("BedrockConfig is nil", nil)
+		missingFields = append(missingFields, "BedrockConfig")
 	}
 
 	if state.VerificationContext == nil {
-		return wferrors.NewValidationError("VerificationContext is nil", nil)
+		missingFields = append(missingFields, "VerificationContext")
+	}
+	
+	if len(missingFields) > 0 {
+		return wferrors.NewValidationError("Missing required fields in WorkflowState", map[string]interface{}{
+			"missingFields": missingFields,
+		})
 	}
 
 	return nil
@@ -183,7 +206,12 @@ func (v *Validator) validateUseCaseData(state *schema.WorkflowState) error {
 
 // validateCurrentPrompt validates the current prompt
 func (v *Validator) validateCurrentPrompt(state *schema.WorkflowState) error {
-	// Standard schema validation
+	// Skip if current prompt is nil - already caught in validateRequiredFields
+	if state.CurrentPrompt == nil {
+		return nil
+	}
+
+	// Standard schema validation with more permissive image requirement
 	if errs := schema.ValidateCurrentPrompt(state.CurrentPrompt, false); len(errs) > 0 {
 		v.logger.Error("CurrentPrompt validation failed", map[string]interface{}{
 			"validationErrors": errs.Error(),
@@ -194,33 +222,21 @@ func (v *Validator) validateCurrentPrompt(state *schema.WorkflowState) error {
 		})
 	}
 
-	// Check that we have at least one message
-	if len(state.CurrentPrompt.Messages) == 0 {
-		return wferrors.NewValidationError("CurrentPrompt has no messages", map[string]interface{}{
+	// Check that we have at least one message or text
+	if len(state.CurrentPrompt.Messages) == 0 && state.CurrentPrompt.Text == "" {
+		return wferrors.NewValidationError("CurrentPrompt has no messages or text", map[string]interface{}{
 			"promptId": state.CurrentPrompt.PromptId,
 		})
 	}
 
-	// Check message content
-	msg := state.CurrentPrompt.Messages[0]
-	if len(msg.Content) == 0 {
-		return wferrors.NewValidationError("Message has no content", map[string]interface{}{
-			"promptId": state.CurrentPrompt.PromptId,
-			"role":     msg.Role,
-		})
-	}
-
-	// If there's an image in the content, verify we have image data
-	if len(msg.Content) > 1 && msg.Content[1].Image != nil {
-		if state.Images == nil {
-			return wferrors.NewValidationError("Message contains image content but no Images data provided", map[string]interface{}{
+	// If using messages, check content
+	if len(state.CurrentPrompt.Messages) > 0 {
+		msg := state.CurrentPrompt.Messages[0]
+		if len(msg.Content) == 0 {
+			return wferrors.NewValidationError("Message has no content", map[string]interface{}{
 				"promptId": state.CurrentPrompt.PromptId,
+				"role":     msg.Role,
 			})
-		}
-
-		// Verify reference image exists
-		if state.Images.Reference == nil && state.Images.ReferenceImage == nil {
-			return wferrors.NewValidationError("No reference image found in Images data", nil)
 		}
 	}
 
@@ -229,6 +245,11 @@ func (v *Validator) validateCurrentPrompt(state *schema.WorkflowState) error {
 
 // validateBedrockConfig validates the Bedrock configuration
 func (v *Validator) validateBedrockConfig(state *schema.WorkflowState) error {
+	// Skip if Bedrock config is nil - already caught in validateRequiredFields
+	if state.BedrockConfig == nil {
+		return nil
+	}
+
 	// Standard schema validation
 	if errs := schema.ValidateBedrockConfig(state.BedrockConfig); len(errs) > 0 {
 		v.logger.Error("BedrockConfig validation failed", map[string]interface{}{
