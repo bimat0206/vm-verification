@@ -80,7 +80,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	var saveErrors []error
 
 	// Save verification context as initialization.json
-	err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileInitialization, state.VerificationContext)
+	// Fix: Remove .json extension to prevent double extension
+	err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, 
+		strings.TrimSuffix(FileInitialization, ".json"), state.VerificationContext)
 	if err != nil {
 		saveErrors = append(saveErrors, fmt.Errorf("failed to save initialization data: %w", err))
 	}
@@ -89,7 +91,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	if state.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
 		// UC1: Save layout metadata
 		if state.LayoutMetadata != nil {
-			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileLayoutMetadata, state.LayoutMetadata)
+			// Fix: Remove .json extension to prevent double extension
+			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, 
+				strings.TrimSuffix(FileLayoutMetadata, ".json"), state.LayoutMetadata)
 			if err != nil {
 				saveErrors = append(saveErrors, fmt.Errorf("failed to save layout metadata: %w", err))
 			}
@@ -97,7 +101,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	} else if state.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		// UC2: Save historical context
 		if state.HistoricalContext != nil {
-			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, FileHistoricalContext, state.HistoricalContext)
+			// Fix: Remove .json extension to prevent double extension
+			err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, 
+				strings.TrimSuffix(FileHistoricalContext, ".json"), state.HistoricalContext)
 			if err != nil {
 				saveErrors = append(saveErrors, fmt.Errorf("failed to save historical context: %w", err))
 			}
@@ -106,7 +112,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 
 	// Save current prompt as system-prompt.json
 	if state.CurrentPrompt != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, CategoryPrompts, FileSystemPrompt, state.CurrentPrompt)
+		// Fix: Remove .json extension to prevent double extension
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryPrompts, 
+			strings.TrimSuffix(FileSystemPrompt, ".json"), state.CurrentPrompt)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save system prompt: %w", err))
 		}
@@ -114,7 +122,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 
 	// Save images metadata
 	if state.Images != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, CategoryImages, FileImageMetadata, state.Images)
+		// Fix: Remove .json extension to prevent double extension
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryImages, 
+			strings.TrimSuffix(FileImageMetadata, ".json"), state.Images)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save images metadata: %w", err))
 		}
@@ -126,7 +136,8 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 	// Save conversation state
 	if state.ConversationState != nil {
 		// Store in processing/ category since it's part of the workflow state
-		err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, "conversation-state.json", state.ConversationState)
+		// Already using "conversation-state" without .json extension
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, "conversation-state", state.ConversationState)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save conversation state: %w", err))
 		}
@@ -134,7 +145,9 @@ func (s *Saver) SaveWorkflowState(ctx context.Context, state *schema.WorkflowSta
 
 	// Save Turn1 response
 	if state.Turn1Response != nil {
-		err := s.stateManager.SaveToEnvelope(envelope, CategoryResponses, FileTurn1Response, state.Turn1Response)
+		// Fix: Remove .json extension to prevent double extension
+		err := s.stateManager.SaveToEnvelope(envelope, CategoryResponses, 
+			strings.TrimSuffix(FileTurn1Response, ".json"), state.Turn1Response)
 		if err != nil {
 			saveErrors = append(saveErrors, fmt.Errorf("failed to save Turn1 response: %w", err))
 		}
@@ -195,6 +208,7 @@ func (s *Saver) SaveThinkingContent(ctx context.Context, verificationId string, 
 	datePath := generateDatePath(verificationId)
 	
 	// Store the thinking content in the responses category
+	// Fix: Already using correct path structure without .json.json
 	ref, err := s.stateManager.StoreJSON(CategoryResponses, 
 		fmt.Sprintf("%s/turn1-thinking.json", datePath), map[string]interface{}{
 			"verificationId": verificationId,
@@ -278,8 +292,9 @@ func (s *Saver) SaveTurn1Response(ctx context.Context, verificationId string, tu
     }
     
     // Store the turn response in the responses category
+    // Fix: Use path without appending .json since StoreJSON will add it
     ref, err := s.stateManager.StoreJSON(CategoryResponses, 
-        fmt.Sprintf("%s/%s", datePath, FileTurn1Response), turn1ResponseWithThinking)
+        fmt.Sprintf("%s/%s", datePath, strings.TrimSuffix(FileTurn1Response, ".json")), turn1ResponseWithThinking)
     if err != nil {
         s.logger.Error("Failed to save Turn1 response", map[string]interface{}{
             "error": err.Error(),

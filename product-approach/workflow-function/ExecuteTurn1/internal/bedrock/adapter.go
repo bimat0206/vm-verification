@@ -71,6 +71,7 @@ func (a *BedrockAdapter) Converse(ctx context.Context, req *ConverseRequest) (*C
 		System:          req.System,
 		Messages:        bedrockMessages,
 		InferenceConfig: inferenceConfig,
+		ModelId:         req.ModelID, // Fix: Correct field name is "ModelId" (lowercase "d")
 	}
 	
 	// Call shared client

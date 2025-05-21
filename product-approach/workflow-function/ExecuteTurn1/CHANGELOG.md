@@ -5,6 +5,107 @@ All notable changes to this project are documented here.
 ---
 # Updated Changelog Entry for ExecuteTurn1
 
+## [4.0.24] - 2025-05-23
+
+### Fixed
+
+* **Critical Bedrock API Integration Fix:**
+  * Fixed critical issue where model ID was not being passed to the Bedrock API, causing "model ID cannot be empty" errors
+  * Added proper ModelID field mapping in BedrockAdapter's Converse method
+  * Ensured consistent propagation of model ID from environment variables through to API calls
+  * Corrected field name case mismatch between internal types (ModelID) and shared client (ModelId)
+
+* **S3 File Extension Duplications Resolved:**
+  * Fixed issue where files were being saved with duplicate ".json.json" extensions
+  * Modified all SaveToEnvelope and StoreJSON calls to trim existing .json extensions from filenames
+  * Ensured consistent extension handling across all state management operations
+  * Preserved correct extension handling in reference retrieval code paths
+
+* **Thinking Content Extraction Enhancement:**
+  * Completely reimplemented thinking content extraction to properly support THINKING_TYPE=enable
+  * Added multiple format detection for thinking content with different tag styles
+  * Implemented special case handling for various thinking content boundaries
+  * Added proper token usage estimation for extracted thinking content
+  * Enhanced logging for thinking extraction process to improve debuggability
+
+### Technical Details
+
+* Fixed model ID field in adapter:
+  ```go
+  // Create shared request with correct modelId field name
+  sharedReq := &sharedBedrock.ConverseRequest{
+      System:          req.System,
+      Messages:        bedrockMessages,
+      InferenceConfig: inferenceConfig,
+      ModelId:         req.ModelID, // Fixed field name and added missing model ID
+  }
+  ```
+
+* Fixed duplicate extensions in state saver:
+  ```go
+  // Save verification context without double extension
+  err := s.stateManager.SaveToEnvelope(envelope, CategoryProcessing, 
+      strings.TrimSuffix(FileInitialization, ".json"), state.VerificationContext)
+  ```
+
+* Implemented robust thinking extraction:
+  ```go
+  // Handle case where thinking type is set to "enable"
+  if c.config.ThinkingType == "enable" {
+      // Use a default tag structure when "enable" is specified
+      return c.findThinkingContent(text, []string{
+          "<thinking>", "</thinking>",
+          "[thinking]", "[/thinking]",
+          "Thinking:", "\n\n",
+      })
+  }
+  ```
+
+These updates resolve several critical issues in the ExecuteTurn1 function, ensuring proper communication with the Bedrock API, consistent file naming in S3 storage, and improved extraction of thinking content from model responses.
+## [4.0.23] - 2025-05-22
+
+### Fixed
+
+* **Critical Bedrock API Integration Fix:**
+  * Fixed critical issue where model ID was not being passed to the Bedrock API, causing "model ID cannot be empty" errors
+  * Added proper ModelID field mapping in BedrockAdapter's Converse method
+  * Ensured consistent propagation of model ID from environment variables through to API calls
+  * Corrected field name case mismatch between internal types (ModelID) and shared client (ModelId)
+
+### Technical Details
+
+* Modified BedrockAdapter to properly include model ID in shared request:
+  ```go
+  // Create shared request with correct modelId field name
+  sharedReq := &sharedBedrock.ConverseRequest{
+      System:          req.System,
+      Messages:        bedrockMessages,
+      InferenceConfig: inferenceConfig,
+      ModelId:         req.ModelID, // Fixed field name and added missing model ID
+  }
+  ```
+
+* Updated ConverseRequest structure in internal/bedrock/client.go to include ModelID field:
+  ```go
+  type ConverseRequest struct {
+      Messages        []Message
+      System          string
+      InferenceConfig InferenceConfig
+      ModelID         string  // Added ModelID field
+  }
+  ```
+
+* Ensured BuildTurn1Request sets the model ID from configuration:
+  ```go
+  request := &ConverseRequest{
+      Messages:        bedrockMessages,
+      System:          systemPrompt,
+      InferenceConfig: inferenceConfig,
+      ModelID:         c.config.ModelID, // Now properly passed from config
+  }
+  ```
+
+This update resolves the issue where the empty model ID was preventing successful Bedrock API calls, ensuring proper communication between the Lambda function and Bedrock service when processing Turn1 verification conversations.
 
 ## [4.0.22] - 2025-05-22
 

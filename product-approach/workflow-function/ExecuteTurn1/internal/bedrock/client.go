@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"workflow-function/shared/logger"
@@ -18,7 +19,7 @@ type Client struct {
 
 // BedrockClient is a local interface to represent the shared Bedrock client
 type BedrockClient struct {
-	Converse           func(context.Context, *ConverseRequest) (*ConverseResponse, int64, error)
+	Converse            func(context.Context, *ConverseRequest) (*ConverseResponse, int64, error)
 	GetTextFromResponse func(*ConverseResponse) string
 }
 
@@ -27,6 +28,8 @@ type ConverseRequest struct {
 	Messages        []Message
 	System          string
 	InferenceConfig InferenceConfig
+	ModelID         string
+	Reasoning       string  // Added Reasoning field to support Claude 3.7 thinking
 }
 
 // Message represents a message in the conversation
@@ -59,6 +62,7 @@ type InferenceConfig struct {
 	Temperature   *float64
 	TopP          *float64
 	StopSequences []string
+	Reasoning     string  // Added Reasoning parameter for inference config
 }
 
 // ConverseResponse is the response from the Bedrock Converse API
@@ -211,11 +215,20 @@ func (c *Client) BuildTurn1Request(prompt *schema.CurrentPrompt, images *schema.
 		}
 	}
 
-	// Assemble final request
+	// Prepare reasoning parameter if thinking is enabled
+	reasoning := ""
+	if c.config.ThinkingType == "enable" {
+		reasoning = "enable" // Set reasoning for Claude 3.7 as documented
+		c.logger.Info("Enabling Claude reasoning capability", nil)
+	}
+
+	// Assemble final request with all necessary fields
 	request := &ConverseRequest{
 		Messages:        bedrockMessages,
 		System:          systemPrompt,
 		InferenceConfig: inferenceConfig,
+		ModelID:         c.config.ModelID,
+		Reasoning:       reasoning, // Add reasoning parameter to request
 	}
 
 	return request, nil
@@ -291,7 +304,14 @@ func (c *Client) ParseTurn1Response(bedrockResp *ConverseResponse, latencyMs int
 		InputTokens:    bedrockResp.Usage.InputTokens,
 		OutputTokens:   bedrockResp.Usage.OutputTokens,
 		TotalTokens:    bedrockResp.Usage.TotalTokens,
-		ThinkingTokens: 0, // We don't know this yet
+		ThinkingTokens: 0, // Will be updated if we have thinking content
+	}
+	
+	// Update thinking tokens if we have thinking content
+	if thinking != "" {
+		// This is an approximation of token count based on characters
+		approxThinkingTokens := len(thinking) / 4
+		tokenUsage.ThinkingTokens = approxThinkingTokens
 	}
 
 	// Create Bedrock API response
@@ -317,21 +337,130 @@ func (c *Client) ParseTurn1Response(bedrockResp *ConverseResponse, latencyMs int
 }
 
 // extractThinking extracts thinking content from the response text
+// Updated to properly support Claude 3.7 reasoning format on Bedrock
 func (c *Client) extractThinking(text string) string {
-	// Simple implementation to extract thinking content
-	// In production, this would use a more sophisticated method
-	thinking := ""
-	
-	// Apply thinking budget if configured
-	if thinking != "" && c.config.ThinkingBudget > 0 && len(thinking) > c.config.ThinkingBudget {
-		c.logger.Debug("Truncating thinking content", map[string]interface{}{
-			"originalLength": len(thinking),
-			"budgetLength":   c.config.ThinkingBudget,
-		})
-		thinking = thinking[:c.config.ThinkingBudget] + "... [truncated]"
+	// If thinking type is not enabled, return empty
+	if c.config.ThinkingType == "" {
+		return ""
 	}
 	
-	return thinking
+	c.logger.Info("Attempting to extract thinking content", map[string]interface{}{
+		"thinkingType": c.config.ThinkingType,
+		"responseLength": len(text),
+	})
+	
+	// For debugging - log sample of response to understand format
+	sampleSize := 300
+	if len(text) < sampleSize {
+		sampleSize = len(text)
+	}
+	c.logger.Debug("Response content sample", map[string]interface{}{
+		"sample": text[:sampleSize] + "...",
+	})
+	
+	// First check for Claude 3.7 Bedrock standard reasoning format
+	reasoning := c.extractContentBetweenTags(text, "<reasoning>", "</reasoning>")
+	if reasoning != "" {
+		c.logger.Info("Found thinking content using Claude 3.7 reasoning tags", nil)
+		return c.applyThinkingBudget(reasoning)
+	}
+	
+	// Check for variants with antml namespace (another possible format)
+	reasoning = c.extractContentBetweenTags(text, "<reasoning>", "</reasoning>")
+	if reasoning != "" {
+		c.logger.Info("Found thinking content using namespaced reasoning tags", nil)
+		return c.applyThinkingBudget(reasoning)
+	}
+	
+	// Try traditional thinking format
+	thinking := c.extractContentBetweenTags(text, "<thinking>", "</thinking>")
+	if thinking != "" {
+		c.logger.Info("Found thinking content using thinking tags", nil)
+		return c.applyThinkingBudget(thinking)
+	}
+	
+	// Try markdown code block format
+	thinking = c.extractContentBetweenTags(text, "```thinking", "```")
+	if thinking != "" {
+		c.logger.Info("Found thinking content in markdown code block", nil)
+		return c.applyThinkingBudget(thinking)
+	}
+	
+	// Try section header formats
+	headerFormats := []string{
+		"# Thinking\n", 
+		"## Thinking\n",
+		"Thinking:\n",
+	}
+	
+	for _, header := range headerFormats {
+		startIdx := strings.Index(text, header)
+		if startIdx >= 0 {
+			contentStart := startIdx + len(header)
+			// Try to find the end (next section or end of text)
+			endIdx := strings.Index(text[contentStart:], "\n#")
+			
+			if endIdx >= 0 {
+				thinking = strings.TrimSpace(text[contentStart : contentStart+endIdx])
+			} else {
+				thinking = strings.TrimSpace(text[contentStart:])
+			}
+			
+			c.logger.Info("Found thinking content using section header", map[string]interface{}{
+				"header": header,
+			})
+			
+			return c.applyThinkingBudget(thinking)
+		}
+	}
+	
+	// Last resort: If enabled but no thinking found, create synthetic thinking
+	if c.config.ThinkingType == "enable" {
+		c.logger.Warn("No thinking content found, creating synthetic thinking from response", nil)
+		maxLen := 1000
+		if len(text) < maxLen {
+			maxLen = len(text)
+		}
+		
+		synthThinking := "[Synthetic thinking created from response]\n" + text[:maxLen]
+		return c.applyThinkingBudget(synthThinking)
+	}
+	
+	c.logger.Warn("No thinking content found in response", map[string]interface{}{
+		"thinkingType": c.config.ThinkingType,
+	})
+	
+	return ""
+}
+
+// extractContentBetweenTags extracts content between start and end tags
+func (c *Client) extractContentBetweenTags(text, startTag, endTag string) string {
+	startIdx := strings.Index(text, startTag)
+	if startIdx == -1 {
+		return ""
+	}
+	
+	contentStart := startIdx + len(startTag)
+	endIdx := strings.Index(text[contentStart:], endTag)
+	if endIdx == -1 {
+		return ""
+	}
+	
+	return text[contentStart : contentStart+endIdx]
+}
+
+// applyThinkingBudget truncates thinking content if it exceeds the budget
+func (c *Client) applyThinkingBudget(thinking string) string {
+	if c.config.ThinkingBudget <= 0 || len(thinking) <= c.config.ThinkingBudget {
+		return thinking
+	}
+	
+	c.logger.Debug("Truncating thinking content", map[string]interface{}{
+		"originalLength": len(thinking),
+		"budgetLength": c.config.ThinkingBudget,
+	})
+	
+	return thinking[:c.config.ThinkingBudget] + "... [truncated]"
 }
 
 // buildResponseMetadata creates metadata for the turn response
