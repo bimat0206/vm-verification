@@ -146,7 +146,7 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 		}
 
 		// Validate images after Base64 generation
-		if err := h.validator.ValidateImageData(state.Images); err != nil {
+		if err := h.validator.ValidateImageData(state.Images, true); err != nil {
 			log.Error("Image validation failed", map[string]interface{}{
 				"error": err.Error(),
 			})
@@ -229,52 +229,43 @@ func (h *Handler) HandleRequest(ctx context.Context, input *internal.StepFunctio
 }
 
 // processImages handles image Base64 generation using hybrid storage
+// processImages handles image Base64 generation using hybrid storage
 func (h *Handler) processImages(ctx context.Context, images *schema.ImageData, log logger.Logger) error {
-	if images == nil {
-		return nil
-	}
+    if images == nil {
+        return nil
+    }
 
-	// Safe access to hybridConfig - this could have been the issue
-	hybridEnabled := false
-	if h.hybridConfig != nil {
-		hybridEnabled = h.hybridConfig.EnableHybridStorage
-	}
+    start := time.Now() // Add this line for the duration calculation below
+    
+    log.Info("Processing images with hybrid storage", map[string]interface{}{
+        "hybridEnabled": false,
+    })
+    
+    // Ensure base64 data is accessible for reference image - this is critical for Turn1
+    if images.GetReference() != nil && !images.GetReference().HasBase64Data() {
+        err := fmt.Errorf("reference image missing base64 data")
+        log.Error("Failed to access Base64 for images", map[string]interface{}{
+            "error": err.Error(),
+        })
+        return wferrors.WrapError(err, wferrors.ErrorTypeInternal, "Base64 access failed", false)
+    }
+    
+    // For checking image, only log a warning since it's not needed in Turn1
+    if images.GetChecking() != nil && !images.GetChecking().HasBase64Data() {
+        log.Warn("Checking image missing Base64 data, but continuing since it's not needed for Turn1", map[string]interface{}{
+            "checkingImageExists": images.GetChecking() != nil,
+        })
+        // No error return here - we continue processing
+    }
+    
+    // Mark as processed
+    images.Base64Generated = true
+    images.ProcessedAt = schema.FormatISO8601()
 
-	log.Info("Processing images with hybrid storage", map[string]interface{}{
-		"hybridEnabled": hybridEnabled,
-	})
-
-	// Create image processor (simplified without hybrid storage)
-	start := time.Now()
-	
-	// Ensure base64 data is accessible for images
-	// When images have base64 data, ensure they use the correct file extension (.base64)
-	// Note: In practice, Base64 data should already be available at this point
-	// and stored in the correct locations by the FetchImages function
-	if images.GetReference() != nil && !images.GetReference().HasBase64Data() {
-		err := fmt.Errorf("reference image missing base64 data")
-		log.Error("Failed to access Base64 for images", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return wferrors.WrapError(err, wferrors.ErrorTypeInternal, "Base64 access failed", false)
-	}
-	
-	if images.GetChecking() != nil && !images.GetChecking().HasBase64Data() {
-		err := fmt.Errorf("checking image missing base64 data")
-		log.Error("Failed to access Base64 for images", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return wferrors.WrapError(err, wferrors.ErrorTypeInternal, "Base64 access failed", false)
-	}
-	
-	// Mark as processed
-	images.Base64Generated = true
-	images.ProcessedAt = schema.FormatISO8601()
-
-	log.Info("Images processed successfully", map[string]interface{}{
-		"durationMs": time.Since(start).Milliseconds(),
-	})
-	return nil
+    log.Info("Images processed successfully", map[string]interface{}{
+        "durationMs": time.Since(start).Milliseconds(),
+    })
+    return nil
 }
 
 // updateWorkflowState updates the workflow state with Turn 1 results

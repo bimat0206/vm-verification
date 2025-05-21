@@ -3,10 +3,10 @@ package validation
 import (
 	"fmt"
 	"strings"
+	wferrors "workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
-	wferrors "workflow-function/shared/errors"
-	
+
 	"workflow-function/ExecuteTurn1/internal"
 )
 
@@ -130,7 +130,7 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 	}
 
 	// Validate Bedrock config
-	if err := v.validateBedrockConfig(state); err != nil {
+	if err := v.validateBedrockConfig(state.BedrockConfig); err != nil {
 		return err
 	}
 
@@ -143,7 +143,6 @@ func (v *Validator) ValidateWorkflowState(state *schema.WorkflowState) error {
 	return nil
 }
 
-// validateRequiredFields checks for nil pointers in critical fields
 // validateRequiredFields checks for nil pointers in critical fields with more flexibility
 func (v *Validator) validateRequiredFields(state *schema.WorkflowState) error {
     var missingFields []string
@@ -267,14 +266,14 @@ func (v *Validator) validateCurrentPrompt(state *schema.WorkflowState) error {
 }
 
 // validateBedrockConfig validates the Bedrock configuration
-func (v *Validator) validateBedrockConfig(state *schema.WorkflowState) error {
+func (v *Validator) validateBedrockConfig(state *schema.BedrockConfig) error {
 	// Skip if Bedrock config is nil - already caught in validateRequiredFields
-	if state.BedrockConfig == nil {
+	if state == nil {
 		return nil
 	}
 
 	// Standard schema validation
-	if errs := schema.ValidateBedrockConfig(state.BedrockConfig); len(errs) > 0 {
+	if errs := schema.ValidateBedrockConfig(state); len(errs) > 0 {
 		v.logger.Error("BedrockConfig validation failed", map[string]interface{}{
 			"validationErrors": errs.Error(),
 		})
@@ -283,92 +282,86 @@ func (v *Validator) validateBedrockConfig(state *schema.WorkflowState) error {
 		})
 	}
 
-	// Ensure reasonable values for MaxTokens
-	if state.BedrockConfig.MaxTokens <= 0 {
-		v.logger.Warn("BedrockConfig.MaxTokens is invalid, setting to 4096", map[string]interface{}{
-			"currentValue": state.BedrockConfig.MaxTokens,
+	// Just check for important fields without enforcing specific values
+	if state.MaxTokens <= 0 {
+		v.logger.Warn("BedrockConfig.MaxTokens is invalid (zero or negative)", map[string]interface{}{
+			"currentValue": state.MaxTokens,
 		})
-		state.BedrockConfig.MaxTokens = 4096
 	}
 
-	// Ensure reasonable values for temperature
-	if state.BedrockConfig.Temperature < 0 || state.BedrockConfig.Temperature > 1 {
-		v.logger.Warn("BedrockConfig.Temperature is outside valid range, setting to 0.7", map[string]interface{}{
-			"currentValue": state.BedrockConfig.Temperature,
-		})
-		state.BedrockConfig.Temperature = 0.7
-	}
-
-	// Ensure AnthropicVersion is set
-	if state.BedrockConfig.AnthropicVersion == "" {
-		v.logger.Warn("BedrockConfig.AnthropicVersion is empty, setting to bedrock-2023-05-31", nil)
-		state.BedrockConfig.AnthropicVersion = "bedrock-2023-05-31"
+	if state.AnthropicVersion == "" {
+		v.logger.Warn("BedrockConfig.AnthropicVersion is empty", nil)
 	}
 
 	return nil
 }
 
-// ValidateImageData validates image data after Base64 generation
-func (v *Validator) ValidateImageData(images *schema.ImageData) error {
-	if images == nil {
-		return fmt.Errorf("images is nil")
-	}
+// ValidateImageInfo validates image information without format checks
+func (v *Validator) ValidateImageInfo(img *schema.ImageInfo, requireBase64 bool) error {
+    if img == nil {
+        return fmt.Errorf("image info is nil")
+    }
 
-	// Schema validation
-	if errs := schema.ValidateImageData(images, true); len(errs) > 0 {
-		v.logger.Error("ImageData validation failed", map[string]interface{}{
-			"validationErrors": errs.Error(),
-		})
-		return wferrors.NewValidationError("Invalid ImageData", map[string]interface{}{
-			"validationErrors": errs.Error(),
-		})
-	}
-
-	// Get the reference image (primary or fallback)
-	var imageInfo *schema.ImageInfo
-	if images.Reference != nil {
-		imageInfo = images.Reference
-	} else if images.ReferenceImage != nil {
-		imageInfo = images.ReferenceImage
-	} else {
-		return wferrors.NewValidationError("No reference image found in ImageData", nil)
-	}
-
-	// Verify Base64 data
-	if !imageInfo.HasBase64Data() {
-		return wferrors.NewValidationError("Image has no Base64 data", map[string]interface{}{
-			"imageUrl": imageInfo.URL,
-		})
-	}
-
-	// Verify image format is supported
-	if imageInfo.Format != "jpeg" && imageInfo.Format != "png" {
-		return wferrors.NewValidationError("Unsupported image format", map[string]interface{}{
-			"format": imageInfo.Format,
-			"url":    imageInfo.URL,
-		})
-	}
-
-	// Verify Base64 is stored with correct file extension (.base64)
-	if imageInfo.Base64S3Key != "" && !v.hasCorrectBase64Extension(imageInfo.Base64S3Key) {
-		v.logger.Warn("Base64 data S3 key does not use .base64 extension", map[string]interface{}{
-			"key": imageInfo.Base64S3Key,
-		})
-	}
-
-	v.logger.Info("ImageData validation passed", map[string]interface{}{
-		"format": imageInfo.Format,
-		"url":    imageInfo.URL,
-	})
-
-	return nil
+    // Basic validations (less strict)
+    if img.URL == "" {
+        v.logger.Warn("Image URL is empty", nil)
+        // Continue anyway - not a critical failure
+    }
+    
+    // Base64 validation when required
+    if requireBase64 {
+        // Check for S3 storage of Base64 data
+        if !img.HasBase64Data() {
+            return fmt.Errorf("image missing Base64 data reference")
+        }
+        
+        // Skip format validation - already handled in loader
+    }
+    
+    return nil
 }
 
-// hasCorrectBase64Extension checks if an S3 key has the .base64 extension
-func (v *Validator) hasCorrectBase64Extension(key string) bool {
-	return len(key) > 7 && key[len(key)-7:] == ".base64"
+// ValidateImageData validates the complete ImageData structure with simplified checks
+func (v *Validator) ValidateImageData(images *schema.ImageData, requireBase64 bool) error {
+    if images == nil {
+        return fmt.Errorf("images cannot be nil")
+    }
+    
+    // Check Base64 generation flag
+    if requireBase64 && !images.Base64Generated {
+        v.logger.Warn("Base64Generated flag is false but Base64 is required - this may be fixed by the loader", nil)
+        // Continue anyway since the loader should have fixed this
+    }
+    
+    // Validate reference image exists
+    ref := images.GetReference()
+    if ref == nil {
+        return fmt.Errorf("reference image is missing")
+    }
+    
+    if requireBase64 {
+        if !ref.HasBase64Data() {
+            return fmt.Errorf("reference image missing Base64 data reference")
+        }
+    }
+    
+    // Only validate checking image if it's present (might be optional)
+	checking := images.GetChecking()
+	if checking != nil && requireBase64 && !checking.HasBase64Data() {
+		v.logger.Warn("Checking image missing Base64 data reference", nil)
+		// Not a critical error for the reference image verification
+	}
+    
+    v.logger.Info("ImageData validation passed", map[string]interface{}{
+        "hasReference": ref != nil,
+        "hasChecking": checking != nil,
+        "base64Generated": images.Base64Generated,
+    })
+    
+    return nil
 }
 
+// ValidateTurnResponse validates the Turn1 response
 // ValidateTurnResponse validates the Turn1 response
 func (v *Validator) ValidateTurnResponse(turnResponse *schema.TurnResponse) error {
 	if turnResponse == nil {
@@ -388,23 +381,6 @@ func (v *Validator) ValidateTurnResponse(turnResponse *schema.TurnResponse) erro
 
 	if turnResponse.Response.Content == "" {
 		return wferrors.NewValidationError("Empty response content", nil)
-	}
-
-	// Validate token usage
-	if turnResponse.TokenUsage != nil {
-		if turnResponse.TokenUsage.TotalTokens <= 0 {
-			v.logger.Warn("Token usage reporting issue: TotalTokens <= 0", map[string]interface{}{
-				"totalTokens": turnResponse.TokenUsage.TotalTokens,
-			})
-		}
-
-		calculatedTotal := turnResponse.TokenUsage.InputTokens + turnResponse.TokenUsage.OutputTokens + turnResponse.TokenUsage.ThinkingTokens
-		if turnResponse.TokenUsage.TotalTokens != calculatedTotal {
-			v.logger.Warn("Token usage mismatch", map[string]interface{}{
-				"reported":   turnResponse.TokenUsage.TotalTokens,
-				"calculated": calculatedTotal,
-			})
-		}
 	}
 
 	v.logger.Info("TurnResponse validation passed", map[string]interface{}{

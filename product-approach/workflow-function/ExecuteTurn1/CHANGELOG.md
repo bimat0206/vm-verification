@@ -3,8 +3,102 @@
 All notable changes to this project are documented here.
 
 ---
-# Updated Changelog Entry
+# Updated Changelog Entry for ExecuteTurn1
 
+
+## [4.0.22] - 2025-05-22
+
+### Fixed
+
+* **Enhanced Schema Compatibility with New Format:**
+  * Updated state loader to properly handle nested "verificationContext" field in initialization.json
+  * Fixed image Base64 reference extraction from turn1-prompt.json imageReference structure
+  * Implemented proper handling of bedrockConfiguration from system-prompt.json
+  * Added support for messageStructure format in turn1-prompt.json
+  * Resolved issue with reference image Base64 data access that was causing image processing failures
+
+* **Turn-Specific Image Handling:**
+  * Modified image processing to be more lenient about checking image Base64 data in Turn1
+  * Changed strict validation to warning for missing checking image data since it's only needed in Turn2
+  * Ensured reference image validation remains strict as it's critical for Turn1 processing
+  * Added more resilient handling of image data across both turns
+
+* **Input Validation Improvements:**
+  * Enhanced input handling when StateReferences or S3References are missing but verificationId is available
+  * Added fallback mechanisms to create minimal references when possible
+  * Improved error messages to be more specific about missing information
+
+### Improved
+
+* **Validation Logic:**
+  * Removed redundant format validation in validator since it's now handled by the loader
+  * Enhanced image data validation to focus on required Base64 data presence
+  * Added turn-aware validation that understands which images are required at each stage
+  * Removed hardcoded default values in validator for better separation of concerns
+  * Simplified token usage validation to focus on essential structural elements
+
+* **Error Handling:**
+  * Added more descriptive error messages for easier troubleshooting
+  * Improved logging of image processing steps and decisions
+  * Enhanced fallback mechanisms when loading from different schema formats
+  * Transformed critical errors into warnings when appropriate for the current turn
+
+### Code Quality
+
+* **Architecture and Maintainability:**
+  * Created more robust loader functions with better error handling
+  * Implemented turn-aware processing that distinguishes between Turn1 and Turn2 requirements
+  * Added graceful fallbacks for missing fields rather than failing completely
+  * Improved logging for clearer debugging of schema-related issues
+  * Enhanced function interfaces for better type safety
+
+### Technical Details
+
+* Modified image processing to continue when checking image lacks Base64 data in Turn1:
+  ```go
+  // For checking image, only log a warning since it's not needed in Turn1
+  if images.GetChecking() != nil && !images.GetChecking().HasBase64Data() {
+      log.Warn("Checking image missing Base64 data, but continuing since it's not needed for Turn1", nil)
+      // No error return here - we continue processing
+  }
+  ```
+
+* Enhanced LoadImages to set default values for checking image:
+  ```go
+  // Create a minimal checking image if needed
+  if images.Checking == nil && images.CheckingImage == nil {
+      checkingImage := &schema.ImageInfo{
+          Format: "png", // Default format
+          StorageMethod: "s3-temporary",
+      }
+      
+      images.Checking = checkingImage
+      images.CheckingImage = checkingImage
+  }
+  ```
+
+* Modified LoadVerificationContext to properly extract from nested structure:
+  ```go
+  var wrapper struct {
+      VerificationContext *schema.VerificationContext `json:"verificationContext"`
+      SchemaVersion       string                      `json:"schemaVersion"`
+  }
+  ```
+
+* Enhanced LoadTurn1Prompt to extract Base64 references from the new structure:
+  ```go
+  var promptWrapper struct {
+      ImageReference struct {
+          ImageType string `json:"imageType"`
+          Base64StorageReference struct {
+              Bucket string `json:"bucket"`
+              Key    string `json:"key"`
+          } `json:"base64StorageReference"`
+      } `json:"imageReference"`
+  }
+  ```
+
+This update ensures proper compatibility with the new schema format while making the function more resilient to variations in input data, particularly understanding the different image requirements for Turn1 versus Turn2 processing.
 ## [4.0.21] - 2025-05-22
 
 ### Fixed
