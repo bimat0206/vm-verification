@@ -37,7 +37,7 @@ func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, outpu
 	if input != nil && input.References != nil {
 		// Use our CopyReferences helper to preserve existing references
 		CopyReferences(envelope.References, input.References)
-
+		
 		s.log.Info("Preserved existing references from input", map[string]interface{}{
 			"verificationId": state.VerificationContext.VerificationId,
 			"referenceCount": len(input.References),
@@ -60,15 +60,18 @@ func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, outpu
 	// Update output status
 	output.Status = state.VerificationContext.Status
 
-	inputCount := 0
+	// Calculate the new references count properly in Go
+	var inputRefCount int
 	if input != nil && input.References != nil {
-		inputCount = len(input.References)
+		inputRefCount = len(input.References)
 	}
+	newRefCount := len(envelope.References) - inputRefCount
+
 	s.log.Info("Successfully saved Turn 1 prompt with reference accumulation", map[string]interface{}{
-		"verificationId":  state.VerificationContext.VerificationId,
-		"status":          state.VerificationContext.Status,
+		"verificationId": state.VerificationContext.VerificationId, 
+		"status": state.VerificationContext.Status,
 		"totalReferences": len(output.References),
-		"newReferences":   len(envelope.References) - inputCount,
+		"newReferences": newRefCount,
 	})
 
 	return nil
@@ -102,7 +105,7 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 
 	// Create message structure according to schema
 	messageStructure := map[string]interface{}{
-		"role":    "user",
+		"role": "user",
 		"content": content,
 	}
 
@@ -137,23 +140,23 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 	// Add source URL and Base64 reference information
 	if refImage != nil && refImage.URL != "" {
 		imageReference["sourceUrl"] = refImage.URL
-
+		
 		// Add explicit base64StorageReference for downstream functions
-		if refImage.StorageMethod == schema.StorageMethodS3Temporary &&
-			refImage.Base64S3Bucket != "" && refImage.GetBase64S3Key() != "" {
+		if refImage.StorageMethod == schema.StorageMethodS3Temporary && 
+           refImage.Base64S3Bucket != "" && refImage.GetBase64S3Key() != "" {
 			imageReference["base64StorageReference"] = map[string]interface{}{
 				"bucket": refImage.Base64S3Bucket,
-				"key":    refImage.GetBase64S3Key(),
+				"key": refImage.GetBase64S3Key(),
 			}
-
+			
 			s.log.Info("Added Base64 storage reference to prompt", map[string]interface{}{
 				"bucket": refImage.Base64S3Bucket,
-				"key":    refImage.GetBase64S3Key(),
+				"key": refImage.GetBase64S3Key(),
 			})
 		} else {
 			s.log.Warn("Missing Base64 storage reference for image", map[string]interface{}{
-				"url":             refImage.URL,
-				"storageMethod":   refImage.StorageMethod,
+				"url": refImage.URL,
+				"storageMethod": refImage.StorageMethod,
 				"base64Generated": refImage.Base64Generated,
 			})
 		}
@@ -161,7 +164,7 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 
 	// Create generation metadata
 	generationMetadata := map[string]interface{}{
-		"promptSource":   "TEMPLATE_BASED",
+		"promptSource": "TEMPLATE_BASED",
 		"contextSources": []string{"INITIALIZATION", "IMAGE_METADATA"},
 	}
 
@@ -183,29 +186,29 @@ func (s *Saver) savePromptData(state *schema.WorkflowState, envelope *s3state.En
 
 	// Create Turn 1 prompt data structure according to schema
 	promptData := map[string]interface{}{
-		"verificationId":         state.VerificationContext.VerificationId,
-		"promptType":             "TURN1",
-		"verificationType":       state.VerificationContext.VerificationType,
-		"messageStructure":       messageStructure,
+		"verificationId":   state.VerificationContext.VerificationId,
+		"promptType":       "TURN1",
+		"verificationType": state.VerificationContext.VerificationType,
+		"messageStructure": messageStructure,
 		"contextualInstructions": contextualInstructions,
-		"imageReference":         imageReference,
-		"templateVersion":        state.CurrentPrompt.PromptVersion,
-		"createdAt":              state.CurrentPrompt.CreatedAt,
-		"generationMetadata":     generationMetadata,
+		"imageReference":   imageReference,
+		"templateVersion":  state.CurrentPrompt.PromptVersion,
+		"createdAt":        state.CurrentPrompt.CreatedAt,
+		"generationMetadata": generationMetadata,
 	}
 
-	// Save to S3 and update envelope references
-	// Let the S3Manager handle the verificationId prefix in the path
+	// Save to S3 and update envelope references - KEY FIX: Use standard category and filename constants
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryPrompts, KeyTurn1Prompt, promptData); err != nil {
 		return errors.NewInternalError("prompt-save", err)
 	}
 
 	// Log successful save with reference information
 	s.log.Info("Saved Turn 1 prompt data with proper image references", map[string]interface{}{
-		"verificationId":     state.VerificationContext.VerificationId,
-		"promptType":         "TURN1",
-		"createdAt":          state.CurrentPrompt.CreatedAt,
+		"verificationId": state.VerificationContext.VerificationId,
+		"promptType":    "TURN1",
+		"createdAt":     state.CurrentPrompt.CreatedAt,
 		"hasBase64Reference": imageReference["base64StorageReference"] != nil,
+		"referenceKey": GetReferenceKey(CategoryPrompts, "turn1-prompt"),
 	})
 
 	return nil
@@ -266,8 +269,7 @@ func (s *Saver) saveProcessingMetrics(state *schema.WorkflowState, envelope *s3s
 		}
 	}
 
-	// Save to S3 and update envelope references
-	// Let the S3Manager handle the verificationId prefix in the path
+	// KEY FIX: Use standard category and filename constants
 	if err := s.s3Manager.SaveToEnvelope(envelope, CategoryProcessing, KeyTurn1Metrics, metrics); err != nil {
 		return errors.NewInternalError("metrics-save", err)
 	}
@@ -275,7 +277,8 @@ func (s *Saver) saveProcessingMetrics(state *schema.WorkflowState, envelope *s3s
 	s.log.Info("Saved Turn 1 processing metrics", map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId,
 		"turnNumber":     state.CurrentPrompt.TurnNumber,
-		"base64RefsIncluded": state.Images != nil && state.Images.Reference != nil &&
+		"referenceKey": GetReferenceKey(CategoryProcessing, "turn1-metrics"),
+		"base64RefsIncluded": state.Images != nil && state.Images.Reference != nil && 
 			state.Images.Reference.Base64S3Bucket != "" && state.Images.Reference.GetBase64S3Key() != "",
 	})
 

@@ -280,22 +280,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "results" {
   }
 }
 # Create temporary Base64 bucket
-resource "aws_s3_bucket" "temp_base64" {
-  bucket        = var.temp_base64_bucket_name
+resource "aws_s3_bucket" "state" {
+  bucket        = var.state_bucket_name
   force_destroy = true # Allow destruction with objects for temporary storage
 
   tags = merge(
     var.common_tags,
     {
-      Name = var.temp_base64_bucket_name
-      Purpose = "Temporary Base64 Storage"
+      Name    = var.state_bucket_name
+      Purpose = "State management for storage"
     }
   )
 }
 
 # Encryption for temp Base64 bucket
-resource "aws_s3_bucket_server_side_encryption_configuration" "temp_base64" {
-  bucket = aws_s3_bucket.temp_base64.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
+  bucket = aws_s3_bucket.state.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -304,17 +304,17 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "temp_base64" {
   }
 }
 
-# Versioning (disabled for temporary storage)
-resource "aws_s3_bucket_versioning" "temp_base64" {
-  bucket = aws_s3_bucket.temp_base64.id
+# Versioning (suspended for temporary storage)
+resource "aws_s3_bucket_versioning" "state" {
+  bucket = aws_s3_bucket.state.id
   versioning_configuration {
-    status = "Disabled"
+    status = "Suspended"
   }
 }
 
 # Public access block
-resource "aws_s3_bucket_public_access_block" "temp_base64" {
-  bucket                  = aws_s3_bucket.temp_base64.id
+resource "aws_s3_bucket_public_access_block" "state" {
+  bucket                  = aws_s3_bucket.state.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -322,8 +322,8 @@ resource "aws_s3_bucket_public_access_block" "temp_base64" {
 }
 
 # Lifecycle configuration for automatic cleanup
-resource "aws_s3_bucket_lifecycle_configuration" "temp_base64" {
-  bucket = aws_s3_bucket.temp_base64.id
+resource "aws_s3_bucket_lifecycle_configuration" "state" {
+  bucket = aws_s3_bucket.state.id
 
   rule {
     id     = "cleanup-temp-base64"
@@ -334,7 +334,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "temp_base64" {
     }
 
     expiration {
-      days = 1  # 24-hour expiration as per design
+      days = 1 # 24-hour expiration as per design
     }
 
     abort_incomplete_multipart_upload {

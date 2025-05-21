@@ -1,0 +1,15 @@
+go 1.24.0
+
+use (
+	./product-approach/workflow-function/ExecuteTurn1
+	./product-approach/workflow-function/FetchImages
+	./product-approach/workflow-function/Initialize
+	./product-approach/workflow-function/PrepareSystemPrompt
+	./product-approach/workflow-function/PrepareTurn1Prompt
+	./product-approach/workflow-function/ProcessTurn1Response
+	./product-approach/workflow-function/shared/bedrock
+	./product-approach/workflow-function/shared/errors
+	./product-approach/workflow-function/shared/logger
+	./product-approach/workflow-function/shared/schema
+	./product-approach/workflow-function/shared/templateloader
+)

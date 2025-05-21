@@ -1,6 +1,7 @@
 package state
 
 import (
+	"strings"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/s3state"
 )
@@ -16,10 +17,10 @@ const (
 
 // Reference keys for standard file names
 const (
-	KeyInitialization = "initialization.json"
-	KeyMetadata       = "metadata.json"
-	KeyTurn1Prompt    = "turn1-prompt.json"
-	KeyTurn1Metrics   = "turn1-metrics.json"
+	KeyInitialization = "initialization"
+	KeyMetadata       = "metadata"
+	KeyTurn1Prompt    = "turn1-prompt"
+	KeyTurn1Metrics   = "turn1-metrics"
 )
 
 // Input represents the Lambda function input with S3 references
@@ -45,7 +46,10 @@ type Output struct {
 }
 
 // GetReferenceKey builds a standard reference key for accessing references
+// FIXED: Simplified reference key creation that doesn't embed paths
 func GetReferenceKey(category, dataType string) string {
+	// Simple standardized format: category_datatype
+	// Avoid including any paths or verification IDs in the reference key
 	return category + "_" + dataType
 }
 
@@ -66,13 +70,13 @@ func ValidateReferences(input *Input) error {
 
 	// Required references for Turn 1 processing
 	requiredRefs := []string{
-		GetReferenceKey(CategoryProcessing, "initialization"),
+		GetReferenceKey(CategoryInitialization, "initialization"),
 		GetReferenceKey(CategoryPrompts, "system"),
 	}
 
 	// Try alternative prefixes
 	alternativeRefs := map[string][]string{
-		GetReferenceKey(CategoryProcessing, "initialization"): {
+		GetReferenceKey(CategoryInitialization, "initialization"): {
 			"initialization_initialization",
 			"processing_initialization",
 		},
@@ -148,30 +152,8 @@ func (o *Output) AddReference(category, dataType string, ref *s3state.Reference)
 	if o.References == nil {
 		o.References = make(map[string]*s3state.Reference)
 	}
+	// Use the standardized reference key format
 	o.References[GetReferenceKey(category, dataType)] = ref
-}
-
-// BuildS3Key creates a consistent S3 key path using verification ID, category, and filename
-// NOTE: This function is NOT needed when using s3Manager.SaveToEnvelope which already handles
-// adding the verification ID to the path. It's kept for other direct S3 operations.
-func BuildS3Key(verificationID, category, filename string) string {
-	// When using with s3Manager.SaveToEnvelope, just return category/filename
-	// as SaveToEnvelope will add the verificationID
-	return category + "/" + filename
-	
-	// LEGACY APPROACH - DO NOT USE WITH SaveToEnvelope
-	/*
-	if verificationID == "" {
-		return filename
-	}
-	
-	// Handle date-based paths (YYYY/MM/DD) that might be in the verification ID
-	if len(verificationID) > 10 && verificationID[4] == '/' && verificationID[7] == '/' {
-		return verificationID + "/" + category + "/" + filename
-	}
-	
-	return verificationID + "/" + category + "/" + filename
-	*/
 }
 
 // EnvelopeToInput converts an S3 state envelope to input format
@@ -194,8 +176,10 @@ func EnvelopeToInput(envelope *s3state.Envelope) (*Input, error) {
 	// Ensure proper copying of all references to both maps for compatibility
 	if envelope.References != nil {
 		for k, v := range envelope.References {
-			input.References[k] = v
-			input.S3References[k] = v
+			// Standardize keys during copy to ensure consistency
+			standardizedKey := standardizeReferenceKey(k)
+			input.References[standardizedKey] = v
+			input.S3References[standardizedKey] = v
 		}
 	}
 
@@ -204,14 +188,14 @@ func EnvelopeToInput(envelope *s3state.Envelope) (*Input, error) {
 	
 	// Check various possible keys for the initialization reference
 	possibleInitKeys := []string{
-		GetReferenceKey(CategoryProcessing, "initialization"),
 		GetReferenceKey(CategoryInitialization, "initialization"),
+		GetReferenceKey(CategoryProcessing, "initialization"),
 		"initialization_initialization",
 		"processing_initialization",
 	}
 	
 	for _, key := range possibleInitKeys {
-		if ref, exists := envelope.References[key]; exists && ref != nil {
+		if ref, exists := input.References[key]; exists && ref != nil {
 			hasInitRef = true
 			break
 		}
@@ -234,4 +218,112 @@ func OutputToEnvelope(output *Output) *s3state.Envelope {
 		VerificationID: output.VerificationID,
 		Status:         output.Status,
 	}
+}
+
+// standardizeReferenceKey helps standardize existing reference keys
+// This is used to fix potentially malformed keys from existing state
+func standardizeReferenceKey(key string) string {
+	// Check if the key contains a path with verification ID
+	if strings.Contains(key, "/") {
+		// Handle potentially complex keys with embedded paths
+		parts := strings.Split(key, "_")
+		if len(parts) >= 2 {
+			// Extract the category from the first part
+			category := parts[0]
+			
+			// Extract the data type from the last path segment
+			pathParts := strings.Split(parts[1], "/")
+			dataType := strings.TrimSuffix(pathParts[len(pathParts)-1], ".json")
+			
+			// Return standardized key
+			return GetReferenceKey(category, dataType)
+		}
+	}
+	
+	// If the key can't be standardized, return as is
+	return key
+}
+
+// ValidateReferenceStructure ensures that the references contain necessary categories
+func ValidateReferenceStructure(references map[string]*s3state.Reference) error {
+	if references == nil {
+		return errors.NewValidationError("References map is nil", nil)
+	}
+	
+	// Check for critical reference categories
+	categories := make(map[string]bool)
+	for key := range references {
+		parts := strings.Split(key, "_")
+		if len(parts) > 0 {
+			categories[parts[0]] = true
+		}
+	}
+	
+	// Check for required categories
+	requiredCategories := []string{
+		CategoryInitialization,
+		CategoryImages,
+		CategoryPrompts,
+	}
+	
+	missingCategories := make([]string, 0)
+	for _, category := range requiredCategories {
+		if !categories[category] {
+			missingCategories = append(missingCategories, category)
+		}
+	}
+	
+	if len(missingCategories) > 0 {
+		return errors.NewValidationError("Missing required reference categories", 
+			map[string]interface{}{
+				"missing": missingCategories,
+				"found": categories,
+			})
+	}
+	
+	return nil
+}
+
+// ValidateReferenceAccumulation checks if the output contains all references from the input
+func ValidateReferenceAccumulation(input, output map[string]*s3state.Reference) error {
+	if input == nil || output == nil {
+		return errors.NewValidationError("Input or output references map is nil", nil)
+	}
+	
+	// Check that all input references exist in output
+	missingRefs := make([]string, 0)
+	for key := range input {
+		if _, exists := output[key]; !exists {
+			missingRefs = append(missingRefs, key)
+		}
+	}
+	
+	if len(missingRefs) > 0 {
+		return errors.NewValidationError("Output missing references from input", 
+			map[string]interface{}{
+				"missingRefs": missingRefs,
+				"inputRefCount": len(input),
+				"outputRefCount": len(output),
+			})
+	}
+	
+	return nil
+}
+
+// CategorizeReferences groups references by category for analysis
+func CategorizeReferences(references map[string]*s3state.Reference) map[string][]string {
+	categorized := make(map[string][]string)
+	
+	for key := range references {
+		parts := strings.Split(key, "_")
+		if len(parts) > 0 {
+			category := parts[0]
+			if _, exists := categorized[category]; !exists {
+				categorized[category] = make([]string, 0)
+			}
+			categorized[category] = append(categorized[category], key)
+		}
+	}
+	
+	return categorized
 }

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(go build:*)",
+      "Bash(go clean:*)",
+      "Bash(chmod:*)",
+      "Bash(ls:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(go mod:*)",
+      "Bash(./retry-docker-build.sh:*)"
+    ],
+    "deny": []
+  }
+}

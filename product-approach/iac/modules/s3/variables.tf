@@ -63,7 +63,7 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
-variable "temp_base64_bucket_name" {
+variable "state_bucket_name" {
   description = "Name of the S3 bucket for temporary Base64 storage"
   type        = string
 }

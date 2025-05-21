@@ -65,14 +65,19 @@ The function supports two verification types:
 
 ```
 s3://state-management-bucket/
-├── {verificationId}/
-│   ├── processing/
-│   │   └── initialization.json     # From previous step
-│   ├── images/
-│   │   └── metadata.json           # Image metadata only
-│   └── processing/
-│       ├── layout-metadata.json    # For UC1
-│       └── historical-context.json # For UC2
+├── {YYYY}/{MM}/{DD}/
+    └── {verificationId}/
+        ├── processing/
+        │   ├── initialization.json       - Initial verification state
+        │   ├── layout-metadata.json      # For UC1
+        │   └── historical-context.json   # For UC2
+        ├── images/
+        │   ├── metadata.json             # Image metadata only
+        │   ├── reference-base64.base64   # reference base64 encode
+        │   └── checking-base64.base64    # checking base64 encode
+        ├── prompts/
+        │   └── system-prompt.json        - Generated system prompt
+        └── responses/
 ```
 
 ## Building and Deployment

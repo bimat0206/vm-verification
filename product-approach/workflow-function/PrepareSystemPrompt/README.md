@@ -38,16 +38,22 @@ This Lambda function generates system prompts for the Kootoro GenAI Vending Mach
 State is organized in a date-based hierarchical structure:
 
 ```
-{STATE_BUCKET}/
+s3://state-management-bucket/
 └── {YYYY}/
     └── {MM}/
         └── {DD}/
             └── {verificationId}/
                 ├── processing/
-                │   └── initialization.json     - Initial verification context
+                │   └── initialization.json     - Initial verification state    
+                │   ├── layout-metadata.json    # For UC1
+│               │   └── historical-context.json # For UC2
+                ├── images/                - Image data (if stored in S3)
+                │   └── metadata.json           # Image metadata only
+                │   └── reference-base64.base64      # reference base64 encode 
+                │   └── checking-base64.base64      # checking base64 encode
                 ├── prompts/
                 │   └── system-prompt.json      - Generated system prompt
-                └── images/                     - Image data (if stored in S3)
+                └── responses/                     
 ```
 
 ## Environment Variables

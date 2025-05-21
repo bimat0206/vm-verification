@@ -40,12 +40,20 @@ The codebase follows the S3 State Management pattern with reference-based workfl
 The function creates the following S3 state structure:
 
 ```
-s3://state-management-bucket/{verificationId}/
-├── initialization.json (created)
-├── images/ (folder structure)
-├── prompts/ (folder structure)
-├── responses/ (folder structure)
-└── processing/ (folder structure)
+s3://state-management-bucket/
+├── {YYYY}/{MM}/{DD}/
+    └── {verificationId}/
+        ├── processing/
+        │   ├── initialization.json       - Initial verification state
+        │   ├── layout-metadata.json      # For UC1
+        │   └── historical-context.json   # For UC2
+        ├── images/
+        │   ├── metadata.json             # Image metadata only
+        │   ├── reference-base64.base64   # reference base64 encode
+        │   └── checking-base64.base64    # checking base64 encode
+        ├── prompts/
+        │   └── system-prompt.json        - Generated system prompt
+        └── responses/
 ```
 
 ## 3. Key Features
