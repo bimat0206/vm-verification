@@ -4,6 +4,40 @@ All notable changes to this project are documented here.
 
 ---
 
+## [4.0.19] - 2025-05-21
+
+### Fixed
+
+* **Field Mismatch Between Step Function and Lambda:**
+  * Fixed issue where the Step Function expected `s3References` but the Lambda was using `stateReferences`
+  * Added support for both field names in StepFunctionInput and StepFunctionOutput structs
+  * Updated handler to use either `s3References` or `stateReferences` field for compatibility
+  * Ensured all output responses include both `s3References` and `stateReferences` fields with identical content
+  * Also updated error handling to ensure proper field population in error cases
+
+### Technical Details
+
+* Added `S3References` field to both input and output structs in `types.go`
+* Modified the handler to check and use either field:
+  ```go
+  if input.StateReferences == nil && input.S3References == nil {
+      return nil, wferrors.NewValidationError("Neither StateReferences nor S3References is provided", nil)
+  }
+  if input.StateReferences == nil {
+      input.StateReferences = input.S3References
+  }
+  ```
+* Updated response creation to populate both fields consistently:
+  ```go
+  if output.StateReferences != nil {
+      output.S3References = output.StateReferences
+  }
+  ```
+* Enhanced error response creation to maintain field consistency
+* Added documentation in `changes-summary.md` explaining the field compatibility issue and solution
+
+---
+
 ## [4.0.6] - 2025-05-19
 
 ### Fixed
