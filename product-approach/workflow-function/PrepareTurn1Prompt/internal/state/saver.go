@@ -1,3 +1,4 @@
+
 package state
 
 import (
@@ -24,7 +25,7 @@ func NewSaver(s3Manager s3state.Manager, log logger.Logger) *Saver {
 }
 
 // SaveTurn1Prompt saves the Turn 1 prompt and updates the state
-// Modified to accept input and ensure reference preservation
+// Modified to use S3References for consistency
 func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, output *Output) error {
 	// Create a new envelope for storing data in S3
 	envelope := &s3state.Envelope{
@@ -34,13 +35,13 @@ func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, outpu
 	}
 
 	// Preserve all existing references from input if not already using the output
-	if input != nil && input.References != nil {
+	if input != nil && input.S3References != nil {
 		// Use our CopyReferences helper to preserve existing references
-		CopyReferences(envelope.References, input.References)
+		CopyReferences(envelope.References, input.S3References)
 		
 		s.log.Info("Preserved existing references from input", map[string]interface{}{
 			"verificationId": state.VerificationContext.VerificationId,
-			"referenceCount": len(input.References),
+			"referenceCount": len(input.S3References),
 		})
 	}
 
@@ -55,22 +56,22 @@ func (s *Saver) SaveTurn1Prompt(state *schema.WorkflowState, input *Input, outpu
 	}
 
 	// Update output with all references including preserved ones
-	CopyReferences(output.References, envelope.References)
+	CopyReferences(output.S3References, envelope.References)
 
 	// Update output status
 	output.Status = state.VerificationContext.Status
 
 	// Calculate the new references count properly in Go
 	var inputRefCount int
-	if input != nil && input.References != nil {
-		inputRefCount = len(input.References)
+	if input != nil && input.S3References != nil {
+		inputRefCount = len(input.S3References)
 	}
 	newRefCount := len(envelope.References) - inputRefCount
 
 	s.log.Info("Successfully saved Turn 1 prompt with reference accumulation", map[string]interface{}{
 		"verificationId": state.VerificationContext.VerificationId, 
 		"status": state.VerificationContext.Status,
-		"totalReferences": len(output.References),
+		"totalReferences": len(output.S3References),
 		"newReferences": newRefCount,
 	})
 

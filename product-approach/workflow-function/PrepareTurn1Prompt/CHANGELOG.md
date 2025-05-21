@@ -5,6 +5,18 @@ All notable changes to the PrepareTurn1Prompt function will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.19] - 2025-05-21
+### Changed
+- Standardized on `s3References` field name throughout codebase for consistency
+- Modified `Output` struct in `references.go` to use `s3References` instead of `references` 
+- Updated `NewOutput` function to work with `s3References` field
+- Changed `OutputToEnvelope` function to properly map `output.S3References` to envelope
+- Updated all reference handling in `saver.go` to use `s3References` consistently
+- Modified `processInput` function in `main.go` to use `input.S3References` instead of `input.References`
+- Updated logging statements to reference the correct field names
+- Maintained backward compatibility with `input.References` when needed
+
+
 ## [4.0.18] - 2025-05-20
 ### Fixed
 - Fixed duplicated verification IDs in S3 paths for `prompts_turn1-prompt` and `processing_turn1-metrics`

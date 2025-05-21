@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -190,7 +191,7 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 		"verificationId":   input.VerificationID,
 		"turnNumber":       input.TurnNumber,
 		"includeImage":     input.IncludeImage,
-		"referenceCount":   len(input.References),
+		"referenceCount":   len(input.S3References),  // Changed from References to S3References
 	})
 	
 	// Create validator
@@ -212,7 +213,7 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 	// Log reference count for monitoring
 	log.Info("Loaded workflow state with input references", map[string]interface{}{
 		"verificationId": input.VerificationID,
-		"referenceCount": len(input.References),
+		"referenceCount": len(input.S3References),  // Changed from References to S3References
 	})
 	
 	// Validate workflow state
@@ -274,12 +275,12 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 	// Create state saver
 	stateSaver := state.NewSaver(s3StateManager, log)
 	
-	// Create output with input references - passing input.References to preserve them
+	// Create output with input references - using S3References for consistency
 	output := state.NewOutput(
 		workflowState.VerificationContext.VerificationId,
 		workflowState.VerificationContext.VerificationType,
 		workflowState.VerificationContext.Status,
-		input.References, // Pass input references for accumulation
+		input.S3References, // Changed from References to S3References for consistency
 	)
 	
 	// Save results to S3 - passing input for reference preservation
@@ -297,9 +298,9 @@ func processInput(ctx context.Context, input *state.Input, start time.Time) (*st
 		"duration":              duration.String(),
 		"verificationId":        input.VerificationID,
 		"templateUsed":          templateName,
-		"inputReferenceCount":   len(input.References),
-		"outputReferenceCount":  len(output.References),
-		"newReferencesAdded":    len(output.References) - len(input.References),
+		"inputReferenceCount":   len(input.S3References),  // Changed from References to S3References
+		"outputReferenceCount":  len(output.S3References), // Changed from References to S3References
+		"newReferencesAdded":    len(output.S3References) - len(input.S3References), // Changed both References to S3References
 	})
 	
 	log.LogOutputEvent(output)

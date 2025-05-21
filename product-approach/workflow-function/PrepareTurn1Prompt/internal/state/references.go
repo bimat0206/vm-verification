@@ -26,7 +26,7 @@ const (
 // Input represents the Lambda function input with S3 references
 type Input struct {
 	References           map[string]*s3state.Reference `json:"references"`
-	S3References         map[string]*s3state.Reference `json:"s3References"` // Alternative field name used in Step Functions
+	S3References         map[string]*s3state.Reference `json:"s3References"` // Main field name used in Step Functions
 	VerificationID       string                        `json:"verificationId"`
 	VerificationType     string                        `json:"verificationType"`
 	TurnNumber           int                           `json:"turnNumber"`
@@ -39,14 +39,13 @@ type Input struct {
 
 // Output represents the Lambda function output with S3 references
 type Output struct {
-	References       map[string]*s3state.Reference `json:"references"`
+	S3References     map[string]*s3state.Reference `json:"s3References"` // Changed to s3References for consistency
 	VerificationID   string                        `json:"verificationId"`
 	VerificationType string                        `json:"verificationType"`
 	Status           string                        `json:"status"`
 }
 
 // GetReferenceKey builds a standard reference key for accessing references
-// FIXED: Simplified reference key creation that doesn't embed paths
 func GetReferenceKey(category, dataType string) string {
 	// Simple standardized format: category_datatype
 	// Avoid including any paths or verification IDs in the reference key
@@ -130,10 +129,10 @@ func CopyReferences(dest, src map[string]*s3state.Reference) {
 }
 
 // NewOutput creates a new output with initialized references map
-// Modified to accept and preserve existing references
+// Preserved existing references using s3References field instead of references
 func NewOutput(verificationID, verificationType, status string, existingRefs map[string]*s3state.Reference) *Output {
 	out := &Output{
-		References:       make(map[string]*s3state.Reference),
+		S3References:     make(map[string]*s3state.Reference), // Changed to S3References
 		VerificationID:   verificationID,
 		VerificationType: verificationType,
 		Status:           status,
@@ -141,7 +140,7 @@ func NewOutput(verificationID, verificationType, status string, existingRefs map
 	
 	// Preserve all existing references
 	if existingRefs != nil {
-		CopyReferences(out.References, existingRefs)
+		CopyReferences(out.S3References, existingRefs) // Changed to S3References
 	}
 	
 	return out
@@ -149,11 +148,11 @@ func NewOutput(verificationID, verificationType, status string, existingRefs map
 
 // AddReference adds a reference to the output
 func (o *Output) AddReference(category, dataType string, ref *s3state.Reference) {
-	if o.References == nil {
-		o.References = make(map[string]*s3state.Reference)
+	if o.S3References == nil { // Changed to S3References
+		o.S3References = make(map[string]*s3state.Reference) // Changed to S3References
 	}
 	// Use the standardized reference key format
-	o.References[GetReferenceKey(category, dataType)] = ref
+	o.S3References[GetReferenceKey(category, dataType)] = ref // Changed to S3References
 }
 
 // EnvelopeToInput converts an S3 state envelope to input format
@@ -214,7 +213,7 @@ func EnvelopeToInput(envelope *s3state.Envelope) (*Input, error) {
 // OutputToEnvelope converts output to an S3 state envelope
 func OutputToEnvelope(output *Output) *s3state.Envelope {
 	return &s3state.Envelope{
-		References:     output.References,
+		References:     output.S3References, // Changed to S3References
 		VerificationID: output.VerificationID,
 		Status:         output.Status,
 	}
