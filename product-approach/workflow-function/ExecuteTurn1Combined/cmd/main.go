@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -14,11 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 
-	internalConfig "ExecuteTurn1Combined/internal/config"
-	"ExecuteTurn1Combined/internal/handler"
-	"ExecuteTurn1Combined/internal/logger"
-	"ExecuteTurn1Combined/internal/services"
-	"ExecuteTurn1Combined/internal/utils"
+	internalConfig "workflow-function/ExecuteTurn1Combined/internal/config"
+	"workflow-function/ExecuteTurn1Combined/internal/handler"
+	"workflow-function/ExecuteTurn1Combined/internal/logger"
+	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/ExecuteTurn1Combined/internal/utils"
 )
 
 // ApplicationContainer represents the strategic dependency orchestration framework
@@ -189,7 +188,7 @@ func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, lo
 	}
 
 	// Strategic DynamoDB service initialization with performance optimization
-	dynamoService := services.NewDynamoDBService(*cfg)
+	dynamoService := services.NewDynamoDBService(cfg)
 
 	// Strategic prompt service initialization with template management
 	promptService, err := services.NewPromptService(cfg.Prompts.TemplateVersion, logger)
@@ -282,7 +281,13 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	if exists {
 		executionContext.RequestID = lambdaCtx.AwsRequestID
 		executionContext.FunctionName = lambdaCtx.InvokedFunctionArn
-		executionContext.MemoryLimitMB = lambdaCtx.MemoryLimitInMB
+		// Get memory limit from environment variable
+		if memoryStr := os.Getenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE"); memoryStr != "" {
+			var memoryLimit int
+			if _, err := fmt.Sscanf(memoryStr, "%d", &memoryLimit); err == nil {
+				executionContext.MemoryLimitMB = memoryLimit
+			}
+		}
 		deadline, hasDeadline := ctx.Deadline()
 		if hasDeadline {
 			executionContext.RemainingTimeMS = time.Until(deadline).Milliseconds()
@@ -336,28 +341,14 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 // generateCorrelationID creates strategic correlation identifiers for
 // distributed request tracing and operational debugging capabilities
 func generateCorrelationID() string {
-	return fmt.Sprintf("turn1-%d-%d",
-		time.Now().UnixNano()/int64(time.Millisecond),
-		os.Getpid(),
-	)
+	return fmt.Sprintf("turn1-%d",
+		time.Now().UnixNano()/int64(time.Millisecond))
 }
 
-// main represents the strategic Lambda runtime integration point
-// implementing clean shutdown patterns and operational lifecycle management
+// main represents the strategic Lambda bootstrap entry point
+// implementing comprehensive runtime initialization with proper
+// error boundary management and performance optimization
 func main() {
-	// Strategic runtime validation with comprehensive error handling
-	if applicationContainer == nil {
-		log.Fatal("CRITICAL: Application container not initialized - system cannot proceed")
-	}
-
-	applicationContainer.logger.Info("lambda_runtime_initialization", map[string]interface{}{
-		"function_ready":         true,
-		"initialization_time_ms": initializationMetrics.TotalBootstrapTime.Milliseconds(),
-		"aws_region":             applicationContainer.config.AWS.Region,
-		"bedrock_model":          applicationContainer.config.AWS.BedrockModel,
-		"service_health":         "operational",
-	})
-
-	// Strategic Lambda runtime registration with handler delegation
+	// Strategic Lambda handler registration with comprehensive error handling
 	lambda.Start(HandleRequest)
 }

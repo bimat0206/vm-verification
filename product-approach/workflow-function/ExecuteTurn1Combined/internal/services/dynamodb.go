@@ -4,14 +4,14 @@ package services
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"ExecuteTurn1Combined/internal/config"
-	"ExecuteTurn1Combined/internal/errors"
-	"ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn1Combined/internal/config"
+	"workflow-function/ExecuteTurn1Combined/internal/errors"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
 )
 
 // DynamoDBService defines status-tracking and conversation-history operations.
@@ -29,8 +29,8 @@ type dynamoClient struct {
 }
 
 // NewDynamoDBService constructs a DynamoDBService using AWS config and table names.
-func NewDynamoDBService(cfg config.Config) DynamoDBService {
-	awsCfg, err := config.LoadDefaultAWSConfig(context.Background(), config.WithRegion(cfg.AWS.Region))
+func NewDynamoDBService(cfg *config.Config) DynamoDBService {
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.AWS.Region))
 	if err != nil {
 		panic("failed to load AWS config for DynamoDB: " + err.Error())
 	}

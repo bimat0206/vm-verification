@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"ExecuteTurn1Combined/internal/config"
-	"ExecuteTurn1Combined/internal/errors"
-	"ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn1Combined/internal/config"
+	"workflow-function/ExecuteTurn1Combined/internal/errors"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/bedrock"
 )
 

@@ -1,13 +1,12 @@
 // internal/services/prompt.go
-package prompt
+package services
 
 import (
 	"context"
 	"fmt"
 
-	"ExecuteTurn1Combined/internal/config"
-	"ExecuteTurn1Combined/internal/errors"
-	"ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn1Combined/internal/errors"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/templateloader"
 )
 
@@ -23,9 +22,9 @@ type promptService struct {
 }
 
 // NewPromptService constructs a PromptService using the configured template loader.
-func NewPromptService(cfg config.Config) (PromptService, error) {
+func NewPromptService(templateVersion string, logger interface{}) (PromptService, error) {
 	loader, err := templateloader.New(templateloader.Config{
-		BasePath:     cfg.Prompts.TemplateBasePath,
+		BasePath:     "templates",
 		CacheEnabled: true,
 	})
 	if err != nil {
@@ -33,7 +32,7 @@ func NewPromptService(cfg config.Config) (PromptService, error) {
 	}
 	return &promptService{
 		loader:  loader,
-		version: cfg.Prompts.TemplateVersion,
+		version: templateVersion,
 	}, nil
 }
 

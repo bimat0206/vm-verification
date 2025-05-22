@@ -7,13 +7,14 @@ import "time"
 type ExecutionStage string
 
 const (
-	StageValidation      ExecutionStage = "validation"
-	StageContextLoading  ExecutionStage = "context_loading"
-	StagePromptGeneration ExecutionStage = "prompt_generation"
-	StageBedrockCall     ExecutionStage = "bedrock_invocation"
-	StageProcessing      ExecutionStage = "response_processing"
-	StageStorage         ExecutionStage = "state_storage"
-	StageDynamoDB        ExecutionStage = "dynamodb_update"
+	StageValidation        ExecutionStage = "validation"
+	StageContextLoading    ExecutionStage = "context_loading"
+	StagePromptGeneration  ExecutionStage = "prompt_generation"
+	StageBedrockCall       ExecutionStage = "bedrock_invocation"
+	StageProcessing        ExecutionStage = "response_processing"
+	StageStorage           ExecutionStage = "state_storage"
+	StageDynamoDB          ExecutionStage = "dynamodb_update"
+	StageReferenceAnalysis ExecutionStage = "reference_analysis"
 )
 
 // VerificationStatus indicates the lifecycle status of a verification.

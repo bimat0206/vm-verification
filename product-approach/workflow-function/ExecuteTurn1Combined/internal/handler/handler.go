@@ -7,35 +7,32 @@ import (
 	"sync"
 	"time"
 
-	"ExecuteTurn1Combined/internal/config"
-	"ExecuteTurn1Combined/internal/errors"
-	"ExecuteTurn1Combined/internal/logger"
-	"ExecuteTurn1Combined/internal/models"
-	bedrocksvc "ExecuteTurn1Combined/internal/services/bedrock"
-	dynsvc "ExecuteTurn1Combined/internal/services/dynamodb"
-	promptsvc "ExecuteTurn1Combined/internal/services/prompt"
-	s3svc "ExecuteTurn1Combined/internal/services/s3"
+	"workflow-function/ExecuteTurn1Combined/internal/config"
+	"workflow-function/ExecuteTurn1Combined/internal/errors"
+	"workflow-function/ExecuteTurn1Combined/internal/logger"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn1Combined/internal/services"
 )
 
 // Handler orchestrates the ExecuteTurn1Combined workflow.
 type Handler struct {
 	cfg           config.Config
-	s3            s3svc.S3StateManager
-	bedrock       bedrocksvc.BedrockService
-	dynamo        dynsvc.DynamoDBService
-	promptService promptsvc.PromptService
+	s3            services.S3StateManager
+	bedrock       services.BedrockService
+	dynamo        services.DynamoDBService
+	promptService services.PromptService
 	log           *logger.Logger
 }
 
 // NewHandler wires together all dependencies for the Lambda.
 func NewHandler(
-	s3Mgr s3svc.S3StateManager,
-	bedrockClient bedrocksvc.BedrockService,
-	dynamoClient dynsvc.DynamoDBService,
-	promptGen promptsvc.PromptService,
+	s3Mgr services.S3StateManager,
+	bedrockClient services.BedrockService,
+	dynamoClient services.DynamoDBService,
+	promptGen services.PromptService,
 	log *logger.Logger,
 	cfg *config.Config,
-) *Handler {
+) (*Handler, error) {
 	return &Handler{
 		cfg:           *cfg,
 		s3:            s3Mgr,
@@ -43,7 +40,7 @@ func NewHandler(
 		dynamo:        dynamoClient,
 		promptService: promptGen,
 		log:           log,
-	}
+	}, nil
 }
 
 // Handle executes a single Turn-1 verification cycle.
