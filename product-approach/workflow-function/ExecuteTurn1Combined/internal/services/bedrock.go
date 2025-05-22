@@ -6,7 +6,7 @@ import (
 
     "ExecuteTurn1Combined/internal/config"
     "ExecuteTurn1Combined/internal/models"
-    shared "shared/bedrock"
+    shared "workflow-function/shared/bedrock"
     "ExecuteTurn1Combined/internal/utils"
 )
 

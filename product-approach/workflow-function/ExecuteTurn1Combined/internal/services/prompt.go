@@ -8,7 +8,7 @@ import (
     "ExecuteTurn1Combined/internal/config"
     "ExecuteTurn1Combined/internal/models"
     "ExecuteTurn1Combined/internal/utils"
-    "shared/templateloader"
+    "workflow-function/shared/templateloader"
 )
 
 // PromptService defines prompt-generation operations.

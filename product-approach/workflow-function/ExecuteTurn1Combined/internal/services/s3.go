@@ -5,7 +5,7 @@ import (
     "context"
 
     "ExecuteTurn1Combined/internal/models"
-    "shared/s3state"
+    "workflow-function/shared/s3state"
 )
 
 // S3StateManager defines S3-based state persistence operations.
