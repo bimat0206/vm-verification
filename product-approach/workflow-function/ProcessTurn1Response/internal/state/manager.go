@@ -16,7 +16,7 @@ import (
 // Constants for S3 key categories
 const (
 	// Bucket environment variable
-	EnvS3StateBucket = "S3_STATE_BUCKET"
+	EnvS3StateBucket = "STATE_BUCKET" // Changed from S3_STATE_BUCKET to match actual environment variable
 )
 
 // StateManager manages S3 state operations for the ProcessTurn1Response Lambda

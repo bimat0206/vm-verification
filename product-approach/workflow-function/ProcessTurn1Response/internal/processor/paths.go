@@ -199,6 +199,7 @@ func (p *FreshExtractionProcessor) Process(
 		return NewParsingError("Failed to parse machine structure", err)
 	}
 	
+	
 	// Parse machine state from response
 	machineState, err := p.parser.ParseMachineState(responseContent)
 	if err != nil {

@@ -158,14 +158,14 @@ func (p *DefaultPatternProvider) initializeDefaultPatterns() {
 	p.patterns = map[PatternType]string{
 		// Core structure patterns
 		PatternTypeMachineStructure:  `(?is)(machine|vending)\s+structure.*?(\d+)`,
-		PatternTypeRowStatus:         `(?i)([A-Z])(?:\s*:|\.|\))\s*([^.]+)`,
+		PatternTypeRowStatus:         `(?m)^## Row ([A-Z])(?:[^*]+)\*\*Status: ([A-Za-z]+)\*\*`,
 		PatternTypeEmptyPositions:    `(?i)empty\s+positions?[:\s]+([^.]+)`,
 		PatternTypeFilledPositions:   `(?i)filled\s+positions?[:\s]+([^.]+)`,
 		PatternTypeQuantity:          `(\d+)`,
-		PatternTypePosition:          `[A-Z]\d+`,
+		PatternTypePosition:          `(?m)- ([A-Z]\d+): ([^\n]+)`,
 		PatternTypeRow:               `[A-Z]`,
 		PatternTypeColumn:            `\d+`,
-		PatternTypeRowColumn:         `(?i)(\d+)\s*rows?[^.]*?(\d+)\s*columns?`,
+		PatternTypeRowColumn:         `(?i)examining each row from top to bottom \(([A-Z])[^)]+\) and documenting the contents of all (\d+) slots`,
 		PatternTypeFallbackStructure: `(?i)(\d+)[^.]*?(\d+)`,
 		
 		// Validation patterns

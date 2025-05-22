@@ -37,7 +37,7 @@ func New() *Config {
 		AWSRegion: getEnvOrDefault("AWS_REGION", "us-east-1"),
 		
 		// State management configuration
-		S3StateBucket:    getEnvOrDefault("S3_STATE_BUCKET", ""),
+		S3StateBucket:    getEnvOrDefault("STATE_BUCKET", ""), // Changed from S3_STATE_BUCKET to match actual environment variable
 		ConversationTable: getEnvOrDefault("DYNAMODB_CONVERSATION_TABLE", ""),
 		
 		// Processing configuration
@@ -58,7 +58,7 @@ func (c *Config) Validate() error {
 	// Required configuration values
 	if c.S3StateBucket == "" {
 		return &ConfigError{
-			Field:   "S3_STATE_BUCKET",
+			Field:   "STATE_BUCKET",
 			Message: "S3 state bucket is required",
 		}
 	}

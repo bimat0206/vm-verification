@@ -10,7 +10,20 @@
       "Bash(rm:*)",
       "Bash(grep:*)",
       "Bash(go mod:*)",
-      "Bash(./retry-docker-build.sh:*)"
+      "Bash(./retry-docker-build.sh:*)",
+      "Bash(cat:*)",
+      "Bash(aws:*)",
+      "Bash(STATE_BUCKET=kootoro-dev-s3-state-f6d3xl AWS_REGION=us-east-1 ./main)",
+      "Bash(docker run:*)",
+      "Bash(zip:*)",
+      "Bash(docker build:*)",
+      "Bash(go run:*)",
+      "Bash(./test-lambda-local.sh:*)",
+      "Bash(./test-process-turn1)",
+      "Bash(./test-real-process-turn1)",
+      "Bash(go test:*)",
+      "Bash(./test-vending-parser)",
+      "Bash(./test-improved-parser)"
     ],
     "deny": []
   }

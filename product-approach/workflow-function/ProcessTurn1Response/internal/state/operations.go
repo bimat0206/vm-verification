@@ -27,13 +27,17 @@ func (sm *StateManager) ExtractHistoricalData(ctx context.Context, state *Workfl
 	historicalData, err := sm.LoadHistoricalContext(ctx, state)
 	if err != nil {
 		// Log the error but continue without historical data
-		sm.logger.Warn("Failed to load historical context", "error", err)
+		if sm.logger != nil {
+			sm.logger.Warn("Failed to load historical context", "error", err)
+		}
 		return nil, nil
 	}
 
 	// If no historical data, return nil without error (it's optional)
 	if historicalData == nil || len(historicalData) == 0 {
-		sm.logger.Info("No historical data available for enhancement")
+		if sm.logger != nil {
+			sm.logger.Info("No historical data available for enhancement")
+		}
 		return nil, nil
 	}
 
@@ -46,9 +50,11 @@ func (sm *StateManager) ExtractHistoricalData(ctx context.Context, state *Workfl
 		EnrichedBaseline: make(map[string]interface{}),
 	}
 
-	sm.logger.Info("Successfully extracted historical data for enhancement", 
-		"dataSize", len(historicalData),
-	)
+	if sm.logger != nil {
+		sm.logger.Info("Successfully extracted historical data for enhancement", 
+			"dataSize", len(historicalData),
+		)
+	}
 
 	return enhancement, nil
 }
@@ -122,10 +128,12 @@ func (sm *StateManager) BuildTurn2Context(ctx context.Context, state *WorkflowSt
 
 	turn2Context["processingMetadata"] = metadata
 
-	sm.logger.Info("Successfully built context for Turn 2",
-		"contextSize", len(turn2Context),
-		"processingPath", result.SourceType,
-	)
+	if sm.logger != nil {
+		sm.logger.Info("Successfully built context for Turn 2",
+			"contextSize", len(turn2Context),
+			"processingPath", result.SourceType,
+		)
+	}
 
 	return turn2Context, nil
 }
@@ -153,7 +161,10 @@ func (sm *StateManager) GetVerificationType(state *WorkflowState) (string, error
 	}
 
 	// Default to PREVIOUS_VS_CURRENT if not found (most common case)
-	sm.logger.Warn("Verification type not found in workflow state, defaulting to PREVIOUS_VS_CURRENT")
+	// Check if logger is available before using it
+	if sm.logger != nil {
+		sm.logger.Warn("Verification type not found in workflow state, defaulting to PREVIOUS_VS_CURRENT")
+	}
 	return schema.VerificationTypePreviousVsCurrent, nil
 }
 
@@ -179,23 +190,31 @@ func (sm *StateManager) DetermineProcessingPath(ctx context.Context, state *Work
 	case schema.VerificationTypeLayoutVsChecking:
 		// For layout vs checking, always use validation flow
 		path = types.PathValidationFlow
-		sm.logger.Info("Using validation flow for LAYOUT_VS_CHECKING verification type")
+		if sm.logger != nil {
+			sm.logger.Info("Using validation flow for LAYOUT_VS_CHECKING verification type")
+		}
 
 	case schema.VerificationTypePreviousVsCurrent:
 		if hasHistorical {
 			// Use historical enhancement when historical data is available
 			path = types.PathHistoricalEnhancement
-			sm.logger.Info("Using historical enhancement with available historical data")
+			if sm.logger != nil {
+				sm.logger.Info("Using historical enhancement with available historical data")
+			}
 		} else {
 			// Use fresh extraction when no historical data is available
 			path = types.PathFreshExtraction
-			sm.logger.Info("Using fresh extraction as no historical data is available")
+			if sm.logger != nil {
+				sm.logger.Info("Using fresh extraction as no historical data is available")
+			}
 		}
 
 	default:
 		// Default to fresh extraction for unknown verification types
 		path = types.PathFreshExtraction
-		sm.logger.Warn("Unknown verification type, defaulting to fresh extraction", "verificationType", verificationType)
+		if sm.logger != nil {
+			sm.logger.Warn("Unknown verification type, defaulting to fresh extraction", "verificationType", verificationType)
+		}
 	}
 
 	// Validate the selected path

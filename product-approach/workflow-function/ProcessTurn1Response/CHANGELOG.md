@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.1] - 2025-05-22
+
+### Enhanced
+- Specialized vending machine parsing patterns for improved accuracy and dynamic structure detection
+- Enhanced PatternTypeRowColumn to match "examining each row from top to bottom" format
+- Updated PatternTypeRowStatus to handle markdown headers like "## Row A ... **Status: FULL**"
+- Improved PatternTypePosition to extract "- A1: Product Name" format correctly
+- Made patterns generic to handle any machine structure size (not limited to specific dimensions)
+
+### Fixed
+- Resolved incorrect machine structure extraction for vending machine data
+- Fixed row status pattern matching issues with markdown formatted responses
+- Corrected position extraction from bullet-point formatted content
+- Eliminated false positives in structure detection that caused incorrect row/column counts
+- Removed hardcoded structure assumptions to ensure dynamic data handling
+
 ## [2.1.0] - 2025-05-21
 
 ### Added

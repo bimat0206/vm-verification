@@ -1,0 +1,606 @@
+{
+  "status": "EXTRACTION_COMPLETE",
+  "sourceType": "FRESH_EXTRACTION",
+  "extractedStructure": {
+    "rowCount": 6,
+    "columnsPerRow": 7,
+    "rowOrder": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F"
+    ],
+    "columnOrder": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "totalPositions": 42,
+    "structureConfirmed": true
+  },
+  "referenceAnalysis": {
+    "contextForTurn2": {
+      "baselineSource": "EXTRACTED_STATE",
+      "extractedDataAvailable": true,
+      "extractedState": {
+        "machineStructure": {
+          "rowCount": 6,
+          "columnsPerRow": 7,
+          "rowOrder": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F"
+          ],
+          "columnOrder": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "totalPositions": 42,
+          "structureConfirmed": true
+        },
+        "rowStates": {
+          "A": {
+            "status": "FULL",
+            "filledPositions": [
+              "A1",
+              "A2",
+              "A3",
+              "A4",
+              "A5",
+              "A6",
+              "A7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          },
+          "B": {
+            "status": "FULL",
+            "filledPositions": [
+              "B1",
+              "B2",
+              "B3",
+              "B4",
+              "B5",
+              "B6",
+              "B7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          },
+          "C": {
+            "status": "FULL",
+            "filledPositions": [
+              "C1",
+              "C2",
+              "C3",
+              "C4",
+              "C5",
+              "C6",
+              "C7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          },
+          "D": {
+            "status": "FULL",
+            "filledPositions": [
+              "D1",
+              "D2",
+              "D3",
+              "D4",
+              "D5",
+              "D6",
+              "D7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          },
+          "E": {
+            "status": "FULL",
+            "filledPositions": [
+              "E1",
+              "E2",
+              "E3",
+              "E4",
+              "E5",
+              "E6",
+              "E7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          },
+          "F": {
+            "status": "FULL",
+            "filledPositions": [
+              "F1",
+              "F2",
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7"
+            ],
+            "emptyPositions": [],
+            "quantity": 7
+          }
+        },
+        "filledPositions": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "B6",
+          "B7",
+          "C1",
+          "C2",
+          "C3",
+          "C4",
+          "C5",
+          "C6",
+          "C7",
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5",
+          "D6",
+          "D7",
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6",
+          "E7",
+          "F1",
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7"
+        ],
+        "totalEmptyCount": 0,
+        "totalFilledCount": 42,
+        "overallStatus": "Full",
+        "observations": [
+          "Summary:  a fully stocked vending machine with a logical organization: chips on top, followed by chocolate candy, non-chocolate candy, granola/snack bars, bottled beverages, and canned beverages on the bottom row"
+        ]
+      },
+      "extractedStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 7,
+        "rowOrder": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "columnOrder": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "totalPositions": 42,
+        "structureConfirmed": true
+      },
+      "readyForTurn2": true,
+      "useHistoricalData": false
+    },
+    "extractedState": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 7,
+        "rowOrder": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "columnOrder": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "totalPositions": 42,
+        "structureConfirmed": true
+      },
+      "rowStates": {
+        "A": {
+          "status": "FULL",
+          "filledPositions": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "B": {
+          "status": "FULL",
+          "filledPositions": [
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "B7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "C": {
+          "status": "FULL",
+          "filledPositions": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "D": {
+          "status": "FULL",
+          "filledPositions": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5",
+            "D6",
+            "D7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "E": {
+          "status": "FULL",
+          "filledPositions": [
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "E7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "F": {
+          "status": "FULL",
+          "filledPositions": [
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        }
+      },
+      "filledPositions": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "totalEmptyCount": 0,
+      "totalFilledCount": 42,
+      "overallStatus": "Full",
+      "observations": [
+        "Summary:  a fully stocked vending machine with a logical organization: chips on top, followed by chocolate candy, non-chocolate candy, granola/snack bars, bottled beverages, and canned beverages on the bottom row"
+      ]
+    },
+    "extractedStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 7,
+      "rowOrder": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F"
+      ],
+      "columnOrder": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7"
+      ],
+      "totalPositions": 42,
+      "structureConfirmed": true
+    },
+    "sourceType": "FRESH_VISUAL_ANALYSIS",
+    "status": "EXTRACTION_COMPLETE"
+  },
+  "contextForTurn2": {
+    "baselineSource": "EXTRACTED_STATE",
+    "extractedDataAvailable": true,
+    "extractedState": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 7,
+        "rowOrder": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "columnOrder": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "totalPositions": 42,
+        "structureConfirmed": true
+      },
+      "rowStates": {
+        "A": {
+          "status": "FULL",
+          "filledPositions": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "B": {
+          "status": "FULL",
+          "filledPositions": [
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "B7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "C": {
+          "status": "FULL",
+          "filledPositions": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "D": {
+          "status": "FULL",
+          "filledPositions": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5",
+            "D6",
+            "D7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "E": {
+          "status": "FULL",
+          "filledPositions": [
+            "E1",
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6",
+            "E7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        },
+        "F": {
+          "status": "FULL",
+          "filledPositions": [
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7"
+          ],
+          "emptyPositions": [],
+          "quantity": 7
+        }
+      },
+      "filledPositions": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "totalEmptyCount": 0,
+      "totalFilledCount": 42,
+      "overallStatus": "Full",
+      "observations": [
+        "Summary:  a fully stocked vending machine with a logical organization: chips on top, followed by chocolate candy, non-chocolate candy, granola/snack bars, bottled beverages, and canned beverages on the bottom row"
+      ]
+    },
+    "extractedStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 7,
+      "rowOrder": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F"
+      ],
+      "columnOrder": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7"
+      ],
+      "totalPositions": 42,
+      "structureConfirmed": true
+    },
+    "readyForTurn2": true,
+    "useHistoricalData": false
+  },
+  "processingMetadata": {
+    "processingStartTime": "2025-05-22T09:36:12.304419+07:00",
+    "processingEndTime": "2025-05-22T09:36:12.30451+07:00",
+    "processingDuration": 90417,
+    "responseSize": 2267,
+    "extractedElements": 48,
+    "validationsPassed": 0,
+    "validationsFailed": 0,
+    "processingPath": "FRESH_EXTRACTION"
+  },
+  "fallbackUsed": false
+}

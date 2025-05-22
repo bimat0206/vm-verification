@@ -1,0 +1,14 @@
+{
+  "verificationId": "verif-20250521154235-1e73",
+  "status": "TURN1_COMPLETED",
+  "references": {
+    "responses_turn1-response": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521154235-1e73/responses/turn1-raw-response.json",
+      "size": 4763
+    }
+  },
+  "turn1Response": {
+    "content": "Sample turn1 response content for testing"
+  }
+}

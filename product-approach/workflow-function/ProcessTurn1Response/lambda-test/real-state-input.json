@@ -1,0 +1,77 @@
+{
+  "stateReferences": {
+    "verificationId": "verif-20250521161745-5fb3",
+    "datePartition": "2025/05/21/verif-20250521161745-5fb3",
+    "initialization": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/initialization.json",
+      "size": 579
+    },
+    "layoutMetadata": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/layout-metadata.json",
+      "size": 9353
+    },
+    "conversationState": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/conversation-state.json",
+      "size": 4711
+    },
+    "imageMetadata": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/images/metadata.json",
+      "size": 679
+    },
+    "systemPrompt": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/prompts/system-prompt.json",
+      "size": 1905
+    },
+    "turn1Response": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/responses/turn1-raw-response.json",
+      "size": 4685
+    }
+  },
+  "s3References": {
+    "verificationId": "verif-20250521161745-5fb3",
+    "datePartition": "2025/05/21/verif-20250521161745-5fb3",
+    "initialization": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/initialization.json",
+      "size": 579
+    },
+    "layoutMetadata": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/layout-metadata.json",
+      "size": 9353
+    },
+    "conversationState": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/processing/conversation-state.json",
+      "size": 4711
+    },
+    "imageMetadata": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/images/metadata.json",
+      "size": 679
+    },
+    "systemPrompt": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/prompts/system-prompt.json",
+      "size": 1905
+    },
+    "turn1Response": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/05/21/verif-20250521161745-5fb3/responses/turn1-raw-response.json",
+      "size": 4685
+    }
+  },
+  "status": "TURN1_COMPLETED",
+  "summary": {
+    "datePartition": "2025/05/21/verif-20250521161745-5fb3",
+    "latencyMs": 19783,
+    "status": "TURN1_COMPLETED",
+    "tokenUsage": 958
+  }
+}
