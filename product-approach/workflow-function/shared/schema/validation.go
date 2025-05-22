@@ -461,3 +461,192 @@ func ValidateBedrockConfig(config *BedrockConfig) Errors {
 	
 	return errors
 }
+// Add these validation functions for new structures
+
+// ValidateStatusHistoryEntry validates status history entries
+func ValidateStatusHistoryEntry(entry *StatusHistoryEntry) Errors {
+    var errors Errors
+    
+    if entry == nil {
+        errors = append(errors, ValidationError{Field: "statusHistoryEntry", Message: "cannot be nil"})
+        return errors
+    }
+    
+    if entry.Status == "" {
+        errors = append(errors, ValidationError{Field: "status", Message: "required"})
+    }
+    
+    if entry.Timestamp == "" {
+        errors = append(errors, ValidationError{Field: "timestamp", Message: "required"})
+    }
+    
+    if entry.FunctionName == "" {
+        errors = append(errors, ValidationError{Field: "functionName", Message: "required"})
+    }
+    
+    return errors
+}
+
+// ValidateProcessingMetrics validates processing metrics
+func ValidateProcessingMetrics(metrics *ProcessingMetrics) Errors {
+    var errors Errors
+    
+    if metrics == nil {
+        return errors // Optional field
+    }
+    
+    // Add specific validations for metrics
+    if metrics.WorkflowTotal != nil {
+        if metrics.WorkflowTotal.TotalTimeMs < 0 {
+            errors = append(errors, ValidationError{Field: "workflowTotal.totalTimeMs", Message: "cannot be negative"})
+        }
+    }
+    
+    return errors
+}
+
+// ValidateErrorTracking validates error tracking structure
+func ValidateErrorTracking(tracking *ErrorTracking) Errors {
+    var errors Errors
+    
+    if tracking == nil {
+        return errors // Optional field
+    }
+    
+    if tracking.RecoveryAttempts < 0 {
+        errors = append(errors, ValidationError{Field: "recoveryAttempts", Message: "cannot be negative"})
+    }
+    
+    return errors
+}
+
+// ValidateTemplateProcessor validates template processor structure
+func ValidateTemplateProcessor(processor *TemplateProcessor) Errors {
+	var errors Errors
+	
+	if processor == nil {
+		return errors // Optional field
+	}
+	
+	if processor.Template != nil {
+		if processor.Template.TemplateId == "" {
+			errors = append(errors, ValidationError{Field: "template.templateId", Message: "required"})
+		}
+		if processor.Template.Content == "" {
+			errors = append(errors, ValidationError{Field: "template.content", Message: "required"})
+		}
+	}
+	
+	if processor.ProcessingTime < 0 {
+		errors = append(errors, ValidationError{Field: "processingTime", Message: "cannot be negative"})
+	}
+	
+	return errors
+}
+
+// ValidateCombinedTurnResponse validates combined turn response structure
+func ValidateCombinedTurnResponse(response *CombinedTurnResponse) Errors {
+	var errors Errors
+	
+	if response == nil {
+		errors = append(errors, ValidationError{Field: "combinedTurnResponse", Message: "cannot be nil"})
+		return errors
+	}
+	
+	// Validate embedded TurnResponse
+	if response.TurnResponse != nil {
+		if response.TurnResponse.TurnId <= 0 {
+			errors = append(errors, ValidationError{Field: "turnId", Message: "must be greater than 0"})
+		}
+	}
+	
+	// Validate processing stages
+	for i, stage := range response.ProcessingStages {
+		if stage.StageName == "" {
+			errors = append(errors, ValidationError{
+				Field: fmt.Sprintf("processingStages[%d].stageName", i), 
+				Message: "required",
+			})
+		}
+		if stage.Duration < 0 {
+			errors = append(errors, ValidationError{
+				Field: fmt.Sprintf("processingStages[%d].duration", i), 
+				Message: "cannot be negative",
+			})
+		}
+	}
+	
+	return errors
+}
+
+// ValidateConversationTracker validates conversation tracker structure
+func ValidateConversationTracker(tracker *ConversationTracker) Errors {
+	var errors Errors
+	
+	if tracker == nil {
+		return errors // Optional field
+	}
+	
+	if tracker.ConversationId == "" {
+		errors = append(errors, ValidationError{Field: "conversationId", Message: "required"})
+	}
+	
+	if tracker.CurrentTurn < 0 {
+		errors = append(errors, ValidationError{Field: "currentTurn", Message: "cannot be negative"})
+	}
+	
+	if tracker.MaxTurns <= 0 {
+		errors = append(errors, ValidationError{Field: "maxTurns", Message: "must be greater than 0"})
+	}
+	
+	if tracker.CurrentTurn > tracker.MaxTurns {
+		errors = append(errors, ValidationError{Field: "currentTurn", Message: "cannot exceed maxTurns"})
+	}
+	
+	return errors
+}
+
+// Update ValidateVerificationContext to include new fields validation
+func ValidateVerificationContextEnhanced(ctx *VerificationContext) Errors {
+	// Start with existing validation
+	errors := ValidateVerificationContext(ctx)
+	
+	if ctx == nil {
+		return errors
+	}
+	
+	// Validate new fields
+	if len(ctx.StatusHistory) > 0 {
+		for i, entry := range ctx.StatusHistory {
+			entryErrors := ValidateStatusHistoryEntry(&entry)
+			for _, err := range entryErrors {
+				errors = append(errors, ValidationError{
+					Field:   fmt.Sprintf("statusHistory[%d].%s", i, err.Field),
+					Message: err.Message,
+				})
+			}
+		}
+	}
+	
+	if ctx.ProcessingMetrics != nil {
+		metricErrors := ValidateProcessingMetrics(ctx.ProcessingMetrics)
+		for _, err := range metricErrors {
+			errors = append(errors, ValidationError{
+				Field:   "processingMetrics." + err.Field,
+				Message: err.Message,
+			})
+		}
+	}
+	
+	if ctx.ErrorTracking != nil {
+		trackingErrors := ValidateErrorTracking(ctx.ErrorTracking)
+		for _, err := range trackingErrors {
+			errors = append(errors, ValidationError{
+				Field:   "errorTracking." + err.Field,
+				Message: err.Message,
+			})
+		}
+	}
+	
+	return errors
+}

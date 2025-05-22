@@ -47,3 +47,30 @@ const (
 	StatusBedrockProcessingFailed = "BEDROCK_PROCESSING_FAILED"
 	StatusVerificationFailed      = "VERIFICATION_FAILED"
 )
+// Add these status constants for combined function tracking
+const (
+    // Existing constants remain...
+
+    // Turn 1 Combined Function Status (ADD THESE)
+    StatusTurn1Started              = "TURN1_STARTED"
+    StatusTurn1ContextLoaded        = "TURN1_CONTEXT_LOADED" 
+    StatusTurn1PromptPrepared       = "TURN1_PROMPT_PREPARED"
+    StatusTurn1ImageLoaded          = "TURN1_IMAGE_LOADED"
+    StatusTurn1BedrockInvoked       = "TURN1_BEDROCK_INVOKED"
+    StatusTurn1BedrockCompleted     = "TURN1_BEDROCK_COMPLETED"
+    StatusTurn1ResponseProcessing   = "TURN1_RESPONSE_PROCESSING"
+    
+    // Turn 2 Combined Function Status (ADD THESE)
+    StatusTurn2Started              = "TURN2_STARTED"
+    StatusTurn2ContextLoaded        = "TURN2_CONTEXT_LOADED"
+    StatusTurn2PromptPrepared       = "TURN2_PROMPT_PREPARED" 
+    StatusTurn2ImageLoaded          = "TURN2_IMAGE_LOADED"
+    StatusTurn2BedrockInvoked       = "TURN2_BEDROCK_INVOKED"
+    StatusTurn2BedrockCompleted     = "TURN2_BEDROCK_COMPLETED"
+    StatusTurn2ResponseProcessing   = "TURN2_RESPONSE_PROCESSING"
+
+    // Error handling constants (ADD THESE)
+    StatusTurn1Error                = "TURN1_ERROR"
+    StatusTurn2Error                = "TURN2_ERROR"
+    StatusTemplateProcessingError   = "TEMPLATE_PROCESSING_ERROR"
+)

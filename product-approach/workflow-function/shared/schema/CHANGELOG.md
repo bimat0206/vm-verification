@@ -1,5 +1,76 @@
 # Changelog
 
+## [2.2.0] - 2025-01-22
+
+### Added
+#### Combined Function Support
+- Added `CombinedTurnResponse` struct with embedded `TurnResponse` for enhanced response handling
+- Added `ProcessingStage` struct for granular stage tracking within combined functions
+- Added `TemplateContext` struct for template processing context
+- Added fields to `CombinedTurnResponse`: `ProcessingStages`, `InternalPrompt`, `TemplateUsed`, `ContextEnrichment`
+
+#### Template Management System
+- Added `PromptTemplate` struct for template management with versioning support
+- Added `TemplateProcessor` struct for template processing context and metrics
+- Added `TemplateRetriever` class for S3-based template loading
+- Added template processing functions in s3_helpers.go
+
+#### Enhanced Metrics & Performance Tracking
+- Added `ProcessingMetrics` struct for comprehensive workflow performance tracking
+- Added `TurnMetrics` struct for individual turn performance metrics
+- Added `WorkflowMetrics` struct for overall workflow timing and statistics
+- Added `StatusHistoryEntry` struct for detailed status transition tracking
+- Added `ErrorTracking` struct for comprehensive error state management
+
+#### Enhanced VerificationContext
+- Added `CurrentStatus` field for real-time status tracking
+- Added `LastUpdatedAt` field for timestamp tracking
+- Added `StatusHistory` field for complete status transition history
+- Added `ProcessingMetrics` field for embedded performance metrics
+- Added `ErrorTracking` field for error state management
+
+#### Conversation Management
+- Added `ConversationTracker` struct for conversation progress and state tracking
+- Enhanced conversation history with metadata support
+
+#### Enhanced Status Constants
+- Added detailed Turn 1 Combined Function status constants:
+  - `StatusTurn1Started`, `StatusTurn1ContextLoaded`, `StatusTurn1PromptPrepared`
+  - `StatusTurn1ImageLoaded`, `StatusTurn1BedrockInvoked`, `StatusTurn1BedrockCompleted`
+  - `StatusTurn1ResponseProcessing`
+- Added detailed Turn 2 Combined Function status constants:
+  - `StatusTurn2Started`, `StatusTurn2ContextLoaded`, `StatusTurn2PromptPrepared`
+  - `StatusTurn2ImageLoaded`, `StatusTurn2BedrockInvoked`, `StatusTurn2BedrockCompleted`
+  - `StatusTurn2ResponseProcessing`
+- Added error handling constants:
+  - `StatusTurn1Error`, `StatusTurn2Error`, `StatusTemplateProcessingError`
+
+#### Comprehensive Validation Functions
+- Added `ValidateTemplateProcessor()` for template processing validation
+- Added `ValidateCombinedTurnResponse()` for combined response validation
+- Added `ValidateConversationTracker()` for conversation state validation
+- Added `ValidateVerificationContextEnhanced()` for enhanced context validation
+- Added `ValidateStatusHistoryEntry()` for status transition validation
+- Added `ValidateProcessingMetrics()` for performance metrics validation
+- Added `ValidateErrorTracking()` for error state validation
+
+### Enhanced
+- Enhanced VerificationContext struct with new fields for combined function operations
+- Enhanced validation coverage for all new structures
+- Enhanced error handling with recovery attempt tracking
+- Enhanced template retrieval with S3 integration
+
+### Fixed
+- Fixed missing VerificationContext fields that were commented out but not implemented
+- Fixed validation functions to include comprehensive error checking
+- Fixed status constants organization and naming consistency
+
+### Compatibility
+- Full compatibility with ExecuteTurn1Combined function
+- Full compatibility with ExecuteTurn2Combined function
+- Backward compatibility maintained with existing implementations
+- Enhanced observability and monitoring capabilities
+
 ## [2.1.0] - 2025-05-20
 
 ### Added

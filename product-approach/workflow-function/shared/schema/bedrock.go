@@ -143,3 +143,34 @@ func BuildBedrockMessages(prompt string, includeImage string, images *ImageData)
 	
 	return messages
 }
+// Add these structures for combined function response handling
+
+// CombinedTurnResponse represents response from combined turn functions
+type CombinedTurnResponse struct {
+    *TurnResponse // Embed existing TurnResponse
+    
+    // Additional fields for combined functions
+    ProcessingStages  []ProcessingStage      `json:"processingStages,omitempty"`
+    InternalPrompt    string                 `json:"internalPrompt,omitempty"`
+    TemplateUsed      string                 `json:"templateUsed,omitempty"`
+    ContextEnrichment map[string]interface{} `json:"contextEnrichment,omitempty"`
+}
+
+// ProcessingStage represents individual processing stages within combined functions
+type ProcessingStage struct {
+    StageName    string                 `json:"stageName"`
+    StartTime    string                 `json:"startTime"`
+    EndTime      string                 `json:"endTime"`
+    Duration     int64                  `json:"durationMs"`
+    Status       string                 `json:"status"`
+    Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// TemplateContext represents context for template processing
+type TemplateContext struct {
+    VerificationType  string                 `json:"verificationType"`
+    TurnNumber        int                    `json:"turnNumber"`
+    MachineStructure  map[string]interface{} `json:"machineStructure,omitempty"`
+    LayoutMetadata    map[string]interface{} `json:"layoutMetadata,omitempty"`
+    HistoricalContext map[string]interface{} `json:"historicalContext,omitempty"`
+}

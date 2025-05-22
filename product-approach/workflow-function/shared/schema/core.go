@@ -24,6 +24,13 @@ type VerificationContext struct {
 	ResourceValidation     *ResourceValidation `json:"resourceValidation,omitempty"`
 	NotificationEnabled    bool                `json:"notificationEnabled"`
 	Error                  *ErrorInfo          `json:"error,omitempty"`
+	
+	// Enhanced fields for combined function operations
+	CurrentStatus     string               `json:"currentStatus,omitempty"`
+	LastUpdatedAt     string               `json:"lastUpdatedAt,omitempty"`
+	StatusHistory     []StatusHistoryEntry `json:"statusHistory,omitempty"`
+	ProcessingMetrics *ProcessingMetrics   `json:"processingMetrics,omitempty"`
+	ErrorTracking     *ErrorTracking       `json:"errorTracking,omitempty"`
 }
 
 // ErrorInfo provides standardized error reporting
@@ -168,3 +175,56 @@ type LayoutKey struct {
 // ImageData methods are defined in image_data.go
 
 // Bedrock message builder functions are defined in bedrock.go
+// Add these new structures to support combined function operations
+
+// StatusHistoryEntry represents a single status transition
+type StatusHistoryEntry struct {
+    Status           string                 `json:"status"`
+    Timestamp        string                 `json:"timestamp"`
+    FunctionName     string                 `json:"functionName"`
+    ProcessingTimeMs int64                  `json:"processingTimeMs"`
+    Stage            string                 `json:"stage"`
+    Metrics          map[string]interface{} `json:"metrics,omitempty"`
+}
+
+// ProcessingMetrics tracks performance across turns
+type ProcessingMetrics struct {
+    WorkflowTotal *WorkflowMetrics `json:"workflowTotal,omitempty"`
+    Turn1         *TurnMetrics     `json:"turn1,omitempty"`
+    Turn2         *TurnMetrics     `json:"turn2,omitempty"`
+}
+
+// WorkflowMetrics represents overall workflow performance
+type WorkflowMetrics struct {
+    StartTime     string `json:"startTime"`
+    EndTime       string `json:"endTime"`
+    TotalTimeMs   int64  `json:"totalTimeMs"`
+    FunctionCount int    `json:"functionCount"`
+}
+
+// TurnMetrics represents individual turn performance
+type TurnMetrics struct {
+    StartTime          string      `json:"startTime"`
+    EndTime            string      `json:"endTime"`
+    TotalTimeMs        int64       `json:"totalTimeMs"`
+    BedrockLatencyMs   int64       `json:"bedrockLatencyMs"`
+    ProcessingTimeMs   int64       `json:"processingTimeMs"`
+    RetryAttempts      int         `json:"retryAttempts"`
+    TokenUsage         *TokenUsage `json:"tokenUsage,omitempty"`
+}
+
+// ErrorTracking manages error state throughout workflow
+type ErrorTracking struct {
+    HasErrors        bool        `json:"hasErrors"`
+    CurrentError     *ErrorInfo  `json:"currentError"`
+    ErrorHistory     []ErrorInfo `json:"errorHistory"`
+    RecoveryAttempts int         `json:"recoveryAttempts"`
+    LastErrorAt      string      `json:"lastErrorAt"`
+}
+
+// Enhanced VerificationContext now includes fields for combined function operations:
+// - CurrentStatus: Current processing status
+// - LastUpdatedAt: Last update timestamp  
+// - StatusHistory: Complete status transition history
+// - ProcessingMetrics: Performance metrics tracking
+// - ErrorTracking: Error state management

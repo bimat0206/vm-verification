@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 	"time"
-	
+	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -775,4 +775,43 @@ func (p *imageProcessor) ValidateForBedrock(images *ImageData) error {
 // S3ImageProcessor provides a function to create a new S3ImageDataProcessor
 var S3ImageProcessor = func(retriever *S3Base64Retriever, builder *S3ImageInfoBuilder) *S3ImageDataProcessor {
 	return NewS3ImageDataProcessor(retriever, builder)
+}
+// Add these functions to support template operations
+
+// TemplateRetriever handles template retrieval from S3 or other sources
+type TemplateRetriever struct {
+    s3Client S3Interface
+    bucket   string
+    context  context.Context
+}
+
+// NewTemplateRetriever creates a new template retriever
+func NewTemplateRetriever(s3Client S3Interface, bucket string) *TemplateRetriever {
+    return &TemplateRetriever{
+        s3Client: s3Client,
+        bucket:   bucket,
+        context:  context.Background(),
+    }
+}
+
+// RetrieveTemplate retrieves a template from S3
+func (tr *TemplateRetriever) RetrieveTemplate(templateId string) (*PromptTemplate, error) {
+    key := fmt.Sprintf("templates/%s.json", templateId)
+    
+    result, err := tr.s3Client.GetObject(tr.context, &s3.GetObjectInput{
+        Bucket: aws.String(tr.bucket),
+        Key:    aws.String(key),
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to retrieve template %s: %w", templateId, err)
+    }
+    defer result.Body.Close()
+    
+    // Parse template JSON
+    var template PromptTemplate
+    if err := json.NewDecoder(result.Body).Decode(&template); err != nil {
+        return nil, fmt.Errorf("failed to parse template JSON: %w", err)
+    }
+    
+    return &template, nil
 }
