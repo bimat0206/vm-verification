@@ -1,14 +1,6 @@
 // internal/models/request.go
 package models
 
-// S3Reference represents a pointer to an object in S3.
-type S3Reference struct {
-	Bucket string `json:"bucket"`
-	Key    string `json:"key"`
-	ETag   string `json:"etag,omitempty"`
-	Size   int64  `json:"size,omitempty"`
-}
-
 // Turn1Request is the input payload for ExecuteTurn1Combined.
 type Turn1Request struct {
 	VerificationID      string             `json:"verificationId"`

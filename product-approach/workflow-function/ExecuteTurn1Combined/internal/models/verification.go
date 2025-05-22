@@ -1,32 +1,12 @@
 // internal/models/verification.go
 package models
 
-import "time"
-
-// ExecutionStage represents the current stage of the verification workflow.
-type ExecutionStage string
-
-const (
-	StageValidation        ExecutionStage = "validation"
-	StageContextLoading    ExecutionStage = "context_loading"
-	StagePromptGeneration  ExecutionStage = "prompt_generation"
-	StageBedrockCall       ExecutionStage = "bedrock_invocation"
-	StageProcessing        ExecutionStage = "response_processing"
-	StageStorage           ExecutionStage = "state_storage"
-	StageDynamoDB          ExecutionStage = "dynamodb_update"
-	StageReferenceAnalysis ExecutionStage = "reference_analysis"
-)
-
-// VerificationStatus indicates the lifecycle status of a verification.
-type VerificationStatus string
-
-const (
-	StatusTurn1Started        VerificationStatus = "TURN1_STARTED"
-	StatusTurn1PromptPrepared VerificationStatus = "TURN1_PROMPT_PREPARED"
-	StatusTurn1Completed      VerificationStatus = "TURN1_COMPLETED"
+import (
+	"time"
 )
 
 // VerificationContext carries metadata to drive prompt generation.
+// This is compatible with the schema package but maintains local structure
 type VerificationContext struct {
 	// Type of verification: e.g. "LAYOUT_VS_CHECKING" or "PREVIOUS_VS_CURRENT"
 	VerificationType string `json:"verificationType"`
@@ -34,6 +14,10 @@ type VerificationContext struct {
 	LayoutMetadata map[string]interface{} `json:"layoutMetadata,omitempty"`
 	// Historical context (e.g. prior image analysis) for PREVIOUS_VS_CURRENT
 	HistoricalContext map[string]interface{} `json:"historicalContext,omitempty"`
+	// Additional fields for schema compatibility
+	VendingMachineId string `json:"vendingMachineId,omitempty"`
+	LayoutId         int    `json:"layoutId,omitempty"`
+	LayoutPrefix     string `json:"layoutPrefix,omitempty"`
 }
 
 // ConversationTurn records a single step in the verification dialogue.

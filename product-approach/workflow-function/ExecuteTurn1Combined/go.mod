@@ -9,7 +9,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	workflow-function/shared/bedrock v0.0.0-00010101000000-000000000000
+	workflow-function/shared/errors v0.0.0 // NEW
+	workflow-function/shared/logger v0.0.0 // NEW
 	workflow-function/shared/s3state v0.0.0-00010101000000-000000000000
+	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
 	workflow-function/shared/templateloader v0.0.0-00010101000000-000000000000
 )
 

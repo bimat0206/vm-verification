@@ -1,4 +1,4 @@
-// internal/services/dynamodb.go
+// internal/services/dynamodb.go - FIXED VERSION
 package services
 
 import (
@@ -10,8 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/errors"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
+	
+	// FIXED: Using shared errors package instead of internal
+	"workflow-function/shared/errors"
 )
 
 // DynamoDBService defines status-tracking and conversation-history operations.
@@ -47,7 +49,10 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 	// Marshal metrics struct into DynamoDB attribute map
 	avMetrics, err := attributevalue.MarshalMap(metrics)
 	if err != nil {
-		return errors.WrapRetryable(err, errors.StageDynamoDB, "failed to marshal token usage metrics")
+		// FIXED: Using shared error WrapError function instead of WrapRetryable
+		// WrapError(err, errorType, message, retryable)
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			"failed to marshal token usage metrics", true) // true = retryable
 	}
 
 	input := &dynamodb.UpdateItemInput{
@@ -63,7 +68,14 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapRetryable(err, errors.StageDynamoDB, "failed to update verification status")
+		// FIXED: Using ErrorTypeDynamoDB instead of StageDynamoDB
+		// The shared package categorizes by error type, not execution stage
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			"failed to update verification status", true).
+			// ENHANCED: Adding context for better debugging
+			WithContext("table", d.verificationTable).
+			WithContext("verificationId", verificationID).
+			WithContext("operation", "UpdateItem")
 	}
 	return nil
 }
@@ -72,7 +84,12 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.ConversationTurn) error {
 	item, err := attributevalue.MarshalMap(turn)
 	if err != nil {
-		return errors.WrapRetryable(err, errors.StageDynamoDB, "failed to marshal conversation turn")
+		// FIXED: Same pattern - WrapError with ErrorTypeDynamoDB and retryable=true
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			"failed to marshal conversation turn", true).
+			// ENHANCED: Adding context for debugging
+			WithContext("turn_id", turn.TurnID).
+			WithContext("verification_id", turn.VerificationID)
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -81,7 +98,13 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 	}
 
 	if _, err := d.client.PutItem(ctx, input); err != nil {
-		return errors.WrapRetryable(err, errors.StageDynamoDB, "failed to record conversation turn")
+		// FIXED: Consistent error handling pattern
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			"failed to record conversation turn", true).
+			WithContext("table", d.conversationTable).
+			WithContext("turn_id", turn.TurnID).
+			WithContext("verification_id", turn.VerificationID).
+			WithContext("operation", "PutItem")
 	}
 	return nil
 }
