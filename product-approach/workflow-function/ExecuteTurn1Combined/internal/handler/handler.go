@@ -385,15 +385,19 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	processingMetrics.Turn1.TokenUsage = &resp.TokenUsage
 
 	// STAGE 7: DynamoDB updates and conversation history (enhanced)
+	// Create a channel to track async update completion
+	updateComplete := make(chan error, 2)
+	
 	go func() {
 		// Update verification status
-		if err := h.dynamo.UpdateVerificationStatus(ctx, req.VerificationID, models.StatusTurn1Completed, resp.TokenUsage); err != nil {
+		updateErr := h.dynamo.UpdateVerificationStatus(ctx, req.VerificationID, models.StatusTurn1Completed, resp.TokenUsage)
+		if updateErr != nil {
 			asyncLogger := contextLogger.WithFields(map[string]interface{}{
 				"async_operation": "verification_status_update",
 				"table":           h.cfg.AWS.DynamoDBVerificationTable,
 			})
 			
-			if workflowErr, ok := err.(*errors.WorkflowError); ok {
+			if workflowErr, ok := updateErr.(*errors.WorkflowError); ok {
 				asyncLogger.Warn("dynamodb status update failed", map[string]interface{}{
 					"error_type": string(workflowErr.Type),
 					"error_code": workflowErr.Code,
@@ -401,10 +405,11 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 				})
 			} else {
 				asyncLogger.Warn("dynamodb status update failed", map[string]interface{}{
-					"error": err.Error(),
+					"error": updateErr.Error(),
 				})
 			}
 		}
+		updateComplete <- updateErr
 		
 		// Record conversation history
 		conversationTurn := &models.ConversationTurn{
@@ -417,12 +422,14 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 			Timestamp:        time.Now(),
 		}
 		
-		if err := h.dynamo.RecordConversationTurn(ctx, conversationTurn); err != nil {
+		historyErr := h.dynamo.RecordConversationTurn(ctx, conversationTurn)
+		if historyErr != nil {
 			contextLogger.Warn("conversation history recording failed", map[string]interface{}{
-				"error": err.Error(),
+				"error": historyErr.Error(),
 				"table": h.cfg.AWS.DynamoDBConversationTable,
 			})
 		}
+		updateComplete <- historyErr
 	}()
 
 	// Final status update
@@ -435,6 +442,29 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	// STAGE 8: Build enhanced combined response
 	combinedResponse := h.buildCombinedTurnResponse(req, resp, rawRef, procRef, templateProcessor, processingMetrics, totalDuration)
 
+	// Wait for async DynamoDB updates to complete (with timeout)
+	updateTimeout := time.After(5 * time.Second)
+	updatesReceived := 0
+	for updatesReceived < 2 {
+		select {
+		case err := <-updateComplete:
+			updatesReceived++
+			if err != nil {
+				contextLogger.Warn("async update error received", map[string]interface{}{
+					"update_number": updatesReceived,
+					"error": err.Error(),
+				})
+			}
+		case <-updateTimeout:
+			contextLogger.Warn("async updates timed out", map[string]interface{}{
+				"updates_received": updatesReceived,
+				"timeout_seconds": 5,
+			})
+			goto ContinueProcessing
+		}
+	}
+	
+ContinueProcessing:
 	// Validate response before returning
 	if err := h.validator.ValidateResponse(&models.Turn1Response{
 		S3Refs: models.Turn1ResponseS3Refs{

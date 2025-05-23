@@ -3,8 +3,8 @@ package services
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
-	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -67,10 +67,12 @@ type dynamoClient struct {
 }
 
 // NewDynamoDBService constructs an enhanced DynamoDBService with comprehensive capabilities.
-func NewDynamoDBService(cfg *config.Config) DynamoDBService {
+func NewDynamoDBService(cfg *config.Config) (DynamoDBService, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.AWS.Region))
 	if err != nil {
-		panic("failed to load AWS config for DynamoDB: " + err.Error())
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+			"failed to load AWS config for DynamoDB", false).
+			WithContext("region", cfg.AWS.Region)
 	}
 	client := dynamodb.NewFromConfig(awsCfg)
 	return &dynamoClient{
@@ -79,7 +81,7 @@ func NewDynamoDBService(cfg *config.Config) DynamoDBService {
 		conversationTable: cfg.AWS.DynamoDBConversationTable,
 		layoutTable:       "LayoutMetadata", // Would be configurable in real implementation
 		region:            cfg.AWS.Region,
-	}
+	}, nil
 }
 
 // Legacy method: UpdateVerificationStatus sets the verification's currentStatus and tokenUsage.
@@ -199,7 +201,7 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 	if _, err := d.client.PutItem(ctx, input); err != nil {
 		// Handle conditional check failure gracefully
 		var conditionalCheckErr *types.ConditionalCheckFailedException
-		if errors.As(err, &conditionalCheckErr) {
+		if goerrors.As(err, &conditionalCheckErr) {
 			// Update existing record instead
 			return d.updateExistingConversationHistory(ctx, conversationTracker)
 		}
@@ -362,7 +364,7 @@ func (d *dynamoClient) InitializeVerificationRecord(ctx context.Context, verific
 
 	if _, err := d.client.PutItem(ctx, input); err != nil {
 		var conditionalCheckErr *types.ConditionalCheckFailedException
-		if errors.As(err, &conditionalCheckErr) {
+		if goerrors.As(err, &conditionalCheckErr) {
 			return errors.NewValidationError("verification record already exists", map[string]interface{}{
 				"verificationId": verificationContext.VerificationId,
 			})

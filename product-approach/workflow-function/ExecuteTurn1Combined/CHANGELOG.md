@@ -5,6 +5,36 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-05-23
+
+### Fixed - Critical Production Issues
+- **String Matching Bug**: Fixed broken `contains` function in prompt service that always returned true
+  - Implemented proper case-insensitive string matching with `strings.Contains`
+  - Added missing `strings` import to prompt.go
+  - This bug was causing incorrect error classification in template processing
+- **DynamoDB Service Initialization**: Replaced panic with proper error handling
+  - Changed `NewDynamoDBService` to return `(DynamoDBService, error)` instead of panicking
+  - Added proper error wrapping with contextual information
+  - Updated main.go to handle initialization errors gracefully
+- **Race Condition in Async Updates**: Fixed potential data loss in DynamoDB updates
+  - Implemented channel-based completion tracking for asynchronous operations
+  - Added 5-second timeout to ensure Lambda doesn't exit before critical updates
+  - Prevents loss of verification status and conversation history updates
+
+### Changed - Standardization Improvements
+- **Template Management**: Integrated shared `templateloader` package for standardized template handling
+  - Replaced undefined `TemplateManager` with `templateloader.TemplateLoader` interface
+  - Configured standard template path `/opt/templates` for Lambda layers
+  - Maintained backward compatibility with existing template processing metrics
+- **Import Organization**: Fixed import aliasing for better clarity
+  - Added `goerrors` alias for standard errors package to avoid conflicts
+  - Properly distinguished between standard `errors` and shared `errors` packages
+
+### Technical Details
+- **Build Verification**: All compilation errors resolved, application builds successfully
+- **Error Handling**: Enhanced error context with proper AWS SDK v2 error type checking
+- **Code Quality**: Improved reliability and maintainability of critical paths
+
 ## [1.3.1] - 2025-05-22
 
 ### Fixed - Compilation Issues

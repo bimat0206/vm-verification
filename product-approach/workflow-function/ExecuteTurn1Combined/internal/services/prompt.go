@@ -3,13 +3,14 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
+	"workflow-function/shared/templateloader"
 )
 
 // PromptService defines prompt-generation operations.
@@ -22,24 +23,30 @@ type PromptService interface {
 }
 
 type promptService struct {
-	templateManager *TemplateManager
-	logger          logger.Logger
-	version         string
+	templateLoader templateloader.TemplateLoader
+	logger         logger.Logger
+	version        string
 }
 
 // NewPromptService constructs a PromptService with template management
 func NewPromptService(templateVersion string, logger logger.Logger) (PromptService, error) {
-	templateManager, err := NewTemplateManager(templateVersion, logger)
+	// Initialize template loader with configuration
+	config := templateloader.Config{
+		BasePath:     "/opt/templates", // Standard path for Lambda layers
+		CacheEnabled: true,
+	}
+	
+	templateLoader, err := templateloader.New(config)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
-			"failed to initialize template manager", false).
+			"failed to initialize template loader", false).
 			WithContext("template_version", templateVersion)
 	}
 	
 	return &promptService{
-		templateManager: templateManager,
-		logger:          logger,
-		version:         templateVersion,
+		templateLoader: templateLoader,
+		logger:         logger,
+		version:        templateVersion,
 	}, nil
 }
 
@@ -72,18 +79,35 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 	// Build template context
 	templateContext := p.buildTemplateContext(vCtx, systemPrompt)
 	
-	// Process template
-	processor, err := p.templateManager.ProcessTemplate(templateType, templateContext)
+	// Render template using the standardized template loader
+	var processedPrompt string
+	var err error
+	if p.version != "" {
+		processedPrompt, err = p.templateLoader.RenderTemplateWithVersion(templateType, p.version, templateContext)
+	} else {
+		processedPrompt, err = p.templateLoader.RenderTemplate(templateType, templateContext)
+	}
+	
 	if err != nil {
 		return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
 	}
 	
-	// Update processing metrics
+	// Create processor info for metrics tracking
 	processingTime := time.Since(startTime)
-	processor.ProcessingTime = processingTime.Milliseconds()
-	processor.TokenEstimate = len(processor.ProcessedPrompt) / 4 // Rough estimate: 4 chars per token
+	processor := &schema.TemplateProcessor{
+		Template: &schema.PromptTemplate{
+			TemplateId:      templateType,
+			TemplateVersion: p.version,
+			TemplateType:    templateType,
+			Content:         processedPrompt,
+		},
+		ContextData:     templateContext,
+		ProcessedPrompt: processedPrompt,
+		ProcessingTime:  processingTime.Milliseconds(),
+		TokenEstimate:   len(processedPrompt) / 4, // Rough estimate: 4 chars per token
+	}
 	
-	return processor.ProcessedPrompt, processor, nil
+	return processedPrompt, processor, nil
 }
 
 // validateInputs performs proactive validation of inputs
@@ -213,10 +237,10 @@ func (p *promptService) getAvailableContextFields(vCtx models.VerificationContex
 
 // Helper functions
 func contains(msg string, keywords ...string) bool {
+	lowerMsg := strings.ToLower(msg)
 	for _, keyword := range keywords {
-		if len(keyword) > 0 && len(msg) > 0 {
-			// Simple case-insensitive contains check
-			return true // Simplified for demo - implement proper string matching
+		if keyword != "" && strings.Contains(lowerMsg, strings.ToLower(keyword)) {
+			return true
 		}
 	}
 	return false

@@ -198,7 +198,12 @@ func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, lo
 	}
 
 	// Strategic DynamoDB service initialization
-	dynamoService := services.NewDynamoDBService(cfg)
+	dynamoService, err := services.NewDynamoDBService(cfg)
+	if err != nil {
+		// FIXED: The fluent interface is designed to work naturally
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			"DynamoDB service initialization failed", false)
+	}
 
 	// Strategic prompt service initialization - pass the logger correctly
 	promptService, err := services.NewPromptService(cfg.Prompts.TemplateVersion, logger)
