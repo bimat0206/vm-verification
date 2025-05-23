@@ -154,65 +154,57 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		"size":   systemPromptRef.Size,
 	})
 	
-	// STRATEGIC STAGE 4: Enhanced layout metadata integration with schema validation
-	if initData.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
-		if layoutMetadataRef, exists := event.S3References["processing_layout-metadata"]; exists {
-			transformLogger.Info("loading_layout_metadata", map[string]interface{}{
-				"bucket":         layoutMetadataRef.Bucket,
-				"key":            layoutMetadataRef.Key,
-				"schema_version": schema.SchemaVersion,
-			})
-			
-			// STRATEGIC ENHANCEMENT: Use shared schema layout metadata loader
-			layoutData, err := e.s3.LoadLayoutMetadata(ctx, layoutMetadataRef)
-			if err != nil {
-				transformLogger.Warn("layout_metadata_load_failed", map[string]interface{}{
-					"error":  err.Error(),
-					"key":    layoutMetadataRef.Key,
-					"impact": "continuing_with_embedded_layout_data",
-				})
-			} else {
-				// Strategic context enrichment using shared schema
-				enrichmentData := map[string]interface{}{
-					"layoutId":           layoutData.LayoutId,
-					"layoutPrefix":       layoutData.LayoutPrefix,
-					"location":           layoutData.Location,
-					"vendingMachineId":   layoutData.VendingMachineId,
-					"machineStructure":   layoutData.MachineStructure,
-					"productPositionMap": layoutData.ProductPositionMap,
-					"referenceImageUrl":  layoutData.ReferenceImageUrl,
-					"sourceJsonUrl":      layoutData.SourceJsonUrl,
-					"createdAt":          layoutData.CreatedAt,
-					"updatedAt":          layoutData.UpdatedAt,
-				}
-				
-				// Strategic schema integration: Populate VerificationContext LayoutMetadata
-				if initData.VerificationContext.LayoutId == 0 {
-					initData.VerificationContext.LayoutId = layoutData.LayoutId
-				}
-				if initData.VerificationContext.LayoutPrefix == "" {
-					initData.VerificationContext.LayoutPrefix = layoutData.LayoutPrefix
-				}
-				if initData.VerificationContext.VendingMachineId == "" {
-					initData.VerificationContext.VendingMachineId = layoutData.VendingMachineId
-				}
-				
-				transformLogger.Info("layout_metadata_integrated_successfully", map[string]interface{}{
-					"layout_id":          layoutData.LayoutId,
-					"layout_prefix":      layoutData.LayoutPrefix,
-					"vending_machine_id": layoutData.VendingMachineId,
-					"location":           layoutData.Location,
-					"product_positions":  len(layoutData.ProductPositionMap),
-					"schema_validation":  "passed",
-				})
-			}
-		} else {
-			transformLogger.Info("layout_metadata_not_available", map[string]interface{}{
-				"verification_type": initData.VerificationContext.VerificationType,
-				"impact":           "using_embedded_layout_data_from_initialization",
-			})
-		}
-	}
+// STRATEGIC STAGE 4: Enhanced layout metadata integration with schema validation
+if initData.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+    if layoutMetadataRef, exists := event.S3References["processing_layout-metadata"]; exists {
+        transformLogger.Info("loading_layout_metadata", map[string]interface{}{
+            "bucket":         layoutMetadataRef.Bucket,
+            "key":            layoutMetadataRef.Key,
+            "schema_version": schema.SchemaVersion,
+        })
+        
+        // STRATEGIC ENHANCEMENT: Use shared schema layout metadata loader
+        layoutData, err := e.s3.LoadLayoutMetadata(ctx, layoutMetadataRef)
+        if err != nil {
+            transformLogger.Warn("layout_metadata_load_failed", map[string]interface{}{
+                "error":  err.Error(),
+                "key":    layoutMetadataRef.Key,
+                "impact": "continuing_with_embedded_layout_data",
+            })
+        } else {
+            // Strategic schema integration: Populate VerificationContext LayoutMetadata
+            if initData.VerificationContext.LayoutId == 0 {
+                initData.VerificationContext.LayoutId = layoutData.LayoutId
+            }
+            if initData.VerificationContext.LayoutPrefix == "" {
+                initData.VerificationContext.LayoutPrefix = layoutData.LayoutPrefix
+            }
+            if initData.VerificationContext.VendingMachineId == "" {
+                initData.VerificationContext.VendingMachineId = layoutData.VendingMachineId
+            }
+            
+            // Store the layout metadata for later use in the local verification context
+            // This will be converted and included in the Turn1Request
+            if initData.LayoutMetadata == nil {
+                initData.LayoutMetadata = layoutData
+            }
+            
+            transformLogger.Info("layout_metadata_integrated_successfully", map[string]interface{}{
+                "layout_id":          layoutData.LayoutId,
+                "layout_prefix":      layoutData.LayoutPrefix,
+                "vending_machine_id": layoutData.VendingMachineId,
+                "location":           layoutData.Location,
+                "product_positions":  len(layoutData.ProductPositionMap),
+                "schema_validation":  "passed",
+            })
+        }
+    } else {
+        transformLogger.Info("layout_metadata_not_available", map[string]interface{}{
+            "verification_type": initData.VerificationContext.VerificationType,
+            "impact":           "using_embedded_layout_data_from_initialization",
+        })
+    }
+}
 	
 	// STRATEGIC STAGE 5: Turn1Request construction with schema conversion
 	req := &models.Turn1Request{

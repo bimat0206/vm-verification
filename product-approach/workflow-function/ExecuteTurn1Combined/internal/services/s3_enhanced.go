@@ -232,58 +232,61 @@ func (e *S3EnhancedOperations) fromStateReference(ref *s3state.Reference) models
 		Size:   ref.Size,
 	}
 }
-// ADD CONSISTENT INTERFACE METHODS
-func (e *S3EnhancedOperations) LoadInitializationData(ctx context.Context, ref models.S3Reference) (*models.InitializationData, error) {
-    if ref.Bucket == "" || ref.Key == "" {
-        return nil, errors.NewValidationError(
-            "initialization data reference validation failed",
-            map[string]interface{}{
-                "bucket_empty": ref.Bucket == "",
-                "key_empty":    ref.Key == "",
-            })
-    }
-    
-    var initData models.InitializationData
-    stateRef := &s3state.Reference{
-        Bucket: ref.Bucket,
-        Key:    ref.Key,
-        Size:   ref.Size,
-    }
-    
-    if err := e.stateManager.RetrieveJSON(stateRef, &initData); err != nil {
-        return nil, errors.WrapError(err, errors.ErrorTypeS3,
-            "failed to load initialization data", true).
-            WithContext("s3_key", ref.Key).
-            WithContext("bucket", ref.Bucket)
-    }
-    
-    return &initData, nil
+
+// LoadInitializationData loads initialization data from S3
+// This method provides interface consistency with S3StateManager
+func (e *S3EnhancedOperations) LoadInitializationData(ctx context.Context, ref models.S3Reference) (*InitializationData, error) {
+	if ref.Bucket == "" || ref.Key == "" {
+		return nil, errors.NewValidationError(
+			"initialization data reference validation failed",
+			map[string]interface{}{
+				"bucket_empty": ref.Bucket == "",
+				"key_empty":    ref.Key == "",
+			})
+	}
+	
+	var initData InitializationData
+	stateRef := &s3state.Reference{
+		Bucket: ref.Bucket,
+		Key:    ref.Key,
+		Size:   ref.Size,
+	}
+	
+	if err := e.stateManager.RetrieveJSON(stateRef, &initData); err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to load initialization data", true).
+			WithContext("s3_key", ref.Key).
+			WithContext("bucket", ref.Bucket)
+	}
+	
+	return &initData, nil
 }
 
-// ADD CONSISTENT INTERFACE METHODS
-func (e *S3EnhancedOperations) LoadImageMetadata(ctx context.Context, ref models.S3Reference) (*models.ImageMetadata, error) {
-    if ref.Bucket == "" || ref.Key == "" {
-        return nil, errors.NewValidationError(
-            "image metadata reference validation failed",
-            map[string]interface{}{
-                "bucket_empty": ref.Bucket == "",
-                "key_empty":    ref.Key == "",
-            })
-    }
-    
-    var metadata models.ImageMetadata
-    stateRef := &s3state.Reference{
-        Bucket: ref.Bucket,
-        Key:    ref.Key,
-        Size:   ref.Size,
-    }
-    
-    if err := e.stateManager.RetrieveJSON(stateRef, &metadata); err != nil {
-        return nil, errors.WrapError(err, errors.ErrorTypeS3,
-            "failed to load image metadata", true).
-            WithContext("s3_key", ref.Key).
-            WithContext("bucket", ref.Bucket)
-    }
-    
-    return &metadata, nil
+// LoadImageMetadata loads image metadata from S3
+// This method provides interface consistency with S3StateManager
+func (e *S3EnhancedOperations) LoadImageMetadata(ctx context.Context, ref models.S3Reference) (*ImageMetadata, error) {
+	if ref.Bucket == "" || ref.Key == "" {
+		return nil, errors.NewValidationError(
+			"image metadata reference validation failed",
+			map[string]interface{}{
+				"bucket_empty": ref.Bucket == "",
+				"key_empty":    ref.Key == "",
+			})
+	}
+	
+	var metadata ImageMetadata
+	stateRef := &s3state.Reference{
+		Bucket: ref.Bucket,
+		Key:    ref.Key,
+		Size:   ref.Size,
+	}
+	
+	if err := e.stateManager.RetrieveJSON(stateRef, &metadata); err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to load image metadata", true).
+			WithContext("s3_key", ref.Key).
+			WithContext("bucket", ref.Bucket)
+	}
+	
+	return &metadata, nil
 }

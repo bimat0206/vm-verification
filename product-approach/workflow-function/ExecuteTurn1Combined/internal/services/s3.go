@@ -2,8 +2,11 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
@@ -181,7 +184,7 @@ func NewS3StateManager(bucket string, log logger.Logger) (S3StateManager, error)
 // CORE LOADING OPERATIONS (PRESERVED BACKWARD COMPATIBILITY)
 // ===================================================================
 
-// LoadSystemPrompt retrieves simple system prompt content with comprehensive logging
+// LoadSystemPrompt retrieves system prompt from rich JSON format
 func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference) (string, error) {
 	startTime := time.Now()
 	m.logger.Info("s3_loading_system_prompt_started", map[string]interface{}{
@@ -196,40 +199,88 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 		return "", err
 	}
 	
-	var prompt string
+	// Get raw bytes first - don't unmarshal yet
 	stateRef := m.toStateReference(ref)
-	
-	if err := m.stateManager.RetrieveJSON(stateRef, &prompt); err != nil {
+	raw, err := m.stateManager.Retrieve(stateRef)
+	if err != nil {
 		duration := time.Since(startTime)
 		m.logger.Error("s3_system_prompt_retrieval_failed", map[string]interface{}{
-			"error":         err.Error(),
-			"bucket":        ref.Bucket,
-			"key":           ref.Key,
-			"duration_ms":   duration.Milliseconds(),
-			"operation":     "retrieve_json",
-			"expected_type": "string",
+			"error":       err.Error(),
+			"bucket":      ref.Bucket,
+			"key":         ref.Key,
+			"duration_ms": duration.Milliseconds(),
+			"operation":   "get_bytes",
 		})
-		return "", errors.WrapError(err, errors.ErrorTypeS3,
-			"failed to load system prompt", true).
-			WithContext("s3_key", ref.Key).
-			WithContext("bucket", ref.Bucket).
-			WithContext("duration_ms", duration.Milliseconds()).
-			WithContext("expected_type", "string")
+		wfErr := &errors.WorkflowError{
+			Type:      errors.ErrorTypeS3,
+			Code:      "ReadFailed",
+			Message:   fmt.Sprintf("failed to read system prompt: %v", err),
+			Retryable: true,
+			Severity:  errors.ErrorSeverityHigh,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
+		return "", wfErr.WithContext("s3_key", ref.Key).WithContext("bucket", ref.Bucket)
+	}
+	
+	// Parse the rich JSON object
+	var wrapper struct {
+		PromptContent struct {
+			SystemMessage string `json:"systemMessage"`
+		} `json:"promptContent"`
+	}
+	
+	if err := json.Unmarshal(raw, &wrapper); err != nil {
+		m.logger.Error("s3_system_prompt_format_error", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": ref.Bucket,
+			"key":    ref.Key,
+			"bytes":  len(raw),
+		})
+		return "", &errors.WorkflowError{
+			Type:      errors.ErrorTypeValidation,
+			Code:      "BadSystemPrompt",
+			Message:   fmt.Sprintf("expected rich JSON object, got err %v", err),
+			Retryable: false,
+			Severity:  errors.ErrorSeverityCritical,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
+	}
+	
+	// Validate we got the system message
+	if wrapper.PromptContent.SystemMessage == "" {
+		return "", &errors.WorkflowError{
+			Type:      errors.ErrorTypeValidation,
+			Code:      "MissingSystemMessage",
+			Message:   "promptContent.systemMessage is empty or missing",
+			Retryable: false,
+			Severity:  errors.ErrorSeverityCritical,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
 	}
 	
 	duration := time.Since(startTime)
+	m.logger.Debug("system_prompt_loaded", map[string]interface{}{
+		"format":         "rich",
+		"bytes":          len(raw),
+		"message_length": len(wrapper.PromptContent.SystemMessage),
+		"duration_ms":    duration.Milliseconds(),
+	})
+	
 	m.logger.Info("s3_system_prompt_loaded_successfully", map[string]interface{}{
 		"bucket":         ref.Bucket,
 		"key":            ref.Key,
-		"prompt_length":  len(prompt),
+		"prompt_length":  len(wrapper.PromptContent.SystemMessage),
 		"duration_ms":    duration.Milliseconds(),
-		"prompt_preview": truncateForLog(prompt, 100),
+		"prompt_preview": truncateForLog(wrapper.PromptContent.SystemMessage, 100),
 	})
 	
-	return prompt, nil
+	return wrapper.PromptContent.SystemMessage, nil
 }
 
-// LoadBase64Image retrieves Base64 image content with enhanced validation
+// LoadBase64Image retrieves Base64 image from .base64 file
 func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference) (string, error) {
 	startTime := time.Now()
 	m.logger.Info("s3_loading_base64_image_started", map[string]interface{}{
@@ -243,37 +294,77 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 		return "", err
 	}
 	
-	var imageData string
-	stateRef := m.toStateReference(ref)
+	// Validate file extension
+	if !strings.HasSuffix(ref.Key, ".base64") {
+		m.logger.Error("s3_base64_image_invalid_extension", map[string]interface{}{
+			"bucket": ref.Bucket,
+			"key":    ref.Key,
+		})
+		return "", &errors.WorkflowError{
+			Type:      errors.ErrorTypeValidation,
+			Code:      "ExpectBase64Ext",
+			Message:   "image object must end with .base64",
+			Retryable: false,
+			Severity:  errors.ErrorSeverityCritical,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
+	}
 	
-	if err := m.stateManager.RetrieveJSON(stateRef, &imageData); err != nil {
+	// Get raw bytes from the .base64 file
+	stateRef := m.toStateReference(ref)
+	rawBytes, err := m.stateManager.Retrieve(stateRef)
+	if err != nil {
 		duration := time.Since(startTime)
 		m.logger.Error("s3_base64_image_retrieval_failed", map[string]interface{}{
-			"error":         err.Error(),
-			"bucket":        ref.Bucket,
-			"key":           ref.Key,
-			"duration_ms":   duration.Milliseconds(),
-			"expected_size": ref.Size,
-			"expected_type": "string",
+			"error":       err.Error(),
+			"bucket":      ref.Bucket,
+			"key":         ref.Key,
+			"duration_ms": duration.Milliseconds(),
+			"operation":   "retrieve_bytes",
 		})
-		return "", errors.WrapError(err, errors.ErrorTypeS3,
-			"failed to load Base64 image", true).
-			WithContext("s3_key", ref.Key).
-			WithContext("bucket", ref.Bucket).
-			WithContext("estimated_size", ref.Size).
-			WithContext("duration_ms", duration.Milliseconds())
+		wfErr := &errors.WorkflowError{
+			Type:      errors.ErrorTypeS3,
+			Code:      "ReadFailed",
+			Message:   fmt.Sprintf("failed to read base64 image: %v", err),
+			Retryable: true,
+			Severity:  errors.ErrorSeverityHigh,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
+		return "", wfErr.WithContext("s3_key", ref.Key).WithContext("bucket", ref.Bucket)
+	}
+	
+	// Trim any whitespace from the base64 content
+	b := bytes.TrimSpace(rawBytes)
+	if len(b) == 0 {
+		return "", &errors.WorkflowError{
+			Type:      errors.ErrorTypeValidation,
+			Code:      "EmptyBase64",
+			Message:   "base64 file is empty",
+			Retryable: false,
+			Severity:  errors.ErrorSeverityCritical,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
 	}
 	
 	duration := time.Since(startTime)
+	m.logger.Debug("image_loaded", map[string]interface{}{
+		"format":      ".base64",
+		"bytes":       len(b),
+		"duration_ms": duration.Milliseconds(),
+	})
+	
 	m.logger.Info("s3_base64_image_loaded_successfully", map[string]interface{}{
 		"bucket":            ref.Bucket,
 		"key":               ref.Key,
-		"image_data_length": len(imageData),
+		"image_data_length": len(b),
 		"duration_ms":       duration.Milliseconds(),
-		"size_ratio":        calculateSizeRatio(len(imageData), ref.Size),
+		"size_ratio":        calculateSizeRatio(len(b), ref.Size),
 	})
 	
-	return imageData, nil
+	return string(b), nil
 }
 
 // LoadJSON provides strategic generic JSON loading with comprehensive error handling

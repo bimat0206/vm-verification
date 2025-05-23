@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
@@ -20,9 +21,11 @@ type BedrockService interface {
 }
 
 type bedrockService struct {
-	client    *bedrock.BedrockClient
-	modelID   string
-	maxTokens int
+	client         *bedrock.BedrockClient
+	modelID        string
+	maxTokens      int
+	connectTimeout time.Duration
+	callTimeout    time.Duration
 }
 
 // NewBedrockService constructs a BedrockService using the provided configuration.
@@ -44,14 +47,20 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 			WithContext("max_tokens", cfg.Processing.MaxTokens)
 	}
 	return &bedrockService{
-		client:    c,
-		modelID:   cfg.AWS.BedrockModel,
-		maxTokens: cfg.Processing.MaxTokens,
+		client:         c,
+		modelID:        cfg.AWS.BedrockModel,
+		maxTokens:      cfg.Processing.MaxTokens,
+		connectTimeout: time.Duration(cfg.Processing.BedrockConnectTimeoutSec) * time.Second,
+		callTimeout:    time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
 	}, nil
 }
 
 // Converse performs the multimodal Converse call to Bedrock with intelligent error handling.
 func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt, base64Image string) (*models.BedrockResponse, error) {
+	// Apply call timeout to the context
+	ctx, cancel := context.WithTimeout(ctx, s.callTimeout)
+	defer cancel()
+
 	// Build the request components
 	img := bedrock.CreateImageContentFromBytes("jpeg", base64Image)
 	userMsg := bedrock.CreateUserMessageWithContent(turnPrompt, []bedrock.ContentBlock{img})
@@ -109,12 +118,17 @@ func (s *bedrockService) classifyAndWrapBedrockError(err error, systemPrompt, tu
 			WithContext("retry_strategy", "exponential_backoff").
 			WithContext("severity", "low") // Not a serious problem, just need to wait
 			
-	} else if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "deadline") {
-		// Timeout errors are retryable but might indicate a larger issue
-		return baseError.
+	} else if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "deadline") || strings.Contains(errMsg, "context deadline exceeded") {
+		// Timeout errors should use BedrockTimeout error type for proper Step Functions handling
+		return errors.NewBedrockError(
+			"Bedrock call exceeded timeout limit",
+			"BedrockTimeout",
+			false, // non-retryable as per requirements
+		).WithAPISource(errors.APISourceConverse).
+			WithContext("model_id", s.modelID).
+			WithContext("timeout_seconds", s.callTimeout.Seconds()).
 			WithContext("error_category", "timeout").
-			WithContext("retry_strategy", "standard").
-			WithContext("severity", "medium")
+			WithContext("original_error", err.Error())
 			
 	} else if strings.Contains(errMsg, "content") || strings.Contains(errMsg, "policy") || strings.Contains(errMsg, "safety") {
 		// Content policy violations should not be retried - they're deterministic failures

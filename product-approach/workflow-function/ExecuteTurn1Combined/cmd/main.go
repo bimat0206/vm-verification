@@ -228,6 +228,14 @@ func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, lo
 		return nil, errors.WrapError(err, errors.ErrorTypeBedrock, 
 			"Bedrock service initialization failed", false)
 	}
+	
+	// Log Bedrock client initialization with timeout configuration
+	logger.Info("bedrock_client_init", map[string]interface{}{
+		"connectTimeoutMs": cfg.Processing.BedrockConnectTimeoutSec * 1000,
+		"callTimeoutMs":    cfg.Processing.BedrockCallTimeoutSec * 1000,
+		"model":            cfg.AWS.BedrockModel,
+		"maxTokens":        cfg.Processing.MaxTokens,
+	})
 
 	// Strategic DynamoDB service initialization
 	dynamoService, err := services.NewDynamoDBService(cfg)

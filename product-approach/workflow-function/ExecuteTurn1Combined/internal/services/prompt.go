@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -99,6 +100,13 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 		return "", nil, err
 	}
 	
+	// Validate and fix context structure
+	if err := vCtx.Validate(); err != nil {
+		return "", nil, errors.NewValidationError("invalid verification context", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+	
 	// Determine template type based on verification type
 	templateType := p.getTemplateType(vCtx.VerificationType)
 	p.logger.Info("loading_template", map[string]interface{}{
@@ -120,17 +128,15 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 	}
 	
 	if err != nil {
+		p.logger.Error("template_rendering_failed", map[string]interface{}{
+			"error":             err.Error(),
+			"template_type":     templateType,
+			"template_version":  p.version,
+			"verification_type": vCtx.VerificationType,
+			"original_error":    err.Error(),
+		})
 		return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
 	}
-	if err != nil {
-        p.logger.Error("template_rendering_failed", map[string]interface{}{
-            "error":             err.Error(),
-            "template_type":     templateType,
-            "template_version":  p.version,
-            "verification_type": vCtx.VerificationType,
-        })
-        return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
-    }
     
     p.logger.Info("template_rendered_successfully", map[string]interface{}{
         "template_type":       templateType,
@@ -220,15 +226,31 @@ func (p *promptService) buildTemplateContext(vCtx models.VerificationContext, sy
 		"VerificationType": vCtx.VerificationType,
 		"SystemPrompt":     systemPrompt,
 		"VendingMachineId": vCtx.VendingMachineId,
+		"VendingMachineID": vCtx.VendingMachineId, // Also add with uppercase ID for template compatibility
 		"TemplateVersion":  p.version,
 		"CreatedAt":        schema.FormatISO8601(),
 	}
+	
+	// Ensure essential fields are initialized with defaults if missing
+	context["RowCount"] = p.getIntOrDefault(vCtx, "RowCount", 6)
+	context["ColumnCount"] = p.getIntOrDefault(vCtx, "ColumnCount", 10)
+	
+	// Ensure RowLabels is properly initialized
+	rowCount := context["RowCount"].(int)
+	context["RowLabels"] = p.ensureRowLabels(vCtx, rowCount)
 	
 	// Add layout-specific context
 	if vCtx.VerificationType == schema.VerificationTypeLayoutVsChecking {
 		context["LayoutId"] = vCtx.LayoutId
 		context["LayoutPrefix"] = vCtx.LayoutPrefix
 		context["LayoutMetadata"] = vCtx.LayoutMetadata
+		
+		// Add Location if available in layout metadata
+		if vCtx.LayoutMetadata != nil {
+			if location, ok := vCtx.LayoutMetadata["location"].(string); ok {
+				context["Location"] = location
+			}
+		}
 	}
 	
 	// Add historical context - flatten it for template access
@@ -236,6 +258,16 @@ func (p *promptService) buildTemplateContext(vCtx models.VerificationContext, sy
 		// Flatten historical context fields for direct template access
 		for key, value := range vCtx.HistoricalContext {
 			context[key] = value
+		}
+		
+		// Ensure required fields for previous-vs-current template
+		context["PreviousVerificationAt"] = p.getStringOrDefault(vCtx.HistoricalContext, "PreviousVerificationAt", "unknown")
+		context["HoursSinceLastVerification"] = p.getFloatOrDefault(vCtx.HistoricalContext, "HoursSinceLastVerification", 0.0)
+		context["PreviousVerificationStatus"] = p.getStringOrDefault(vCtx.HistoricalContext, "PreviousVerificationStatus", "unknown")
+		
+		// Ensure VerificationSummary is properly structured
+		if summary, ok := vCtx.HistoricalContext["VerificationSummary"].(map[string]interface{}); ok {
+			context["VerificationSummary"] = p.ensureVerificationSummary(summary)
 		}
 	}
 	
@@ -252,27 +284,39 @@ func (p *promptService) classifyTemplateError(err error, vCtx models.Verificatio
 	
 	errMsg := err.Error()
 	
+	// Log the error with full context for debugging
+	p.logger.Error("template_error_classification", map[string]interface{}{
+		"original_error":       errMsg,
+		"error_type":          fmt.Sprintf("%T", err),
+		"template_version":    p.version,
+		"verification_type":   vCtx.VerificationType,
+		"has_layout_metadata": vCtx.LayoutMetadata != nil,
+		"has_historical_ctx":  vCtx.HistoricalContext != nil,
+	})
+	
 	if contains(errMsg, "template", "not found") {
-		return errors.NewInternalError("template_service", err).
+		return errors.NewInternalError("prompt_service", err).
 			WithContext("error_category", "missing_template").
 			WithContext("template_version", p.version).
-			WithContext("severity", "critical")
+			WithContext("severity", "critical").
+			WithContext("original_error", errMsg)
 			
 	} else if contains(errMsg, "parse", "syntax") {
-		return errors.NewInternalError("template_service", err).
+		return errors.NewInternalError("prompt_service", err).
 			WithContext("error_category", "template_syntax_error").
-			WithContext("severity", "critical")
+			WithContext("severity", "critical").
+			WithContext("original_error", errMsg)
 			
-	} else if contains(errMsg, "execute", "field") {
+	} else if contains(errMsg, "execute", "field") || contains(errMsg, "function", "not defined") {
 		return errors.NewValidationError(
-			"template execution failed due to data structure mismatch",
+			"template execution failed due to data structure mismatch or missing function",
 			mergeMaps(baseContext, map[string]interface{}{
 				"error_category": "template_data_mismatch",
 				"original_error": errMsg,
 			}))
 			
 	} else {
-		return errors.NewInternalError("template_service", err).
+		return errors.NewInternalError("prompt_service", err).
 			WithContext("error_category", "unknown_template_error").
 			WithContext("original_error", errMsg).
 			WithContext("debug_context", baseContext)
@@ -329,4 +373,114 @@ func (p *promptService) getMaxTokenBudget() int {
 	// This should ideally come from configuration
 	// For now, using a reasonable default
 	return 16000 // Conservative budget to ensure we don't exceed Bedrock limits
+}
+
+// Helper methods for safe data extraction with defaults
+
+func (p *promptService) getIntOrDefault(vCtx models.VerificationContext, key string, defaultValue int) int {
+	// Check in LayoutMetadata first
+	if vCtx.LayoutMetadata != nil {
+		if val, ok := vCtx.LayoutMetadata[key]; ok {
+			switch v := val.(type) {
+			case int:
+				return v
+			case float64:
+				return int(v)
+			case int64:
+				return int(v)
+			}
+		}
+	}
+	
+	// Check in HistoricalContext if present
+	if vCtx.HistoricalContext != nil {
+		if val, ok := vCtx.HistoricalContext[key]; ok {
+			switch v := val.(type) {
+			case int:
+				return v
+			case float64:
+				return int(v)
+			case int64:
+				return int(v)
+			}
+		}
+	}
+	
+	return defaultValue
+}
+
+func (p *promptService) getFloatOrDefault(data map[string]interface{}, key string, defaultValue float64) float64 {
+	if data == nil {
+		return defaultValue
+	}
+	
+	if val, ok := data[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return v
+		case float32:
+			return float64(v)
+		case int:
+			return float64(v)
+		case int64:
+			return float64(v)
+		}
+	}
+	
+	return defaultValue
+}
+
+func (p *promptService) getStringOrDefault(data map[string]interface{}, key string, defaultValue string) string {
+	if data == nil {
+		return defaultValue
+	}
+	
+	if val, ok := data[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	
+	return defaultValue
+}
+
+func (p *promptService) ensureRowLabels(vCtx models.VerificationContext, rowCount int) []string {
+	// Check if RowLabels already exists in context
+	if vCtx.LayoutMetadata != nil {
+		if labels, ok := vCtx.LayoutMetadata["RowLabels"].([]string); ok && len(labels) >= rowCount {
+			return labels
+		}
+		// Handle []interface{} case
+		if labelsInterface, ok := vCtx.LayoutMetadata["RowLabels"].([]interface{}); ok {
+			labels := make([]string, 0, len(labelsInterface))
+			for _, l := range labelsInterface {
+				if str, ok := l.(string); ok {
+					labels = append(labels, str)
+				}
+			}
+			if len(labels) >= rowCount {
+				return labels
+			}
+		}
+	}
+	
+	// Generate default row labels A, B, C, etc.
+	labels := make([]string, rowCount)
+	for i := 0; i < rowCount; i++ {
+		labels[i] = string(rune('A' + i))
+	}
+	
+	return labels
+}
+
+func (p *promptService) ensureVerificationSummary(summary map[string]interface{}) map[string]interface{} {
+	// Ensure all required fields are present with proper types
+	result := make(map[string]interface{})
+	
+	result["OverallAccuracy"] = p.getFloatOrDefault(summary, "OverallAccuracy", 0.0)
+	result["MissingProducts"] = p.getIntOrDefault(models.VerificationContext{HistoricalContext: summary}, "MissingProducts", 0)
+	result["IncorrectProductTypes"] = p.getIntOrDefault(models.VerificationContext{HistoricalContext: summary}, "IncorrectProductTypes", 0)
+	result["EmptyPositionsCount"] = p.getIntOrDefault(models.VerificationContext{HistoricalContext: summary}, "EmptyPositionsCount", 0)
+	
+	return result
 }

@@ -17,11 +17,12 @@ type Config struct {
 		DynamoDBConversationTable string
 	}
 	Processing struct {
-		MaxTokens             int
-		BudgetTokens          int
-		ThinkingType          string
-		MaxRetries            int
-		BedrockTimeoutSeconds int
+		MaxTokens                int
+		BudgetTokens             int
+		ThinkingType             string
+		MaxRetries               int
+		BedrockConnectTimeoutSec int
+		BedrockCallTimeoutSec    int
 	}
 	Logging struct {
 		Level  string
@@ -65,13 +66,19 @@ func LoadConfiguration() (*Config, error) {
 	cfg.Processing.BudgetTokens = getInt("BUDGET_TOKENS", 16000)
 	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "enable")
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 3)
-	cfg.Processing.BedrockTimeoutSeconds = getInt("BEDROCK_TIMEOUT_SECONDS", 120)
+	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
+	cfg.Processing.BedrockCallTimeoutSec = getInt("BEDROCK_CALL_TIMEOUT_SEC", 30)
 
 	cfg.Logging.Level = getEnv("LOG_LEVEL", "INFO")
 	cfg.Logging.Format = getEnv("LOG_FORMAT", "json")
 
 	cfg.Prompts.TemplateVersion = getEnv("TURN1_PROMPT_VERSION", "v1.0")
 	cfg.Prompts.TemplateBasePath = getEnv("TEMPLATE_BASE_PATH", "/opt/templates")
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }

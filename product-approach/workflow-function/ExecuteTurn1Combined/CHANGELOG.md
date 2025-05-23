@@ -5,6 +5,114 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2025-05-23
+
+### Fixed - Template Rendering Production Crash
+- **Missing Template Function**: Fixed "function 'printf' not defined" error in production
+  - Added `printf` function to shared templateloader's DefaultFunctions map
+  - Function was missing despite being used in templates for formatting (e.g., `{{printf "%.1f" .HoursSinceLastVerification}}`)
+  - Templates now render successfully in production matching test behavior
+
+- **Context Field Initialization**: Hardened template context building to prevent nil pointer errors
+  - Added safe field extraction helpers with proper type checking and defaults
+  - Ensure RowCount/ColumnCount default to 6/10 if missing from metadata
+  - Generate RowLabels (A, B, C...) automatically if not provided
+  - Initialize VerificationSummary with zero values instead of nil for PREVIOUS_VS_CURRENT
+  - Added VendingMachineID field (uppercase) for template compatibility
+
+- **VerificationContext Validation**: Added pre-render validation to ensure required fields
+  - Created `Validate()` method on VerificationContext model
+  - Automatically initializes missing fields based on verification type
+  - Prevents template execution errors from missing context data
+  - Called before template rendering in prompt service
+
+- **Enhanced Error Logging**: Improved error visibility for template failures
+  - Added detailed error classification with original error messages
+  - Enhanced logging to include template type, version, and error context
+  - Better detection of missing function errors for faster debugging
+  - Removed duplicate error handling code in prompt service
+
+### Technical Details
+- **Root Cause**: Production templateloader was using default Go template functions only
+- **Testing Gap**: Unit tests registered a richer FuncMap that masked the production issue
+- **Solution**: Ensured production and test environments use identical template functions
+- **Validation**: All template tests pass including new integration tests
+
+## [2.4.0] - 2025-05-23
+
+### Changed - S3 Loader Simplification for Current-Truth Formats
+- **System Prompt Loading**: Updated to parse new rich JSON format
+  - Now expects `{ "promptContent": { "systemMessage": "..." } }` structure
+  - Extracts `systemMessage` field from nested JSON object
+  - Returns `WorkflowError{Type:"ValidationException"}` for invalid JSON format
+  - Added DEBUG logging showing `"format":"rich"` for operational visibility
+  
+- **Base64 Image Loading**: Simplified to read plain .base64 files
+  - Now validates files must end with `.base64` extension
+  - Reads raw base64 text directly without JSON parsing
+  - Trims whitespace from content automatically
+  - Returns `WorkflowError{Type:"ValidationException"}` for invalid formats
+  - Added DEBUG logging showing `"format":".base64"` for tracking
+  
+### Added - Enhanced Error Handling
+- **Format Validation Errors**: Specific error codes for format issues
+  - `BadSystemPrompt` - Invalid JSON structure in system prompt
+  - `MissingSystemMessage` - Empty or missing systemMessage field
+  - `ExpectBase64Ext` - Image file doesn't have .base64 extension
+  - `EmptyBase64` - Base64 file is empty after trimming
+  - `ReadFailed` - S3 read operation failed (retryable)
+  
+### Added - Comprehensive Testing
+- **Unit Tests**: Added test coverage for new loader implementations
+  - System prompt parsing with valid/invalid JSON scenarios
+  - Base64 file reading with extension validation
+  - Error handling verification for all failure modes
+  - Whitespace trimming validation for base64 content
+  - All tests pass with proper error classification
+
+### Technical Details
+- **Breaking Change**: Removed support for legacy formats (simple strings, `{ "data": ... }`)
+- **S3 Operations**: Uses raw byte retrieval (`Retrieve`) instead of JSON unmarshaling for images
+- **Error Types**: Format errors use `ValidationException`, S3 errors use `S3Exception`
+- **Backward Compatibility**: None - this is a breaking change for current-truth format adoption
+
+## [2.3.0] - 2025-05-23
+
+### Added - Bedrock Timeout Configuration
+- **Configurable Timeouts**: Added environment-driven timeout configuration for Bedrock API calls
+  - `BEDROCK_CONNECT_TIMEOUT_SEC` - Connection establishment timeout (default: 10 seconds)
+  - `BEDROCK_CALL_TIMEOUT_SEC` - API call timeout (default: 30 seconds)
+  - Timeouts are applied using `context.WithTimeout` for proper cancellation support
+  
+- **Configuration Validation**: Added comprehensive timeout validation
+  - Created `internal/config/validate.go` with `Validate()` method
+  - Ensures both timeouts are greater than 0
+  - Ensures call timeout is greater than connect timeout
+  - Returns `WorkflowError{Type:"Config", Code:"BedrockTimeoutInvalid"}` for invalid configurations
+  
+- **Timeout Error Handling**: Enhanced Bedrock error classification for timeout scenarios
+  - Timeout errors return `BedrockTimeout` error code (non-retryable)
+  - Proper detection of "context deadline exceeded" errors
+  - Enriched error context includes timeout duration for debugging
+  - Step Functions will route timeout errors to `FinalizeWithError`
+  
+- **Bootstrap Logging**: Added initialization logging for timeout configuration
+  - Logs `connectTimeoutMs` and `callTimeoutMs` during cold start
+  - Provides operational visibility into active timeout settings
+  - Included in `bedrock_client_init` log entry
+  
+- **Comprehensive Testing**: Added unit tests for timeout functionality
+  - Config validation tests covering all edge cases
+  - Service-level timeout error classification tests
+  - Integration tests for timeout configuration loading
+  - All tests pass with 100% coverage
+
+### Technical Details
+- **Implementation Location**: Timeout applied in `internal/services/bedrock.go` Converse method
+- **Backward Compatibility**: Maintains existing single timeout field while adding new granular controls
+- **Operational Benefits**: Prevents Lambda hanging on stalled Bedrock calls, improves latency metrics
+- **Future Consistency**: Pattern ready for adoption by other Lambdas (Turn-2, Finalize)
+
 ## [2.2.0] - 2025-05-23
 
 ### Changed - Major Code Refactoring for Better Maintainability
