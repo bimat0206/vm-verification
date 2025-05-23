@@ -4,17 +4,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"strings"
-	"sync"
 	"time"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
-	"workflow-function/ExecuteTurn1Combined/internal/validation"
 	
 	// Using shared packages correctly
-	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 )
@@ -26,13 +22,21 @@ type Handler struct {
 	bedrock       services.BedrockService
 	dynamo        services.DynamoDBService
 	promptService services.PromptService
-	validator     *validation.SchemaValidator
 	log           logger.Logger
 	
-	// Enhanced tracking
-	processingStages []schema.ProcessingStage
-	statusHistory    []schema.StatusHistoryEntry
-	startTime        time.Time
+	// Components for better code organization
+	processingTracker       *ProcessingStagesTracker
+	statusTracker           *StatusTracker
+	responseBuilder         *ResponseBuilder
+	eventTransformer        *EventTransformer
+	promptGenerator         *PromptGenerator
+	contextLoader           *ContextLoader
+	historicalLoader        *HistoricalContextLoader
+	bedrockInvoker          *BedrockInvoker
+	storageManager          *StorageManager
+	dynamoManager           *DynamoManager
+	validator               *Validator
+	startTime               time.Time
 }
 
 // NewHandler wires together all dependencies for the Lambda with enhanced capabilities.
@@ -50,700 +54,141 @@ func NewHandler(
 		bedrock:          bedrockClient,
 		dynamo:           dynamoClient,
 		promptService:    promptGen,
-		validator:        validation.NewSchemaValidator(),
 		log:              log,
-		processingStages: make([]schema.ProcessingStage, 0),
-		statusHistory:    make([]schema.StatusHistoryEntry, 0),
+		responseBuilder:  NewResponseBuilder(*cfg),
+		eventTransformer: NewEventTransformer(s3Mgr, log),
+		promptGenerator:  NewPromptGenerator(promptGen, *cfg),
+		contextLoader:    NewContextLoader(s3Mgr, log),
+		historicalLoader: NewHistoricalContextLoader(dynamoClient, log),
+		bedrockInvoker:   NewBedrockInvoker(bedrockClient, *cfg, log),
+		storageManager:   NewStorageManager(s3Mgr, *cfg, log),
+		dynamoManager:    NewDynamoManager(dynamoClient, *cfg, log),
+		validator:        NewValidator(),
 	}, nil
 }
 
 // Handle executes a single Turn-1 verification cycle with comprehensive tracking.
 func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema.CombinedTurnResponse, error) {
 	h.startTime = time.Now()
+	h.processingTracker = NewProcessingStagesTracker(h.startTime)
+	h.statusTracker = NewStatusTracker(h.startTime)
 	
 	// Initialize processing metrics
-	processingMetrics := &schema.ProcessingMetrics{
-		WorkflowTotal: &schema.WorkflowMetrics{
-			StartTime:     schema.FormatISO8601(),
-			FunctionCount: 0,
-		},
-		Turn1: &schema.TurnMetrics{
-			StartTime:        schema.FormatISO8601(),
-			RetryAttempts:    0,
-		},
-	}
+	processingMetrics := h.initializeProcessingMetrics()
 	
-	// Schema validation using standardized validation
+	// Validate request
 	if err := h.validator.ValidateRequest(req); err != nil {
-		h.recordProcessingStage("validation", "failed", time.Since(h.startTime), map[string]interface{}{
+		h.processingTracker.RecordStage("validation", "failed", time.Since(h.startTime), map[string]interface{}{
 			"validation_error": err.Error(),
 		})
-		return nil, errors.NewValidationError("request validation failed", map[string]interface{}{
-			"validation_error": err.Error(),
-		})
+		return nil, err
 	}
+	h.processingTracker.RecordStage("validation", "completed", time.Since(h.startTime), nil)
 	
-	h.recordProcessingStage("validation", "completed", time.Since(h.startTime), nil)
+	// Create context logger
+	contextLogger := h.createContextLogger(req)
 	
-	// Create context logger with enhanced tracking
-	contextLogger := h.log.WithCorrelationId(req.VerificationID).
-		WithFields(map[string]interface{}{
-			"verificationId": req.VerificationID,
-			"turnId":         1,
-			"schemaVersion":  h.validator.GetSchemaVersion(),
-			"functionName":   "ExecuteTurn1Combined",
-		})
-	
-	contextLogger.Info("Starting ExecuteTurn1Combined with enhanced tracking", map[string]interface{}{
-		"verification_type": req.VerificationContext.VerificationType,
-		"s3_system_prompt":  req.S3Refs.Prompts.System.Key,
-		"s3_reference_img":  req.S3Refs.Images.ReferenceBase64.Key,
-		"processing_mode":   "combined_function",
-	})
-
-	// STAGE 1: Update status to TURN1_STARTED
-	if err := h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
+	// Update initial status
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
 		"function_start_time": schema.FormatISO8601(),
 		"verification_type":   req.VerificationContext.VerificationType,
-	}); err != nil {
-		contextLogger.Warn("failed to update initial status", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	// STAGE 2: Concurrent context loading (system prompt & base64 image)
-	contextLoadStart := time.Now()
-	var (
-		systemPrompt string
-		base64Img    string
-		loadErr      error
-	)
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		sp, err := h.s3.LoadSystemPrompt(ctx, req.S3Refs.Prompts.System)
-		if err != nil {
-			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3, 
-				"failed to load system prompt", true)
-			
-			enrichedErr := wrappedErr.WithContext("s3_key", req.S3Refs.Prompts.System.Key).
-				WithContext("stage", "context_loading")
-			
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
-			return
-		}
-		systemPrompt = sp
-	}()
-
-	go func() {
-		defer wg.Done()
-		img, err := h.s3.LoadBase64Image(ctx, req.S3Refs.Images.ReferenceBase64)
-		if err != nil {
-			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3, 
-				"failed to load reference image", true)
-			
-			enrichedErr := wrappedErr.WithContext("s3_key", req.S3Refs.Images.ReferenceBase64.Key).
-				WithContext("stage", "context_loading").
-				WithContext("image_size", req.S3Refs.Images.ReferenceBase64.Size)
-			
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
-			return
-		}
-		base64Img = img
-	}()
-
-	wg.Wait()
-	contextLoadDuration := time.Since(contextLoadStart)
-	
-	if loadErr != nil {
-		h.recordProcessingStage("context_loading", "failed", contextLoadDuration, map[string]interface{}{
-			"s3_operations": 2,
-			"error_type":    "s3_retrieval_failure",
-		})
-		
-		h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1Error, "context_loading_failed", map[string]interface{}{
-			"error_details": loadErr.Error(),
-		})
-		
-		if workflowErr, ok := loadErr.(*errors.WorkflowError); ok {
-			contextLogger.Error("resource loading error", map[string]interface{}{
-				"error_type":    string(workflowErr.Type),
-				"error_code":    workflowErr.Code,
-				"retryable":     workflowErr.Retryable,
-				"severity":      string(workflowErr.Severity),
-				"s3_operations": 2,
-			})
-		}
-		
-		return nil, loadErr
-	}
-
-	// Record successful context loading
-	h.recordProcessingStage("context_loading", "completed", contextLoadDuration, map[string]interface{}{
-		"s3_operations":        2,
-		"concurrent_loading":   true,
-		"system_prompt_length": len(systemPrompt),
-		"image_data_length":    len(base64Img),
-	})
-	
-	// Update status to TURN1_CONTEXT_LOADED
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1ContextLoaded, "context_loading", map[string]interface{}{
-		"system_prompt_size": len(systemPrompt),
-		"image_size":         len(base64Img),
-		"loading_duration_ms": contextLoadDuration.Milliseconds(),
 	})
 
-	// STAGE 2.5: Load historical context for PREVIOUS_VS_CURRENT verification type
-	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		historicalStart := time.Now()
-		
-		// Extract checking image URL from the reference image S3 key
-		// The S3 key format is typically: verifications/{verificationId}/images/{checkingImageUrl}
-		checkingImageUrl := extractCheckingImageUrl(req.S3Refs.Images.ReferenceBase64.Key)
-		
-		if checkingImageUrl != "" {
-			contextLogger.Info("Loading historical verification context", map[string]interface{}{
-				"checking_image_url": checkingImageUrl,
-				"verification_type":  req.VerificationContext.VerificationType,
-			})
-			
-			// Query for previous verification using the checking image URL
-			previousVerification, err := h.dynamo.QueryPreviousVerification(ctx, checkingImageUrl)
-			if err != nil {
-				// Log warning but continue - historical context is optional enhancement
-				contextLogger.Warn("Failed to load historical verification context", map[string]interface{}{
-					"error":              err.Error(),
-					"checking_image_url": checkingImageUrl,
-				})
-			} else if previousVerification != nil {
-				// Populate historical context with previous verification data
-				req.VerificationContext.HistoricalContext = map[string]interface{}{
-					"PreviousVerificationAt":         previousVerification.VerificationAt,
-					"PreviousVerificationStatus":     previousVerification.CurrentStatus,
-					"PreviousVerificationId":         previousVerification.VerificationId,
-					"HoursSinceLastVerification":     calculateHoursSince(previousVerification.VerificationAt),
-				}
-				
-				// Add layout information from the previous verification
-				if previousVerification.LayoutId > 0 {
-					req.VerificationContext.HistoricalContext["LayoutId"] = previousVerification.LayoutId
-					req.VerificationContext.HistoricalContext["LayoutPrefix"] = previousVerification.LayoutPrefix
-				}
-				
-				// For now, set default row/column information
-				// In a real implementation, this would come from additional DynamoDB attributes
-				// or a separate layout metadata query
-				req.VerificationContext.HistoricalContext["RowCount"] = 4
-				req.VerificationContext.HistoricalContext["ColumnCount"] = 10
-				req.VerificationContext.HistoricalContext["RowLabels"] = []string{"A", "B", "C", "D"}
-				
-				historicalDuration := time.Since(historicalStart)
-				h.recordProcessingStage("historical_context_loading", "completed", historicalDuration, map[string]interface{}{
-					"previous_verification_id": previousVerification.VerificationId,
-					"hours_since_last":         req.VerificationContext.HistoricalContext["HoursSinceLastVerification"],
-				})
-				
-				contextLogger.Info("Successfully loaded historical verification context", map[string]interface{}{
-					"previous_verification_id":   previousVerification.VerificationId,
-					"previous_verification_at":   previousVerification.VerificationAt,
-					"hours_since_last":          req.VerificationContext.HistoricalContext["HoursSinceLastVerification"],
-				})
-			}
-		}
+	// STAGE 1: Load context (system prompt & base64 image)
+	loadResult := h.contextLoader.LoadContext(ctx, req)
+	if loadResult.Error != nil {
+		return h.handleContextLoadError(ctx, req.VerificationID, loadResult, contextLogger)
+	}
+	h.recordContextLoadSuccess(ctx, req.VerificationID, loadResult)
+
+	// STAGE 2: Load historical context if applicable
+	historicalDuration, _ := h.historicalLoader.LoadHistoricalContext(ctx, req, contextLogger)
+	if historicalDuration > 0 {
+		h.processingTracker.RecordStage("historical_context_loading", "completed", historicalDuration, map[string]interface{}{
+			"has_historical_context": req.VerificationContext.HistoricalContext != nil,
+		})
 	}
 
-	// STAGE 3: Generate Turn-1 prompt with template processing
-	promptStart := time.Now()
-	turnPrompt, templateProcessor, err := h.generateTurn1PromptEnhanced(ctx, req.VerificationContext, systemPrompt)
-	promptDuration := time.Since(promptStart)
-	
-	if err != nil {
-		h.recordProcessingStage("prompt_generation", "failed", promptDuration, map[string]interface{}{
-			"template_version": h.cfg.Prompts.TemplateVersion,
-			"error_type":       "prompt_generation_failure",
-		})
-		
-		h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTemplateProcessingError, "prompt_generation_failed", map[string]interface{}{
-			"error_details": err.Error(),
-		})
-		
-		promptErr := errors.NewInternalError("prompt_service", err).
-			WithContext("template_version", h.cfg.Prompts.TemplateVersion).
-			WithContext("verification_type", req.VerificationContext.VerificationType)
-		
-		enrichedErr := errors.SetVerificationID(promptErr, req.VerificationID)
-		
-		contextLogger.Error("prompt generation error", map[string]interface{}{
-			"template_version":    h.cfg.Prompts.TemplateVersion,
-			"verification_type":   req.VerificationContext.VerificationType,
-			"system_prompt_size":  len(systemPrompt),
-		})
-		
-		return nil, enrichedErr
-	}
-
-	// Record successful prompt generation
-	promptMetadata := map[string]interface{}{
-		"template_version":     h.cfg.Prompts.TemplateVersion,
-		"prompt_length":        len(turnPrompt),
-		"template_used":        "turn1-combined",
-		"context_enrichment":   true,
+	// STAGE 3: Generate prompt
+	promptResult := h.generatePrompt(ctx, req, loadResult.SystemPrompt)
+	if promptResult.Error != nil {
+		return h.handlePromptError(ctx, req.VerificationID, promptResult, contextLogger)
 	}
 	
-	if templateProcessor != nil {
-		promptMetadata["template_processing_time_ms"] = templateProcessor.ProcessingTime
-		// Token counts will be added after Bedrock response
-	}
-	
-	h.recordProcessingStage("prompt_generation", "completed", promptDuration, promptMetadata)
-	
-	// Update status to TURN1_PROMPT_PREPARED
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1PromptPrepared, "prompt_generation", map[string]interface{}{
-		"prompt_length":    len(turnPrompt),
+	// Record prompt generation success
+	h.processingTracker.RecordStage("prompt_generation", "completed", promptResult.Duration, map[string]interface{}{
 		"template_version": h.cfg.Prompts.TemplateVersion,
-		"generation_duration_ms": promptDuration.Milliseconds(),
+		"prompt_length":    len(promptResult.Prompt),
+		"template_used":    "turn1-combined",
+	})
+	
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1PromptPrepared, "prompt_generation", map[string]interface{}{
+		"prompt_length":    len(promptResult.Prompt),
+		"template_version": h.cfg.Prompts.TemplateVersion,
+		"generation_duration_ms": promptResult.Duration.Milliseconds(),
 	})
 
-	// STAGE 4: Bedrock invocation
-	bedrockStart := time.Now()
-	
-	// Update status to TURN1_BEDROCK_INVOKED
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1BedrockInvoked, "bedrock_invocation", map[string]interface{}{
+	// STAGE 4: Invoke Bedrock
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1BedrockInvoked, "bedrock_invocation", map[string]interface{}{
 		"model_id":      h.cfg.AWS.BedrockModel,
 		"max_tokens":    h.cfg.Processing.MaxTokens,
 		"invocation_time": schema.FormatISO8601(),
 	})
 	
-	resp, err := h.bedrock.Converse(ctx, systemPrompt, turnPrompt, base64Img)
-	bedrockDuration := time.Since(bedrockStart)
-	
-	if err != nil {
-		h.recordProcessingStage("bedrock_invocation", "failed", bedrockDuration, map[string]interface{}{
-			"model_id":     h.cfg.AWS.BedrockModel,
-			"max_tokens":   h.cfg.Processing.MaxTokens,
-			"error_type":   "bedrock_api_failure",
-		})
-		
-		h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1Error, "bedrock_invocation_failed", map[string]interface{}{
-			"error_details": err.Error(),
-		})
-		
-		if workflowErr, ok := err.(*errors.WorkflowError); ok {
-			enrichedErr := workflowErr.WithContext("model_id", h.cfg.AWS.BedrockModel).
-				WithContext("max_tokens", h.cfg.Processing.MaxTokens).
-				WithContext("prompt_size", len(turnPrompt)).
-				WithContext("image_size", len(base64Img))
-			
-			finalErr := errors.SetVerificationID(enrichedErr, req.VerificationID)
-			
-			if workflowErr.Retryable {
-				contextLogger.Warn("bedrock retryable error", map[string]interface{}{
-					"error_code":     workflowErr.Code,
-					"api_source":     string(workflowErr.APISource),
-					"retry_attempt":  "will_be_retried_by_step_functions",
-				})
-			} else {
-				contextLogger.Error("bedrock non-retryable error", map[string]interface{}{
-					"error_code":   workflowErr.Code,
-					"api_source":   string(workflowErr.APISource),
-					"severity":     string(workflowErr.Severity),
-				})
-			}
-			
-			return nil, finalErr
-		} else {
-			wrappedErr := errors.WrapError(err, errors.ErrorTypeBedrock, 
-				"bedrock invocation failed", false).
-				WithAPISource(errors.APISourceConverse)
-			
-			enrichedErr := errors.SetVerificationID(wrappedErr, req.VerificationID)
-			
-			contextLogger.Error("bedrock unexpected error", map[string]interface{}{
-				"original_error": err.Error(),
-			})
-			
-			return nil, enrichedErr
-		}
+	invokeResult := h.bedrockInvoker.InvokeBedrock(ctx, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, req.VerificationID)
+	if invokeResult.Error != nil {
+		return h.handleBedrockError(ctx, req.VerificationID, invokeResult)
 	}
+	h.recordBedrockSuccess(ctx, req.VerificationID, invokeResult, promptResult.TemplateProcessor)
 
-	// Record successful Bedrock invocation
-	h.recordProcessingStage("bedrock_invocation", "completed", bedrockDuration, map[string]interface{}{
-		"model_id":            h.cfg.AWS.BedrockModel,
-		"input_tokens":        resp.TokenUsage.InputTokens,
-		"output_tokens":       resp.TokenUsage.OutputTokens,
-		"thinking_tokens":     resp.TokenUsage.ThinkingTokens,
-		"total_tokens":        resp.TokenUsage.TotalTokens,
-		"bedrock_request_id":  resp.RequestID,
-		"latency_ms":          bedrockDuration.Milliseconds(),
-	})
+	// STAGE 5: Store responses
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1ResponseProcessing, "response_processing", nil)
 	
-	// Update status to TURN1_BEDROCK_COMPLETED
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1BedrockCompleted, "bedrock_completion", map[string]interface{}{
-		"token_usage":         resp.TokenUsage,
-		"bedrock_request_id":  resp.RequestID,
-		"latency_ms":          bedrockDuration.Milliseconds(),
-	})
-	
-	// Update templateProcessor with actual token usage from Bedrock
-	if templateProcessor != nil {
-		templateProcessor.InputTokens = resp.TokenUsage.InputTokens
-		templateProcessor.OutputTokens = resp.TokenUsage.OutputTokens
+	storageResult := h.storageManager.StoreResponses(ctx, req.VerificationID, invokeResult.Response)
+	if storageResult.Error != nil {
+		return nil, storageResult.Error
 	}
+	h.recordStorageSuccess(storageResult, len(invokeResult.Response.Raw))
 
-	// STAGE 5: Response processing and S3 storage
-	processingStart := time.Now()
-	
-	// Update status to TURN1_RESPONSE_PROCESSING
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1ResponseProcessing, "response_processing", nil)
-	
-	rawRef, err := h.s3.StoreRawResponse(ctx, req.VerificationID, resp.Raw)
-	if err != nil {
-		s3Err := errors.WrapError(err, errors.ErrorTypeS3, 
-			"store raw response failed", true).
-			WithContext("verification_id", req.VerificationID).
-			WithContext("response_size", len(resp.Raw))
-		
-		enrichedErr := errors.SetVerificationID(s3Err, req.VerificationID)
-		
-		contextLogger.Warn("s3 raw-store warning", map[string]interface{}{
-			"response_size_bytes": len(resp.Raw),
-			"bucket":              h.cfg.AWS.S3Bucket,
-		})
-		
-		return nil, enrichedErr
-	}
-	
-	procRef, err := h.s3.StoreProcessedAnalysis(ctx, req.VerificationID, resp.Processed)
-	if err != nil {
-		s3Err := errors.WrapError(err, errors.ErrorTypeS3, 
-			"store processed analysis failed", true).
-			WithContext("verification_id", req.VerificationID)
-		
-		enrichedErr := errors.SetVerificationID(s3Err, req.VerificationID)
-		
-		contextLogger.Warn("s3 processed-store warning", map[string]interface{}{
-			"bucket": h.cfg.AWS.S3Bucket,
-		})
-		
-		return nil, enrichedErr
-	}
-	
-	processingDuration := time.Since(processingStart)
-	h.recordProcessingStage("response_processing", "completed", processingDuration, map[string]interface{}{
-		"s3_objects_created":   2,
-		"raw_response_size":    len(resp.Raw),
-		"processed_ref_key":    procRef.Key,
-		"raw_ref_key":          rawRef.Key,
-	})
-
-	// STAGE 6: Update processing metrics
+	// STAGE 6: Update metrics and async operations
 	totalDuration := time.Since(h.startTime)
-	processingMetrics.WorkflowTotal.EndTime = schema.FormatISO8601()
-	processingMetrics.WorkflowTotal.TotalTimeMs = totalDuration.Milliseconds()
-	processingMetrics.WorkflowTotal.FunctionCount = len(h.processingStages)
+	h.updateProcessingMetrics(processingMetrics, totalDuration, invokeResult)
 	
-	processingMetrics.Turn1.EndTime = schema.FormatISO8601()
-	processingMetrics.Turn1.TotalTimeMs = totalDuration.Milliseconds()
-	processingMetrics.Turn1.BedrockLatencyMs = bedrockDuration.Milliseconds()
-	processingMetrics.Turn1.ProcessingTimeMs = totalDuration.Milliseconds() - bedrockDuration.Milliseconds()
-	processingMetrics.Turn1.TokenUsage = &resp.TokenUsage
-
-	// STAGE 7: DynamoDB updates and conversation history (enhanced)
-	// Create a channel to track async update completion
-	updateComplete := make(chan error, 2)
+	// Start async DynamoDB updates
+	updateComplete := h.dynamoManager.UpdateAsync(ctx, req.VerificationID, 
+		invokeResult.Response.TokenUsage, invokeResult.Response.RequestID,
+		storageResult.RawRef, storageResult.ProcessedRef)
 	
-	go func() {
-		// Update verification status
-		updateErr := h.dynamo.UpdateVerificationStatus(ctx, req.VerificationID, models.StatusTurn1Completed, resp.TokenUsage)
-		if updateErr != nil {
-			asyncLogger := contextLogger.WithFields(map[string]interface{}{
-				"async_operation": "verification_status_update",
-				"table":           h.cfg.AWS.DynamoDBVerificationTable,
-			})
-			
-			if workflowErr, ok := updateErr.(*errors.WorkflowError); ok {
-				asyncLogger.Warn("dynamodb status update failed", map[string]interface{}{
-					"error_type": string(workflowErr.Type),
-					"error_code": workflowErr.Code,
-					"retryable":  workflowErr.Retryable,
-				})
-			} else {
-				asyncLogger.Warn("dynamodb status update failed", map[string]interface{}{
-					"error": updateErr.Error(),
-				})
-			}
-		}
-		updateComplete <- updateErr
-		
-		// Record conversation history
-		conversationTurn := &models.ConversationTurn{
-			VerificationID:   req.VerificationID,
-			TurnID:           1,
-			RawResponseRef:   rawRef,
-			ProcessedRef:     procRef,
-			TokenUsage:       resp.TokenUsage,
-			BedrockRequestID: resp.RequestID,
-			Timestamp:        time.Now(),
-		}
-		
-		historyErr := h.dynamo.RecordConversationTurn(ctx, conversationTurn)
-		if historyErr != nil {
-			contextLogger.Warn("conversation history recording failed", map[string]interface{}{
-				"error": historyErr.Error(),
-				"table": h.cfg.AWS.DynamoDBConversationTable,
-			})
-		}
-		updateComplete <- historyErr
-	}()
-
 	// Final status update
-	h.updateStatusWithHistory(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
 		"total_duration_ms": totalDuration.Milliseconds(),
-		"processing_stages": len(h.processingStages),
-		"status_updates":    len(h.statusHistory),
+		"processing_stages": h.processingTracker.GetStageCount(),
+		"status_updates":    h.statusTracker.GetHistoryCount(),
 	})
 
-	// STAGE 8: Build enhanced combined response
-	combinedResponse := h.buildCombinedTurnResponse(req, resp, rawRef, procRef, templateProcessor, processingMetrics, totalDuration)
+	// Build response
+	response := h.responseBuilder.BuildCombinedTurnResponse(
+		req, invokeResult.Response, storageResult.RawRef, storageResult.ProcessedRef,
+		promptResult.TemplateProcessor, processingMetrics, totalDuration,
+		h.processingTracker.GetStages(), h.statusTracker.GetHistory(),
+	)
 
-	// Wait for async DynamoDB updates to complete (with timeout)
-	updateTimeout := time.After(5 * time.Second)
-	updatesReceived := 0
-	for updatesReceived < 2 {
-		select {
-		case err := <-updateComplete:
-			updatesReceived++
-			if err != nil {
-				contextLogger.Warn("async update error received", map[string]interface{}{
-					"update_number": updatesReceived,
-					"error": err.Error(),
-				})
-			}
-		case <-updateTimeout:
-			contextLogger.Warn("async updates timed out", map[string]interface{}{
-				"updates_received": updatesReceived,
-				"timeout_seconds": 5,
-			})
-			goto ContinueProcessing
-		}
-	}
+	// Wait for async updates
+	h.dynamoManager.WaitForUpdates(updateComplete, 5*time.Second, contextLogger)
 	
-ContinueProcessing:
-	// Validate response before returning
-	if err := h.validator.ValidateResponse(&models.Turn1Response{
-		S3Refs: models.Turn1ResponseS3Refs{
-			RawResponse:       rawRef,
-			ProcessedResponse: procRef,
-		},
-		Status: models.StatusTurn1Completed,
-		Summary: models.Summary{
-			AnalysisStage:    models.StageReferenceAnalysis,
-			ProcessingTimeMs: totalDuration.Milliseconds(),
-			TokenUsage:       resp.TokenUsage,
-			BedrockRequestID: resp.RequestID,
-		},
-	}); err != nil {
-		contextLogger.Error("response validation failed", map[string]interface{}{
-			"validation_error": err.Error(),
-		})
-		return nil, errors.NewValidationError("response validation failed", map[string]interface{}{
-			"validation_error": err.Error(),
-		})
-	}
-
-	contextLogger.Info("Completed ExecuteTurn1Combined with enhanced tracking", map[string]interface{}{
-		"duration_ms":        totalDuration.Milliseconds(),
-		"input_tokens":       resp.TokenUsage.InputTokens,
-		"output_tokens":      resp.TokenUsage.OutputTokens,
-		"thinking_tokens":    resp.TokenUsage.ThinkingTokens,
-		"total_tokens":       resp.TokenUsage.TotalTokens,
-		"bedrock_request_id": resp.RequestID,
-		"s3_objects_created": 2,
-		"dynamo_updates":     2,
-		"processing_stages":  len(h.processingStages),
-		"status_updates":     len(h.statusHistory),
-		"status":             string(models.StatusTurn1Completed),
-		"schema_version":     h.validator.GetSchemaVersion(),
-		"template_used":      combinedResponse.TemplateUsed,
-	})
-	
-	return combinedResponse, nil
-}
-
-// Helper method to generate Turn1 prompt with enhanced template processing
-func (h *Handler) generateTurn1PromptEnhanced(ctx context.Context, vCtx models.VerificationContext, systemPrompt string) (string, *schema.TemplateProcessor, error) {
-	// For now, use the existing prompt service but capture processing info
-	prompt, err := h.promptService.GenerateTurn1Prompt(ctx, vCtx, systemPrompt)
-	if err != nil {
-		return "", nil, err
-	}
-	
-	// Create template processor info for tracking
-	templateProcessor := &schema.TemplateProcessor{
-		Template: &schema.PromptTemplate{
-			TemplateId:      "turn1-combined",
-			TemplateVersion: h.cfg.Prompts.TemplateVersion,
-			TemplateType:    "turn1-layout-vs-checking",
-			Content:         prompt,
-		},
-		ContextData: map[string]interface{}{
-			"verificationType": vCtx.VerificationType,
-			"layoutMetadata":   vCtx.LayoutMetadata,
-			"systemPromptSize": len(systemPrompt),
-		},
-		ProcessedPrompt: prompt,
-		ProcessingTime:  10, // Placeholder - would be actual processing time
-		InputTokens:     0,  // Will be populated from Bedrock response
-		OutputTokens:    0,  // Will be populated from Bedrock response
-	}
-	
-	return prompt, templateProcessor, nil
-}
-
-// Helper method to record processing stages
-func (h *Handler) recordProcessingStage(stageName, status string, duration time.Duration, metadata map[string]interface{}) {
-	stage := schema.ProcessingStage{
-		StageName: stageName,
-		StartTime: h.startTime.Add(duration - duration).Format(time.RFC3339), // Approximate start time
-		EndTime:   h.startTime.Add(duration).Format(time.RFC3339),
-		Duration:  duration.Milliseconds(),
-		Status:    status,
-		Metadata:  metadata,
-	}
-	
-	h.processingStages = append(h.processingStages, stage)
-}
-
-// Helper method to update status with history tracking
-func (h *Handler) updateStatusWithHistory(ctx context.Context, verificationID, status, stage string, metadata map[string]interface{}) error {
-	statusEntry := schema.StatusHistoryEntry{
-		Status:           status,
-		Timestamp:        schema.FormatISO8601(),
-		FunctionName:     "ExecuteTurn1Combined",
-		ProcessingTimeMs: time.Since(h.startTime).Milliseconds(),
-		Stage:            stage,
-		Metrics:          metadata,
-	}
-	
-	h.statusHistory = append(h.statusHistory, statusEntry)
-	
-	// In a full implementation, this would also update DynamoDB
-	// For now, we just track locally
-	return nil
-}
-
-// Helper method to build the combined turn response
-func (h *Handler) buildCombinedTurnResponse(
-	req *models.Turn1Request,
-	resp *models.BedrockResponse,
-	rawRef, procRef models.S3Reference,
-	templateProcessor *schema.TemplateProcessor,
-	processingMetrics *schema.ProcessingMetrics,
-	totalDuration time.Duration,
-) *schema.CombinedTurnResponse {
-	
-	// Build base turn response
-	turnResponse := &schema.TurnResponse{
-		TurnId:    1,
-		Timestamp: schema.FormatISO8601(),
-		Prompt:    "", // Would be filled with actual prompt
-		ImageUrls: map[string]string{
-			"reference": req.S3Refs.Images.ReferenceBase64.Key,
-		},
-		Response: schema.BedrockApiResponse{
-			Content:    string(resp.Raw), // Simplified - would parse properly
-			RequestId:  resp.RequestID,
-		},
-		LatencyMs:  totalDuration.Milliseconds(),
-		TokenUsage: &resp.TokenUsage,
-		Stage:      "REFERENCE_ANALYSIS",
-		Metadata: map[string]interface{}{
-			"model_id":         h.cfg.AWS.BedrockModel,
-			"verification_id":  req.VerificationID,
-			"function_name":    "ExecuteTurn1Combined",
-		},
-	}
-	
-	// Build context enrichment
-	contextEnrichment := map[string]interface{}{
-		"verification_type":    req.VerificationContext.VerificationType,
-		"layout_integrated":    req.VerificationContext.LayoutId != 0,
-		"historical_context":   req.VerificationContext.HistoricalContext != nil,
-		"processing_stages":    len(h.processingStages),
-		"status_updates":       len(h.statusHistory),
-		"concurrent_loading":   true,
-		"enhanced_tracking":    true,
-	}
-	
-	templateUsed := "turn1-layout-vs-checking"
-	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		templateUsed = "turn1-previous-vs-current"
-	}
-	
-	// Build combined response
-	combinedResponse := &schema.CombinedTurnResponse{
-		TurnResponse:      turnResponse,
-		ProcessingStages:  h.processingStages,
-		InternalPrompt:    "", // Would be filled with actual internal prompt
-		TemplateUsed:      templateUsed,
-		ContextEnrichment: contextEnrichment,
-	}
-	
-	return combinedResponse
-}
-
-// HandleTurn1Combined is the Lambda entrypoint invoked by Step Functions.
-func (h *Handler) HandleTurn1Combined(ctx context.Context, event json.RawMessage) (interface{}, error) {
-	var req models.Turn1Request
-	if err := json.Unmarshal(event, &req); err != nil {
-		validationErr := errors.NewValidationError(
-			"invalid input payload",
-			map[string]interface{}{
-				"payload_size": len(event),
-				"parse_error":  err.Error(),
-			})
-		
-		h.log.Error("input validation failed", map[string]interface{}{
-			"payload_size_bytes": len(event),
-			"error_details":      err.Error(),
-		})
-		
-		return nil, validationErr
-	}
-	
-	// Log received event
-	h.log.LogReceivedEvent(req)
-	
-	// Call enhanced handle method
-	response, err := h.Handle(ctx, &req)
-	if err != nil {
-		return nil, err
-	}
-	
-	// Log output event
-	h.log.LogOutputEvent(response)
+	// Validate and log completion
+	h.validateAndLogCompletion(response, totalDuration, invokeResult.Response, contextLogger)
 	
 	return response, nil
 }
 
-// extractCheckingImageUrl extracts the checking image URL from the S3 key
-// Expected format: verifications/{verificationId}/images/{checkingImageUrl}
-func extractCheckingImageUrl(s3Key string) string {
-	parts := strings.Split(s3Key, "/")
-	if len(parts) >= 4 && parts[2] == "images" {
-		// The checking image URL is typically the last part
-		return parts[len(parts)-1]
+// HandleTurn1Combined is the Lambda entrypoint invoked by Step Functions.
+func (h *Handler) HandleTurn1Combined(ctx context.Context, event json.RawMessage) (interface{}, error) {
+	var stepFunctionEvent StepFunctionEvent
+	
+	if err := json.Unmarshal(event, &stepFunctionEvent); err == nil && stepFunctionEvent.SchemaVersion != "" {
+		return h.handleStepFunctionEvent(ctx, stepFunctionEvent)
 	}
-	return ""
-}
-
-// calculateHoursSince calculates hours elapsed since the given timestamp
-func calculateHoursSince(timestamp string) float64 {
-	t, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		return 0
-	}
-	return time.Since(t).Hours()
+	
+	return h.handleDirectRequest(ctx, event)
 }

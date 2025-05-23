@@ -5,6 +5,106 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-05-23
+
+### Changed - Major Code Refactoring for Better Maintainability
+- **Handler Refactoring**: Split large handler.go (1000+ lines) into 14 focused, single-responsibility files
+  - Reduced main handler.go to just 193 lines - a clean orchestrator
+  - Created dedicated components for each major responsibility
+  - Improved code organization with clear separation of concerns
+  - Enhanced testability through isolated components
+
+### Added - New Component Architecture
+- **Core Handler Components**:
+  - `handler.go` (193 lines) - Main orchestrator that coordinates all components
+  - `handler_helpers.go` - Helper methods for handler operations
+  
+- **Processing & Tracking Components**:
+  - `processing_stages.go` - Tracks workflow processing stages with metadata
+  - `status_tracker.go` - Manages status updates and history tracking
+  - `response_builder.go` - Builds combined turn responses with all metadata
+  
+- **Data Loading Components**:
+  - `context_loader.go` - Handles concurrent loading of system prompt and base64 image
+  - `historical_context_loader.go` - Loads historical verification data for PREVIOUS_VS_CURRENT
+  
+- **External Service Components**:
+  - `bedrock_invoker.go` - Manages Bedrock API invocations with error handling
+  - `storage_manager.go` - Handles S3 storage operations for responses
+  - `dynamo_manager.go` - Manages DynamoDB operations with async support
+  
+- **Input/Output Components**:
+  - `event_transformer.go` - Transforms Step Functions events to internal format
+  - `prompt_generator.go` - Handles prompt generation with template processing
+  - `validator.go` - Wraps validation logic for requests and responses
+  
+- **Utility Components**:
+  - `helpers.go` - Utility functions (extractCheckingImageUrl, calculateHoursSince)
+
+### Improved - Code Quality and Maintainability
+- **Single Responsibility**: Each component has one clear, focused purpose
+- **Better Testability**: Components can be tested in isolation with mock dependencies
+- **Enhanced Readability**: Smaller files are easier to understand and navigate
+- **Reduced Coupling**: Components interact through well-defined interfaces
+- **Easier Collaboration**: Multiple developers can work on different components without conflicts
+
+### Technical Details
+- **File Size Reduction**: Main handler reduced from ~1000 lines to 193 lines (80% reduction)
+- **Component Count**: 14 focused files replacing 1 monolithic file
+- **Backward Compatibility**: All functionality preserved with identical behavior
+- **Compilation**: All components compile successfully with no errors
+- **Type Safety**: Maintained strong typing across all component interfaces
+
+## [2.1.2] - 2025-05-23
+
+### Fixed - Step Functions Input Format Compatibility
+- **Input Format Mismatch**: Fixed validation error when receiving events from Step Functions
+  - Function was expecting `Turn1Request` format but receiving Step Functions format with `schemaVersion`
+  - Added detection logic to identify input format based on `schemaVersion` field presence
+  - Validation errors were causing "INVALID_INPUT" failures with empty verification context
+
+### Added - Step Functions Event Transformation
+- **New Input Format Support**: Added support for Step Functions event format
+  - Detects events with `schemaVersion` field and `s3References` map structure
+  - Loads `processing_initialization` to extract `verificationContext`
+  - Loads `images_metadata` to extract reference image S3 location
+  - Loads `processing_layout-metadata` for LAYOUT_VS_CHECKING verification types
+  - Transforms data into expected `Turn1Request` structure
+
+- **transformStepFunctionEvent Method**: Added comprehensive transformation logic
+  - Validates presence of required S3 references
+  - Loads and parses initialization data for verification context
+  - Loads and parses image metadata for S3 references
+  - Handles optional layout metadata loading
+  - Provides detailed logging throughout transformation process
+
+### Changed - Handler Input Processing
+- **HandleTurn1Combined Enhancement**: Updated to handle dual input formats
+  - First attempts to parse as Step Functions format (with `schemaVersion`)
+  - Falls back to original `Turn1Request` format for backward compatibility
+  - Maintains existing functionality while supporting new input structure
+  - Enhanced error messages to include available S3 references for debugging
+
+### Technical Details
+- **Backward Compatibility**: Existing Turn1Request format continues to work unchanged
+- **S3 Loading Strategy**: Reuses `LoadSystemPrompt` method for JSON loading from S3
+- **Error Context**: Enhanced error reporting with verification ID and available references
+- **Logging Enhancement**: Added detailed transformation logging for operational visibility
+
+### Input Format Examples
+- **New Step Functions Format**:
+  ```json
+  {
+    "schemaVersion": "2.1.0",
+    "s3References": {
+      "processing_initialization": {...},
+      "images_metadata": {...},
+      "prompts_system": {...}
+    },
+    "verificationId": "verif-xxx",
+    "status": "PROMPT_PREPARED"
+  }
+
 ## [2.1.1] - 2025-05-23
 
 ### Added - S3 Service Comprehensive Logging
