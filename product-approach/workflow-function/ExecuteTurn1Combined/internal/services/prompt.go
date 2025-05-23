@@ -30,26 +30,46 @@ type promptService struct {
 }
 
 // NewPromptService constructs a PromptService with template management
+// In NewPromptService function, add logging:
 func NewPromptService(cfg *config.Config, logger logger.Logger) (PromptService, error) {
-	// Initialize template loader with configuration
-	loaderConfig := templateloader.Config{
-		BasePath:     cfg.Prompts.TemplateBasePath, // Use config value for flexibility
-		CacheEnabled: true,
-	}
-	
-	templateLoader, err := templateloader.New(loaderConfig)
-	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
-			"failed to initialize template loader", false).
-			WithContext("template_version", cfg.Prompts.TemplateVersion).
-			WithContext("template_base_path", cfg.Prompts.TemplateBasePath)
-	}
-	
-	return &promptService{
-		templateLoader: templateLoader,
-		logger:         logger,
-		version:        cfg.Prompts.TemplateVersion,
-	}, nil
+    logger.Info("initializing_prompt_service", map[string]interface{}{
+        "template_version":   cfg.Prompts.TemplateVersion,
+        "template_base_path": cfg.Prompts.TemplateBasePath,
+    })
+    
+    // Initialize template loader with configuration
+    loaderConfig := templateloader.Config{
+        BasePath:     cfg.Prompts.TemplateBasePath,
+        CacheEnabled: true,
+    }
+    
+    logger.Info("creating_template_loader", map[string]interface{}{
+        "base_path":     loaderConfig.BasePath,
+        "cache_enabled": loaderConfig.CacheEnabled,
+    })
+    
+    templateLoader, err := templateloader.New(loaderConfig)
+    if err != nil {
+        logger.Error("template_loader_initialization_failed", map[string]interface{}{
+            "error":              err.Error(),
+            "template_base_path": cfg.Prompts.TemplateBasePath,
+        })
+        return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+            "failed to initialize template loader", false).
+            WithContext("template_version", cfg.Prompts.TemplateVersion).
+            WithContext("template_base_path", cfg.Prompts.TemplateBasePath)
+    }
+    
+    logger.Info("prompt_service_initialized_successfully", map[string]interface{}{
+        "template_version":   cfg.Prompts.TemplateVersion,
+        "template_base_path": cfg.Prompts.TemplateBasePath,
+    })
+    
+    return &promptService{
+        templateLoader: templateLoader,
+        logger:         logger,
+        version:        cfg.Prompts.TemplateVersion,
+    }, nil
 }
 
 // GenerateTurn1Prompt renders the "turn1" template with the given context (legacy method)
@@ -69,7 +89,11 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 	systemPrompt string,
 ) (string, *schema.TemplateProcessor, error) {
 	startTime := time.Now()
-	
+	p.logger.Info("generating_turn1_prompt", map[string]interface{}{
+        "verification_type":    vCtx.VerificationType,
+        "template_version":     p.version,
+        "system_prompt_length": len(systemPrompt),
+    })
 	// Validate inputs
 	if err := p.validateInputs(vCtx, systemPrompt); err != nil {
 		return "", nil, err
@@ -77,6 +101,11 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 	
 	// Determine template type based on verification type
 	templateType := p.getTemplateType(vCtx.VerificationType)
+	p.logger.Info("loading_template", map[string]interface{}{
+        "template_type":     templateType,
+        "template_version":  p.version,
+        "verification_type": vCtx.VerificationType,
+    })
 	
 	// Build template context
 	templateContext := p.buildTemplateContext(vCtx, systemPrompt)
@@ -93,7 +122,23 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 	if err != nil {
 		return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
 	}
-	
+	if err != nil {
+        p.logger.Error("template_rendering_failed", map[string]interface{}{
+            "error":             err.Error(),
+            "template_type":     templateType,
+            "template_version":  p.version,
+            "verification_type": vCtx.VerificationType,
+        })
+        return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
+    }
+    
+    p.logger.Info("template_rendered_successfully", map[string]interface{}{
+        "template_type":       templateType,
+        "prompt_length":       len(processedPrompt),
+        "processing_time_ms":  time.Since(startTime).Milliseconds(),
+        "estimated_tokens":    len(processedPrompt) / 4,
+    })
+
 	// Quick token estimate check (not persisted, only for validation)
 	estimate := len(processedPrompt) / 4 // Rough estimate: 4 chars per token
 	if estimate > p.getMaxTokenBudget() {

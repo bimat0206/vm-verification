@@ -32,8 +32,8 @@ FROM public.ecr.aws/lambda/provided:al2-arm64
 COPY --from=builder /build/main /var/task/main
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Copy templates directory
-COPY --from=builder /build/templates /var/task/templates
+# Copy templates directory to /opt where Lambda layers are extracted
+COPY --from=builder /build/templates /opt/templates
 
 # Set the binary as the Lambda handler
 ENTRYPOINT ["/var/task/main"]

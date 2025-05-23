@@ -94,15 +94,24 @@ func init() {
 	initializationMetrics.TotalBootstrapTime = time.Since(initializationMetrics.InitializationStartTime)
 
 	// Strategic performance monitoring integration
-	applicationContainer.logger.Info("system_initialization_completed", map[string]interface{}{
-		"bootstrap_time_ms":        initializationMetrics.TotalBootstrapTime.Milliseconds(),
-		"config_load_time_ms":      initializationMetrics.ConfigurationLoadTime.Milliseconds(),
-		"aws_client_setup_time_ms": initializationMetrics.AWSClientSetupTime.Milliseconds(),
-		"service_init_time_ms":     initializationMetrics.ServiceInitializationTime.Milliseconds(),
-		"cold_start":               initializationMetrics.ColdStartIndicator,
-		"aws_region":               applicationContainer.config.AWS.Region,
-		"bedrock_model":            applicationContainer.config.AWS.BedrockModel,
-	})
+// At the end of init() function, add comprehensive initialization summary:
+applicationContainer.logger.Info("system_initialization_completed", map[string]interface{}{
+    "bootstrap_time_ms":        initializationMetrics.TotalBootstrapTime.Milliseconds(),
+    "config_load_time_ms":      initializationMetrics.ConfigurationLoadTime.Milliseconds(),
+    "aws_client_setup_time_ms": initializationMetrics.AWSClientSetupTime.Milliseconds(),
+    "service_init_time_ms":     initializationMetrics.ServiceInitializationTime.Milliseconds(),
+    "cold_start":               initializationMetrics.ColdStartIndicator,
+    "aws_region":               applicationContainer.config.AWS.Region,
+    "bedrock_model":            applicationContainer.config.AWS.BedrockModel,
+    "template_base_path":       applicationContainer.config.Prompts.TemplateBasePath,
+    "template_version":         applicationContainer.config.Prompts.TemplateVersion,
+    "services_initialized": map[string]bool{
+        "s3_service":      applicationContainer.s3Service != nil,
+        "bedrock_service": applicationContainer.bedrockService != nil,
+        "dynamo_service":  applicationContainer.dynamoService != nil,
+        "prompt_service":  applicationContainer.promptService != nil,
+    },
+})
 }
 
 // initializeApplicationContainer orchestrates comprehensive system bootstrap
@@ -204,8 +213,8 @@ type ServiceLayerComponents struct {
 
 // initializeServiceLayer orchestrates comprehensive service dependency initialization
 func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, logger logger.Logger) (*ServiceLayerComponents, error) {
-	// Strategic S3 service initialization
-	s3Service, err := services.NewS3StateManager(cfg.AWS.S3Bucket)
+	// Strategic S3 service initialization with comprehensive logging
+	s3Service, err := services.NewS3StateManager(cfg.AWS.S3Bucket, logger)
 	if err != nil {
 		// FIXED: Simple, clean error creation - no type gymnastics needed
 		return nil, errors.WrapError(err, errors.ErrorTypeS3, 

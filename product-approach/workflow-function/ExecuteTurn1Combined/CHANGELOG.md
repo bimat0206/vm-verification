@@ -5,6 +5,47 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2025-05-23
+
+### Added - S3 Service Comprehensive Logging
+- **Enhanced S3StateManager with Logger Support**: Added comprehensive logging throughout S3 operations
+  - Modified `NewS3StateManager` to accept `logger.Logger` parameter
+  - Added logger field to `s3Manager` struct for consistent logging across all methods
+  - Updated main.go to pass logger during S3 service initialization
+
+- **LoadSystemPrompt Logging**: Added detailed operational logging
+  - Logs operation start with bucket, key, and size information
+  - Logs validation failures with error context
+  - Tracks retrieval duration in milliseconds
+  - Logs successful completion with prompt length and preview (truncated to 100 chars)
+  - Debug-level logging for JSON retrieval operations
+
+- **LoadBase64Image Logging**: Added comprehensive image loading metrics
+  - Logs operation start with expected size
+  - Tracks and logs retrieval duration
+  - Calculates and logs size ratio (actual/expected) for validation
+  - Logs successful completion with actual data length
+  - Error logging includes duration and expected size context
+
+- **Store Operations Logging**: Enhanced visibility for storage operations
+  - Added logging to `StoreRawResponse` and `StoreProcessedAnalysis`
+  - Tracks operation duration from start to completion
+  - Logs validation failures and storage errors with full context
+  - Logs successful storage with S3 reference details (bucket, key, size)
+  - Debug-level logging for category and content type
+
+### Added - Utility Functions
+- **truncateForLog Helper**: Added safe string truncation for logging
+  - Prevents excessive log sizes by truncating long content
+  - Preserves readability with "..." suffix for truncated strings
+  - Used for system prompt preview in logs
+
+### Technical Details
+- **Performance Monitoring**: All S3 operations now report duration in milliseconds
+- **Error Context**: Enhanced error logging with operation type, duration, and S3 metadata
+- **Debug Support**: Added debug-level logs for detailed troubleshooting
+- **Operational Visibility**: Improved monitoring capabilities for S3 operations
+
 ## [2.1.0] - 2025-05-23
 
 ### Changed - Configuration Error Handling
