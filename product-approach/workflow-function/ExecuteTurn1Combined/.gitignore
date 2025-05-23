@@ -191,4 +191,3 @@ docker-compose.local.yml
 secrets/
 *.secret
 
-*.sh
