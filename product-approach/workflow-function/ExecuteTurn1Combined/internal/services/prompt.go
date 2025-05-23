@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -29,24 +30,25 @@ type promptService struct {
 }
 
 // NewPromptService constructs a PromptService with template management
-func NewPromptService(templateVersion string, logger logger.Logger) (PromptService, error) {
+func NewPromptService(cfg *config.Config, logger logger.Logger) (PromptService, error) {
 	// Initialize template loader with configuration
-	config := templateloader.Config{
-		BasePath:     "/opt/templates", // Standard path for Lambda layers
+	loaderConfig := templateloader.Config{
+		BasePath:     cfg.Prompts.TemplateBasePath, // Use config value for flexibility
 		CacheEnabled: true,
 	}
 	
-	templateLoader, err := templateloader.New(config)
+	templateLoader, err := templateloader.New(loaderConfig)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
 			"failed to initialize template loader", false).
-			WithContext("template_version", templateVersion)
+			WithContext("template_version", cfg.Prompts.TemplateVersion).
+			WithContext("template_base_path", cfg.Prompts.TemplateBasePath)
 	}
 	
 	return &promptService{
 		templateLoader: templateLoader,
 		logger:         logger,
-		version:        templateVersion,
+		version:        cfg.Prompts.TemplateVersion,
 	}, nil
 }
 
@@ -92,6 +94,18 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 		return "", nil, p.classifyTemplateError(err, vCtx, systemPrompt)
 	}
 	
+	// Quick token estimate check (not persisted, only for validation)
+	estimate := len(processedPrompt) / 4 // Rough estimate: 4 chars per token
+	if estimate > p.getMaxTokenBudget() {
+		return "", nil, errors.NewValidationError(
+			"prompt exceeds token budget",
+			map[string]interface{}{
+				"estimated_tokens": estimate,
+				"max_budget":       p.getMaxTokenBudget(),
+				"prompt_length":    len(processedPrompt),
+			})
+	}
+	
 	// Create processor info for metrics tracking
 	processingTime := time.Since(startTime)
 	processor := &schema.TemplateProcessor{
@@ -104,7 +118,9 @@ func (p *promptService) GenerateTurn1PromptWithMetrics(
 		ContextData:     templateContext,
 		ProcessedPrompt: processedPrompt,
 		ProcessingTime:  processingTime.Milliseconds(),
-		TokenEstimate:   len(processedPrompt) / 4, // Rough estimate: 4 chars per token
+		// InputTokens and OutputTokens will be populated later from Bedrock response
+		InputTokens:     0,
+		OutputTokens:    0,
 	}
 	
 	return processedPrompt, processor, nil
@@ -170,9 +186,12 @@ func (p *promptService) buildTemplateContext(vCtx models.VerificationContext, sy
 		context["LayoutMetadata"] = vCtx.LayoutMetadata
 	}
 	
-	// Add historical context
-	if vCtx.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		context["HistoricalContext"] = vCtx.HistoricalContext
+	// Add historical context - flatten it for template access
+	if vCtx.VerificationType == schema.VerificationTypePreviousVsCurrent && vCtx.HistoricalContext != nil {
+		// Flatten historical context fields for direct template access
+		for key, value := range vCtx.HistoricalContext {
+			context[key] = value
+		}
 	}
 	
 	return context
@@ -258,4 +277,11 @@ func mergeMaps(base map[string]interface{}, additional map[string]interface{}) m
 	}
 	
 	return result
+}
+
+// getMaxTokenBudget returns the maximum token budget for prompts
+func (p *promptService) getMaxTokenBudget() int {
+	// This should ideally come from configuration
+	// For now, using a reasonable default
+	return 16000 // Conservative budget to ensure we don't exceed Bedrock limits
 }

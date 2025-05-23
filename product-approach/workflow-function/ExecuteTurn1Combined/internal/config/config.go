@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"workflow-function/shared/errors"
 )
 
 // Config bundles all environment settings required by the Lambda.
@@ -36,11 +37,29 @@ type Config struct {
 func LoadConfiguration() (*Config, error) {
 	cfg := &Config{}
 	cfg.AWS.Region = getEnv("AWS_REGION", "us-east-1")
-	cfg.AWS.S3Bucket = mustGet("STATE_BUCKET")
-	cfg.AWS.BedrockModel = mustGet("BEDROCK_MODEL")
+	
+	var err error
+	cfg.AWS.S3Bucket, err = mustGet("STATE_BUCKET")
+	if err != nil {
+		return nil, err
+	}
+	
+	cfg.AWS.BedrockModel, err = mustGet("BEDROCK_MODEL")
+	if err != nil {
+		return nil, err
+	}
+	
 	cfg.AWS.AnthropicVersion = getEnv("ANTHROPIC_VERSION", "bedrock-2023-05-31")
-	cfg.AWS.DynamoDBVerificationTable = mustGet("DYNAMODB_VERIFICATION_TABLE")
-	cfg.AWS.DynamoDBConversationTable = mustGet("DYNAMODB_CONVERSATION_TABLE")
+	
+	cfg.AWS.DynamoDBVerificationTable, err = mustGet("DYNAMODB_VERIFICATION_TABLE")
+	if err != nil {
+		return nil, err
+	}
+	
+	cfg.AWS.DynamoDBConversationTable, err = mustGet("DYNAMODB_CONVERSATION_TABLE")
+	if err != nil {
+		return nil, err
+	}
 
 	cfg.Processing.MaxTokens = getInt("MAX_TOKENS", 24000)
 	cfg.Processing.BudgetTokens = getInt("BUDGET_TOKENS", 16000)
@@ -57,11 +76,11 @@ func LoadConfiguration() (*Config, error) {
 	return cfg, nil
 }
 
-func mustGet(key string) string {
+func mustGet(key string) (string, error) {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return v, nil
 	}
-	panic("missing required env var: " + key)
+	return "", errors.NewConfigError("MissingEnv", key+" is required", key)
 }
 
 func getEnv(key, def string) string {

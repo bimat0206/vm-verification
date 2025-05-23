@@ -4,6 +4,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -194,6 +195,65 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		"loading_duration_ms": contextLoadDuration.Milliseconds(),
 	})
 
+	// STAGE 2.5: Load historical context for PREVIOUS_VS_CURRENT verification type
+	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		historicalStart := time.Now()
+		
+		// Extract checking image URL from the reference image S3 key
+		// The S3 key format is typically: verifications/{verificationId}/images/{checkingImageUrl}
+		checkingImageUrl := extractCheckingImageUrl(req.S3Refs.Images.ReferenceBase64.Key)
+		
+		if checkingImageUrl != "" {
+			contextLogger.Info("Loading historical verification context", map[string]interface{}{
+				"checking_image_url": checkingImageUrl,
+				"verification_type":  req.VerificationContext.VerificationType,
+			})
+			
+			// Query for previous verification using the checking image URL
+			previousVerification, err := h.dynamo.QueryPreviousVerification(ctx, checkingImageUrl)
+			if err != nil {
+				// Log warning but continue - historical context is optional enhancement
+				contextLogger.Warn("Failed to load historical verification context", map[string]interface{}{
+					"error":              err.Error(),
+					"checking_image_url": checkingImageUrl,
+				})
+			} else if previousVerification != nil {
+				// Populate historical context with previous verification data
+				req.VerificationContext.HistoricalContext = map[string]interface{}{
+					"PreviousVerificationAt":         previousVerification.VerificationAt,
+					"PreviousVerificationStatus":     previousVerification.CurrentStatus,
+					"PreviousVerificationId":         previousVerification.VerificationId,
+					"HoursSinceLastVerification":     calculateHoursSince(previousVerification.VerificationAt),
+				}
+				
+				// Add layout information from the previous verification
+				if previousVerification.LayoutId > 0 {
+					req.VerificationContext.HistoricalContext["LayoutId"] = previousVerification.LayoutId
+					req.VerificationContext.HistoricalContext["LayoutPrefix"] = previousVerification.LayoutPrefix
+				}
+				
+				// For now, set default row/column information
+				// In a real implementation, this would come from additional DynamoDB attributes
+				// or a separate layout metadata query
+				req.VerificationContext.HistoricalContext["RowCount"] = 4
+				req.VerificationContext.HistoricalContext["ColumnCount"] = 10
+				req.VerificationContext.HistoricalContext["RowLabels"] = []string{"A", "B", "C", "D"}
+				
+				historicalDuration := time.Since(historicalStart)
+				h.recordProcessingStage("historical_context_loading", "completed", historicalDuration, map[string]interface{}{
+					"previous_verification_id": previousVerification.VerificationId,
+					"hours_since_last":         req.VerificationContext.HistoricalContext["HoursSinceLastVerification"],
+				})
+				
+				contextLogger.Info("Successfully loaded historical verification context", map[string]interface{}{
+					"previous_verification_id":   previousVerification.VerificationId,
+					"previous_verification_at":   previousVerification.VerificationAt,
+					"hours_since_last":          req.VerificationContext.HistoricalContext["HoursSinceLastVerification"],
+				})
+			}
+		}
+	}
+
 	// STAGE 3: Generate Turn-1 prompt with template processing
 	promptStart := time.Now()
 	turnPrompt, templateProcessor, err := h.generateTurn1PromptEnhanced(ctx, req.VerificationContext, systemPrompt)
@@ -234,7 +294,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	
 	if templateProcessor != nil {
 		promptMetadata["template_processing_time_ms"] = templateProcessor.ProcessingTime
-		promptMetadata["token_estimate"] = templateProcessor.TokenEstimate
+		// Token counts will be added after Bedrock response
 	}
 	
 	h.recordProcessingStage("prompt_generation", "completed", promptDuration, promptMetadata)
@@ -325,6 +385,12 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		"bedrock_request_id":  resp.RequestID,
 		"latency_ms":          bedrockDuration.Milliseconds(),
 	})
+	
+	// Update templateProcessor with actual token usage from Bedrock
+	if templateProcessor != nil {
+		templateProcessor.InputTokens = resp.TokenUsage.InputTokens
+		templateProcessor.OutputTokens = resp.TokenUsage.OutputTokens
+	}
 
 	// STAGE 5: Response processing and S3 storage
 	processingStart := time.Now()
@@ -529,7 +595,8 @@ func (h *Handler) generateTurn1PromptEnhanced(ctx context.Context, vCtx models.V
 		},
 		ProcessedPrompt: prompt,
 		ProcessingTime:  10, // Placeholder - would be actual processing time
-		TokenEstimate:   len(prompt) / 4,
+		InputTokens:     0,  // Will be populated from Bedrock response
+		OutputTokens:    0,  // Will be populated from Bedrock response
 	}
 	
 	return prompt, templateProcessor, nil
@@ -659,4 +726,24 @@ func (h *Handler) HandleTurn1Combined(ctx context.Context, event json.RawMessage
 	h.log.LogOutputEvent(response)
 	
 	return response, nil
+}
+
+// extractCheckingImageUrl extracts the checking image URL from the S3 key
+// Expected format: verifications/{verificationId}/images/{checkingImageUrl}
+func extractCheckingImageUrl(s3Key string) string {
+	parts := strings.Split(s3Key, "/")
+	if len(parts) >= 4 && parts[2] == "images" {
+		// The checking image URL is typically the last part
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
+// calculateHoursSince calculates hours elapsed since the given timestamp
+func calculateHoursSince(timestamp string) float64 {
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return 0
+	}
+	return time.Since(t).Hours()
 }

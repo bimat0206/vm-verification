@@ -95,35 +95,9 @@ type (
 )
 
 // ===================================================================
-// SCHEMA CONSTANTS (commonly used ones)
-// ===================================================================
-
-const (
-	// Schema version
-	SchemaVersion = schema.SchemaVersion
-	
-	// Verification types
-	VerificationTypeLayoutVsChecking  = schema.VerificationTypeLayoutVsChecking
-	VerificationTypePreviousVsCurrent = schema.VerificationTypePreviousVsCurrent
-	
-	// Enhanced status constants (for combined functions)
-	SchemaStatusTurn1Started              = schema.StatusTurn1Started
-	SchemaStatusTurn1ContextLoaded        = schema.StatusTurn1ContextLoaded
-	SchemaStatusTurn1PromptPrepared       = schema.StatusTurn1PromptPrepared
-	SchemaStatusTurn1ImageLoaded          = schema.StatusTurn1ImageLoaded
-	SchemaStatusTurn1BedrockInvoked       = schema.StatusTurn1BedrockInvoked
-	SchemaStatusTurn1BedrockCompleted     = schema.StatusTurn1BedrockCompleted
-	SchemaStatusTurn1ResponseProcessing   = schema.StatusTurn1ResponseProcessing
-	SchemaStatusTurn1Completed            = schema.StatusTurn1Completed
-	SchemaStatusTurn1Error                = schema.StatusTurn1Error
-	SchemaStatusTemplateProcessingError   = schema.StatusTemplateProcessingError
-	
-	// General workflow statuses
-	SchemaStatusVerificationInitialized  = schema.StatusVerificationInitialized
-	SchemaStatusImagesFetched            = schema.StatusImagesFetched
-	SchemaStatusCompleted                = schema.StatusCompleted
-	SchemaStatusVerificationFailed       = schema.StatusVerificationFailed
-)
+// SCHEMA CONSTANTS - Removed duplicate definitions
+// Use schema.* directly from the imported package
+// =================================================================== 
 
 // ===================================================================
 // VALIDATION AND HELPER FUNCTIONS (direct imports)
@@ -152,11 +126,11 @@ var (
 func ConvertToSchemaStatus(localStatus VerificationStatus) string {
 	switch localStatus {
 	case StatusTurn1Started:
-		return SchemaStatusTurn1Started
+		return schema.StatusTurn1Started
 	case StatusTurn1PromptPrepared:
-		return SchemaStatusTurn1PromptPrepared
+		return schema.StatusTurn1PromptPrepared
 	case StatusTurn1Completed:
-		return SchemaStatusTurn1Completed
+		return schema.StatusTurn1Completed
 	default:
 		return string(localStatus)
 	}
@@ -165,11 +139,11 @@ func ConvertToSchemaStatus(localStatus VerificationStatus) string {
 // ConvertFromSchemaStatus converts schema status to local status
 func ConvertFromSchemaStatus(schemaStatus string) VerificationStatus {
 	switch schemaStatus {
-	case SchemaStatusTurn1Started:
+	case schema.StatusTurn1Started:
 		return StatusTurn1Started
-	case SchemaStatusTurn1PromptPrepared:
+	case schema.StatusTurn1PromptPrepared:
 		return StatusTurn1PromptPrepared
-	case SchemaStatusTurn1Completed:
+	case schema.StatusTurn1Completed:
 		return StatusTurn1Completed
 	default:
 		return VerificationStatus(schemaStatus)
@@ -215,9 +189,9 @@ func CreateVerificationContext(verificationID, verificationType string) *SchemaV
 	return &SchemaVerificationContext{
 		VerificationId:   verificationID,
 		VerificationAt:   FormatISO8601(),
-		Status:           SchemaStatusVerificationInitialized,
+		Status:           schema.StatusVerificationInitialized,
 		VerificationType: verificationType,
-		CurrentStatus:    SchemaStatusVerificationInitialized,
+		CurrentStatus:    schema.StatusVerificationInitialized,
 		LastUpdatedAt:    FormatISO8601(),
 		StatusHistory:    make([]SchemaStatusHistoryEntry, 0),
 		ProcessingMetrics: &SchemaProcessingMetrics{},
@@ -250,15 +224,15 @@ func CreateConversationTracker(verificationID string, maxTurns int) *SchemaConve
 // IsEnhancedStatus checks if a status is an enhanced schema status
 func IsEnhancedStatus(status string) bool {
 	enhancedStatuses := []string{
-		SchemaStatusTurn1Started,
-		SchemaStatusTurn1ContextLoaded,
-		SchemaStatusTurn1PromptPrepared,
-		SchemaStatusTurn1ImageLoaded,
-		SchemaStatusTurn1BedrockInvoked,
-		SchemaStatusTurn1BedrockCompleted,
-		SchemaStatusTurn1ResponseProcessing,
-		SchemaStatusTurn1Error,
-		SchemaStatusTemplateProcessingError,
+		schema.StatusTurn1Started,
+		schema.StatusTurn1ContextLoaded,
+		schema.StatusTurn1PromptPrepared,
+		schema.StatusTurn1ImageLoaded,
+		schema.StatusTurn1BedrockInvoked,
+		schema.StatusTurn1BedrockCompleted,
+		schema.StatusTurn1ResponseProcessing,
+		schema.StatusTurn1Error,
+		schema.StatusTemplateProcessingError,
 	}
 	
 	for _, enhancedStatus := range enhancedStatuses {
@@ -272,9 +246,9 @@ func IsEnhancedStatus(status string) bool {
 // IsVerificationComplete checks if verification is in a completed state
 func IsVerificationComplete(status string) bool {
 	completedStatuses := []string{
-		SchemaStatusTurn1Completed,
-		SchemaStatusCompleted,
-		SchemaStatusVerificationFailed,
+		schema.StatusTurn1Completed,
+		schema.StatusCompleted,
+		schema.StatusVerificationFailed,
 	}
 	
 	for _, completedStatus := range completedStatuses {
@@ -287,7 +261,7 @@ func IsVerificationComplete(status string) bool {
 
 // IsErrorStatus checks if status indicates an error state
 func IsErrorStatus(status string) bool {
-	return status == SchemaStatusTurn1Error || 
-		   status == SchemaStatusTemplateProcessingError || 
-		   status == SchemaStatusVerificationFailed
+	return status == schema.StatusTurn1Error || 
+		   status == schema.StatusTemplateProcessingError || 
+		   status == schema.StatusVerificationFailed
 }

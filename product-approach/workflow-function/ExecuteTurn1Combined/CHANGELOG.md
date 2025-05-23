@@ -5,6 +5,94 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-05-23
+
+### Changed - Configuration Error Handling
+- **Removed Panics from Configuration Loading**: Replaced all panic calls with proper error handling
+  - Modified `config.LoadConfiguration()` to return `(*Config, error)` instead of panicking
+  - Changed `mustGet()` helper to return `(string, error)` and create `WorkflowError{Type:"Config"}`
+  - Added structured error handling with `errors.NewConfigError()` for missing environment variables
+  - Bootstrap now logs structured JSON errors for configuration failures before exiting
+  - Step Functions can now properly route to `FinalizeWithError` branch on config errors
+
+### Added - Error Infrastructure
+- **Config Error Type**: Added new error type to shared errors package
+  - Added `ErrorTypeConfig` constant for configuration-specific errors
+  - Added `IsConfigError()` helper function for easy error type checking
+  - Added `NewConfigError()` factory function with variable tracking
+  - Config errors are marked as non-retryable with CRITICAL severity
+
+### Added - Testing
+- **Configuration Error Tests**: Added comprehensive unit tests for config error handling
+  - Tests verify missing environment variables return proper `WorkflowError`
+  - Tests verify error type, code, message, and variable details
+  - Tests verify `IsConfigError()` helper works correctly
+  - Tests verify default values are applied when optional vars are missing
+  - All tests pass with 100% coverage of error paths
+
+### Technical Details
+- **Operational Improvements**: Cold-start failures now emit structured logs instead of stack traces
+- **Error Visibility**: Missing environment variables are clearly identified in error messages
+- **Lambda Integration**: Errors are properly propagated to Lambda runtime for Step Functions handling
+- **Code Quality**: Removed all panic calls from configuration and bootstrap paths
+
+## [2.0.0] - 2025-05-23
+
+### Changed - BREAKING
+- **Schema Constant Cleanup**: Removed duplicate schema constants to prevent drift
+  - Deleted entire `const` block from `internal/models/shared_types.go` (lines 99-126)
+  - All references now use `schema.*` constants directly from the shared package
+  - Updated functions: `ConvertToSchemaStatus`, `ConvertFromSchemaStatus`, `CreateVerificationContext`, `IsEnhancedStatus`, `IsVerificationComplete`, `IsErrorStatus`
+  - Single source of truth eliminates risk of constant drift between copies
+
+- **Token Usage Truth Source**: Replaced estimated tokens with actual Bedrock usage
+  - **BREAKING**: Removed `TokenEstimate` field from `TemplateProcessor` struct
+  - Added `InputTokens` and `OutputTokens` fields to `TemplateProcessor`
+  - Schema version bumped from "2.0.0" to "2.1.0" 
+  - Token estimation now used only for pre-flight validation (not persisted)
+  - Added `getMaxTokenBudget()` method with 16000 token limit
+  - Handler now populates actual token counts from Bedrock response
+  - Accurate cost tracking based on real usage, not estimates
+
+## [1.3.4] - 2025-05-23
+
+### Fixed
+- **Correlation ID Collision Risk**: Implemented collision-resistant correlation ID generation
+  - Previous implementation used only millisecond timestamp, risking collisions in high-throughput scenarios
+  - New implementation combines multiple components for uniqueness:
+    - Millisecond timestamp
+    - 4-byte random component (8 hex characters) using crypto/rand
+    - Atomic counter to ensure uniqueness within same millisecond
+  - Format: `turn1-{timestamp}-{random}-{counter}` (e.g., `turn1-1737654321000-a1b2c3d4-1`)
+  - Fallback mechanism if crypto/rand fails
+
+## [1.3.3] - 2025-05-23
+
+### Added
+- **Historical Context Loading**: Implemented proper historical verification context loading for PREVIOUS_VS_CURRENT verification type
+  - Added Stage 2.5 in handler to query previous verification data using `QueryPreviousVerification`
+  - Extracts checking image URL from S3 reference to find matching historical verification
+  - Populates HistoricalContext with previous verification data including:
+    - PreviousVerificationAt, PreviousVerificationStatus, PreviousVerificationId
+    - HoursSinceLastVerification calculation
+    - VerificationSummary and layout metadata (RowCount, ColumnCount, RowLabels)
+  - Added helper functions: `extractCheckingImageUrl` and `calculateHoursSince`
+
+### Fixed
+- **Template Context Flattening**: Updated prompt service to properly flatten HistoricalContext fields
+  - Changed from nested `context["HistoricalContext"]` to flattened fields for direct template access
+  - Ensures template variables like `{{.PreviousVerificationAt}}` work correctly
+- **Template Path Configuration**: Fixed hardcoded template path in prompt service
+  - Changed `NewPromptService` to accept full config object instead of just template version
+  - Now uses `cfg.Prompts.TemplateBasePath` instead of hardcoded `/opt/templates`
+  - Maintains flexibility across different environments (development, staging, production)
+  - Updated main.go to pass config to `NewPromptService`
+- **Historical Context Field Access**: Fixed compilation errors for missing VerificationContext fields
+  - Removed references to non-existent `VerificationSummary` and `LayoutMetadata` fields
+  - Updated to use available fields from `schema.VerificationContext` (LayoutId, LayoutPrefix)
+  - Added default values for row/column information until proper metadata query is implemented
+  - Code now compiles successfully while maintaining template compatibility
+
 ## [1.3.2] - 2025-05-23
 
 ### Fixed - Critical Production Issues

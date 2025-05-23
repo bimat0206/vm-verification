@@ -3,10 +3,13 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -62,11 +65,27 @@ func init() {
 	// Initialize application container with strategic error handling
 	container, err := initializeApplicationContainer()
 	if err != nil {
-		// FIXED: Remove the unnecessary type assertion
-		// The fluent interface already returns the correct type
+		// Check if it's a config error
+		if errors.IsConfigError(err) {
+			// For config errors, log with structured format and exit
+			if workflowErr, ok := err.(*errors.WorkflowError); ok {
+				errJSON, _ := json.Marshal(map[string]interface{}{
+					"level":     "ERROR",
+					"msg":       "config_load_failed",
+					"errorType": string(workflowErr.Type),
+					"errorCode": workflowErr.Code,
+					"error":     workflowErr.Message,
+					"var":       workflowErr.Details["variable"],
+					"severity":  "ERROR",
+				})
+				fmt.Fprintf(os.Stderr, "%s\n", errJSON)
+			}
+			log.Fatalf("CRITICAL: Configuration error: %v", err.Error())
+		}
+		
+		// For other errors, wrap and log
 		criticalErr := errors.NewInternalError("application_bootstrap", err).
 			WithContext("stage", "initialization")
-		// No need for (*errors.WorkflowError) - it's already that type!
 		
 		log.Fatalf("CRITICAL: Application container initialization failed: %v", criticalErr.Error())
 	}
@@ -93,8 +112,12 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	// Strategic configuration initialization with environment validation
 	cfg, err := internalConfig.LoadConfiguration()
 	if err != nil {
-		// FIXED: Clean fluent interface usage - no type assertions needed
-		return nil, errors.WrapError(err, errors.ErrorTypeValidation, 
+		// If it's already a WorkflowError, return it directly to preserve the error type
+		if _, ok := err.(*errors.WorkflowError); ok {
+			return nil, err
+		}
+		// Otherwise wrap it
+		return nil, errors.WrapError(err, errors.ErrorTypeConfig, 
 			"configuration initialization failed", false)
 	}
 
@@ -205,8 +228,8 @@ func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, lo
 			"DynamoDB service initialization failed", false)
 	}
 
-	// Strategic prompt service initialization - pass the logger correctly
-	promptService, err := services.NewPromptService(cfg.Prompts.TemplateVersion, logger)
+	// Strategic prompt service initialization - pass the config and logger
+	promptService, err := services.NewPromptService(cfg, logger)
 	if err != nil {
 		// FIXED: Method chaining works seamlessly
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
@@ -387,9 +410,28 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	return response, nil
 }
 
-// generateCorrelationID creates strategic correlation identifiers
+// Global counter for correlation ID uniqueness
+var correlationCounter uint64
+
+// generateCorrelationID creates strategic correlation identifiers with collision resistance
 func generateCorrelationID() string {
-	return fmt.Sprintf("turn1-%d", time.Now().UnixNano()/int64(time.Millisecond))
+	// Generate timestamp component (milliseconds since epoch)
+	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
+	
+	// Generate random component (4 bytes = 8 hex chars)
+	randomBytes := make([]byte, 4)
+	if _, err := rand.Read(randomBytes); err != nil {
+		// Fallback to timestamp-based randomness if crypto/rand fails
+		randomBytes = []byte{byte(timestamp), byte(timestamp >> 8), byte(timestamp >> 16), byte(timestamp >> 24)}
+	}
+	randomHex := hex.EncodeToString(randomBytes)
+	
+	// Increment counter atomically
+	counter := atomic.AddUint64(&correlationCounter, 1)
+	
+	// Combine components: prefix-timestamp-random-counter
+	// This ensures uniqueness even with multiple requests in the same millisecond
+	return fmt.Sprintf("turn1-%d-%s-%d", timestamp, randomHex, counter)
 }
 
 // main represents the strategic Lambda bootstrap entry point
