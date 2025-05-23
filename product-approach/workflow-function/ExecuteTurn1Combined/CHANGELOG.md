@@ -5,6 +5,62 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2025-05-23
+
+### Fixed - Critical Base64 Data Transformation Architecture Alignment
+- **Root Cause**: Misalignment between service implementation and shared bedrock package expectations
+- **Previous Issue**: Service was decoding Base64 to raw bytes, but shared package expects Base64 strings
+- **Resolution**: Corrected data transformation pipeline to preserve Base64 format for shared package
+- **Architecture**: Aligned with ExecuteTurn1 reference pattern - Base64 strings flow through to shared package
+
+### Changed - Data Transformation Pipeline
+- **Validation-Only Decoding**: Base64 decoding now used solely for validation and format detection
+  - Renamed `decodeBase64Image` to `decodeBase64ForValidation` to clarify purpose
+  - Decoded bytes used for size validation and image format detection only
+  - Original Base64 string passed directly to `bedrock.CreateImageContentFromBytes()`
+- **Architectural Clarity**: Established clear data flow pattern:
+  - S3 Storage → Base64 String (preserved through service layer)
+  - Validation → Temporary decode for size/format checks
+  - Shared Package → Receives Base64 string (NOT raw bytes)
+  - AWS SDK → Handles final encoding automatically
+
+### Added - Comprehensive Observability
+- **Transformation Boundary Logging**: Strategic logging at each data transformation point
+  - Pipeline entry with input metrics (Base64 length, prompt sizes)
+  - Pre/post validation decode boundaries with metrics
+  - Format detection results with detected type
+  - Shared package handoff confirmation
+  - API invocation start/complete with latency metrics
+  - Operation completion with total time and token usage
+- **Enhanced Error Context**: Detailed logging for debugging and monitoring
+  - Base64 validation failures with input length
+  - Decoding errors with transformation metrics
+  - Size limit violations with excess calculations
+  - API errors with latency and retry recommendations
+
+### Technical Details
+- **Performance Metrics**: Added comprehensive latency tracking
+  - Decoding operation latency in microseconds
+  - API call latency in milliseconds
+  - Total operation time tracking
+  - Compression ratio calculations (decoded vs encoded size)
+- **Logger Integration**: Added structured logging with `workflow-function/shared/logger`
+  - Logger instance added to bedrockService struct
+  - All operations emit structured JSON logs
+  - Correlation ID support for distributed tracing
+- **Error Classification**: Enhanced error handling with architectural context
+  - Validation phase errors marked as non-retryable
+  - Size limit errors include mitigation strategies
+  - API errors classified by type (throttling, timeout, content policy)
+
+## [2.5.0] - 2025-05-23
+
+### Fixed - Critical Base64 Encoding Architecture Mismatch
+- **Root Cause**: AWS SDK expects raw bytes but was receiving Base64-encoded strings
+- **Impact**: All image-based verifications failing with "Invalid image input" errors
+- **Resolution**: Implemented Base64 decoding at Bedrock service boundary
+- **Architecture**: Established clear data format contracts across service boundaries
+
 ## [2.4.1] - 2025-05-23
 
 ### Fixed - Template Rendering Production Crash

@@ -13,10 +13,6 @@ WORKDIR /build
 # Copy the ExecuteTurn1Combined directory and shared modules
 COPY . .
 
-# Verify the structure (for debugging - can be removed in production)
-RUN echo "Build context contents:" && ls -la
-RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not accessible in this context"
-
 # Download dependencies and build
 RUN go mod tidy && go mod download
 
@@ -32,8 +28,10 @@ FROM public.ecr.aws/lambda/provided:al2-arm64
 COPY --from=builder /build/main /var/task/main
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Copy templates directory to /opt where Lambda layers are extracted
-COPY --from=builder /build/templates /opt/templates
+# Copy templates with proper naming to match what the loader expects
+# This flattens the versioned directory structure
+COPY --from=builder /build/templates/turn1-layout-vs-checking/v1.0.tmpl /opt/templates/turn1-layout-vs-checking.tmpl
+COPY --from=builder /build/templates/turn1-previous-vs-current/v1.0.tmpl /opt/templates/turn1-previous-vs-current.tmpl
 
 # Set the binary as the Lambda handler
 ENTRYPOINT ["/var/task/main"]

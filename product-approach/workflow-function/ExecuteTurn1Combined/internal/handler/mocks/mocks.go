@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	
-	"ExecuteTurn1Combined/internal/models"
-	"ExecuteTurn1Combined/internal/services"
-	"github.com/vending-machine-verification/shared/schema"
-	"github.com/vending-machine-verification/shared/logger"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/shared/schema"
+	"workflow-function/shared/logger"
 )
 
 // MockSet contains all mock services needed for testing
@@ -295,11 +295,13 @@ func (m *MockBedrockService) Converse(ctx context.Context, systemPrompt, turnPro
 	}
 	// Return default happy path response
 	return &models.BedrockResponse{
-		Content: `{"overallAccuracy": 0.98}`,
-		Usage: models.TokenUsage{
+		Raw:        json.RawMessage(`{"overallAccuracy": 0.98}`),
+		Processed:  map[string]interface{}{"overallAccuracy": 0.98},
+		TokenUsage: schema.TokenUsage{
 			InputTokens:  500,
 			OutputTokens: 42,
 		},
+		RequestID: "test-request-123",
 	}, args.Error(1)
 }
 
@@ -431,14 +433,25 @@ func (m *MockPromptService) GenerateTurn1PromptWithMetrics(ctx context.Context, 
 	}
 	// Return mock prompt and metrics
 	metrics := &schema.TemplateProcessor{
-		TemplateType:    "turn1-layout-vs-checking",
-		TemplateVersion: "v1.0",
+		Template: &schema.PromptTemplate{
+			TemplateId:      "turn1-layout-vs-checking",
+			TemplateVersion: "v1.0",
+			TemplateType:    "turn1-layout-vs-checking",
+			Content:         "Mock template content",
+			Variables: map[string]interface{}{
+				"verificationId": "test-verification-123",
+			},
+			CreatedAt: "2024-01-01T00:00:00Z",
+			UpdatedAt: "2024-01-01T00:00:00Z",
+		},
+		ContextData: map[string]interface{}{
+			"verificationId": "test-verification-123",
+			"verificationType": vCtx.VerificationType,
+		},
+		ProcessedPrompt: "MOCK_PROMPT",
 		ProcessingTime:  100,
 		InputTokens:     500,
 		OutputTokens:    42,
-		Variables: map[string]interface{}{
-			"verificationId": vCtx.VerificationID,
-		},
 	}
 	return "MOCK_PROMPT", metrics, args.Error(2)
 }
@@ -556,12 +569,12 @@ func (m *MockLogger) LogOutputEvent(event interface{}) {
 }
 
 func (m *MockLogger) WithCorrelationId(correlationId string) logger.Logger {
-	args := m.Called(correlationId)
+	m.Called(correlationId)
 	return m
 }
 
 func (m *MockLogger) WithFields(fields map[string]interface{}) logger.Logger {
-	args := m.Called(fields)
+	m.Called(fields)
 	return m
 }
 
