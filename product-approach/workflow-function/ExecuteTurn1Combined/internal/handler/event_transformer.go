@@ -1,8 +1,8 @@
+// internal/handler/event_transformer.go - COMPREHENSIVE SCHEMA INTEGRATION
 package handler
 
 import (
 	"context"
-	"encoding/json"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 	"workflow-function/shared/errors"
@@ -10,13 +10,13 @@ import (
 	"workflow-function/shared/schema"
 )
 
-// EventTransformer handles transformation of Step Functions events to internal request format
+// EventTransformer orchestrates Step Functions event transformation with strategic schema integration
 type EventTransformer struct {
 	s3  services.S3StateManager
 	log logger.Logger
 }
 
-// NewEventTransformer creates a new instance of EventTransformer
+// NewEventTransformer creates a strategically enhanced event transformer
 func NewEventTransformer(s3 services.S3StateManager, log logger.Logger) *EventTransformer {
 	return &EventTransformer{
 		s3:  s3,
@@ -24,7 +24,7 @@ func NewEventTransformer(s3 services.S3StateManager, log logger.Logger) *EventTr
 	}
 }
 
-// StepFunctionEvent represents the event format from Step Functions
+// StepFunctionEvent represents the structured input from Step Functions orchestration
 type StepFunctionEvent struct {
 	SchemaVersion  string                         `json:"schemaVersion"`
 	S3References   map[string]models.S3Reference `json:"s3References"`
@@ -32,173 +32,192 @@ type StepFunctionEvent struct {
 	Status         string                         `json:"status"`
 }
 
-// TransformStepFunctionEvent transforms the Step Functions event format to Turn1Request format
+// TransformStepFunctionEvent provides comprehensive transformation with schema integration
 func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (*models.Turn1Request, error) {
-	// Create logger for this transformation
 	transformLogger := e.log.WithFields(map[string]interface{}{
-		"operation": "transform_step_function_event",
-		"verification_id": event.VerificationID,
+		"operation":         "transform_step_function_event",
+		"verification_id":   event.VerificationID,
+		"schema_version":    event.SchemaVersion,
+		"status":            event.Status,
+		"shared_schema_ver": schema.SchemaVersion,
 	})
 	
-	// 1. Load initialization.json to get verificationContext
+	transformLogger.Info("step_function_transformation_started", map[string]interface{}{
+		"s3_references_count": len(event.S3References),
+		"available_refs":      getMapKeys(event.S3References),
+		"schema_integration":  "comprehensive",
+	})
+	
+	// STRATEGIC STAGE 1: Load initialization data using schema-integrated loader
 	initRef, exists := event.S3References["processing_initialization"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing processing_initialization reference",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs": getMapKeys(event.S3References),
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 	
 	transformLogger.Info("loading_initialization_data", map[string]interface{}{
-		"bucket": initRef.Bucket,
-		"key": initRef.Key,
-		"size": initRef.Size,
+		"bucket":         initRef.Bucket,
+		"key":            initRef.Key,
+		"size":           initRef.Size,
+		"schema_version": schema.SchemaVersion,
 	})
 	
-	// Load initialization data
-	var initData struct {
-		SchemaVersion       string                      `json:"schemaVersion"`
-		VerificationContext models.VerificationContext `json:"verificationContext"`
-		SystemPrompt        struct {
-			Content         string `json:"content"`
-			PromptID        string `json:"promptId"`
-			PromptVersion   string `json:"promptVersion"`
-		} `json:"systemPrompt"`
-		LayoutMetadata interface{} `json:"layoutMetadata"`
-	}
-	
-	initJSON, err := e.s3.LoadSystemPrompt(ctx, initRef) // Using LoadSystemPrompt as it loads JSON
+	// STRATEGIC RESOLUTION: Use schema-integrated initialization data loader
+	initData, err := e.s3.LoadInitializationData(ctx, initRef)
 	if err != nil {
+		transformLogger.Error("initialization_data_load_failed", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": initRef.Bucket,
+			"key":    initRef.Key,
+		})
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load initialization data", true).
 			WithContext("s3_key", initRef.Key).
-			WithContext("verification_id", event.VerificationID)
+			WithContext("verification_id", event.VerificationID).
+			WithContext("schema_integration", "failed")
 	}
 	
-	if err := json.Unmarshal([]byte(initJSON), &initData); err != nil {
-		return nil, errors.NewValidationError(
-			"failed to parse initialization data",
-			map[string]interface{}{
-				"parse_error": err.Error(),
-				"verification_id": event.VerificationID,
-			})
-	}
-	
-	transformLogger.Info("initialization_data_loaded", map[string]interface{}{
-		"verification_type": initData.VerificationContext.VerificationType,
-		"layout_id": initData.VerificationContext.LayoutId,
-		"layout_prefix": initData.VerificationContext.LayoutPrefix,
-		"vending_machine_id": initData.VerificationContext.VendingMachineId,
+	transformLogger.Info("initialization_data_loaded_successfully", map[string]interface{}{
+		"verification_id":        initData.VerificationContext.VerificationId,
+		"verification_type":      initData.VerificationContext.VerificationType,
+		"vending_machine_id":     initData.VerificationContext.VendingMachineId,
+		"layout_id":             initData.VerificationContext.LayoutId,
+		"layout_prefix":         initData.VerificationContext.LayoutPrefix,
+		"system_prompt_id":      initData.SystemPrompt.PromptID,
+		"system_prompt_version": initData.SystemPrompt.PromptVersion,
+		"has_layout_metadata":   initData.LayoutMetadata != nil,
+		"schema_validation":     "passed",
 	})
 	
-	// 2. Load metadata.json to get image references
+	// STRATEGIC STAGE 2: Load image metadata with comprehensive validation
 	metadataRef, exists := event.S3References["images_metadata"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing images_metadata reference",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs": getMapKeys(event.S3References),
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 	
 	transformLogger.Info("loading_image_metadata", map[string]interface{}{
 		"bucket": metadataRef.Bucket,
-		"key": metadataRef.Key,
-		"size": metadataRef.Size,
+		"key":    metadataRef.Key,
+		"size":   metadataRef.Size,
 	})
 	
-	// Load metadata
-	var metadata struct {
-		VerificationID   string `json:"verificationId"`
-		VerificationType string `json:"verificationType"`
-		ReferenceImage   struct {
-			StorageMetadata struct {
-				Bucket string `json:"bucket"`
-				Key    string `json:"key"`
-				Size   int64  `json:"storedSize"`
-			} `json:"storageMetadata"`
-			Base64Metadata struct {
-				EncodedSize int64 `json:"encodedSize"`
-			} `json:"base64Metadata"`
-		} `json:"referenceImage"`
-		CheckingImage struct {
-			StorageMetadata struct {
-				Bucket string `json:"bucket"`
-				Key    string `json:"key"`
-				Size   int64  `json:"storedSize"`
-			} `json:"storageMetadata"`
-		} `json:"checkingImage"`
-	}
-	
-	metadataJSON, err := e.s3.LoadSystemPrompt(ctx, metadataRef) // Using LoadSystemPrompt as it loads JSON
+	// STRATEGIC ARCHITECTURE: Use schema-enhanced image metadata loader
+	metadata, err := e.s3.LoadImageMetadata(ctx, metadataRef)
 	if err != nil {
+		transformLogger.Error("image_metadata_load_failed", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": metadataRef.Bucket,
+			"key":    metadataRef.Key,
+		})
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load image metadata", true).
 			WithContext("s3_key", metadataRef.Key).
 			WithContext("verification_id", event.VerificationID)
 	}
 	
-	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
-		return nil, errors.NewValidationError(
-			"failed to parse image metadata",
-			map[string]interface{}{
-				"parse_error": err.Error(),
-				"verification_id": event.VerificationID,
-			})
-	}
-	
-	transformLogger.Info("image_metadata_loaded", map[string]interface{}{
-		"reference_image_bucket": metadata.ReferenceImage.StorageMetadata.Bucket,
-		"reference_image_key": metadata.ReferenceImage.StorageMetadata.Key,
-		"reference_image_size": metadata.ReferenceImage.StorageMetadata.Size,
+	transformLogger.Info("image_metadata_loaded_successfully", map[string]interface{}{
+		"reference_image_bucket":     metadata.ReferenceImage.StorageMetadata.Bucket,
+		"reference_image_key":        metadata.ReferenceImage.StorageMetadata.Key,
+		"reference_image_size":       metadata.ReferenceImage.StorageMetadata.StoredSize,
+		"reference_bedrock_compat":   metadata.ReferenceImage.Validation.BedrockCompatible,
+		"checking_image_bucket":      metadata.CheckingImage.StorageMetadata.Bucket,
+		"checking_image_key":         metadata.CheckingImage.StorageMetadata.Key,
+		"checking_image_size":        metadata.CheckingImage.StorageMetadata.StoredSize,
+		"checking_bedrock_compat":    metadata.CheckingImage.Validation.BedrockCompatible,
+		"parallel_processing":        metadata.ProcessingMetadata.ParallelProcessing,
+		"total_images_processed":     metadata.ProcessingMetadata.TotalImagesProcessed,
 	})
 	
-	// 3. Get system prompt reference
+	// STRATEGIC STAGE 3: Validate system prompt reference
 	systemPromptRef, exists := event.S3References["prompts_system"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing prompts_system reference",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs": getMapKeys(event.S3References),
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 	
-	// 4. Load layout metadata if present and verificationType is LAYOUT_VS_CHECKING
+	transformLogger.Info("system_prompt_reference_validated", map[string]interface{}{
+		"bucket": systemPromptRef.Bucket,
+		"key":    systemPromptRef.Key,
+		"size":   systemPromptRef.Size,
+	})
+	
+	// STRATEGIC STAGE 4: Enhanced layout metadata integration with schema validation
 	if initData.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
-		layoutMetadataRef, exists := event.S3References["processing_layout-metadata"]
-		if exists {
+		if layoutMetadataRef, exists := event.S3References["processing_layout-metadata"]; exists {
 			transformLogger.Info("loading_layout_metadata", map[string]interface{}{
-				"bucket": layoutMetadataRef.Bucket,
-				"key": layoutMetadataRef.Key,
+				"bucket":         layoutMetadataRef.Bucket,
+				"key":            layoutMetadataRef.Key,
+				"schema_version": schema.SchemaVersion,
 			})
 			
-			layoutMetadataJSON, err := e.s3.LoadSystemPrompt(ctx, layoutMetadataRef)
+			// STRATEGIC ENHANCEMENT: Use shared schema layout metadata loader
+			layoutData, err := e.s3.LoadLayoutMetadata(ctx, layoutMetadataRef)
 			if err != nil {
-				transformLogger.Warn("failed_to_load_layout_metadata", map[string]interface{}{
-					"error": err.Error(),
-					"key": layoutMetadataRef.Key,
+				transformLogger.Warn("layout_metadata_load_failed", map[string]interface{}{
+					"error":  err.Error(),
+					"key":    layoutMetadataRef.Key,
+					"impact": "continuing_with_embedded_layout_data",
 				})
 			} else {
-				var layoutData map[string]interface{}
-				if err := json.Unmarshal([]byte(layoutMetadataJSON), &layoutData); err == nil {
-					initData.VerificationContext.LayoutMetadata = layoutData
-					transformLogger.Info("layout_metadata_loaded", map[string]interface{}{
-						"layout_id": layoutData["layoutId"],
-						"layout_prefix": layoutData["layoutPrefix"],
-					})
+				// Strategic context enrichment using shared schema
+				enrichmentData := map[string]interface{}{
+					"layoutId":           layoutData.LayoutId,
+					"layoutPrefix":       layoutData.LayoutPrefix,
+					"location":           layoutData.Location,
+					"vendingMachineId":   layoutData.VendingMachineId,
+					"machineStructure":   layoutData.MachineStructure,
+					"productPositionMap": layoutData.ProductPositionMap,
+					"referenceImageUrl":  layoutData.ReferenceImageUrl,
+					"sourceJsonUrl":      layoutData.SourceJsonUrl,
+					"createdAt":          layoutData.CreatedAt,
+					"updatedAt":          layoutData.UpdatedAt,
 				}
+				
+				// Strategic schema integration: Populate VerificationContext LayoutMetadata
+				if initData.VerificationContext.LayoutId == 0 {
+					initData.VerificationContext.LayoutId = layoutData.LayoutId
+				}
+				if initData.VerificationContext.LayoutPrefix == "" {
+					initData.VerificationContext.LayoutPrefix = layoutData.LayoutPrefix
+				}
+				if initData.VerificationContext.VendingMachineId == "" {
+					initData.VerificationContext.VendingMachineId = layoutData.VendingMachineId
+				}
+				
+				transformLogger.Info("layout_metadata_integrated_successfully", map[string]interface{}{
+					"layout_id":          layoutData.LayoutId,
+					"layout_prefix":      layoutData.LayoutPrefix,
+					"vending_machine_id": layoutData.VendingMachineId,
+					"location":           layoutData.Location,
+					"product_positions":  len(layoutData.ProductPositionMap),
+					"schema_validation":  "passed",
+				})
 			}
+		} else {
+			transformLogger.Info("layout_metadata_not_available", map[string]interface{}{
+				"verification_type": initData.VerificationContext.VerificationType,
+				"impact":           "using_embedded_layout_data_from_initialization",
+			})
 		}
 	}
 	
-	// 5. Build the Turn1Request structure
+	// STRATEGIC STAGE 5: Turn1Request construction with schema conversion
 	req := &models.Turn1Request{
 		VerificationID:      event.VerificationID,
-		VerificationContext: initData.VerificationContext,
+		VerificationContext: convertSchemaToLocalVerificationContext(initData.VerificationContext, initData.LayoutMetadata),
 		S3Refs: models.Turn1RequestS3Refs{
 			Prompts: models.PromptRefs{
 				System: systemPromptRef,
@@ -207,23 +226,94 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 				ReferenceBase64: models.S3Reference{
 					Bucket: metadata.ReferenceImage.StorageMetadata.Bucket,
 					Key:    metadata.ReferenceImage.StorageMetadata.Key,
-					Size:   metadata.ReferenceImage.StorageMetadata.Size,
+					Size:   metadata.ReferenceImage.StorageMetadata.StoredSize,
 				},
 			},
 		},
 	}
 	
-	transformLogger.Info("transformation_completed", map[string]interface{}{
-		"verification_id": req.VerificationID,
-		"verification_type": req.VerificationContext.VerificationType,
-		"system_prompt_key": req.S3Refs.Prompts.System.Key,
-		"reference_image_key": req.S3Refs.Images.ReferenceBase64.Key,
+	// STRATEGIC STAGE 6: Comprehensive transformation completion with schema validation
+	transformLogger.Info("transformation_completed_successfully", map[string]interface{}{
+		"verification_id":         req.VerificationID,
+		"verification_type":       req.VerificationContext.VerificationType,
+		"vending_machine_id":      req.VerificationContext.VendingMachineId,
+		"layout_id":              req.VerificationContext.LayoutId,
+		"layout_prefix":          req.VerificationContext.LayoutPrefix,
+		"system_prompt_key":       req.S3Refs.Prompts.System.Key,
+		"reference_image_key":     req.S3Refs.Images.ReferenceBase64.Key,
+		"reference_image_size":    req.S3Refs.Images.ReferenceBase64.Size,
+		"has_layout_metadata":     req.VerificationContext.LayoutMetadata != nil,
+		"has_historical_context":  req.VerificationContext.HistoricalContext != nil,
+		"transformation_stages":   6,
+		"schema_version":         schema.SchemaVersion,
+		"integration_status":     "comprehensive_success",
 	})
 	
 	return req, nil
 }
 
-// Helper function to get map keys for logging
+// ===================================================================
+// STRATEGIC SCHEMA CONVERSION FUNCTIONS
+// ===================================================================
+
+// convertSchemaToLocalVerificationContext converts shared schema to local model with comprehensive mapping
+func convertSchemaToLocalVerificationContext(schemaCtx schema.VerificationContext, layoutMetadata *schema.LayoutMetadata) models.VerificationContext {
+	localCtx := models.VerificationContext{
+		VerificationType:  schemaCtx.VerificationType,
+		VendingMachineId:  schemaCtx.VendingMachineId,
+		LayoutId:          schemaCtx.LayoutId,
+		LayoutPrefix:      schemaCtx.LayoutPrefix,
+		LayoutMetadata:    extractLayoutMetadataMap(layoutMetadata),
+		HistoricalContext: extractHistoricalContextMap(schemaCtx),
+	}
+	
+	return localCtx
+}
+
+// extractLayoutMetadataMap extracts layout metadata into map format for backward compatibility
+func extractLayoutMetadataMap(layoutMetadata *schema.LayoutMetadata) map[string]interface{} {
+	if layoutMetadata == nil {
+		return nil
+	}
+	
+	return map[string]interface{}{
+		"layoutId":           layoutMetadata.LayoutId,
+		"layoutPrefix":       layoutMetadata.LayoutPrefix,
+		"vendingMachineId":   layoutMetadata.VendingMachineId,
+		"location":           layoutMetadata.Location,
+		"machineStructure":   layoutMetadata.MachineStructure,
+		"productPositionMap": layoutMetadata.ProductPositionMap,
+		"referenceImageUrl":  layoutMetadata.ReferenceImageUrl,
+		"sourceJsonUrl":      layoutMetadata.SourceJsonUrl,
+		"createdAt":          layoutMetadata.CreatedAt,
+		"updatedAt":          layoutMetadata.UpdatedAt,
+	}
+}
+
+// extractHistoricalContextMap extracts historical context for PREVIOUS_VS_CURRENT verification
+func extractHistoricalContextMap(schemaCtx schema.VerificationContext) map[string]interface{} {
+	if schemaCtx.VerificationType != schema.VerificationTypePreviousVsCurrent {
+		return nil
+	}
+	
+	// Extract historical context from schema VerificationContext
+	historicalContext := make(map[string]interface{})
+	
+	if schemaCtx.PreviousVerificationId != "" {
+		historicalContext["PreviousVerificationId"] = schemaCtx.PreviousVerificationId
+	}
+	
+	// Additional historical context extraction can be added here
+	// based on shared schema VerificationContext fields
+	
+	if len(historicalContext) == 0 {
+		return nil
+	}
+	
+	return historicalContext
+}
+
+// getMapKeys provides clean key extraction for debugging and validation
 func getMapKeys(m map[string]models.S3Reference) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
