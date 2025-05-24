@@ -4,6 +4,15 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.1.1] - 2025-05-26
+
+### Fixed - S3 Path Handling
+- **Date-Based Paths**: Added date partition prefix when storing workflow state and reference metadata
+- **Reference Tree**: buildS3RefTree now preserves date prefix from raw response key
+
+### Added
+- **Timezone Validation**: Configuration validates `DATE_PARTITION_TIMEZONE`
+
 
 ## [2.1.0] - 2025-05-25
 
