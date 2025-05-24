@@ -10,9 +10,9 @@ import (
 	"time"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
+	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
-	"workflow-function/shared/logger"
 )
 
 // ===================================================================
@@ -21,10 +21,10 @@ import (
 
 // InitializationData leverages shared schema types for architectural coherence
 type InitializationData struct {
-	SchemaVersion       string                       `json:"schemaVersion"`
-	VerificationContext schema.VerificationContext  `json:"verificationContext"`  // SHARED SCHEMA INTEGRATION
-	SystemPrompt        SystemPromptData            `json:"systemPrompt"`         // ENHANCED STRUCTURE
-	LayoutMetadata      *schema.LayoutMetadata      `json:"layoutMetadata,omitempty"` // DIRECT SCHEMA USAGE
+	SchemaVersion       string                     `json:"schemaVersion"`
+	VerificationContext schema.VerificationContext `json:"verificationContext"`      // SHARED SCHEMA INTEGRATION
+	SystemPrompt        SystemPromptData           `json:"systemPrompt"`             // ENHANCED STRUCTURE
+	LayoutMetadata      *schema.LayoutMetadata     `json:"layoutMetadata,omitempty"` // DIRECT SCHEMA USAGE
 }
 
 // SystemPromptData provides strategic mapping for system prompt structure
@@ -36,12 +36,12 @@ type SystemPromptData struct {
 
 // ImageMetadata leverages shared schema concepts with S3-specific enhancements
 type ImageMetadata struct {
-	VerificationID     string                    `json:"verificationId"`
-	VerificationType   string                    `json:"verificationType"`
-	ReferenceImage     ImageInfoEnhanced        `json:"referenceImage"`
-	CheckingImage      ImageInfoEnhanced        `json:"checkingImage"`
-	ProcessingMetadata ProcessingMetadataInfo   `json:"processingMetadata"`
-	Version            string                    `json:"version"`
+	VerificationID     string                 `json:"verificationId"`
+	VerificationType   string                 `json:"verificationType"`
+	ReferenceImage     ImageInfoEnhanced      `json:"referenceImage"`
+	CheckingImage      ImageInfoEnhanced      `json:"checkingImage"`
+	ProcessingMetadata ProcessingMetadataInfo `json:"processingMetadata"`
+	Version            string                 `json:"version"`
 }
 
 // ImageInfoEnhanced provides comprehensive image information with S3 storage metadata
@@ -64,12 +64,12 @@ type OriginalImageMetadata struct {
 }
 
 type Base64ImageMetadata struct {
-	OriginalSize        int64                   `json:"originalSize"`
-	EncodedSize         int64                   `json:"encodedSize"`
-	EncodingTimestamp   string                  `json:"encodingTimestamp"`
-	EncodingMethod      string                  `json:"encodingMethod"`
-	CompressionRatio    float64                 `json:"compressionRatio"`
-	QualitySettings     QualitySettings         `json:"qualitySettings"`
+	OriginalSize      int64           `json:"originalSize"`
+	EncodedSize       int64           `json:"encodedSize"`
+	EncodingTimestamp string          `json:"encodingTimestamp"`
+	EncodingMethod    string          `json:"encodingMethod"`
+	CompressionRatio  float64         `json:"compressionRatio"`
+	QualitySettings   QualitySettings `json:"qualitySettings"`
 }
 
 type StorageImageMetadata struct {
@@ -95,17 +95,17 @@ type Encryption struct {
 }
 
 type ImageValidation struct {
-	IsValid            bool `json:"isValid"`
-	BedrockCompatible  bool `json:"bedrockCompatible"`
-	SizeWithinLimits   bool `json:"sizeWithinLimits"`
+	IsValid           bool `json:"isValid"`
+	BedrockCompatible bool `json:"bedrockCompatible"`
+	SizeWithinLimits  bool `json:"sizeWithinLimits"`
 }
 
 type ProcessingMetadataInfo struct {
-	ProcessedAt            string   `json:"processedAt"`
-	ProcessingTimeMs       int64    `json:"processingTimeMs"`
-	TotalImagesProcessed   int      `json:"totalImagesProcessed"`
-	ProcessingSteps        []string `json:"processingSteps"`
-	ParallelProcessing     bool     `json:"parallelProcessing"`
+	ProcessedAt          string   `json:"processedAt"`
+	ProcessingTimeMs     int64    `json:"processingTimeMs"`
+	TotalImagesProcessed int      `json:"totalImagesProcessed"`
+	ProcessingSteps      []string `json:"processingSteps"`
+	ParallelProcessing   bool     `json:"parallelProcessing"`
 }
 
 // ===================================================================
@@ -117,19 +117,19 @@ type S3StateManager interface {
 	// Core content loading operations (preserved backward compatibility)
 	LoadSystemPrompt(ctx context.Context, ref models.S3Reference) (string, error)
 	LoadBase64Image(ctx context.Context, ref models.S3Reference) (string, error)
-	
+
 	// Generic JSON loading capability (architectural enhancement)
 	LoadJSON(ctx context.Context, ref models.S3Reference, target interface{}) error
-	
+
 	// STRATEGIC: Schema-integrated specialized loaders
 	LoadInitializationData(ctx context.Context, ref models.S3Reference) (*InitializationData, error)
 	LoadImageMetadata(ctx context.Context, ref models.S3Reference) (*ImageMetadata, error)
 	LoadLayoutMetadata(ctx context.Context, ref models.S3Reference) (*schema.LayoutMetadata, error)
-	
+
 	// Schema validation integration
 	ValidateInitializationData(ctx context.Context, data *InitializationData) error
 	ValidateImageMetadata(ctx context.Context, metadata *ImageMetadata) error
-	
+
 	// Storage operations with schema integration
 	StoreRawResponse(ctx context.Context, verificationID string, data interface{}) (models.S3Reference, error)
 	StoreProcessedAnalysis(ctx context.Context, verificationID string, analysis interface{}) (models.S3Reference, error)
@@ -137,7 +137,7 @@ type S3StateManager interface {
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
-	
+
 	// STRATEGIC: Schema-based workflow state operations
 	StoreWorkflowState(ctx context.Context, verificationID string, state *schema.WorkflowState) (models.S3Reference, error)
 	LoadWorkflowState(ctx context.Context, verificationID string) (*schema.WorkflowState, error)
@@ -161,7 +161,7 @@ func NewS3StateManager(bucket string, log logger.Logger) (S3StateManager, error)
 		"schema_version": schema.SchemaVersion,
 		"integration":    "comprehensive_schema_integration",
 	})
-	
+
 	mgr, err := s3state.New(bucket)
 	if err != nil {
 		log.Error("s3_state_manager_creation_failed", map[string]interface{}{
@@ -172,7 +172,7 @@ func NewS3StateManager(bucket string, log logger.Logger) (S3StateManager, error)
 			"failed to create S3 state manager", false).
 			WithContext("bucket", bucket)
 	}
-	
+
 	return &s3Manager{
 		stateManager: mgr,
 		bucket:       bucket,
@@ -194,11 +194,11 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 		"operation":      "system_prompt_load",
 		"schema_version": schema.SchemaVersion,
 	})
-	
+
 	if err := m.validateReference(ref, "system_prompt"); err != nil {
 		return "", err
 	}
-	
+
 	// Get raw bytes first - don't unmarshal yet
 	stateRef := m.toStateReference(ref)
 	raw, err := m.stateManager.Retrieve(stateRef)
@@ -222,14 +222,14 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 		}
 		return "", wfErr.WithContext("s3_key", ref.Key).WithContext("bucket", ref.Bucket)
 	}
-	
+
 	// Parse the rich JSON object
 	var wrapper struct {
 		PromptContent struct {
 			SystemMessage string `json:"systemMessage"`
 		} `json:"promptContent"`
 	}
-	
+
 	if err := json.Unmarshal(raw, &wrapper); err != nil {
 		m.logger.Error("s3_system_prompt_format_error", map[string]interface{}{
 			"error":  err.Error(),
@@ -247,7 +247,7 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 			Timestamp: time.Now(),
 		}
 	}
-	
+
 	// Validate we got the system message
 	if wrapper.PromptContent.SystemMessage == "" {
 		return "", &errors.WorkflowError{
@@ -260,7 +260,7 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 			Timestamp: time.Now(),
 		}
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Debug("system_prompt_loaded", map[string]interface{}{
 		"format":         "rich",
@@ -268,7 +268,7 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 		"message_length": len(wrapper.PromptContent.SystemMessage),
 		"duration_ms":    duration.Milliseconds(),
 	})
-	
+
 	m.logger.Info("s3_system_prompt_loaded_successfully", map[string]interface{}{
 		"bucket":         ref.Bucket,
 		"key":            ref.Key,
@@ -276,7 +276,7 @@ func (m *s3Manager) LoadSystemPrompt(ctx context.Context, ref models.S3Reference
 		"duration_ms":    duration.Milliseconds(),
 		"prompt_preview": truncateForLog(wrapper.PromptContent.SystemMessage, 100),
 	})
-	
+
 	return wrapper.PromptContent.SystemMessage, nil
 }
 
@@ -289,11 +289,11 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 		"expected_size": ref.Size,
 		"operation":     "base64_image_load",
 	})
-	
+
 	if err := m.validateReference(ref, "base64_image"); err != nil {
 		return "", err
 	}
-	
+
 	// Validate file extension
 	if !strings.HasSuffix(ref.Key, ".base64") {
 		m.logger.Error("s3_base64_image_invalid_extension", map[string]interface{}{
@@ -310,7 +310,7 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 			Timestamp: time.Now(),
 		}
 	}
-	
+
 	// Get raw bytes from the .base64 file
 	stateRef := m.toStateReference(ref)
 	rawBytes, err := m.stateManager.Retrieve(stateRef)
@@ -334,7 +334,7 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 		}
 		return "", wfErr.WithContext("s3_key", ref.Key).WithContext("bucket", ref.Bucket)
 	}
-	
+
 	// Trim any whitespace from the base64 content
 	b := bytes.TrimSpace(rawBytes)
 	if len(b) == 0 {
@@ -348,14 +348,14 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 			Timestamp: time.Now(),
 		}
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Debug("image_loaded", map[string]interface{}{
 		"format":      ".base64",
 		"bytes":       len(b),
 		"duration_ms": duration.Milliseconds(),
 	})
-	
+
 	m.logger.Info("s3_base64_image_loaded_successfully", map[string]interface{}{
 		"bucket":            ref.Bucket,
 		"key":               ref.Key,
@@ -363,7 +363,7 @@ func (m *s3Manager) LoadBase64Image(ctx context.Context, ref models.S3Reference)
 		"duration_ms":       duration.Milliseconds(),
 		"size_ratio":        calculateSizeRatio(len(b), ref.Size),
 	})
-	
+
 	return string(b), nil
 }
 
@@ -376,13 +376,13 @@ func (m *s3Manager) LoadJSON(ctx context.Context, ref models.S3Reference, target
 		"size":      ref.Size,
 		"operation": "generic_json_load",
 	})
-	
+
 	if err := m.validateReference(ref, "generic_json"); err != nil {
 		return err
 	}
-	
+
 	stateRef := m.toStateReference(ref)
-	
+
 	if err := m.stateManager.RetrieveJSON(stateRef, target); err != nil {
 		duration := time.Since(startTime)
 		m.logger.Error("s3_generic_json_retrieval_failed", map[string]interface{}{
@@ -397,14 +397,14 @@ func (m *s3Manager) LoadJSON(ctx context.Context, ref models.S3Reference, target
 			WithContext("bucket", ref.Bucket).
 			WithContext("duration_ms", duration.Milliseconds())
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Debug("s3_generic_json_loaded_successfully", map[string]interface{}{
 		"bucket":      ref.Bucket,
 		"key":         ref.Key,
 		"duration_ms": duration.Milliseconds(),
 	})
-	
+
 	return nil
 }
 
@@ -422,16 +422,16 @@ func (m *s3Manager) LoadInitializationData(ctx context.Context, ref models.S3Ref
 		"operation":      "initialization_data_load",
 		"schema_version": schema.SchemaVersion,
 	})
-	
+
 	var initData InitializationData
-	
+
 	if err := m.LoadJSON(ctx, ref, &initData); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load initialization data", true).
 			WithContext("data_type", "initialization").
 			WithContext("schema_version", schema.SchemaVersion)
 	}
-	
+
 	// Strategic schema validation integration
 	if err := m.ValidateInitializationData(ctx, &initData); err != nil {
 		m.logger.Warn("initialization_data_validation_warnings", map[string]interface{}{
@@ -439,21 +439,21 @@ func (m *s3Manager) LoadInitializationData(ctx context.Context, ref models.S3Ref
 			"verification_id":   initData.VerificationContext.VerificationId,
 		})
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Info("initialization_data_loaded_successfully", map[string]interface{}{
-		"verification_id":     initData.VerificationContext.VerificationId,
-		"verification_type":   initData.VerificationContext.VerificationType,
-		"vending_machine_id":  initData.VerificationContext.VendingMachineId,
-		"layout_id":          initData.VerificationContext.LayoutId,
-		"layout_prefix":      initData.VerificationContext.LayoutPrefix,
-		"system_prompt_id":   initData.SystemPrompt.PromptID,
+		"verification_id":       initData.VerificationContext.VerificationId,
+		"verification_type":     initData.VerificationContext.VerificationType,
+		"vending_machine_id":    initData.VerificationContext.VendingMachineId,
+		"layout_id":             initData.VerificationContext.LayoutId,
+		"layout_prefix":         initData.VerificationContext.LayoutPrefix,
+		"system_prompt_id":      initData.SystemPrompt.PromptID,
 		"system_prompt_version": initData.SystemPrompt.PromptVersion,
-		"has_layout_metadata": initData.LayoutMetadata != nil,
-		"schema_version":     initData.SchemaVersion,
-		"duration_ms":        duration.Milliseconds(),
+		"has_layout_metadata":   initData.LayoutMetadata != nil,
+		"schema_version":        initData.SchemaVersion,
+		"duration_ms":           duration.Milliseconds(),
 	})
-	
+
 	return &initData, nil
 }
 
@@ -466,15 +466,15 @@ func (m *s3Manager) LoadImageMetadata(ctx context.Context, ref models.S3Referenc
 		"size":      ref.Size,
 		"operation": "image_metadata_load",
 	})
-	
+
 	var metadata ImageMetadata
-	
+
 	if err := m.LoadJSON(ctx, ref, &metadata); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load image metadata", true).
 			WithContext("data_type", "image_metadata")
 	}
-	
+
 	// Strategic metadata validation
 	if err := m.ValidateImageMetadata(ctx, &metadata); err != nil {
 		m.logger.Warn("image_metadata_validation_warnings", map[string]interface{}{
@@ -482,23 +482,23 @@ func (m *s3Manager) LoadImageMetadata(ctx context.Context, ref models.S3Referenc
 			"verification_id":   metadata.VerificationID,
 		})
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Info("image_metadata_loaded_successfully", map[string]interface{}{
-		"verification_id":            metadata.VerificationID,
-		"verification_type":          metadata.VerificationType,
-		"reference_image_bucket":     metadata.ReferenceImage.StorageMetadata.Bucket,
-		"reference_image_key":        metadata.ReferenceImage.StorageMetadata.Key,
-		"reference_image_size":       metadata.ReferenceImage.StorageMetadata.StoredSize,
-		"checking_image_bucket":      metadata.CheckingImage.StorageMetadata.Bucket,
-		"checking_image_key":         metadata.CheckingImage.StorageMetadata.Key,
-		"checking_image_size":        metadata.CheckingImage.StorageMetadata.StoredSize,
-		"total_images_processed":     metadata.ProcessingMetadata.TotalImagesProcessed,
-		"parallel_processing":        metadata.ProcessingMetadata.ParallelProcessing,
-		"processing_time_ms":         metadata.ProcessingMetadata.ProcessingTimeMs,
-		"duration_ms":               duration.Milliseconds(),
+		"verification_id":        metadata.VerificationID,
+		"verification_type":      metadata.VerificationType,
+		"reference_image_bucket": metadata.ReferenceImage.StorageMetadata.Bucket,
+		"reference_image_key":    metadata.ReferenceImage.StorageMetadata.Key,
+		"reference_image_size":   metadata.ReferenceImage.StorageMetadata.StoredSize,
+		"checking_image_bucket":  metadata.CheckingImage.StorageMetadata.Bucket,
+		"checking_image_key":     metadata.CheckingImage.StorageMetadata.Key,
+		"checking_image_size":    metadata.CheckingImage.StorageMetadata.StoredSize,
+		"total_images_processed": metadata.ProcessingMetadata.TotalImagesProcessed,
+		"parallel_processing":    metadata.ProcessingMetadata.ParallelProcessing,
+		"processing_time_ms":     metadata.ProcessingMetadata.ProcessingTimeMs,
+		"duration_ms":            duration.Milliseconds(),
 	})
-	
+
 	return &metadata, nil
 }
 
@@ -512,30 +512,30 @@ func (m *s3Manager) LoadLayoutMetadata(ctx context.Context, ref models.S3Referen
 		"operation":      "layout_metadata_load",
 		"schema_version": schema.SchemaVersion,
 	})
-	
+
 	var layoutData schema.LayoutMetadata
-	
+
 	if err := m.LoadJSON(ctx, ref, &layoutData); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load layout metadata", true).
 			WithContext("data_type", "layout_metadata").
 			WithContext("schema_version", schema.SchemaVersion)
 	}
-	
+
 	duration := time.Since(startTime)
 	m.logger.Info("layout_metadata_loaded_successfully", map[string]interface{}{
 		"layout_id":           layoutData.LayoutId,
 		"layout_prefix":       layoutData.LayoutPrefix,
 		"vending_machine_id":  layoutData.VendingMachineId,
-		"location":           layoutData.Location,
+		"location":            layoutData.Location,
 		"machine_structure":   layoutData.MachineStructure,
 		"product_positions":   len(layoutData.ProductPositionMap),
 		"reference_image_url": layoutData.ReferenceImageUrl,
-		"created_at":         layoutData.CreatedAt,
-		"updated_at":         layoutData.UpdatedAt,
-		"duration_ms":        duration.Milliseconds(),
+		"created_at":          layoutData.CreatedAt,
+		"updated_at":          layoutData.UpdatedAt,
+		"duration_ms":         duration.Milliseconds(),
 	})
-	
+
 	return &layoutData, nil
 }
 
@@ -548,27 +548,27 @@ func (m *s3Manager) ValidateInitializationData(ctx context.Context, data *Initia
 	if data == nil {
 		return errors.NewValidationError("initialization data cannot be nil", map[string]interface{}{})
 	}
-	
+
 	// Strategic schema validation integration
 	if validationErrors := schema.ValidateVerificationContextEnhanced(&data.VerificationContext); len(validationErrors) > 0 {
 		m.logger.Debug("verification_context_validation_issues", map[string]interface{}{
 			"validation_errors": validationErrors.Error(),
 			"verification_id":   data.VerificationContext.VerificationId,
 		})
-		
+
 		// Return validation warning but don't fail the operation
 		return errors.NewValidationError("verification context validation issues", map[string]interface{}{
 			"details": validationErrors.Error(),
 		})
 	}
-	
+
 	// Additional initialization-specific validations
 	if data.SystemPrompt.Content == "" {
 		return errors.NewValidationError("system prompt content required", map[string]interface{}{
 			"verification_id": data.VerificationContext.VerificationId,
 		})
 	}
-	
+
 	return nil
 }
 
@@ -577,31 +577,31 @@ func (m *s3Manager) ValidateImageMetadata(ctx context.Context, metadata *ImageMe
 	if metadata == nil {
 		return errors.NewValidationError("image metadata cannot be nil", map[string]interface{}{})
 	}
-	
+
 	// Validate image information structures
 	if metadata.ReferenceImage.StorageMetadata.Bucket == "" || metadata.ReferenceImage.StorageMetadata.Key == "" {
 		return errors.NewValidationError("reference image storage metadata incomplete", map[string]interface{}{
 			"verification_id": metadata.VerificationID,
 		})
 	}
-	
+
 	if metadata.CheckingImage.StorageMetadata.Bucket == "" || metadata.CheckingImage.StorageMetadata.Key == "" {
 		return errors.NewValidationError("checking image storage metadata incomplete", map[string]interface{}{
 			"verification_id": metadata.VerificationID,
 		})
 	}
-	
+
 	// Validate image sizes and formats
 	if !metadata.ReferenceImage.Validation.IsValid || !metadata.CheckingImage.Validation.IsValid {
 		return errors.NewValidationError("image validation failed", map[string]interface{}{
-			"verification_id":           metadata.VerificationID,
-			"reference_image_valid":     metadata.ReferenceImage.Validation.IsValid,
-			"checking_image_valid":      metadata.CheckingImage.Validation.IsValid,
-			"reference_bedrock_compat":  metadata.ReferenceImage.Validation.BedrockCompatible,
-			"checking_bedrock_compat":   metadata.CheckingImage.Validation.BedrockCompatible,
+			"verification_id":          metadata.VerificationID,
+			"reference_image_valid":    metadata.ReferenceImage.Validation.IsValid,
+			"checking_image_valid":     metadata.CheckingImage.Validation.IsValid,
+			"reference_bedrock_compat": metadata.ReferenceImage.Validation.BedrockCompatible,
+			"checking_bedrock_compat":  metadata.CheckingImage.Validation.BedrockCompatible,
 		})
 	}
-	
+
 	return nil
 }
 
@@ -619,7 +619,7 @@ func (m *s3Manager) StoreWorkflowState(ctx context.Context, verificationID strin
 				"state_nil":             state == nil,
 			})
 	}
-	
+
 	// Strategic schema validation integration
 	if validationErrors := schema.ValidateWorkflowState(state); len(validationErrors) > 0 {
 		m.logger.Warn("workflow_state_validation_issues", map[string]interface{}{
@@ -627,7 +627,7 @@ func (m *s3Manager) StoreWorkflowState(ctx context.Context, verificationID strin
 			"verification_id":   verificationID,
 		})
 	}
-	
+
 	key := fmt.Sprintf("%s/workflow-state.json", verificationID)
 	stateRef, err := m.stateManager.StoreJSON("processing", key, state)
 	if err != nil {
@@ -636,14 +636,14 @@ func (m *s3Manager) StoreWorkflowState(ctx context.Context, verificationID strin
 			WithContext("verification_id", verificationID).
 			WithContext("schema_version", state.SchemaVersion)
 	}
-	
+
 	m.logger.Info("workflow_state_stored_successfully", map[string]interface{}{
 		"verification_id": verificationID,
 		"schema_version":  state.SchemaVersion,
-		"bucket":         stateRef.Bucket,
-		"key":            stateRef.Key,
+		"bucket":          stateRef.Bucket,
+		"key":             stateRef.Key,
 	})
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -654,20 +654,20 @@ func (m *s3Manager) LoadWorkflowState(ctx context.Context, verificationID string
 			"verification ID required",
 			map[string]interface{}{"operation": "load_workflow_state"})
 	}
-	
+
 	key := fmt.Sprintf("processing/%s/workflow-state.json", verificationID)
 	stateRef := &s3state.Reference{
 		Bucket: m.bucket,
 		Key:    key,
 	}
-	
+
 	var state schema.WorkflowState
 	if err := m.stateManager.RetrieveJSON(stateRef, &state); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load workflow state", true).
 			WithContext("verification_id", verificationID)
 	}
-	
+
 	// Strategic schema validation integration
 	if validationErrors := schema.ValidateWorkflowState(&state); len(validationErrors) > 0 {
 		m.logger.Warn("loaded_workflow_state_validation_issues", map[string]interface{}{
@@ -675,7 +675,7 @@ func (m *s3Manager) LoadWorkflowState(ctx context.Context, verificationID string
 			"verification_id":   verificationID,
 		})
 	}
-	
+
 	return &state, nil
 }
 
@@ -690,7 +690,7 @@ func (m *s3Manager) StoreRawResponse(ctx context.Context, verificationID string,
 			"verification ID required for storing raw response",
 			map[string]interface{}{"operation": "store_raw_response"})
 	}
-	
+
 	key := fmt.Sprintf("%s/turn1-raw-response.json", verificationID)
 	stateRef, err := m.stateManager.StoreJSON("responses", key, data)
 	if err != nil {
@@ -699,14 +699,14 @@ func (m *s3Manager) StoreRawResponse(ctx context.Context, verificationID string,
 			WithContext("verification_id", verificationID).
 			WithContext("category", "responses")
 	}
-	
+
 	m.logger.Info("raw_response_stored_successfully", map[string]interface{}{
 		"verification_id": verificationID,
-		"bucket":         stateRef.Bucket,
-		"key":            stateRef.Key,
-		"size":           stateRef.Size,
+		"bucket":          stateRef.Bucket,
+		"key":             stateRef.Key,
+		"size":            stateRef.Size,
 	})
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -717,7 +717,7 @@ func (m *s3Manager) StoreProcessedAnalysis(ctx context.Context, verificationID s
 			"verification ID required for storing processed analysis",
 			map[string]interface{}{"operation": "store_processed_analysis"})
 	}
-	
+
 	key := fmt.Sprintf("%s/turn1-processed-analysis.json", verificationID)
 	stateRef, err := m.stateManager.StoreJSON("processing", key, analysis)
 	if err != nil {
@@ -726,7 +726,7 @@ func (m *s3Manager) StoreProcessedAnalysis(ctx context.Context, verificationID s
 			WithContext("verification_id", verificationID).
 			WithContext("category", "processing")
 	}
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -740,7 +740,7 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 				"turn_data_nil":         turnData == nil,
 			})
 	}
-	
+
 	key := fmt.Sprintf("%s/conversation-turn%d.json", verificationID, turnData.TurnId)
 	stateRef, err := m.stateManager.StoreJSON("responses", key, turnData)
 	if err != nil {
@@ -749,7 +749,7 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 			WithContext("verification_id", verificationID).
 			WithContext("turn_id", turnData.TurnId)
 	}
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -763,7 +763,7 @@ func (m *s3Manager) StoreTemplateProcessor(ctx context.Context, verificationID s
 				"processor_nil":         processor == nil,
 			})
 	}
-	
+
 	// Strategic template processor validation
 	if validationErrors := schema.ValidateTemplateProcessor(processor); len(validationErrors) > 0 {
 		m.logger.Warn("template_processor_validation_issues", map[string]interface{}{
@@ -771,7 +771,7 @@ func (m *s3Manager) StoreTemplateProcessor(ctx context.Context, verificationID s
 			"verification_id":   verificationID,
 		})
 	}
-	
+
 	key := fmt.Sprintf("%s/template-processor.json", verificationID)
 	stateRef, err := m.stateManager.StoreJSON("processing", key, processor)
 	if err != nil {
@@ -780,7 +780,7 @@ func (m *s3Manager) StoreTemplateProcessor(ctx context.Context, verificationID s
 			WithContext("verification_id", verificationID).
 			WithContext("template_id", processor.Template.TemplateId)
 	}
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -794,7 +794,7 @@ func (m *s3Manager) StoreProcessingMetrics(ctx context.Context, verificationID s
 				"metrics_nil":           metrics == nil,
 			})
 	}
-	
+
 	// Strategic processing metrics validation
 	if validationErrors := schema.ValidateProcessingMetrics(metrics); len(validationErrors) > 0 {
 		m.logger.Warn("processing_metrics_validation_issues", map[string]interface{}{
@@ -802,7 +802,7 @@ func (m *s3Manager) StoreProcessingMetrics(ctx context.Context, verificationID s
 			"verification_id":   verificationID,
 		})
 	}
-	
+
 	key := fmt.Sprintf("%s/processing-metrics.json", verificationID)
 	stateRef, err := m.stateManager.StoreJSON("processing", key, metrics)
 	if err != nil {
@@ -810,7 +810,7 @@ func (m *s3Manager) StoreProcessingMetrics(ctx context.Context, verificationID s
 			"failed to store processing metrics", true).
 			WithContext("verification_id", verificationID)
 	}
-	
+
 	return m.fromStateReference(stateRef), nil
 }
 
@@ -824,13 +824,13 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 				"state_type":      stateType,
 			})
 	}
-	
+
 	key := fmt.Sprintf("%s/%s.json", verificationID, stateType)
 	stateRef := &s3state.Reference{
 		Bucket: m.bucket,
 		Key:    fmt.Sprintf("processing/%s", key),
 	}
-	
+
 	var result interface{}
 	if err := m.stateManager.RetrieveJSON(stateRef, &result); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
@@ -838,7 +838,7 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 			WithContext("verification_id", verificationID).
 			WithContext("state_type", stateType)
 	}
-	
+
 	return result, nil
 }
 
@@ -853,13 +853,13 @@ func (m *s3Manager) validateReference(ref models.S3Reference, operation string) 
 			"S3 bucket required",
 			map[string]interface{}{"operation": operation})
 	}
-	
+
 	if ref.Key == "" {
 		return errors.NewValidationError(
 			"S3 key required",
 			map[string]interface{}{"operation": operation})
 	}
-	
+
 	return nil
 }
 

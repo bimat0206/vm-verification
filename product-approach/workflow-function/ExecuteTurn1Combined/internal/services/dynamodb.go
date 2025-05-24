@@ -6,15 +6,15 @@ import (
 	goerrors "errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
-	
+
 	// Using shared packages for enhanced functionality
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
@@ -25,24 +25,24 @@ type DynamoDBService interface {
 	// Legacy methods (maintained for backward compatibility)
 	UpdateVerificationStatus(ctx context.Context, verificationID string, status models.VerificationStatus, metrics models.TokenUsage) error
 	RecordConversationTurn(ctx context.Context, turn *models.ConversationTurn) error
-	
+
 	// Enhanced methods for comprehensive design integration
 	UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, statusEntry schema.StatusHistoryEntry) error
 	RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error
 	UpdateProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) error
 	UpdateStatusHistory(ctx context.Context, verificationID string, statusHistory []schema.StatusHistoryEntry) error
 	UpdateErrorTracking(ctx context.Context, verificationID string, errorTracking *schema.ErrorTracking) error
-	
+
 	// Real-time status tracking methods
 	InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error
 	UpdateCurrentStatus(ctx context.Context, verificationID, currentStatus, lastUpdatedAt string, metrics map[string]interface{}) error
 	GetVerificationStatus(ctx context.Context, verificationID string) (*VerificationStatusInfo, error)
-	
+
 	// Conversation management methods
 	InitializeConversationHistory(ctx context.Context, verificationID string, maxTurns int, metadata map[string]interface{}) error
 	UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error
 	CompleteConversation(ctx context.Context, verificationID string, finalStatus string) error
-	
+
 	// Query methods for historical data (supporting Use Case 2)
 	QueryPreviousVerification(ctx context.Context, checkingImageUrl string) (*schema.VerificationContext, error)
 	GetLayoutMetadata(ctx context.Context, layoutID int, layoutPrefix string) (*schema.LayoutMetadata, error)
@@ -50,12 +50,12 @@ type DynamoDBService interface {
 
 // VerificationStatusInfo represents current verification status information
 type VerificationStatusInfo struct {
-	VerificationID    string                        `json:"verificationId"`
-	CurrentStatus     string                        `json:"currentStatus"`
-	LastUpdatedAt     string                        `json:"lastUpdatedAt"`
-	StatusHistory     []schema.StatusHistoryEntry   `json:"statusHistory"`
-	ProcessingMetrics *schema.ProcessingMetrics     `json:"processingMetrics"`
-	ErrorTracking     *schema.ErrorTracking         `json:"errorTracking"`
+	VerificationID    string                      `json:"verificationId"`
+	CurrentStatus     string                      `json:"currentStatus"`
+	LastUpdatedAt     string                      `json:"lastUpdatedAt"`
+	StatusHistory     []schema.StatusHistoryEntry `json:"statusHistory"`
+	ProcessingMetrics *schema.ProcessingMetrics   `json:"processingMetrics"`
+	ErrorTracking     *schema.ErrorTracking       `json:"errorTracking"`
 }
 
 type dynamoClient struct {
@@ -70,7 +70,7 @@ type dynamoClient struct {
 func NewDynamoDBService(cfg *config.Config) (DynamoDBService, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.AWS.Region))
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"failed to load AWS config for DynamoDB", false).
 			WithContext("region", cfg.AWS.Region)
 	}
@@ -89,7 +89,7 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 	// Marshal metrics struct into DynamoDB attribute map
 	avMetrics, err := attributevalue.MarshalMap(metrics)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal token usage metrics", true)
 	}
 
@@ -107,7 +107,7 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update verification status", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationID).
@@ -121,7 +121,7 @@ func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, ver
 	// Marshal status entry
 	avStatusEntry, err := attributevalue.MarshalMap(statusEntry)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal status history entry", true).
 			WithContext("verificationId", verificationID).
 			WithContext("status", statusEntry.Status)
@@ -142,7 +142,7 @@ func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, ver
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update verification status with history", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationID).
@@ -156,7 +156,7 @@ func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, ver
 func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.ConversationTurn) error {
 	item, err := attributevalue.MarshalMap(turn)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal conversation turn", true).
 			WithContext("turn_id", turn.TurnID).
 			WithContext("verification_id", turn.VerificationID)
@@ -168,7 +168,7 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 	}
 
 	if _, err := d.client.PutItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to record conversation turn", true).
 			WithContext("table", d.conversationTable).
 			WithContext("turn_id", turn.TurnID).
@@ -182,7 +182,7 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error {
 	item, err := attributevalue.MarshalMap(conversationTracker)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal conversation tracker", true).
 			WithContext("conversation_id", conversationTracker.ConversationId).
 			WithContext("current_turn", conversationTracker.CurrentTurn)
@@ -205,8 +205,8 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 			// Update existing record instead
 			return d.updateExistingConversationHistory(ctx, conversationTracker)
 		}
-		
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to record conversation history", true).
 			WithContext("table", d.conversationTable).
 			WithContext("conversation_id", conversationTracker.ConversationId).
@@ -220,13 +220,13 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	// Marshal history and metadata
 	avHistory, err := attributevalue.MarshalList(conversationTracker.History)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal conversation history", true)
 	}
 
 	avMetadata, err := attributevalue.MarshalMap(conversationTracker.Metadata)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal conversation metadata", true)
 	}
 
@@ -246,7 +246,7 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update conversation history", true).
 			WithContext("conversation_id", conversationTracker.ConversationId)
 	}
@@ -257,7 +257,7 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 func (d *dynamoClient) UpdateProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) error {
 	avMetrics, err := attributevalue.MarshalMap(metrics)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal processing metrics", true).
 			WithContext("verificationId", verificationID)
 	}
@@ -275,7 +275,7 @@ func (d *dynamoClient) UpdateProcessingMetrics(ctx context.Context, verification
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update processing metrics", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationID).
@@ -288,7 +288,7 @@ func (d *dynamoClient) UpdateProcessingMetrics(ctx context.Context, verification
 func (d *dynamoClient) UpdateStatusHistory(ctx context.Context, verificationID string, statusHistory []schema.StatusHistoryEntry) error {
 	avStatusHistory, err := attributevalue.MarshalList(statusHistory)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal status history", true).
 			WithContext("verificationId", verificationID).
 			WithContext("history_count", len(statusHistory))
@@ -307,7 +307,7 @@ func (d *dynamoClient) UpdateStatusHistory(ctx context.Context, verificationID s
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update status history", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationID).
@@ -320,7 +320,7 @@ func (d *dynamoClient) UpdateStatusHistory(ctx context.Context, verificationID s
 func (d *dynamoClient) UpdateErrorTracking(ctx context.Context, verificationID string, errorTracking *schema.ErrorTracking) error {
 	avErrorTracking, err := attributevalue.MarshalMap(errorTracking)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal error tracking", true).
 			WithContext("verificationId", verificationID)
 	}
@@ -338,7 +338,7 @@ func (d *dynamoClient) UpdateErrorTracking(ctx context.Context, verificationID s
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update error tracking", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationID).
@@ -351,7 +351,7 @@ func (d *dynamoClient) UpdateErrorTracking(ctx context.Context, verificationID s
 func (d *dynamoClient) InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error {
 	item, err := attributevalue.MarshalMap(verificationContext)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal verification context", true).
 			WithContext("verificationId", verificationContext.VerificationId)
 	}
@@ -369,8 +369,8 @@ func (d *dynamoClient) InitializeVerificationRecord(ctx context.Context, verific
 				"verificationId": verificationContext.VerificationId,
 			})
 		}
-		
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to initialize verification record", true).
 			WithContext("table", d.verificationTable).
 			WithContext("verificationId", verificationContext.VerificationId)
@@ -390,7 +390,7 @@ func (d *dynamoClient) UpdateCurrentStatus(ctx context.Context, verificationID, 
 	if metrics != nil && len(metrics) > 0 {
 		avMetrics, err := attributevalue.MarshalMap(metrics)
 		if err != nil {
-			return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				"failed to marshal status metrics", true)
 		}
 		updateExpression += ", statusMetrics = :metrics"
@@ -407,7 +407,7 @@ func (d *dynamoClient) UpdateCurrentStatus(ctx context.Context, verificationID, 
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update current status", true).
 			WithContext("verificationId", verificationID).
 			WithContext("status", currentStatus)
@@ -427,7 +427,7 @@ func (d *dynamoClient) GetVerificationStatus(ctx context.Context, verificationID
 
 	result, err := d.client.GetItem(ctx, input)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to get verification status", true).
 			WithContext("verificationId", verificationID)
 	}
@@ -440,7 +440,7 @@ func (d *dynamoClient) GetVerificationStatus(ctx context.Context, verificationID
 
 	var statusInfo VerificationStatusInfo
 	if err := attributevalue.UnmarshalMap(result.Item, &statusInfo); err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to unmarshal verification status", false).
 			WithContext("verificationId", verificationID)
 	}
@@ -475,7 +475,7 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 
 	result, err := d.client.GetItem(ctx, getInput)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to get conversation for update", true).
 			WithContext("verificationId", verificationID)
 	}
@@ -483,7 +483,7 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 	var conversationTracker schema.ConversationTracker
 	if result.Item != nil {
 		if err := attributevalue.UnmarshalMap(result.Item, &conversationTracker); err != nil {
-			return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				"failed to unmarshal conversation tracker", false).
 				WithContext("verificationId", verificationID)
 		}
@@ -502,11 +502,11 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 
 	// Add new turn to history
 	turnEntry := map[string]interface{}{
-		"turnId":         turnData.TurnId,
-		"timestamp":      turnData.Timestamp,
-		"stage":          turnData.Stage,
-		"latencyMs":      turnData.LatencyMs,
-		"tokenUsage":     turnData.TokenUsage,
+		"turnId":     turnData.TurnId,
+		"timestamp":  turnData.Timestamp,
+		"stage":      turnData.Stage,
+		"latencyMs":  turnData.LatencyMs,
+		"tokenUsage": turnData.TokenUsage,
 		"s3References": map[string]interface{}{
 			"prompt":   fmt.Sprintf("prompts/turn%d-prompt.json", turnData.TurnId),
 			"response": fmt.Sprintf("responses/turn%d-response.json", turnData.TurnId),
@@ -535,7 +535,7 @@ func (d *dynamoClient) CompleteConversation(ctx context.Context, verificationID 
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to complete conversation", true).
 			WithContext("verificationId", verificationID).
 			WithContext("finalStatus", finalStatus)
@@ -554,12 +554,12 @@ func (d *dynamoClient) QueryPreviousVerification(ctx context.Context, checkingIm
 			":imageUrl": &types.AttributeValueMemberS{Value: checkingImageUrl},
 		},
 		ScanIndexForward: aws.Bool(false), // Most recent first
-		Limit:            aws.Int32(1),     // Only need the most recent
+		Limit:            aws.Int32(1),    // Only need the most recent
 	}
 
 	result, err := d.client.Query(ctx, input)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to query previous verification", true).
 			WithContext("checkingImageUrl", checkingImageUrl).
 			WithContext("index", "GSI4")
@@ -573,7 +573,7 @@ func (d *dynamoClient) QueryPreviousVerification(ctx context.Context, checkingIm
 
 	var verificationContext schema.VerificationContext
 	if err := attributevalue.UnmarshalMap(result.Items[0], &verificationContext); err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to unmarshal previous verification", false).
 			WithContext("checkingImageUrl", checkingImageUrl)
 	}
@@ -593,7 +593,7 @@ func (d *dynamoClient) GetLayoutMetadata(ctx context.Context, layoutID int, layo
 
 	result, err := d.client.GetItem(ctx, input)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to get layout metadata", true).
 			WithContext("layoutId", layoutID).
 			WithContext("layoutPrefix", layoutPrefix)
@@ -608,7 +608,7 @@ func (d *dynamoClient) GetLayoutMetadata(ctx context.Context, layoutID int, layo
 
 	var layoutMetadata schema.LayoutMetadata
 	if err := attributevalue.UnmarshalMap(result.Item, &layoutMetadata); err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to unmarshal layout metadata", false).
 			WithContext("layoutId", layoutID).
 			WithContext("layoutPrefix", layoutPrefix)
@@ -648,7 +648,7 @@ func (d *dynamoClient) TransactUpdateVerificationAndConversation(ctx context.Con
 
 // VerificationStatusUpdate represents a batch status update
 type VerificationStatusUpdate struct {
-	VerificationID string                      `json:"verificationId"`
-	StatusEntry    schema.StatusHistoryEntry   `json:"statusEntry"`
-	Metrics        *schema.ProcessingMetrics   `json:"metrics,omitempty"`
+	VerificationID string                    `json:"verificationId"`
+	StatusEntry    schema.StatusHistoryEntry `json:"statusEntry"`
+	Metrics        *schema.ProcessingMetrics `json:"metrics,omitempty"`
 }

@@ -13,8 +13,8 @@ type TokenUsage = schema.TokenUsage
 // BedrockResponse is the in-memory representation of a Claude Converse result.
 // Enhanced with schema integration
 type BedrockResponse struct {
-	Raw       json.RawMessage     `json:"raw"`       // exact JSON payload from Bedrock
-	Processed interface{}         `json:"processed"` // parsed / summarised analysis object
-	TokenUsage schema.TokenUsage  `json:"tokenUsage"` // Use schema type
-	RequestID string              `json:"requestId"` // X-Amzn-RequestId header from Bedrock
+	Raw        json.RawMessage   `json:"raw"`        // exact JSON payload from Bedrock
+	Processed  interface{}       `json:"processed"`  // parsed / summarised analysis object
+	TokenUsage schema.TokenUsage `json:"tokenUsage"` // Use schema type
+	RequestID  string            `json:"requestId"`  // X-Amzn-RequestId header from Bedrock
 }

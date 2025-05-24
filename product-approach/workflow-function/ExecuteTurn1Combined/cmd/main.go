@@ -1,4 +1,5 @@
-// cmd/main.go - CORRECTED WITH PROPER FLUENT INTERFACE USAGE
+// Package main implements the strategic Lambda entry point with enhanced
+// deterministic control architecture for Bedrock integration
 package main
 
 import (
@@ -15,34 +16,38 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-lambda-go/lambdacontext"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 
 	internalConfig "workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/handler"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 	"workflow-function/ExecuteTurn1Combined/internal/utils"
-	
-	// Using shared packages correctly
-	"workflow-function/shared/logger"
+
+	// Strategic addition: Local bedrock package for deterministic control
+	localBedrock "workflow-function/ExecuteTurn1Combined/internal/bedrock"
+
+	// Shared packages with strategic integration
+	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
+	"workflow-function/shared/logger"
 )
 
-// ApplicationContainer represents the strategic dependency orchestration framework
+// ApplicationContainer represents the enhanced dependency orchestration framework
+// with strategic separation between shared infrastructure and local control
 type ApplicationContainer struct {
 	config    *internalConfig.Config
-	// CORRECT: Logger is an interface, not a pointer
 	logger    logger.Logger
 	awsConfig aws.Config
 	handler   *handler.Handler
 
-	// Strategic service abstractions with lifecycle management
+	// Strategic service abstractions with deterministic control patterns
 	s3Service      services.S3StateManager
-	bedrockService services.BedrockService
+	bedrockService services.BedrockService // Now using local implementation
 	dynamoService  services.DynamoDBService
 	promptService  services.PromptService
 }
 
-// SystemInitializationMetrics captures critical bootstrap performance indicators
+// SystemInitializationMetrics captures comprehensive bootstrap telemetry
 type SystemInitializationMetrics struct {
 	InitializationStartTime   time.Time
 	ConfigurationLoadTime     time.Duration
@@ -51,89 +56,97 @@ type SystemInitializationMetrics struct {
 	TotalBootstrapTime        time.Duration
 	MemoryUtilization         int64
 	ColdStartIndicator        bool
+	// Strategic addition: Bedrock initialization metrics
+	BedrockSetupTime    time.Duration
+	ArchitecturePattern string
 }
 
-// Strategic global container instance for Lambda runtime lifecycle management
+// Global container instance with enhanced lifecycle management
 var applicationContainer *ApplicationContainer
 var initializationMetrics SystemInitializationMetrics
 
-// init performs strategic system initialization with comprehensive error boundary
+// init performs strategic system initialization with deterministic control architecture
 func init() {
 	initializationMetrics.InitializationStartTime = time.Now()
 	initializationMetrics.ColdStartIndicator = true
+	initializationMetrics.ArchitecturePattern = "deterministic_control"
 
-	// Initialize application container with strategic error handling
+	// Initialize application container with enhanced error boundaries
 	container, err := initializeApplicationContainer()
 	if err != nil {
-		// Check if it's a config error
+		// Strategic error categorization for operational visibility
 		if errors.IsConfigError(err) {
-			// For config errors, log with structured format and exit
 			if workflowErr, ok := err.(*errors.WorkflowError); ok {
 				errJSON, _ := json.Marshal(map[string]interface{}{
-					"level":     "ERROR",
-					"msg":       "config_load_failed",
-					"errorType": string(workflowErr.Type),
-					"errorCode": workflowErr.Code,
-					"error":     workflowErr.Message,
-					"var":       workflowErr.Details["variable"],
-					"severity":  "ERROR",
+					"level":        "ERROR",
+					"msg":          "config_load_failed",
+					"errorType":    string(workflowErr.Type),
+					"errorCode":    workflowErr.Code,
+					"error":        workflowErr.Message,
+					"var":          workflowErr.Details["variable"],
+					"severity":     "ERROR",
+					"architecture": "deterministic_control",
 				})
 				fmt.Fprintf(os.Stderr, "%s\n", errJSON)
 			}
 			log.Fatalf("CRITICAL: Configuration error: %v", err.Error())
 		}
-		
-		// For other errors, wrap and log
+
 		criticalErr := errors.NewInternalError("application_bootstrap", err).
-			WithContext("stage", "initialization")
-		
+			WithContext("stage", "initialization").
+			WithContext("architecture", "deterministic_control")
+
 		log.Fatalf("CRITICAL: Application container initialization failed: %v", criticalErr.Error())
 	}
 
 	applicationContainer = container
 	initializationMetrics.TotalBootstrapTime = time.Since(initializationMetrics.InitializationStartTime)
 
-	// Strategic performance monitoring integration
-// At the end of init() function, add comprehensive initialization summary:
-applicationContainer.logger.Info("system_initialization_completed", map[string]interface{}{
-    "bootstrap_time_ms":        initializationMetrics.TotalBootstrapTime.Milliseconds(),
-    "config_load_time_ms":      initializationMetrics.ConfigurationLoadTime.Milliseconds(),
-    "aws_client_setup_time_ms": initializationMetrics.AWSClientSetupTime.Milliseconds(),
-    "service_init_time_ms":     initializationMetrics.ServiceInitializationTime.Milliseconds(),
-    "cold_start":               initializationMetrics.ColdStartIndicator,
-    "aws_region":               applicationContainer.config.AWS.Region,
-    "bedrock_model":            applicationContainer.config.AWS.BedrockModel,
-    "template_base_path":       applicationContainer.config.Prompts.TemplateBasePath,
-    "template_version":         applicationContainer.config.Prompts.TemplateVersion,
-    "services_initialized": map[string]bool{
-        "s3_service":      applicationContainer.s3Service != nil,
-        "bedrock_service": applicationContainer.bedrockService != nil,
-        "dynamo_service":  applicationContainer.dynamoService != nil,
-        "prompt_service":  applicationContainer.promptService != nil,
-    },
-})
+	// Enhanced initialization telemetry with architectural insights
+	applicationContainer.logger.Info("system_initialization_completed", map[string]interface{}{
+		"bootstrap_time_ms":        initializationMetrics.TotalBootstrapTime.Milliseconds(),
+		"config_load_time_ms":      initializationMetrics.ConfigurationLoadTime.Milliseconds(),
+		"aws_client_setup_time_ms": initializationMetrics.AWSClientSetupTime.Milliseconds(),
+		"service_init_time_ms":     initializationMetrics.ServiceInitializationTime.Milliseconds(),
+		"bedrock_setup_time_ms":    initializationMetrics.BedrockSetupTime.Milliseconds(),
+		"cold_start":               initializationMetrics.ColdStartIndicator,
+		"architecture_pattern":     initializationMetrics.ArchitecturePattern,
+		"aws_region":               applicationContainer.config.AWS.Region,
+		"bedrock_model":            applicationContainer.config.AWS.BedrockModel,
+		"template_base_path":       applicationContainer.config.Prompts.TemplateBasePath,
+		"template_version":         applicationContainer.config.Prompts.TemplateVersion,
+		"services_initialized": map[string]interface{}{
+			"s3_service":      applicationContainer.s3Service != nil,
+			"bedrock_service": applicationContainer.bedrockService != nil,
+			"dynamo_service":  applicationContainer.dynamoService != nil,
+			"prompt_service":  applicationContainer.promptService != nil,
+			"architecture":    "deterministic_local_control",
+		},
+	})
 }
 
-// initializeApplicationContainer orchestrates comprehensive system bootstrap
+// initializeApplicationContainer orchestrates strategic system bootstrap with enhanced architecture
 func initializeApplicationContainer() (*ApplicationContainer, error) {
 	configStartTime := time.Now()
 
-	// Strategic configuration initialization with environment validation
+	// Strategic configuration initialization
 	cfg, err := internalConfig.LoadConfiguration()
 	if err != nil {
-		// If it's already a WorkflowError, return it directly to preserve the error type
 		if _, ok := err.(*errors.WorkflowError); ok {
 			return nil, err
 		}
-		// Otherwise wrap it
-		return nil, errors.WrapError(err, errors.ErrorTypeConfig, 
+		return nil, errors.WrapError(err, errors.ErrorTypeConfig,
 			"configuration initialization failed", false)
 	}
 
 	initializationMetrics.ConfigurationLoadTime = time.Since(configStartTime)
 
-	// CORRECT: Using shared logger constructor with service and function names
-	logger := logger.New("ExecuteTurn1Combined", "main")
+	// Initialize structured logger with architectural context
+	logger := logger.New("ExecuteTurn1Combined", "main").
+		WithFields(map[string]interface{}{
+			"architecture": "deterministic_control",
+			"version":      "2.1.0", // Updated to match schema version
+		})
 
 	logger.Info("configuration_loaded_successfully", map[string]interface{}{
 		"aws_region":         cfg.AWS.Region,
@@ -141,18 +154,18 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 		"verification_table": cfg.AWS.DynamoDBVerificationTable,
 		"bedrock_model":      cfg.AWS.BedrockModel,
 		"log_level":          cfg.Logging.Level,
+		"architecture":       "deterministic_control",
 	})
 
 	awsSetupStartTime := time.Now()
 
-	// Strategic AWS configuration initialization
+	// Strategic AWS configuration with enhanced resilience
 	awsConfig, err := initializeAWSConfiguration(cfg, logger)
 	if err != nil {
 		logger.Error("aws_configuration_initialization_failed", map[string]interface{}{
 			"error": err.Error(),
 		})
-		// FIXED: Clean fluent interface - the chain returns the right type
-		return nil, errors.WrapError(err, errors.ErrorTypeAPI, 
+		return nil, errors.WrapError(err, errors.ErrorTypeAPI,
 			"AWS configuration initialization failed", false)
 	}
 
@@ -160,36 +173,35 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 
 	serviceInitStartTime := time.Now()
 
-	// Strategic service layer initialization
-	services, err := initializeServiceLayer(awsConfig, cfg, logger)
+	// Strategic service layer initialization with deterministic architecture
+	services, err := initializeServiceLayerWithLocalBedrock(awsConfig, cfg, logger)
 	if err != nil {
 		logger.Error("service_layer_initialization_failed", map[string]interface{}{
-			"error": err.Error(),
+			"error":        err.Error(),
+			"architecture": "deterministic_control",
 		})
-		// FIXED: Fluent interface works perfectly without type assertions
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"service layer initialization failed", false)
 	}
 
-	// Strategic handler initialization
+	initializationMetrics.ServiceInitializationTime = time.Since(serviceInitStartTime)
+
+	// Strategic handler initialization with enhanced services
 	handlerInstance, err := handler.NewHandler(
 		services.s3Service,
 		services.bedrockService,
 		services.dynamoService,
 		services.promptService,
-		logger, // Passing shared logger interface correctly
+		logger,
 		cfg,
 	)
 	if err != nil {
 		logger.Error("handler_initialization_failed", map[string]interface{}{
 			"error": err.Error(),
 		})
-		// FIXED: Clean method chaining - Go's type system handles this elegantly
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"handler initialization failed", false)
 	}
-
-	initializationMetrics.ServiceInitializationTime = time.Since(serviceInitStartTime)
 
 	return &ApplicationContainer{
 		config:         cfg,
@@ -203,7 +215,7 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	}, nil
 }
 
-// ServiceLayerComponents encapsulates initialized service dependencies
+// ServiceLayerComponents encapsulates service dependencies with architectural metadata
 type ServiceLayerComponents struct {
 	s3Service      services.S3StateManager
 	bedrockService services.BedrockService
@@ -211,45 +223,84 @@ type ServiceLayerComponents struct {
 	promptService  services.PromptService
 }
 
-// initializeServiceLayer orchestrates comprehensive service dependency initialization
-func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, logger logger.Logger) (*ServiceLayerComponents, error) {
-	// Strategic S3 service initialization with comprehensive logging
+// initializeServiceLayerWithLocalBedrock implements strategic service initialization
+// with deterministic local Bedrock control architecture
+func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalConfig.Config, logger logger.Logger) (*ServiceLayerComponents, error) {
+	// S3 service initialization
 	s3Service, err := services.NewS3StateManager(cfg.AWS.S3Bucket, logger)
 	if err != nil {
-		// FIXED: Simple, clean error creation - no type gymnastics needed
-		return nil, errors.WrapError(err, errors.ErrorTypeS3, 
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"S3 service initialization failed", false)
 	}
 
-	// Strategic Bedrock service initialization
-	bedrockService, err := services.NewBedrockService(context.Background(), *cfg)
+	// Strategic Bedrock service initialization with local control pattern
+	bedrockInitStart := time.Now()
+
+	// Phase 1: Initialize shared Bedrock client for infrastructure
+	sharedClientConfig := sharedBedrock.CreateClientConfig(
+		cfg.AWS.Region,
+		cfg.AWS.AnthropicVersion,
+		cfg.Processing.MaxTokens,
+		cfg.Processing.ThinkingType,
+		cfg.Processing.BudgetTokens,
+	)
+
+	sharedClient, err := sharedBedrock.NewBedrockClient(
+		context.Background(),
+		cfg.AWS.BedrockModel,
+		sharedClientConfig,
+	)
 	if err != nil {
-		// FIXED: The fluent interface is designed to work naturally
-		return nil, errors.WrapError(err, errors.ErrorTypeBedrock, 
-			"Bedrock service initialization failed", false)
+		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
+			"shared Bedrock client initialization failed", false).
+			WithContext("architecture", "shared_infrastructure")
 	}
-	
-	// Log Bedrock client initialization with timeout configuration
-	logger.Info("bedrock_client_init", map[string]interface{}{
-		"connectTimeoutMs": cfg.Processing.BedrockConnectTimeoutSec * 1000,
-		"callTimeoutMs":    cfg.Processing.BedrockCallTimeoutSec * 1000,
-		"model":            cfg.AWS.BedrockModel,
-		"maxTokens":        cfg.Processing.MaxTokens,
+
+	// Phase 2: Configure local Bedrock client
+	localConfig := &localBedrock.Config{
+		ModelID:          cfg.AWS.BedrockModel,
+		MaxTokens:        cfg.Processing.MaxTokens,
+		Temperature:      0.7, // Strategic default for balanced output
+		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
+		Region:           cfg.AWS.Region,
+		AnthropicVersion: cfg.AWS.AnthropicVersion,
+	}
+
+	localClient := localBedrock.NewClient(sharedClient, localConfig, logger)
+
+	// Phase 3: Validate configuration
+	if err := localClient.ValidateConfiguration(); err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
+			"Bedrock configuration validation failed", false).
+			WithContext("architecture", "local_validation")
+	}
+
+	// Phase 4: Create service wrapper with local client
+	bedrockService := services.NewBedrockServiceWithLocalClient(localClient, *cfg, logger)
+
+	initializationMetrics.BedrockSetupTime = time.Since(bedrockInitStart)
+
+	logger.Info("bedrock_service_initialized", map[string]interface{}{
+		"architecture":        "deterministic_local_control",
+		"setup_time_ms":       initializationMetrics.BedrockSetupTime.Milliseconds(),
+		"connect_timeout_sec": cfg.Processing.BedrockConnectTimeoutSec,
+		"call_timeout_sec":    cfg.Processing.BedrockCallTimeoutSec,
+		"model":               cfg.AWS.BedrockModel,
+		"max_tokens":          cfg.Processing.MaxTokens,
+		"operational_metrics": localClient.GetOperationalMetrics(),
 	})
 
-	// Strategic DynamoDB service initialization
+	// DynamoDB service initialization
 	dynamoService, err := services.NewDynamoDBService(cfg)
 	if err != nil {
-		// FIXED: The fluent interface is designed to work naturally
-		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB, 
+		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"DynamoDB service initialization failed", false)
 	}
 
-	// Strategic prompt service initialization - pass the config and logger
+	// Prompt service initialization
 	promptService, err := services.NewPromptService(cfg, logger)
 	if err != nil {
-		// FIXED: Method chaining works seamlessly
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal, 
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"Prompt service initialization failed", false)
 	}
 
@@ -261,34 +312,28 @@ func initializeServiceLayer(awsConfig aws.Config, cfg *internalConfig.Config, lo
 	}, nil
 }
 
-// initializeAWSConfiguration establishes strategic AWS SDK configuration
+// initializeAWSConfiguration remains unchanged - provides base AWS SDK configuration
 func initializeAWSConfiguration(cfg *internalConfig.Config, logger logger.Logger) (aws.Config, error) {
-	// Strategic AWS configuration with explicit region specification
-	awsConfig, err := config.LoadDefaultConfig(context.Background(),
-		config.WithRegion(cfg.AWS.Region),
-		config.WithRetryMaxAttempts(cfg.Processing.MaxRetries),
-		config.WithRetryMode(aws.RetryModeAdaptive),
+	awsConfig, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(cfg.AWS.Region),
+		awsconfig.WithRetryMaxAttempts(cfg.Processing.MaxRetries),
+		awsconfig.WithRetryMode(aws.RetryModeAdaptive),
 	)
 	if err != nil {
-		// FIXED: Clean error creation with proper context
-		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI, 
+		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI,
 			"AWS configuration loading failed", false).
 			WithContext("region", cfg.AWS.Region).
 			WithContext("max_retries", cfg.Processing.MaxRetries)
 	}
 
-	// Strategic credential validation
 	credentials, err := awsConfig.Credentials.Retrieve(context.Background())
 	if err != nil {
-		// FIXED: Fluent interface chain - each method returns the right type
-		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI, 
+		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI,
 			"AWS credentials validation failed", false).
 			WithContext("region", cfg.AWS.Region)
 	}
 
-	// Strategic security validation without credential exposure
 	if credentials.AccessKeyID == "" {
-		// FIXED: Factory function creates the right type directly
 		return aws.Config{}, errors.NewValidationError(
 			"AWS credentials validation failed: empty access key",
 			map[string]interface{}{
@@ -300,7 +345,7 @@ func initializeAWSConfiguration(cfg *internalConfig.Config, logger logger.Logger
 	return awsConfig, nil
 }
 
-// LambdaExecutionContext encapsulates comprehensive execution environment context
+// LambdaExecutionContext with enhanced architectural metadata
 type LambdaExecutionContext struct {
 	RequestID        string           `json:"requestId"`
 	FunctionName     string           `json:"functionName"`
@@ -310,21 +355,22 @@ type LambdaExecutionContext struct {
 	ColdStart        bool             `json:"coldStart"`
 	ExecutionMetrics ExecutionMetrics `json:"executionMetrics"`
 	CorrelationID    string           `json:"correlationId"`
+	Architecture     string           `json:"architecture"`
 }
 
-// ExecutionMetrics captures strategic performance indicators
+// ExecutionMetrics with architectural insights
 type ExecutionMetrics struct {
 	HandlerStartTime   time.Time     `json:"handlerStartTime"`
 	ProcessingDuration time.Duration `json:"processingDuration"`
 	MemoryUtilization  int64         `json:"memoryUtilization"`
 	ColdStartOverhead  time.Duration `json:"coldStartOverhead"`
+	ArchitectureMode   string        `json:"architectureMode"`
 }
 
-// HandleRequest represents the strategic Lambda execution entry point
+// HandleRequest implements the strategic Lambda execution entry point
 func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, error) {
 	executionStartTime := time.Now()
 
-	// Strategic Lambda context extraction
 	lambdaCtx, exists := lambdacontext.FromContext(ctx)
 	if !exists {
 		applicationContainer.logger.Warn("lambda_context_extraction_failed", map[string]interface{}{
@@ -332,14 +378,16 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 		})
 	}
 
-	// Strategic execution context construction
+	// Enhanced execution context with architectural metadata
 	executionContext := &LambdaExecutionContext{
 		ColdStart: initializationMetrics.ColdStartIndicator,
 		ExecutionMetrics: ExecutionMetrics{
 			HandlerStartTime:  executionStartTime,
 			ColdStartOverhead: initializationMetrics.TotalBootstrapTime,
+			ArchitectureMode:  "deterministic_control",
 		},
 		CorrelationID: generateCorrelationID(),
+		Architecture:  "deterministic_local_bedrock",
 	}
 
 	if exists {
@@ -357,15 +405,11 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 		}
 	}
 
-	// Strategic cold start optimization
 	if initializationMetrics.ColdStartIndicator {
 		initializationMetrics.ColdStartIndicator = false
 	}
 
-	// Create logger with correlation ID using shared logger's fluent interface
 	contextLogger := applicationContainer.logger.WithCorrelationId(executionContext.CorrelationID)
-	
-	// Strategic correlation context injection
 	enrichedCtx := utils.WithCorrelationID(ctx, executionContext.CorrelationID)
 
 	contextLogger.Info("execution_context_established", map[string]interface{}{
@@ -375,53 +419,53 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 		"remaining_time_ms":      executionContext.RemainingTimeMS,
 		"cold_start":             executionContext.ColdStart,
 		"cold_start_overhead_ms": executionContext.ExecutionMetrics.ColdStartOverhead.Milliseconds(),
+		"architecture":           executionContext.Architecture,
 	})
 
-	// Log the received event using shared logger's event logging capability
 	contextLogger.LogReceivedEvent(event)
 
-	// Strategic handler execution with comprehensive error boundary management
+	// Execute handler with deterministic architecture
 	response, err := applicationContainer.handler.HandleTurn1Combined(enrichedCtx, event)
 
 	executionContext.ExecutionMetrics.ProcessingDuration = time.Since(executionStartTime)
 
-	// Strategic execution metrics collection
 	contextLogger.Info("execution_completed", map[string]interface{}{
 		"processing_duration_ms":  executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds(),
 		"success":                 err == nil,
 		"total_execution_time_ms": time.Since(executionStartTime).Milliseconds(),
+		"architecture":            "deterministic_control",
 	})
 
 	if err != nil {
-		// FIXED: Proper error type checking and enrichment without unnecessary assertions
 		if workflowErr, ok := err.(*errors.WorkflowError); ok {
-			// Enrich the error with execution context using fluent interface
-			enrichedErr := workflowErr.WithContext("execution_time_ms", 
-				executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds()).
-				WithContext("correlation_id", executionContext.CorrelationID)
-			
+			enrichedErr := workflowErr.
+				WithContext("execution_time_ms", executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds()).
+				WithContext("correlation_id", executionContext.CorrelationID).
+				WithContext("architecture", "deterministic_control")
+
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error_type":    string(enrichedErr.Type),
-				"error_code":    enrichedErr.Code,
-				"retryable":     enrichedErr.Retryable,
-				"severity":      string(enrichedErr.Severity),
-				"api_source":    string(enrichedErr.APISource),
+				"error_type":   string(enrichedErr.Type),
+				"error_code":   enrichedErr.Code,
+				"retryable":    enrichedErr.Retryable,
+				"severity":     string(enrichedErr.Severity),
+				"api_source":   string(enrichedErr.APISource),
+				"architecture": "deterministic_control",
 			})
 			return nil, enrichedErr
 		} else {
-			// FIXED: Clean error wrapping without type assertions
-			wrappedErr := errors.WrapError(err, errors.ErrorTypeInternal, 
+			wrappedErr := errors.WrapError(err, errors.ErrorTypeInternal,
 				"execution failed", false).
-				WithContext("correlation_id", executionContext.CorrelationID)
-			
+				WithContext("correlation_id", executionContext.CorrelationID).
+				WithContext("architecture", "deterministic_control")
+
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error": err.Error(),
+				"error":        err.Error(),
+				"architecture": "deterministic_control",
 			})
 			return nil, wrappedErr
 		}
 	}
 
-	// Log the output event using shared logger's event logging capability
 	contextLogger.LogOutputEvent(response)
 
 	return response, nil
@@ -430,29 +474,20 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 // Global counter for correlation ID uniqueness
 var correlationCounter uint64
 
-// generateCorrelationID creates strategic correlation identifiers with collision resistance
+// generateCorrelationID creates strategic correlation identifiers
 func generateCorrelationID() string {
-	// Generate timestamp component (milliseconds since epoch)
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
-	
-	// Generate random component (4 bytes = 8 hex chars)
 	randomBytes := make([]byte, 4)
 	if _, err := rand.Read(randomBytes); err != nil {
-		// Fallback to timestamp-based randomness if crypto/rand fails
 		randomBytes = []byte{byte(timestamp), byte(timestamp >> 8), byte(timestamp >> 16), byte(timestamp >> 24)}
 	}
 	randomHex := hex.EncodeToString(randomBytes)
-	
-	// Increment counter atomically
 	counter := atomic.AddUint64(&correlationCounter, 1)
-	
-	// Combine components: prefix-timestamp-random-counter
-	// This ensures uniqueness even with multiple requests in the same millisecond
+
 	return fmt.Sprintf("turn1-%d-%s-%d", timestamp, randomHex, counter)
 }
 
 // main represents the strategic Lambda bootstrap entry point
 func main() {
-	// Strategic Lambda handler registration
 	lambda.Start(HandleRequest)
 }

@@ -30,9 +30,9 @@ func (s *StatusTracker) UpdateStatusWithHistory(ctx context.Context, verificatio
 		Stage:            stage,
 		Metrics:          metadata,
 	}
-	
+
 	s.statusHistory = append(s.statusHistory, statusEntry)
-	
+
 	// In a full implementation, this would also update DynamoDB
 	// For now, we just track locally
 	return nil

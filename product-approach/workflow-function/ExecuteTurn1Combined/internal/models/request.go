@@ -3,9 +3,9 @@ package models
 
 // Turn1Request is the input payload for ExecuteTurn1Combined.
 type Turn1Request struct {
-	VerificationID      string             `json:"verificationId"`
+	VerificationID      string              `json:"verificationId"`
 	VerificationContext VerificationContext `json:"verificationContext"`
-	S3Refs              Turn1RequestS3Refs `json:"s3Refs"`
+	S3Refs              Turn1RequestS3Refs  `json:"s3Refs"`
 }
 
 // Turn1RequestS3Refs groups the S3 references needed for Turn-1.
@@ -40,7 +40,7 @@ type Summary struct {
 
 // Turn1Response is the output payload from ExecuteTurn1Combined.
 type Turn1Response struct {
-	S3Refs Turn1ResponseS3Refs `json:"s3Refs"`
-	Status VerificationStatus  `json:"status"`
+	S3Refs  Turn1ResponseS3Refs `json:"s3Refs"`
+	Status  VerificationStatus  `json:"status"`
 	Summary Summary             `json:"summary"`
 }

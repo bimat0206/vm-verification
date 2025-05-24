@@ -9,8 +9,9 @@ import (
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
-	
+
 	// Using shared packages correctly
+	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 )
@@ -23,20 +24,20 @@ type Handler struct {
 	dynamo        services.DynamoDBService
 	promptService services.PromptService
 	log           logger.Logger
-	
+
 	// Components for better code organization
-	processingTracker       *ProcessingStagesTracker
-	statusTracker           *StatusTracker
-	responseBuilder         *ResponseBuilder
-	eventTransformer        *EventTransformer
-	promptGenerator         *PromptGenerator
-	contextLoader           *ContextLoader
-	historicalLoader        *HistoricalContextLoader
-	bedrockInvoker          *BedrockInvoker
-	storageManager          *StorageManager
-	dynamoManager           *DynamoManager
-	validator               *Validator
-	startTime               time.Time
+	processingTracker *ProcessingStagesTracker
+	statusTracker     *StatusTracker
+	responseBuilder   *ResponseBuilder
+	eventTransformer  *EventTransformer
+	promptGenerator   *PromptGenerator
+	contextLoader     *ContextLoader
+	historicalLoader  *HistoricalContextLoader
+	bedrockInvoker    *BedrockInvoker
+	storageManager    *StorageManager
+	dynamoManager     *DynamoManager
+	validator         *Validator
+	startTime         time.Time
 }
 
 // NewHandler wires together all dependencies for the Lambda with enhanced capabilities.
@@ -72,10 +73,10 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	h.startTime = time.Now()
 	h.processingTracker = NewProcessingStagesTracker(h.startTime)
 	h.statusTracker = NewStatusTracker(h.startTime)
-	
+
 	// Initialize processing metrics
 	processingMetrics := h.initializeProcessingMetrics()
-	
+
 	// Validate request
 	if err := h.validator.ValidateRequest(req); err != nil {
 		h.processingTracker.RecordStage("validation", "failed", time.Since(h.startTime), map[string]interface{}{
@@ -84,10 +85,10 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		return nil, err
 	}
 	h.processingTracker.RecordStage("validation", "completed", time.Since(h.startTime), nil)
-	
+
 	// Create context logger
 	contextLogger := h.createContextLogger(req)
-	
+
 	// Update initial status
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
 		"function_start_time": schema.FormatISO8601(),
@@ -114,27 +115,27 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	if promptResult.Error != nil {
 		return h.handlePromptError(ctx, req.VerificationID, promptResult, contextLogger)
 	}
-	
+
 	// Record prompt generation success
 	h.processingTracker.RecordStage("prompt_generation", "completed", promptResult.Duration, map[string]interface{}{
 		"template_version": h.cfg.Prompts.TemplateVersion,
 		"prompt_length":    len(promptResult.Prompt),
 		"template_used":    "turn1-combined",
 	})
-	
+
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1PromptPrepared, "prompt_generation", map[string]interface{}{
-		"prompt_length":    len(promptResult.Prompt),
-		"template_version": h.cfg.Prompts.TemplateVersion,
+		"prompt_length":          len(promptResult.Prompt),
+		"template_version":       h.cfg.Prompts.TemplateVersion,
 		"generation_duration_ms": promptResult.Duration.Milliseconds(),
 	})
 
 	// STAGE 4: Invoke Bedrock
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1BedrockInvoked, "bedrock_invocation", map[string]interface{}{
-		"model_id":      h.cfg.AWS.BedrockModel,
-		"max_tokens":    h.cfg.Processing.MaxTokens,
+		"model_id":        h.cfg.AWS.BedrockModel,
+		"max_tokens":      h.cfg.Processing.MaxTokens,
 		"invocation_time": schema.FormatISO8601(),
 	})
-	
+
 	invokeResult := h.bedrockInvoker.InvokeBedrock(ctx, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, req.VerificationID)
 	if invokeResult.Error != nil {
 		return h.handleBedrockError(ctx, req.VerificationID, invokeResult)
@@ -143,52 +144,68 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 
 	// STAGE 5: Store responses
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1ResponseProcessing, "response_processing", nil)
-	
+
 	storageResult := h.storageManager.StoreResponses(ctx, req.VerificationID, invokeResult.Response)
 	if storageResult.Error != nil {
 		return nil, storageResult.Error
 	}
 	h.recordStorageSuccess(storageResult, len(invokeResult.Response.Raw))
 
-	// STAGE 6: Update metrics and async operations
+	// STAGE 6: Store prompt
+	promptStart := time.Now()
+	promptRef, err := h.storageManager.StorePrompt(ctx, req.VerificationID, 1, promptResult.Prompt)
+	if err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store prompt", true).
+			WithContext("verification_id", req.VerificationID)
+	}
+	
+	// Record prompt storage success
+	h.processingTracker.RecordStage("prompt_storage", "completed", time.Since(promptStart), map[string]interface{}{
+		"prompt_length": len(promptResult.Prompt),
+		"prompt_ref_key": promptRef.Key,
+	})
+
+	// STAGE 7: Update metrics and async operations
 	totalDuration := time.Since(h.startTime)
 	h.updateProcessingMetrics(processingMetrics, totalDuration, invokeResult)
-	
+
 	// Start async DynamoDB updates
-	updateComplete := h.dynamoManager.UpdateAsync(ctx, req.VerificationID, 
+	updateComplete, dynamoOK := h.dynamoManager.UpdateAsync(ctx, req.VerificationID,
 		invokeResult.Response.TokenUsage, invokeResult.Response.RequestID,
 		storageResult.RawRef, storageResult.ProcessedRef)
-	
+
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
 		"total_duration_ms": totalDuration.Milliseconds(),
 		"processing_stages": h.processingTracker.GetStageCount(),
 		"status_updates":    h.statusTracker.GetHistoryCount(),
+		"dynamodb_updated":  *dynamoOK, // Include dynamoOK flag in status
 	})
 
-	// Build response
+	// Build response with all required fields for schema v2.1.0
 	response := h.responseBuilder.BuildCombinedTurnResponse(
-		req, invokeResult.Response, storageResult.RawRef, storageResult.ProcessedRef,
-		promptResult.TemplateProcessor, processingMetrics, totalDuration,
-		h.processingTracker.GetStages(), h.statusTracker.GetHistory(),
+		req, promptResult.Prompt, promptRef, storageResult.RawRef, storageResult.ProcessedRef,
+		invokeResult.Response, h.processingTracker.GetStages(), totalDuration.Milliseconds(),
+		dynamoOK,
 	)
 
 	// Wait for async updates
 	h.dynamoManager.WaitForUpdates(updateComplete, 5*time.Second, contextLogger)
-	
+
 	// Validate and log completion
 	h.validateAndLogCompletion(response, totalDuration, invokeResult.Response, contextLogger)
-	
+
 	return response, nil
 }
 
 // HandleTurn1Combined is the Lambda entrypoint invoked by Step Functions.
 func (h *Handler) HandleTurn1Combined(ctx context.Context, event json.RawMessage) (interface{}, error) {
 	var stepFunctionEvent StepFunctionEvent
-	
+
 	if err := json.Unmarshal(event, &stepFunctionEvent); err == nil && stepFunctionEvent.SchemaVersion != "" {
 		return h.handleStepFunctionEvent(ctx, stepFunctionEvent)
 	}
-	
+
 	return h.handleDirectRequest(ctx, event)
 }

@@ -5,6 +5,114 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-05-25
+
+### Fixed - Schema v2.1.0 Compliance
+- **ResponseBuilder**: Now outputs full v2.1.0 schema
+  - Added missing fields: prompt, S3 refs, summary, status, schemaVersion
+  - Implemented buildS3RefTree for unified S3 reference structure
+  - Added buildSummary for execution metrics
+  - Included all required fields for validator compliance
+
+### Fixed - Prompt S3 References
+- **StorePrompt Method**: Fixed to use correct key format
+  - Now stores JSON: { "prompt": "<renderedPrompt>" } under prompts/turn1-prompt.json
+  - Provides S3Reference for response builder
+  - Enables prompt retrieval for debugging and analysis
+  - Fixed missing S3References.prompts.turn1Prompt in response
+
+### Fixed - Schema Version Drift
+- **Schema Version**: Updated all references to use "2.1.0"
+  - Fixed schema version in contextEnrichment
+  - Updated main.go to use "2.1.0" instead of "2.0"
+  - Ensured consistent schema version across all components
+
+### Fixed - DynamoDB Async Errors
+- **Enhanced DynamoDB Error Handling**: Added dynamoOK flag
+  - Prevents Lambda failure on DynamoDB throttling
+  - Updates summary.DynamodbUpdated to reflect actual status
+  - Logs warnings but allows function to complete successfully
+  - Added tests to verify throttling behavior
+
+### Improved - Code Organization
+- **Unified S3 Reference Handling**: Single buildS3RefTree helper
+  - Consolidated all S3 reference building logic
+  - Implemented consistent reference structure
+  - Removed duplicate code paths
+  - Added conditional inclusion of promptRef when key is not empty
+
+### Technical Details
+- **Schema Compliance**: All responses now pass ValidateTurn1CombinedResponse
+- **DynamoDB Integration**: Tables now accept enhanced schema with history arrays
+- **Code Quality**: Reduced duplication, improved maintainability
+- **Testing**: Added validation for schema version and S3 references
+
+
+## [2.8.0] - 2025-05-23
+
+### Fixed - Critical Bedrock API Image Encoding Issue
+- **Root Cause**: Shared bedrock client was incorrectly converting base64 strings to bytes using `[]byte()` instead of proper base64 decoding
+- **Impact**: All image-based verifications failing with "Invalid image input" errors from Bedrock API
+- **Resolution**: Fixed shared/bedrock/client.go to properly decode base64 strings using `base64.StdEncoding.DecodeString()`
+- **Verification**: ExecuteTurn1Combined now successfully processes images matching ExecuteTurn1 behavior
+
+### Changed - Code Simplification and Cleanup
+- **Removed Unnecessary Complexity**: Cleaned up overly verbose architectural comments and jargon
+  - Simplified adapter.go, client.go, and services/bedrock.go comments
+  - Removed architectural pattern descriptions that added no value
+  - Maintained clear, concise documentation focused on functionality
+- **Removed Unused Code**: 
+  - Deleted empty `types.go` file from internal/bedrock package
+  - Removed unused metrics and logging fields
+  - Cleaned up unnecessary function like `GetAdapterMetrics()`
+- **Improved Code Readability**: 
+  - Simplified logging statements by removing redundant fields
+  - Streamlined error handling with clearer messages
+  - Maintained functionality while improving maintainability
+
+### Technical Details
+- **Bug Location**: `/shared/bedrock/client.go` lines 93-96
+- **Fix Applied**: Added proper base64 decoding before passing to AWS SDK
+- **Testing**: Build successful, ready for integration testing
+- **Compatibility**: Maintains full compatibility with ExecuteTurn1 patterns
+
+## [2.7.0] - 2025-05-23
+
+### Changed - Strategic Bedrock Architecture Refactoring
+- **Local Bedrock Package Implementation**: Created deterministic control architecture for Bedrock integration
+  - Implemented `internal/bedrock` package with adapter pattern for zero-copy translation
+  - Created `Client` with `ProcessTurn1` method providing direct base64 pass-through
+  - Added `Adapter` for strategic impedance matching between local and shared types
+  - Established clear separation between domain control and infrastructure
+  
+### Added - Adapter Pattern Architecture
+- **Zero-Copy Translation Layer**: Implemented adapter pattern for type mapping without data transformation
+  - `adapter.go`: Bridges local domain types with shared infrastructure types
+  - `client.go`: Orchestrates Bedrock operations with timeout management
+  - `config.go`: Defines comprehensive configuration with all Bedrock parameters
+  - Direct delegation pattern eliminates preprocessing overhead
+  
+### Refactored - Service Layer Simplification
+- **BedrockService Refactoring**: Migrated to local client pattern with simplified implementation
+  - Removed duplicate functions: `buildMessages`, `detectImageFormat`, `transformResponse`
+  - Replaced complex error classification with direct error propagation
+  - Added `NewBedrockServiceWithLocalClient` for explicit local client usage
+  - Eliminated preprocessing logic in favor of direct delegation
+  
+### Improved - Code Quality and Maintainability
+- **Duplicate Code Elimination**: Removed all redundant implementations
+  - Consolidated image format detection to adapter layer
+  - Removed unused type definitions from `types.go`
+  - Eliminated duplicate validation and transformation logic
+  - Cleaned up imports and removed unused dependencies
+  
+### Technical Details
+- **Architecture Pattern**: Adapter pattern with deterministic control flow
+- **Performance**: Zero-copy data flow from service to Bedrock API
+- **Type Safety**: Maintained strong typing with proper interface boundaries
+- **Backward Compatibility**: Service interface remains unchanged
+- **Testing**: Added unit tests for client validation and adapter functionality
+
 ## [2.6.0] - 2025-05-23
 
 ### Fixed - Critical Base64 Data Transformation Architecture Alignment

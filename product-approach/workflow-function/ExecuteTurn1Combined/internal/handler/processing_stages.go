@@ -29,7 +29,7 @@ func (p *ProcessingStagesTracker) RecordStage(stageName, status string, duration
 		Status:    status,
 		Metadata:  metadata,
 	}
-	
+
 	p.processingStages = append(p.processingStages, stage)
 }
 

@@ -41,7 +41,7 @@ func (h *S3Helpers) ValidateS3Reference(ref models.S3Reference, operation string
 				"key":       ref.Key,
 			})
 	}
-	
+
 	if ref.Key == "" {
 		return errors.NewValidationError(
 			"S3 key cannot be empty",
@@ -50,7 +50,7 @@ func (h *S3Helpers) ValidateS3Reference(ref models.S3Reference, operation string
 				"bucket":    ref.Bucket,
 			})
 	}
-	
+
 	return nil
 }
 
@@ -92,7 +92,7 @@ func (h *S3Helpers) CreateS3ReferenceCollection(verificationID string) *S3Refere
 
 // S3ReferenceCollection organizes S3 references by category
 type S3ReferenceCollection struct {
-	VerificationID string                         `json:"verificationId"`
+	VerificationID string                        `json:"verificationId"`
 	References     map[string]models.S3Reference `json:"references"`
 	Categories     map[string][]string           `json:"categories"`
 	CreatedAt      string                        `json:"createdAt"`
@@ -102,7 +102,7 @@ type S3ReferenceCollection struct {
 // AddReference adds a reference to the collection
 func (c *S3ReferenceCollection) AddReference(name string, ref models.S3Reference) {
 	c.References[name] = ref
-	
+
 	category := c.getCategoryFromKey(ref.Key)
 	if category != "" {
 		if c.Categories[category] == nil {
@@ -110,7 +110,7 @@ func (c *S3ReferenceCollection) AddReference(name string, ref models.S3Reference
 		}
 		c.Categories[category] = append(c.Categories[category], name)
 	}
-	
+
 	c.UpdatedAt = schema.FormatISO8601()
 	if c.CreatedAt == "" {
 		c.CreatedAt = c.UpdatedAt
@@ -126,7 +126,7 @@ func (c *S3ReferenceCollection) GetReference(name string) (models.S3Reference, b
 // GetReferencesByCategory gets all references in a category
 func (c *S3ReferenceCollection) GetReferencesByCategory(category string) map[string]models.S3Reference {
 	result := make(map[string]models.S3Reference)
-	
+
 	if names, exists := c.Categories[category]; exists {
 		for _, name := range names {
 			if ref, exists := c.References[name]; exists {
@@ -134,29 +134,29 @@ func (c *S3ReferenceCollection) GetReferencesByCategory(category string) map[str
 			}
 		}
 	}
-	
+
 	return result
 }
 
 // ListCategories lists all categories with reference counts
 func (c *S3ReferenceCollection) ListCategories() map[string]int {
 	result := make(map[string]int)
-	
+
 	for category, names := range c.Categories {
 		result[category] = len(names)
 	}
-	
+
 	return result
 }
 
 // GetSummary returns a summary of the collection
 func (c *S3ReferenceCollection) GetSummary() map[string]interface{} {
 	return map[string]interface{}{
-		"verification_id":    c.VerificationID,
-		"total_references":   len(c.References),
-		"categories":         c.ListCategories(),
-		"created_at":         c.CreatedAt,
-		"updated_at":         c.UpdatedAt,
+		"verification_id":  c.VerificationID,
+		"total_references": len(c.References),
+		"categories":       c.ListCategories(),
+		"created_at":       c.CreatedAt,
+		"updated_at":       c.UpdatedAt,
 	}
 }
 
@@ -211,13 +211,13 @@ func (b *S3KeyBuilder) Build() string {
 	if b.category == "" || b.verificationID == "" || b.filename == "" {
 		return ""
 	}
-	
+
 	filename := b.filename
 	if b.timestamp {
 		timestamp := time.Now().UTC().Format("20060102-150405")
 		name := strings.TrimSuffix(b.filename, ".json")
 		filename = fmt.Sprintf("%s-%s.json", name, timestamp)
 	}
-	
+
 	return fmt.Sprintf("%s/%s/%s", b.category, b.verificationID, filename)
 }

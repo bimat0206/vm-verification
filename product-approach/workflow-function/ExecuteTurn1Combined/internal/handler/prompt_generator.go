@@ -11,14 +11,14 @@ import (
 // PromptGenerator handles Turn1 prompt generation with enhanced template processing
 type PromptGenerator struct {
 	promptService services.PromptService
-	cfg          config.Config
+	cfg           config.Config
 }
 
 // NewPromptGenerator creates a new instance of PromptGenerator
 func NewPromptGenerator(promptService services.PromptService, cfg config.Config) *PromptGenerator {
 	return &PromptGenerator{
 		promptService: promptService,
-		cfg:          cfg,
+		cfg:           cfg,
 	}
 }
 
@@ -29,7 +29,7 @@ func (p *PromptGenerator) GenerateTurn1PromptEnhanced(ctx context.Context, vCtx 
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	// Create template processor info for tracking
 	templateProcessor := &schema.TemplateProcessor{
 		Template: &schema.PromptTemplate{
@@ -48,6 +48,6 @@ func (p *PromptGenerator) GenerateTurn1PromptEnhanced(ctx context.Context, vCtx 
 		InputTokens:     0,  // Will be populated from Bedrock response
 		OutputTokens:    0,  // Will be populated from Bedrock response
 	}
-	
+
 	return prompt, templateProcessor, nil
 }

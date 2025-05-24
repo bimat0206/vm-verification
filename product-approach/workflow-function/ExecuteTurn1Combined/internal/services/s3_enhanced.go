@@ -26,7 +26,7 @@ func NewS3EnhancedOperations(bucket string) (*S3EnhancedOperations, error) {
 			"failed to create enhanced S3 operations", false).
 			WithContext("bucket", bucket)
 	}
-	
+
 	return &S3EnhancedOperations{
 		stateManager: mgr,
 		bucket:       bucket,
@@ -43,7 +43,7 @@ func (e *S3EnhancedOperations) StoreWorkflowState(ctx context.Context, verificat
 				"state_nil":             state == nil,
 			})
 	}
-	
+
 	// Validate workflow state
 	if validationErrors := schema.ValidateWorkflowState(state); len(validationErrors) > 0 {
 		return models.S3Reference{}, errors.NewValidationError(
@@ -52,7 +52,7 @@ func (e *S3EnhancedOperations) StoreWorkflowState(ctx context.Context, verificat
 				"validation_errors": validationErrors.Error(),
 			})
 	}
-	
+
 	key := fmt.Sprintf("%s/workflow-state.json", verificationID)
 	stateRef, err := e.stateManager.StoreJSON("processing", key, state)
 	if err != nil {
@@ -60,7 +60,7 @@ func (e *S3EnhancedOperations) StoreWorkflowState(ctx context.Context, verificat
 			"failed to store workflow state", true).
 			WithContext("verification_id", verificationID)
 	}
-	
+
 	return e.fromStateReference(stateRef), nil
 }
 
@@ -71,20 +71,20 @@ func (e *S3EnhancedOperations) LoadWorkflowState(ctx context.Context, verificati
 			"verification ID required",
 			map[string]interface{}{"operation": "load_workflow_state"})
 	}
-	
+
 	key := fmt.Sprintf("processing/%s/workflow-state.json", verificationID)
 	stateRef := &s3state.Reference{
 		Bucket: e.bucket,
 		Key:    key,
 	}
-	
+
 	var state schema.WorkflowState
 	if err := e.stateManager.RetrieveJSON(stateRef, &state); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load workflow state", true).
 			WithContext("verification_id", verificationID)
 	}
-	
+
 	return &state, nil
 }
 
@@ -95,7 +95,7 @@ func (e *S3EnhancedOperations) StoreStatusHistory(ctx context.Context, verificat
 			"verification ID required for storing status history",
 			map[string]interface{}{"history_count": len(history)})
 	}
-	
+
 	key := fmt.Sprintf("%s/status-history.json", verificationID)
 	stateRef, err := e.stateManager.StoreJSON("processing", key, history)
 	if err != nil {
@@ -104,7 +104,7 @@ func (e *S3EnhancedOperations) StoreStatusHistory(ctx context.Context, verificat
 			WithContext("verification_id", verificationID).
 			WithContext("history_count", len(history))
 	}
-	
+
 	return e.fromStateReference(stateRef), nil
 }
 
@@ -116,10 +116,10 @@ func (e *S3EnhancedOperations) AppendStatusHistory(ctx context.Context, verifica
 		// If not found, start with empty history
 		history = []schema.StatusHistoryEntry{}
 	}
-	
+
 	// Append new entry
 	history = append(history, entry)
-	
+
 	// Store updated history
 	return e.StoreStatusHistory(ctx, verificationID, history)
 }
@@ -131,20 +131,20 @@ func (e *S3EnhancedOperations) LoadStatusHistory(ctx context.Context, verificati
 			"verification ID required",
 			map[string]interface{}{"operation": "load_status_history"})
 	}
-	
+
 	key := fmt.Sprintf("processing/%s/status-history.json", verificationID)
 	stateRef := &s3state.Reference{
 		Bucket: e.bucket,
 		Key:    key,
 	}
-	
+
 	var history []schema.StatusHistoryEntry
 	if err := e.stateManager.RetrieveJSON(stateRef, &history); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load status history", true).
 			WithContext("verification_id", verificationID)
 	}
-	
+
 	return history, nil
 }
 
@@ -158,7 +158,7 @@ func (e *S3EnhancedOperations) StoreConversationHistory(ctx context.Context, ver
 				"conversation_nil":      conversation == nil,
 			})
 	}
-	
+
 	// Validate conversation tracker
 	if validationErrors := schema.ValidateConversationTracker(conversation); len(validationErrors) > 0 {
 		return models.S3Reference{}, errors.NewValidationError(
@@ -167,7 +167,7 @@ func (e *S3EnhancedOperations) StoreConversationHistory(ctx context.Context, ver
 				"validation_errors": validationErrors.Error(),
 			})
 	}
-	
+
 	key := fmt.Sprintf("%s/conversation-history.json", verificationID)
 	stateRef, err := e.stateManager.StoreJSON("responses", key, conversation)
 	if err != nil {
@@ -176,7 +176,7 @@ func (e *S3EnhancedOperations) StoreConversationHistory(ctx context.Context, ver
 			WithContext("verification_id", verificationID).
 			WithContext("current_turn", conversation.CurrentTurn)
 	}
-	
+
 	return e.fromStateReference(stateRef), nil
 }
 
@@ -190,10 +190,10 @@ func (e *S3EnhancedOperations) CreateStateSnapshot(ctx context.Context, verifica
 				"state_nil":             state == nil,
 			})
 	}
-	
+
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	key := fmt.Sprintf("%s/snapshots/state-%s.json", verificationID, timestamp)
-	
+
 	stateRef, err := e.stateManager.StoreJSON("processing", key, state)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
@@ -201,7 +201,7 @@ func (e *S3EnhancedOperations) CreateStateSnapshot(ctx context.Context, verifica
 			WithContext("verification_id", verificationID).
 			WithContext("timestamp", timestamp)
 	}
-	
+
 	return e.fromStateReference(stateRef), nil
 }
 
@@ -212,13 +212,13 @@ func (e *S3EnhancedOperations) CleanupExpiredStates(ctx context.Context, verific
 			"verification ID required for cleanup",
 			map[string]interface{}{"older_than_hours": olderThan.Hours()})
 	}
-	
+
 	// In a full implementation, this would:
 	// 1. List objects with the verification ID prefix
 	// 2. Check timestamps
 	// 3. Delete expired objects
 	// For now, this is a placeholder
-	
+
 	return nil
 }
 
@@ -244,21 +244,21 @@ func (e *S3EnhancedOperations) LoadInitializationData(ctx context.Context, ref m
 				"key_empty":    ref.Key == "",
 			})
 	}
-	
+
 	var initData InitializationData
 	stateRef := &s3state.Reference{
 		Bucket: ref.Bucket,
 		Key:    ref.Key,
 		Size:   ref.Size,
 	}
-	
+
 	if err := e.stateManager.RetrieveJSON(stateRef, &initData); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load initialization data", true).
 			WithContext("s3_key", ref.Key).
 			WithContext("bucket", ref.Bucket)
 	}
-	
+
 	return &initData, nil
 }
 
@@ -273,20 +273,20 @@ func (e *S3EnhancedOperations) LoadImageMetadata(ctx context.Context, ref models
 				"key_empty":    ref.Key == "",
 			})
 	}
-	
+
 	var metadata ImageMetadata
 	stateRef := &s3state.Reference{
 		Bucket: ref.Bucket,
 		Key:    ref.Key,
 		Size:   ref.Size,
 	}
-	
+
 	if err := e.stateManager.RetrieveJSON(stateRef, &metadata); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to load image metadata", true).
 			WithContext("s3_key", ref.Key).
 			WithContext("bucket", ref.Bucket)
 	}
-	
+
 	return &metadata, nil
 }

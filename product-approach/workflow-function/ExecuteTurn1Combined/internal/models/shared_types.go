@@ -53,11 +53,11 @@ const (
 // Core workflow types
 type (
 	SchemaVerificationContext = schema.VerificationContext
-	SchemaWorkflowState      = schema.WorkflowState
-	SchemaErrorInfo          = schema.ErrorInfo
-	SchemaStatusHistoryEntry = schema.StatusHistoryEntry
-	SchemaProcessingMetrics  = schema.ProcessingMetrics
-	SchemaErrorTracking      = schema.ErrorTracking
+	SchemaWorkflowState       = schema.WorkflowState
+	SchemaErrorInfo           = schema.ErrorInfo
+	SchemaStatusHistoryEntry  = schema.StatusHistoryEntry
+	SchemaProcessingMetrics   = schema.ProcessingMetrics
+	SchemaErrorTracking       = schema.ErrorTracking
 )
 
 // Enhanced response types
@@ -75,11 +75,11 @@ type (
 
 // Bedrock and AI types
 type (
-	SchemaBedrockMessage   = schema.BedrockMessage
-	SchemaBedrockConfig    = schema.BedrockConfig
-	SchemaTokenUsage       = schema.TokenUsage
-	SchemaCurrentPrompt    = schema.CurrentPrompt
-	SchemaSystemPrompt     = schema.SystemPrompt
+	SchemaBedrockMessage = schema.BedrockMessage
+	SchemaBedrockConfig  = schema.BedrockConfig
+	SchemaTokenUsage     = schema.TokenUsage
+	SchemaCurrentPrompt  = schema.CurrentPrompt
+	SchemaSystemPrompt   = schema.SystemPrompt
 )
 
 // Image and storage types
@@ -97,7 +97,7 @@ type (
 // ===================================================================
 // SCHEMA CONSTANTS - Removed duplicate definitions
 // Use schema.* directly from the imported package
-// =================================================================== 
+// ===================================================================
 
 // ===================================================================
 // VALIDATION AND HELPER FUNCTIONS (direct imports)
@@ -110,7 +110,7 @@ var (
 	ValidateImageData           = schema.ValidateImageData
 	ValidateBedrockMessages     = schema.ValidateBedrockMessages
 	ValidateCurrentPrompt       = schema.ValidateCurrentPrompt
-	
+
 	// Helper functions
 	FormatISO8601        = schema.FormatISO8601
 	GetCurrentTimestamp  = schema.GetCurrentTimestamp
@@ -187,15 +187,15 @@ func CreateProcessingStage(stageName, status string, startTime, endTime string, 
 // CreateVerificationContext creates a basic verification context
 func CreateVerificationContext(verificationID, verificationType string) *SchemaVerificationContext {
 	return &SchemaVerificationContext{
-		VerificationId:   verificationID,
-		VerificationAt:   FormatISO8601(),
-		Status:           schema.StatusVerificationInitialized,
-		VerificationType: verificationType,
-		CurrentStatus:    schema.StatusVerificationInitialized,
-		LastUpdatedAt:    FormatISO8601(),
-		StatusHistory:    make([]SchemaStatusHistoryEntry, 0),
+		VerificationId:    verificationID,
+		VerificationAt:    FormatISO8601(),
+		Status:            schema.StatusVerificationInitialized,
+		VerificationType:  verificationType,
+		CurrentStatus:     schema.StatusVerificationInitialized,
+		LastUpdatedAt:     FormatISO8601(),
+		StatusHistory:     make([]SchemaStatusHistoryEntry, 0),
 		ProcessingMetrics: &SchemaProcessingMetrics{},
-		ErrorTracking:    &SchemaErrorTracking{
+		ErrorTracking: &SchemaErrorTracking{
 			HasErrors:        false,
 			ErrorHistory:     make([]schema.ErrorInfo, 0),
 			RecoveryAttempts: 0,
@@ -234,7 +234,7 @@ func IsEnhancedStatus(status string) bool {
 		schema.StatusTurn1Error,
 		schema.StatusTemplateProcessingError,
 	}
-	
+
 	for _, enhancedStatus := range enhancedStatuses {
 		if status == enhancedStatus {
 			return true
@@ -250,7 +250,7 @@ func IsVerificationComplete(status string) bool {
 		schema.StatusCompleted,
 		schema.StatusVerificationFailed,
 	}
-	
+
 	for _, completedStatus := range completedStatuses {
 		if status == completedStatus {
 			return true
@@ -261,7 +261,7 @@ func IsVerificationComplete(status string) bool {
 
 // IsErrorStatus checks if status indicates an error state
 func IsErrorStatus(status string) bool {
-	return status == schema.StatusTurn1Error || 
-		   status == schema.StatusTemplateProcessingError || 
-		   status == schema.StatusVerificationFailed
+	return status == schema.StatusTurn1Error ||
+		status == schema.StatusTemplateProcessingError ||
+		status == schema.StatusVerificationFailed
 }

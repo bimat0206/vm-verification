@@ -28,7 +28,7 @@ func (s *SchemaIntegratedService) ValidateAndProcessBedrockRequest(
 	prompt string,
 	imageData *schema.ImageData,
 ) (*schema.TurnResponse, error) {
-	
+
 	// Validate image data if provided
 	if imageData != nil {
 		if errors := schema.ValidateImageData(imageData, true); len(errors) > 0 {
@@ -106,13 +106,13 @@ func (s *SchemaIntegratedService) CreateWorkflowState(
 	verificationType string,
 	imageData *schema.ImageData,
 ) (*schema.WorkflowState, error) {
-	
+
 	// Create verification context using schema types
 	verificationContext := &schema.VerificationContext{
-		VerificationId:   verificationID,
-		VerificationAt:   schema.FormatISO8601(),
-		Status:           schema.StatusTurn1PromptReady,
-		VerificationType: verificationType,
+		VerificationId:    verificationID,
+		VerificationAt:    schema.FormatISO8601(),
+		Status:            schema.StatusTurn1PromptReady,
+		VerificationType:  verificationType,
 		ReferenceImageUrl: "s3://bucket/reference-image.jpg",
 		CheckingImageUrl:  "s3://bucket/checking-image.jpg",
 		VendingMachineId:  "VM001",
@@ -224,7 +224,7 @@ func (s *SchemaIntegratedService) ValidateImageForBedrock(imageInfo *schema.Imag
 
 	// Additional Bedrock-specific validations
 	if imageInfo.GetBase64SizeEstimate() > schema.BedrockMaxImageSize {
-		return fmt.Errorf("image size %d bytes exceeds Bedrock limit of %d bytes", 
+		return fmt.Errorf("image size %d bytes exceeds Bedrock limit of %d bytes",
 			imageInfo.GetBase64SizeEstimate(), schema.BedrockMaxImageSize)
 	}
 

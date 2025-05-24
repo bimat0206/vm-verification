@@ -14,15 +14,15 @@ func (c *Config) Validate() error {
 			"BEDROCK_CONNECT_TIMEOUT_SEC",
 		)
 	}
-	
+
 	if c.Processing.BedrockCallTimeoutSec <= 0 {
 		return errors.NewConfigError(
-			"BedrockTimeoutInvalid", 
+			"BedrockTimeoutInvalid",
 			"Bedrock call timeout must be greater than 0",
 			"BEDROCK_CALL_TIMEOUT_SEC",
 		)
 	}
-	
+
 	// Additional validation: call timeout should be greater than connect timeout
 	if c.Processing.BedrockCallTimeoutSec <= c.Processing.BedrockConnectTimeoutSec {
 		return errors.NewConfigError(
@@ -31,6 +31,6 @@ func (c *Config) Validate() error {
 			"BEDROCK_CALL_TIMEOUT_SEC",
 		)
 	}
-	
+
 	return nil
 }

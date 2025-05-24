@@ -38,25 +38,25 @@ type Config struct {
 func LoadConfiguration() (*Config, error) {
 	cfg := &Config{}
 	cfg.AWS.Region = getEnv("AWS_REGION", "us-east-1")
-	
+
 	var err error
 	cfg.AWS.S3Bucket, err = mustGet("STATE_BUCKET")
 	if err != nil {
 		return nil, err
 	}
-	
+
 	cfg.AWS.BedrockModel, err = mustGet("BEDROCK_MODEL")
 	if err != nil {
 		return nil, err
 	}
-	
+
 	cfg.AWS.AnthropicVersion = getEnv("ANTHROPIC_VERSION", "bedrock-2023-05-31")
-	
+
 	cfg.AWS.DynamoDBVerificationTable, err = mustGet("DYNAMODB_VERIFICATION_TABLE")
 	if err != nil {
 		return nil, err
 	}
-	
+
 	cfg.AWS.DynamoDBConversationTable, err = mustGet("DYNAMODB_CONVERSATION_TABLE")
 	if err != nil {
 		return nil, err
