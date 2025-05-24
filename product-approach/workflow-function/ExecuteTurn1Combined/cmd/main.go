@@ -227,7 +227,7 @@ type ServiceLayerComponents struct {
 // with deterministic local Bedrock control architecture
 func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalConfig.Config, logger logger.Logger) (*ServiceLayerComponents, error) {
 	// S3 service initialization
-	s3Service, err := services.NewS3StateManager(cfg.AWS.S3Bucket, logger)
+	s3Service, err := services.NewS3StateManager(*cfg, logger)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"S3 service initialization failed", false)
