@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Status History Append**: Replaced invalid `ADD` operation with `list_append` using `if_not_exists`.
 - **Impact**: Prevents `ValidationException` errors when updating verification status.
 
+
 ## [2.1.2] - 2025-05-26
 Reworked StorageManager to build structured prompt data and raw response payloads that include context sources, image references, and Bedrock metadata
 
