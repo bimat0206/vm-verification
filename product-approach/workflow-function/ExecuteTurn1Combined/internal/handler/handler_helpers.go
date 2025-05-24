@@ -238,7 +238,16 @@ func (h *Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctio
 	}
 
 	h.log.LogOutputEvent(response)
-	return response, nil
+
+	// Transform combined response into simplified structure for Step Functions
+	output := map[string]interface{}{
+		"verificationId": event.VerificationID,
+		"s3References":   response.ContextEnrichment["s3_references"],
+		"status":         response.ContextEnrichment["status"],
+		"summary":        response.ContextEnrichment["summary"],
+	}
+
+	return output, nil
 }
 
 // handleDirectRequest handles direct request format
