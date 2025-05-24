@@ -145,24 +145,24 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	// STAGE 5: Store responses
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1ResponseProcessing, "response_processing", nil)
 
-	storageResult := h.storageManager.StoreResponses(ctx, req.VerificationID, invokeResult.Response)
+	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image))
 	if storageResult.Error != nil {
 		return nil, storageResult.Error
 	}
-	h.recordStorageSuccess(storageResult, len(invokeResult.Response.Raw))
+	h.recordStorageSuccess(storageResult)
 
 	// STAGE 6: Store prompt
 	promptStart := time.Now()
-	promptRef, err := h.storageManager.StorePrompt(ctx, req.VerificationID, 1, promptResult.Prompt)
+	promptRef, err := h.storageManager.StorePrompt(ctx, req, 1, promptResult)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store prompt", true).
 			WithContext("verification_id", req.VerificationID)
 	}
-	
+
 	// Record prompt storage success
 	h.processingTracker.RecordStage("prompt_storage", "completed", time.Since(promptStart), map[string]interface{}{
-		"prompt_length": len(promptResult.Prompt),
+		"prompt_length":  len(promptResult.Prompt),
 		"prompt_ref_key": promptRef.Key,
 	})
 
