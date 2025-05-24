@@ -133,11 +133,13 @@ func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, ver
 		Key: map[string]types.AttributeValue{
 			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
 		},
-		UpdateExpression: aws.String("SET currentStatus = :status, lastUpdatedAt = :updated ADD statusHistory :statusEntry"),
+		UpdateExpression: aws.String("SET currentStatus = :status, lastUpdatedAt = :updated, " +
+			"statusHistory = list_append(if_not_exists(statusHistory, :empty), :entry)"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":status":      &types.AttributeValueMemberS{Value: statusEntry.Status},
-			":updated":     &types.AttributeValueMemberS{Value: statusEntry.Timestamp},
-			":statusEntry": &types.AttributeValueMemberL{Value: []types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}}},
+			":status":  &types.AttributeValueMemberS{Value: statusEntry.Status},
+			":updated": &types.AttributeValueMemberS{Value: statusEntry.Timestamp},
+			":entry":   &types.AttributeValueMemberL{Value: []types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}}},
+			":empty":   &types.AttributeValueMemberL{Value: []types.AttributeValue{}},
 		},
 	}
 
