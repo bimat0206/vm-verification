@@ -162,8 +162,8 @@ func (h *Handler) recordBedrockSuccess(ctx context.Context, verificationID strin
 }
 
 // recordStorageSuccess records successful storage operations
-func (h *Handler) recordStorageSuccess(result *StorageResult, responseSize int) {
-	metadata := h.storageManager.GetStorageMetadata(result, responseSize)
+func (h *Handler) recordStorageSuccess(result *StorageResult) {
+	metadata := h.storageManager.GetStorageMetadata(result)
 	h.processingTracker.RecordStage("response_processing", "completed", result.Duration, metadata)
 }
 
