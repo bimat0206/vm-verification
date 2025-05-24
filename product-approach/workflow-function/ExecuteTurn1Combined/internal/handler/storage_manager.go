@@ -166,7 +166,7 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 		},
 		"promptMetadata": map[string]interface{}{
 			"imageType":           "reference",
-			"promptTokenEstimate": prompt.TemplateProcessor.TokenEstimate,
+			"promptTokenEstimate": prompt.TemplateProcessor.InputTokens,
 			"imageSize":           imageSize,
 		},
 		"timestamp": schema.FormatISO8601(),
