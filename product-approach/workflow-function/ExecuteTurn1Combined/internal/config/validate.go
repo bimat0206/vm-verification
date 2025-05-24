@@ -1,6 +1,7 @@
 package config
 
 import (
+	"time"
 	"workflow-function/shared/errors"
 )
 
@@ -29,6 +30,14 @@ func (c *Config) Validate() error {
 			"BedrockTimeoutInvalid",
 			"Bedrock call timeout must be greater than connect timeout",
 			"BEDROCK_CALL_TIMEOUT_SEC",
+		)
+	}
+
+	if _, err := time.LoadLocation(c.DatePartitionTimezone); err != nil {
+		return errors.NewConfigError(
+			"InvalidTimezone",
+			"invalid timezone",
+			"DATE_PARTITION_TIMEZONE",
 		)
 	}
 

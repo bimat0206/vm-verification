@@ -1,8 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"time"
+
 	"workflow-function/shared/errors"
 )
 
@@ -32,6 +35,7 @@ type Config struct {
 		TemplateVersion  string
 		TemplateBasePath string
 	}
+	DatePartitionTimezone string
 }
 
 // LoadConfiguration parses environment variables into a Config structure.
@@ -74,6 +78,7 @@ func LoadConfiguration() (*Config, error) {
 
 	cfg.Prompts.TemplateVersion = getEnv("TURN1_PROMPT_VERSION", "v1.0")
 	cfg.Prompts.TemplateBasePath = getEnv("TEMPLATE_BASE_PATH", "/opt/templates")
+	cfg.DatePartitionTimezone = getEnv("DATE_PARTITION_TIMEZONE", "UTC")
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
@@ -104,4 +109,22 @@ func getInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+// CurrentDatePartition returns the current date partition in YYYY/MM/DD format
+func (c *Config) CurrentDatePartition() string {
+	loc, _ := time.LoadLocation(c.DatePartitionTimezone)
+	now := time.Now().In(loc)
+	return fmt.Sprintf("%04d/%02d/%02d", now.Year(), now.Month(), now.Day())
+}
+
+// DatePartitionFromTimestamp returns the date partition for a given timestamp
+func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
+	loc, _ := time.LoadLocation(c.DatePartitionTimezone)
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return "", err
+	}
+	t = t.In(loc)
+	return fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day()), nil
 }

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 	"workflow-function/ExecuteTurn1Combined/internal/config"
@@ -38,56 +37,35 @@ type StorageResult struct {
 
 // StorePrompt stores the rendered prompt to S3
 func (m *StorageManager) StorePrompt(ctx context.Context, verifID string, turn int, prompt string) (models.S3Reference, error) {
-	key := fmt.Sprintf("%s/prompts/turn%d-prompt.json", verifID, turn)
-	
-	// Create JSON payload with prompt field
-	promptData := map[string]string{
-		"prompt": prompt,
-	}
-	
-	// Marshal to JSON
-	promptJSON, err := json.Marshal(promptData)
-	if err != nil {
-		s3Err := errors.WrapError(err, errors.ErrorTypeS3,
-			"failed to marshal prompt data", false).
-			WithContext("verification_id", verifID)
-		
-		contextLogger := m.log.WithCorrelationId(verifID)
-		contextLogger.Warn("prompt marshal warning", map[string]interface{}{
-			"prompt_size": len(prompt),
-			"turn_id": turn,
-		})
-		
-		return models.S3Reference{}, s3Err
-	}
-	
+	key := fmt.Sprintf("prompts/turn%d-prompt.json", turn)
+
+	promptData := map[string]string{"prompt": prompt}
 	contextLogger := m.log.WithCorrelationId(verifID)
-	
-	// Use StoreRawResponse with the specified key format
-	ref, err := m.s3.StoreRawResponse(ctx, verifID, promptJSON)
+
+	ref, err := m.s3.StorePrompt(ctx, verifID, turn, promptData)
 	if err != nil {
 		s3Err := errors.WrapError(err, errors.ErrorTypeS3,
 			"store prompt failed", true).
 			WithContext("verification_id", verifID).
-			WithContext("prompt_size", len(promptJSON))
-		
+			WithContext("prompt_size", len(prompt))
+
 		enrichedErr := errors.SetVerificationID(s3Err, verifID)
-		
+
 		contextLogger.Warn("s3 prompt-store warning", map[string]interface{}{
-			"prompt_size_bytes": len(promptJSON),
-			"bucket": m.cfg.AWS.S3Bucket,
-			"key": key,
+			"prompt_size_bytes": len(prompt),
+			"bucket":            m.cfg.AWS.S3Bucket,
+			"key":               key,
 		})
-		
+
 		return models.S3Reference{}, enrichedErr
 	}
-	
+
 	contextLogger.Debug("stored prompt", map[string]interface{}{
-		"key": ref.Key,
-		"size_bytes": len(promptJSON),
-		"turn_id": turn,
+		"key":        ref.Key,
+		"size_bytes": len(prompt),
+		"turn_id":    turn,
 	})
-	
+
 	return ref, nil
 }
 

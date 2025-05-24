@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -133,6 +135,7 @@ type S3StateManager interface {
 	// Storage operations with schema integration
 	StoreRawResponse(ctx context.Context, verificationID string, data interface{}) (models.S3Reference, error)
 	StoreProcessedAnalysis(ctx context.Context, verificationID string, analysis interface{}) (models.S3Reference, error)
+	StorePrompt(ctx context.Context, verificationID string, turn int, prompt interface{}) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
@@ -152,10 +155,17 @@ type s3Manager struct {
 	stateManager s3state.Manager
 	bucket       string
 	logger       logger.Logger
+	cfg          config.Config
+}
+
+func (m *s3Manager) datePath(verificationID string) string {
+	partition := m.cfg.CurrentDatePartition()
+	return fmt.Sprintf("%s/%s", partition, verificationID)
 }
 
 // NewS3StateManager creates a strategically enhanced S3StateManager
-func NewS3StateManager(bucket string, log logger.Logger) (S3StateManager, error) {
+func NewS3StateManager(cfg config.Config, log logger.Logger) (S3StateManager, error) {
+	bucket := cfg.AWS.S3Bucket
 	log.Info("s3_state_manager_initialization", map[string]interface{}{
 		"bucket":         bucket,
 		"schema_version": schema.SchemaVersion,
@@ -177,6 +187,7 @@ func NewS3StateManager(bucket string, log logger.Logger) (S3StateManager, error)
 		stateManager: mgr,
 		bucket:       bucket,
 		logger:       log,
+		cfg:          cfg,
 	}, nil
 }
 
@@ -691,8 +702,8 @@ func (m *s3Manager) StoreRawResponse(ctx context.Context, verificationID string,
 			map[string]interface{}{"operation": "store_raw_response"})
 	}
 
-	key := fmt.Sprintf("%s/turn1-raw-response.json", verificationID)
-	stateRef, err := m.stateManager.StoreJSON("responses", key, data)
+	key := "responses/turn1-raw-response.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, data)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store raw response", true).
@@ -718,13 +729,32 @@ func (m *s3Manager) StoreProcessedAnalysis(ctx context.Context, verificationID s
 			map[string]interface{}{"operation": "store_processed_analysis"})
 	}
 
-	key := fmt.Sprintf("%s/turn1-processed-analysis.json", verificationID)
-	stateRef, err := m.stateManager.StoreJSON("processing", key, analysis)
+	key := "processing/turn1-processed-analysis.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, analysis)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store processed analysis", true).
 			WithContext("verification_id", verificationID).
 			WithContext("category", "processing")
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
+
+// StorePrompt stores a rendered prompt JSON
+func (m *s3Manager) StorePrompt(ctx context.Context, verificationID string, turn int, prompt interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing prompt",
+			map[string]interface{}{"operation": "store_prompt"})
+	}
+
+	key := fmt.Sprintf("prompts/turn%d-prompt.json", turn)
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, prompt)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store prompt", true).
+			WithContext("verification_id", verificationID)
 	}
 
 	return m.fromStateReference(stateRef), nil
@@ -741,8 +771,8 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 			})
 	}
 
-	key := fmt.Sprintf("%s/conversation-turn%d.json", verificationID, turnData.TurnId)
-	stateRef, err := m.stateManager.StoreJSON("responses", key, turnData)
+	key := fmt.Sprintf("responses/conversation-turn%d.json", turnData.TurnId)
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, turnData)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store conversation turn", true).
@@ -772,8 +802,8 @@ func (m *s3Manager) StoreTemplateProcessor(ctx context.Context, verificationID s
 		})
 	}
 
-	key := fmt.Sprintf("%s/template-processor.json", verificationID)
-	stateRef, err := m.stateManager.StoreJSON("processing", key, processor)
+	key := "processing/template-processor.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, processor)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store template processor", true).
@@ -803,8 +833,8 @@ func (m *s3Manager) StoreProcessingMetrics(ctx context.Context, verificationID s
 		})
 	}
 
-	key := fmt.Sprintf("%s/processing-metrics.json", verificationID)
-	stateRef, err := m.stateManager.StoreJSON("processing", key, metrics)
+	key := "processing/processing-metrics.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, metrics)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store processing metrics", true).
@@ -825,10 +855,10 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 			})
 	}
 
-	key := fmt.Sprintf("%s/%s.json", verificationID, stateType)
+	key := fmt.Sprintf("processing/%s.json", stateType)
 	stateRef := &s3state.Reference{
 		Bucket: m.bucket,
-		Key:    fmt.Sprintf("processing/%s", key),
+		Key:    fmt.Sprintf("%s/%s", m.datePath(verificationID), key),
 	}
 
 	var result interface{}
