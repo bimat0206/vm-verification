@@ -416,7 +416,7 @@ func (d *dynamoClient) UpdateCurrentStatus(ctx context.Context, verificationID, 
 	}
 
 	// Add metrics if provided
-	if metrics != nil && len(metrics) > 0 {
+	if len(metrics) > 0 {
 		avMetrics, err := attributevalue.MarshalMap(metrics)
 		if err != nil {
 			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
