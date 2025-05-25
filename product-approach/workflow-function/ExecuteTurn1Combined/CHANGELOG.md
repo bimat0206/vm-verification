@@ -5,6 +5,15 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.4] - 2025-05-29
+
+### Fixed
+- **Prompt Processing Time:** `PromptGenerator` now records actual template processing duration instead of a placeholder value.
+- **Historical Context Machine Structure:** `HistoricalContextLoader` dynamically loads machine structure details from previous verifications or associated layout metadata rather than using hardcoded defaults. Warnings are logged when structure details cannot be determined.
+
+### Changed
+- Added contextual logging to indicate the source of historical machine structure data.
+
 ## [2.2.3] - 2025-05-28
 
 ### Fixed

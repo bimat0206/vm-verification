@@ -2,7 +2,10 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"time"
+
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 	"workflow-function/shared/logger"
@@ -66,18 +69,78 @@ func (h *HistoricalContextLoader) LoadHistoricalContext(ctx context.Context, req
 		"HoursSinceLastVerification": calculateHoursSince(previousVerification.VerificationAt),
 	}
 
-	// Add layout information from the previous verification
+	// Add layout information from the previous verification if present
 	if previousVerification.LayoutId > 0 {
 		req.VerificationContext.HistoricalContext["LayoutId"] = previousVerification.LayoutId
+	}
+	if previousVerification.LayoutPrefix != "" {
 		req.VerificationContext.HistoricalContext["LayoutPrefix"] = previousVerification.LayoutPrefix
 	}
 
-	// For now, set default row/column information
-	// In a real implementation, this would come from additional DynamoDB attributes
-	// or a separate layout metadata query
-	req.VerificationContext.HistoricalContext["RowCount"] = 4
-	req.VerificationContext.HistoricalContext["ColumnCount"] = 10
-	req.VerificationContext.HistoricalContext["RowLabels"] = []string{"A", "B", "C", "D"}
+	var machineStructureFound bool
+
+	// Attempt to extract machine structure directly from previous verification via reflection
+	pvValue := reflect.ValueOf(previousVerification).Elem()
+	msField := pvValue.FieldByName("MachineStructure")
+	if msField.IsValid() {
+		if msMap, ok := msField.Interface().(map[string]interface{}); ok && msMap != nil {
+			if rc, ok := msMap["rowCount"].(float64); ok {
+				req.VerificationContext.HistoricalContext["RowCount"] = int(rc)
+				machineStructureFound = true
+			}
+			if cc, ok := msMap["columnCount"].(float64); ok {
+				req.VerificationContext.HistoricalContext["ColumnCount"] = int(cc)
+			}
+			if rl, ok := msMap["rowOrder"].([]interface{}); ok {
+				rowLabels := make([]string, len(rl))
+				for i, v := range rl {
+					rowLabels[i] = fmt.Sprintf("%v", v)
+				}
+				req.VerificationContext.HistoricalContext["RowLabels"] = rowLabels
+			}
+			if machineStructureFound {
+				contextLogger.Info("Populated historical machine structure from previous verification", nil)
+			}
+		}
+	}
+
+	// If not found directly, use layout metadata lookup
+	if !machineStructureFound && previousVerification.LayoutId > 0 && previousVerification.LayoutPrefix != "" {
+		contextLogger.Info("Attempting to load LayoutMetadata for historical context", map[string]interface{}{
+			"layoutId":     previousVerification.LayoutId,
+			"layoutPrefix": previousVerification.LayoutPrefix,
+		})
+		layoutMeta, err := h.dynamo.GetLayoutMetadata(ctx, previousVerification.LayoutId, previousVerification.LayoutPrefix)
+		if err == nil && layoutMeta != nil && layoutMeta.MachineStructure != nil {
+			if rc, ok := layoutMeta.MachineStructure["rowCount"].(float64); ok {
+				req.VerificationContext.HistoricalContext["RowCount"] = int(rc)
+				machineStructureFound = true
+			}
+			if cc, ok := layoutMeta.MachineStructure["columnCount"].(float64); ok {
+				req.VerificationContext.HistoricalContext["ColumnCount"] = int(cc)
+			}
+			if rl, ok := layoutMeta.MachineStructure["rowOrder"].([]interface{}); ok {
+				rowLabels := make([]string, len(rl))
+				for i, v := range rl {
+					rowLabels[i] = fmt.Sprintf("%v", v)
+				}
+				req.VerificationContext.HistoricalContext["RowLabels"] = rowLabels
+			}
+			if machineStructureFound {
+				contextLogger.Info("Successfully populated historical machine structure from LayoutMetadata", map[string]interface{}{"layoutId": layoutMeta.LayoutId})
+			}
+		} else if err != nil {
+			contextLogger.Warn("Failed to load LayoutMetadata for historical context", map[string]interface{}{
+				"error":        err.Error(),
+				"layoutId":     previousVerification.LayoutId,
+				"layoutPrefix": previousVerification.LayoutPrefix,
+			})
+		}
+	}
+
+	if !machineStructureFound {
+		contextLogger.Warn("Machine structure could not be determined for historical context", nil)
+	}
 
 	contextLogger.Info("Successfully loaded historical verification context", map[string]interface{}{
 		"previous_verification_id": previousVerification.VerificationId,

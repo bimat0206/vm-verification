@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"time"
+
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
@@ -32,29 +34,34 @@ func (p *PromptGenerator) GetTemplateUsed(vCtx models.VerificationContext) strin
 
 // GenerateTurn1PromptEnhanced generates Turn1 prompt with enhanced template processing
 func (p *PromptGenerator) GenerateTurn1PromptEnhanced(ctx context.Context, vCtx models.VerificationContext, systemPrompt string) (string, *schema.TemplateProcessor, error) {
-	// For now, use the existing prompt service but capture processing info
+	startTime := time.Now()
+
+	// Use the existing prompt service while capturing processing info
 	prompt, err := p.promptService.GenerateTurn1Prompt(ctx, vCtx, systemPrompt)
 	if err != nil {
 		return "", nil, err
 	}
 
+	processingDuration := time.Since(startTime)
+
 	// Create template processor info for tracking
 	templateProcessor := &schema.TemplateProcessor{
 		Template: &schema.PromptTemplate{
-			TemplateId:      "turn1-combined",
+			TemplateId:      p.GetTemplateUsed(vCtx),
 			TemplateVersion: p.cfg.Prompts.TemplateVersion,
-			TemplateType:    "turn1-layout-vs-checking",
+			TemplateType:    p.GetTemplateUsed(vCtx),
 			Content:         prompt,
 		},
 		ContextData: map[string]interface{}{
-			"verificationType": vCtx.VerificationType,
-			"layoutMetadata":   vCtx.LayoutMetadata,
-			"systemPromptSize": len(systemPrompt),
+			"verificationType":  vCtx.VerificationType,
+			"layoutMetadata":    vCtx.LayoutMetadata,
+			"historicalContext": vCtx.HistoricalContext,
+			"systemPromptSize":  len(systemPrompt),
 		},
 		ProcessedPrompt: prompt,
-		ProcessingTime:  10, // Placeholder - would be actual processing time
-		InputTokens:     0,  // Will be populated from Bedrock response
-		OutputTokens:    0,  // Will be populated from Bedrock response
+		ProcessingTime:  processingDuration.Milliseconds(),
+		InputTokens:     0,
+		OutputTokens:    0,
 	}
 
 	return prompt, templateProcessor, nil
