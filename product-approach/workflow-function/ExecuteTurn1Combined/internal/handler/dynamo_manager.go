@@ -5,6 +5,7 @@ import (
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 )
@@ -33,7 +34,7 @@ func (d *DynamoManager) Update(
 	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, verificationID, statusEntry); err != nil {
 		d.log.Warn("dynamodb status update failed", map[string]interface{}{
 			"error":     err.Error(),
-			"retryable": services.IsRetryable(err),
+			"retryable": errors.IsRetryable(err),
 		})
 		dynamoOK = false
 	}
@@ -41,7 +42,7 @@ func (d *DynamoManager) Update(
 	if err := d.dynamo.UpdateConversationTurn(ctx, verificationID, turnEntry); err != nil {
 		d.log.Warn("conversation history recording failed", map[string]interface{}{
 			"error":     err.Error(),
-			"retryable": services.IsRetryable(err),
+			"retryable": errors.IsRetryable(err),
 		})
 		dynamoOK = false
 	}
