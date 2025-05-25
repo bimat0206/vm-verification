@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.4.2] - 2025-05-26
+### Fixed
+- Restored `ParsedTurn1Data` type to resolve compilation errors.
+- Removed redundant `nil` check when updating metrics in DynamoDB service.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
