@@ -251,6 +251,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 // convertSchemaToLocalVerificationContext converts shared schema to local model with comprehensive mapping
 func convertSchemaToLocalVerificationContext(schemaCtx schema.VerificationContext, layoutMetadata *schema.LayoutMetadata) models.VerificationContext {
 	localCtx := models.VerificationContext{
+		VerificationAt:    schemaCtx.VerificationAt,
 		VerificationType:  schemaCtx.VerificationType,
 		VendingMachineId:  schemaCtx.VendingMachineId,
 		LayoutId:          schemaCtx.LayoutId,

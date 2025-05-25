@@ -26,12 +26,13 @@ func NewDynamoManager(dynamo services.DynamoDBService, _ config.Config, log logg
 func (d *DynamoManager) Update(
 	ctx context.Context,
 	verificationID string,
+	initialVerificationAt string,
 	statusEntry schema.StatusHistoryEntry,
 	turnEntry *schema.TurnResponse,
 ) bool {
 	dynamoOK := true
 
-	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, verificationID, statusEntry); err != nil {
+	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, verificationID, initialVerificationAt, statusEntry); err != nil {
 		d.log.Warn("dynamodb status update failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),
