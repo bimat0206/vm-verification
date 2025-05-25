@@ -138,6 +138,7 @@ type S3StateManager interface {
 	StoreProcessedAnalysis(ctx context.Context, verificationID string, analysis interface{}) (models.S3Reference, error)
 	StorePrompt(ctx context.Context, verificationID string, turn int, prompt interface{}) (models.S3Reference, error)
 	StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error)
+	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
@@ -761,6 +762,32 @@ func (m *s3Manager) StoreProcessedTurn1Response(ctx context.Context, verificatio
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store processed turn1 response", true).
+			WithContext("verification_id", verificationID).
+			WithContext("category", "processing")
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
+
+// StoreProcessedTurn1Markdown stores the Markdown version of the Turn 1 analysis
+func (m *s3Manager) StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing processed turn1 markdown",
+			map[string]interface{}{"operation": "store_processed_turn1_markdown"})
+	}
+	if strings.TrimSpace(markdownContent) == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"markdownContent cannot be empty",
+			map[string]interface{}{"verification_id": verificationID})
+	}
+
+	key := "processing/turn1-processed-response.md"
+	dataBytes := []byte(markdownContent)
+	stateRef, err := m.stateManager.StoreWithContentType(m.datePath(verificationID), key, dataBytes, "text/markdown")
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store processed turn1 markdown", true).
 			WithContext("verification_id", verificationID).
 			WithContext("category", "processing")
 	}

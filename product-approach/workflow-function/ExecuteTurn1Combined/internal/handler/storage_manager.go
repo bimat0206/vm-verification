@@ -127,7 +127,7 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 }
 
 // StoreResponses stores raw and processed responses to S3
-func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedData *bedrockparser.ParsedTurn1Data) *StorageResult {
+func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedMarkdown *bedrockparser.ParsedTurn1Markdown) *StorageResult {
 	startTime := time.Now()
 	result := &StorageResult{}
 	verificationID := req.VerificationID
@@ -202,29 +202,29 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 	// Store processed analysis or parsed response
 	var procRef models.S3Reference
 	var procErr error
-	if parsedData != nil {
-		procRef, procErr = s.s3.StoreProcessedTurn1Response(ctx, verificationID, parsedData)
+	if parsedMarkdown != nil && parsedMarkdown.AnalysisMarkdown != "" {
+		procRef, procErr = s.s3.StoreProcessedTurn1Markdown(ctx, verificationID, parsedMarkdown.AnalysisMarkdown)
+		if procErr != nil {
+			s3Err := errors.WrapError(procErr, errors.ErrorTypeS3,
+				"store processed analysis failed", true).
+				WithContext("verification_id", verificationID)
+
+			enrichedErr := errors.SetVerificationID(s3Err, verificationID)
+
+			contextLogger.Warn("s3 processed-store warning", map[string]interface{}{
+				"bucket": s.cfg.AWS.S3Bucket,
+			})
+
+			result.Error = enrichedErr
+			result.Duration = time.Since(startTime)
+			return result
+		}
+		result.ProcessedRef = procRef
 	} else {
-		procRef, procErr = s.s3.StoreProcessedAnalysis(ctx, verificationID, resp.Processed)
-	}
-	if procErr != nil {
-		s3Err := errors.WrapError(procErr, errors.ErrorTypeS3,
-			"store processed analysis failed", true).
-			WithContext("verification_id", verificationID)
-
-		enrichedErr := errors.SetVerificationID(s3Err, verificationID)
-
-		contextLogger.Warn("s3 processed-store warning", map[string]interface{}{
-			"bucket": s.cfg.AWS.S3Bucket,
-		})
-
-		result.Error = enrichedErr
-		result.Duration = time.Since(startTime)
-		return result
+		contextLogger.Warn("Parsed Turn 1 Markdown is nil or empty, skipping S3 storage of processed Markdown response.", map[string]interface{}{"verificationId": verificationID})
 	}
 
 	result.RawRef = rawRef
-	result.ProcessedRef = procRef
 	result.RawSize = len(rawJSON)
 	result.Duration = time.Since(startTime)
 

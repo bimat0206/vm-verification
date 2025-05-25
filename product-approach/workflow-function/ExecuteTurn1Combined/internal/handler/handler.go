@@ -156,7 +156,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
 		bedrockTextOutput = rawResp.Content
 	}
-	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1Response(bedrockTextOutput)
+	parsedTurn1Data, parseErr := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockTextOutput)
 	if parseErr != nil {
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{
 			"error": parseErr.Error(),
@@ -216,8 +216,13 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		},
 	}
 
+	var turn1MetricsForDB *schema.TurnMetrics = nil
+	if processingMetrics != nil && processingMetrics.Turn1 != nil {
+		turn1MetricsForDB = processingMetrics.Turn1
+	}
+
 	// Perform DynamoDB updates synchronously
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, parsedTurn1Data)
+	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
@@ -329,7 +334,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
 		bedrockTextOutput = rawResp.Content
 	}
-	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1Response(bedrockTextOutput)
+	parsedTurn1Data, parseErr := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockTextOutput)
 	if parseErr != nil {
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{"error": parseErr.Error()})
 	}
@@ -388,7 +393,12 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		},
 	}
 
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, parsedTurn1Data)
+	var turn1MetricsForDB *schema.TurnMetrics = nil
+	if processingMetrics != nil && processingMetrics.Turn1 != nil {
+		turn1MetricsForDB = processingMetrics.Turn1
+	}
+
+	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
