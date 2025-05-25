@@ -170,17 +170,40 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	totalDuration := time.Since(h.startTime)
 	h.updateProcessingMetrics(processingMetrics, totalDuration, invokeResult)
 
-	// Start async DynamoDB updates
-	updateComplete, dynamoOK := h.dynamoManager.UpdateAsync(ctx, req.VerificationID,
-		invokeResult.Response.TokenUsage, invokeResult.Response.RequestID,
-		storageResult.RawRef, storageResult.ProcessedRef)
+	// Prepare DynamoDB entries
+	statusEntry := schema.StatusHistoryEntry{
+		Status:           schema.StatusTurn1Completed,
+		Timestamp:        schema.FormatISO8601(),
+		FunctionName:     "ExecuteTurn1Combined",
+		ProcessingTimeMs: totalDuration.Milliseconds(),
+		Stage:            "turn1_completion",
+	}
+
+	turnEntry := &schema.TurnResponse{
+		TurnId:     1,
+		Timestamp:  schema.FormatISO8601(),
+		Prompt:     "",
+		ImageUrls:  map[string]string{},
+		Response:   schema.BedrockApiResponse{RequestId: invokeResult.Response.RequestID},
+		LatencyMs:  invokeResult.Duration.Milliseconds(),
+		TokenUsage: &invokeResult.Response.TokenUsage,
+		Stage:      "REFERENCE_ANALYSIS",
+		Metadata: map[string]interface{}{
+			"model_id":        h.cfg.AWS.BedrockModel,
+			"verification_id": req.VerificationID,
+			"function_name":   "ExecuteTurn1Combined",
+		},
+	}
+
+	// Perform DynamoDB updates synchronously
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, statusEntry, turnEntry)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
 		"total_duration_ms": totalDuration.Milliseconds(),
 		"processing_stages": h.processingTracker.GetStageCount(),
 		"status_updates":    h.statusTracker.GetHistoryCount(),
-		"dynamodb_updated":  *dynamoOK, // Include dynamoOK flag in status
+		"dynamodb_updated":  dynamoOK,
 	})
 
 	// Build response with all required fields for schema v2.1.0
@@ -189,9 +212,6 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 		invokeResult.Response, h.processingTracker.GetStages(), totalDuration.Milliseconds(),
 		invokeResult.Duration.Milliseconds(), dynamoOK,
 	)
-
-	// Wait for async updates
-	h.dynamoManager.WaitForUpdates(updateComplete, 5*time.Second, contextLogger)
 
 	// Validate and log completion
 	h.validateAndLogCompletion(response, totalDuration, invokeResult.Response, contextLogger)
@@ -205,7 +225,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	h.startTime = time.Now()
 	h.processingTracker = NewProcessingStagesTracker(h.startTime)
 	h.statusTracker = NewStatusTracker(h.startTime)
-	
+
 	processingMetrics := h.initializeProcessingMetrics()
 	contextLogger := h.createContextLogger(req)
 
@@ -304,17 +324,39 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	totalDuration := time.Since(h.startTime)
 	h.updateProcessingMetrics(processingMetrics, totalDuration, invokeResult)
 
-	// Start async DynamoDB updates
-	updateComplete, dynamoOK := h.dynamoManager.UpdateAsync(ctx, req.VerificationID,
-		invokeResult.Response.TokenUsage, invokeResult.Response.RequestID,
-		storageResult.RawRef, storageResult.ProcessedRef)
+	// Prepare DynamoDB entries
+	statusEntry := schema.StatusHistoryEntry{
+		Status:           schema.StatusTurn1Completed,
+		Timestamp:        schema.FormatISO8601(),
+		FunctionName:     "ExecuteTurn1Combined",
+		ProcessingTimeMs: totalDuration.Milliseconds(),
+		Stage:            "turn1_completion",
+	}
+
+	turnEntry := &schema.TurnResponse{
+		TurnId:     1,
+		Timestamp:  schema.FormatISO8601(),
+		Prompt:     "",
+		ImageUrls:  map[string]string{},
+		Response:   schema.BedrockApiResponse{RequestId: invokeResult.Response.RequestID},
+		LatencyMs:  invokeResult.Duration.Milliseconds(),
+		TokenUsage: &invokeResult.Response.TokenUsage,
+		Stage:      "REFERENCE_ANALYSIS",
+		Metadata: map[string]interface{}{
+			"model_id":        h.cfg.AWS.BedrockModel,
+			"verification_id": req.VerificationID,
+			"function_name":   "ExecuteTurn1Combined",
+		},
+	}
+
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, statusEntry, turnEntry)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
 		"total_duration_ms": totalDuration.Milliseconds(),
 		"processing_stages": h.processingTracker.GetStageCount(),
 		"status_updates":    h.statusTracker.GetHistoryCount(),
-		"dynamodb_updated":  *dynamoOK,
+		"dynamodb_updated":  dynamoOK,
 	})
 
 	// Build Step Function response
@@ -323,9 +365,6 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		invokeResult.Response, totalDuration.Milliseconds(), invokeResult.Duration.Milliseconds(), dynamoOK,
 	)
 
-	// Wait for async updates
-	h.dynamoManager.WaitForUpdates(updateComplete, 5*time.Second, contextLogger)
-
 	// Log completion
 	contextLogger.Info("Completed ExecuteTurn1Combined", map[string]interface{}{
 		"duration_ms":       totalDuration.Milliseconds(),
@@ -333,7 +372,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		"status_updates":    h.statusTracker.GetHistoryCount(),
 		"schema_version":    h.validator.GetSchemaVersion(),
 		"verification_id":   req.VerificationID,
-		"status":           schema.StatusTurn1Completed,
+		"status":            schema.StatusTurn1Completed,
 	})
 
 	return stepFunctionResponse, nil
