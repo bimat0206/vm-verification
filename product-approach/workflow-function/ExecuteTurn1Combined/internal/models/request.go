@@ -10,8 +10,9 @@ type Turn1Request struct {
 
 // Turn1RequestS3Refs groups the S3 references needed for Turn-1.
 type Turn1RequestS3Refs struct {
-	Prompts PromptRefs `json:"prompts"`
-	Images  ImageRefs  `json:"images"`
+	Prompts    PromptRefs           `json:"prompts"`
+	Images     ImageRefs            `json:"images"`
+	Processing ProcessingReferences `json:"processing,omitempty"`
 }
 
 // PromptRefs holds S3 locations for prompt artifacts.
@@ -22,6 +23,12 @@ type PromptRefs struct {
 // ImageRefs holds S3 locations for image artifacts.
 type ImageRefs struct {
 	ReferenceBase64 S3Reference `json:"referenceBase64"` // reference-base64.json
+}
+
+// ProcessingReferences holds S3 locations for processing artifacts.
+type ProcessingReferences struct {
+	HistoricalContext S3Reference `json:"historicalContext,omitempty"`
+	LayoutMetadata    S3Reference `json:"layoutMetadata,omitempty"`
 }
 
 // Turn1ResponseS3Refs groups the S3 references created by Turn-1.

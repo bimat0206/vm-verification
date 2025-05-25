@@ -221,7 +221,23 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 					Size:   metadata.ReferenceImage.StorageMetadata.StoredSize,
 				},
 			},
+			Processing: models.ProcessingReferences{},
 		},
+	}
+
+	// Populate historical context S3 reference for PREVIOUS_VS_CURRENT
+	if initData.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		if histCtxRef, ok := event.S3References["processing_historical-context"]; ok {
+			req.S3Refs.Processing.HistoricalContext = histCtxRef
+			transformLogger.Info("historical_context_s3_reference_found_in_event", map[string]interface{}{
+				"bucket": histCtxRef.Bucket,
+				"key":    histCtxRef.Key,
+			})
+		} else {
+			transformLogger.Warn("s3_reference_for_processing_historical_context_not_found_in_event_for_uc2", map[string]interface{}{
+				"verification_id": event.VerificationID,
+			})
+		}
 	}
 
 	// STRATEGIC STAGE 6: Comprehensive transformation completion with schema validation
