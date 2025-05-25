@@ -590,7 +590,8 @@ func (d *dynamoClient) StoreParsedTurn1VerificationData(ctx context.Context, ver
 		Set(expression.Name("referenceStatus"), expression.Value(parsedData.ReferenceRowStatus)).
 		Set(expression.Name("referenceSummary"), expression.Value(parsedData.ReferenceSummary)).
 		Set(expression.Name("lastUpdatedAt"), expression.Value(schema.FormatISO8601()))
-	expr, err := update.Build()
+	builder := expression.NewBuilder().WithUpdate(update)
+	expr, err := builder.Build()
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to build expression for parsed turn1 data", false)
 	}

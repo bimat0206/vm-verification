@@ -16,6 +16,8 @@ require (
 	workflow-function/shared/templateloader v0.0.0-00010101000000-000000000000
 )
 
+require github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.82
+
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.10 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.67 // indirect
