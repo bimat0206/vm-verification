@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
@@ -126,7 +127,7 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 }
 
 // StoreResponses stores raw and processed responses to S3
-func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int) *StorageResult {
+func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedData *bedrockparser.ParsedTurn1Data) *StorageResult {
 	startTime := time.Now()
 	result := &StorageResult{}
 	verificationID := req.VerificationID
@@ -198,10 +199,16 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 		return result
 	}
 
-	// Store processed analysis
-	procRef, err := s.s3.StoreProcessedAnalysis(ctx, verificationID, resp.Processed)
-	if err != nil {
-		s3Err := errors.WrapError(err, errors.ErrorTypeS3,
+	// Store processed analysis or parsed response
+	var procRef models.S3Reference
+	var procErr error
+	if parsedData != nil {
+		procRef, procErr = s.s3.StoreProcessedTurn1Response(ctx, verificationID, parsedData)
+	} else {
+		procRef, procErr = s.s3.StoreProcessedAnalysis(ctx, verificationID, resp.Processed)
+	}
+	if procErr != nil {
+		s3Err := errors.WrapError(procErr, errors.ErrorTypeS3,
 			"store processed analysis failed", true).
 			WithContext("verification_id", verificationID)
 

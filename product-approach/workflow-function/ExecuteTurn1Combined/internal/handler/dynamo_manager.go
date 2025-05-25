@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 
+	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 	"workflow-function/shared/errors"
@@ -29,6 +30,7 @@ func (d *DynamoManager) Update(
 	initialVerificationAt string,
 	statusEntry schema.StatusHistoryEntry,
 	turnEntry *schema.TurnResponse,
+	parsedData *bedrockparser.ParsedTurn1Data,
 ) bool {
 	dynamoOK := true
 
@@ -46,6 +48,16 @@ func (d *DynamoManager) Update(
 			"retryable": errors.IsRetryable(err),
 		})
 		dynamoOK = false
+	}
+
+	if parsedData != nil {
+		if err := d.dynamo.StoreParsedTurn1VerificationData(ctx, verificationID, initialVerificationAt, parsedData); err != nil {
+			d.log.Warn("dynamodb store parsed turn1 data failed", map[string]interface{}{
+				"error":     err.Error(),
+				"retryable": errors.IsRetryable(err),
+			})
+			dynamoOK = false
+		}
 	}
 
 	return dynamoOK

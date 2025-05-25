@@ -10,6 +10,7 @@ import (
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 
+	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	// Using shared packages correctly
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -142,10 +143,30 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	}
 	h.recordBedrockSuccess(ctx, req.VerificationID, invokeResult, promptResult.TemplateProcessor)
 
+	var bedrockTextOutput string
+	if processedMap, ok := invokeResult.Response.Processed.(map[string]interface{}); ok {
+		if contentStr, ok := processedMap["content"].(string); ok {
+			bedrockTextOutput = contentStr
+		}
+	}
+	if bedrockTextOutput == "" {
+		var rawResp struct {
+			Content string `json:"content"`
+		}
+		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
+		bedrockTextOutput = rawResp.Content
+	}
+	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1Response(bedrockTextOutput)
+	if parseErr != nil {
+		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{
+			"error": parseErr.Error(),
+		})
+	}
+
 	// STAGE 5: Store responses
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1ResponseProcessing, "response_processing", nil)
 
-	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image))
+	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image), parsedTurn1Data)
 	if storageResult.Error != nil {
 		return nil, storageResult.Error
 	}
@@ -196,7 +217,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	}
 
 	// Perform DynamoDB updates synchronously
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry)
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, parsedTurn1Data)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
@@ -295,8 +316,26 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	}
 	h.recordBedrockSuccess(ctx, req.VerificationID, invokeResult, promptResult.TemplateProcessor)
 
+	var bedrockTextOutput string
+	if processedMap, ok := invokeResult.Response.Processed.(map[string]interface{}); ok {
+		if contentStr, ok := processedMap["content"].(string); ok {
+			bedrockTextOutput = contentStr
+		}
+	}
+	if bedrockTextOutput == "" {
+		var rawResp struct {
+			Content string `json:"content"`
+		}
+		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
+		bedrockTextOutput = rawResp.Content
+	}
+	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1Response(bedrockTextOutput)
+	if parseErr != nil {
+		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{"error": parseErr.Error()})
+	}
+
 	// STAGE 5: Store response and processed analysis
-	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image))
+	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image), parsedTurn1Data)
 	if storageResult.Error != nil {
 		contextLogger.Error("storage error", map[string]interface{}{
 			"error": storageResult.Error.Error(),
@@ -349,7 +388,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		},
 	}
 
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry)
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, parsedTurn1Data)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{

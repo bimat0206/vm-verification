@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/shared/errors"
@@ -136,6 +137,7 @@ type S3StateManager interface {
 	StoreRawResponse(ctx context.Context, verificationID string, data interface{}) (models.S3Reference, error)
 	StoreProcessedAnalysis(ctx context.Context, verificationID string, analysis interface{}) (models.S3Reference, error)
 	StorePrompt(ctx context.Context, verificationID string, turn int, prompt interface{}) (models.S3Reference, error)
+	StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
@@ -734,6 +736,31 @@ func (m *s3Manager) StoreProcessedAnalysis(ctx context.Context, verificationID s
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store processed analysis", true).
+			WithContext("verification_id", verificationID).
+			WithContext("category", "processing")
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
+
+// StoreProcessedTurn1Response stores the parsed Turn1 response structure
+func (m *s3Manager) StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing processed turn1 response",
+			map[string]interface{}{"operation": "store_processed_turn1_response"})
+	}
+	if analysisData == nil {
+		return models.S3Reference{}, errors.NewValidationError(
+			"analysisData cannot be nil for storing processed turn1 response",
+			map[string]interface{}{"verification_id": verificationID})
+	}
+
+	key := "processing/turn1-processed-response.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, analysisData)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store processed turn1 response", true).
 			WithContext("verification_id", verificationID).
 			WithContext("category", "processing")
 	}
