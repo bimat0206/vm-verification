@@ -784,7 +784,7 @@ func (m *s3Manager) StoreProcessedTurn1Markdown(ctx context.Context, verificatio
 
 	key := "processing/turn1-processed-response.md"
 	dataBytes := []byte(markdownContent)
-	stateRef, err := m.stateManager.StoreWithContentType(m.datePath(verificationID), key, dataBytes, "text/markdown")
+	stateRef, err := m.stateManager.StoreWithContentType(m.datePath(verificationID), key, dataBytes, "text/markdown; charset=utf-8")
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store processed turn1 markdown", true).

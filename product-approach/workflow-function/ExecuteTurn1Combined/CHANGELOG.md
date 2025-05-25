@@ -7,6 +7,10 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 - Restored `ParsedTurn1Data` type to resolve compilation errors.
 - Removed redundant `nil` check when updating metrics in DynamoDB service.
 
+## [2.4.3] - 2025-05-27
+### Fixed
+- **Vietnamese Character Encoding:** Ensured UTF-8 preservation when storing the processed Turn 1 Markdown in S3. The `turn1-processed-response.md` object now sets `ContentType` to `text/markdown; charset=utf-8` for proper Unicode display.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
