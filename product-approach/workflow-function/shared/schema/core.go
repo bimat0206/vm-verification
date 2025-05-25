@@ -24,7 +24,7 @@ type VerificationContext struct {
 	ResourceValidation     *ResourceValidation `json:"resourceValidation,omitempty"`
 	NotificationEnabled    bool                `json:"notificationEnabled"`
 	Error                  *ErrorInfo          `json:"error,omitempty"`
-	
+
 	// Enhanced fields for combined function operations
 	CurrentStatus     string               `json:"currentStatus,omitempty"`
 	LastUpdatedAt     string               `json:"lastUpdatedAt,omitempty"`
@@ -77,7 +77,7 @@ type ResourceValidation struct {
 // S3StorageConfig contains configuration for S3 Base64 storage
 type S3StorageConfig struct {
 	TempBase64Bucket       string `json:"tempBase64Bucket"`
-	Base64RetrievalTimeout int    `json:"base64RetrievalTimeout"` // in milliseconds
+	Base64RetrievalTimeout int    `json:"base64RetrievalTimeout"`      // in milliseconds
 	StateBucketPrefix      string `json:"stateBucketPrefix,omitempty"` // for date-based path structure
 }
 
@@ -98,13 +98,13 @@ type ConversationState struct {
 
 // FinalResults represents the final verification results
 type FinalResults struct {
-	VerificationStatus string                  `json:"verificationStatus"`
-	ConfidenceScore    float64                 `json:"confidenceScore"`
-	DiscrepanciesCount int                     `json:"discrepanciesCount"`
-	Discrepancies      []Discrepancy           `json:"discrepancies,omitempty"`
-	ResultImageUrl     string                  `json:"resultImageUrl,omitempty"`
-	Summary            string                  `json:"summary,omitempty"`
-	ComparisonDetails  map[string]interface{}  `json:"comparisonDetails,omitempty"`
+	VerificationStatus string                 `json:"verificationStatus"`
+	ConfidenceScore    float64                `json:"confidenceScore"`
+	DiscrepanciesCount int                    `json:"discrepanciesCount"`
+	Discrepancies      []Discrepancy          `json:"discrepancies,omitempty"`
+	ResultImageUrl     string                 `json:"resultImageUrl,omitempty"`
+	Summary            string                 `json:"summary,omitempty"`
+	ComparisonDetails  map[string]interface{} `json:"comparisonDetails,omitempty"`
 }
 
 // Discrepancy represents a single discrepancy found during verification
@@ -179,119 +179,120 @@ type LayoutKey struct {
 
 // StatusHistoryEntry represents a single status transition
 type StatusHistoryEntry struct {
-    Status           string                 `json:"status"`
-    Timestamp        string                 `json:"timestamp"`
-    FunctionName     string                 `json:"functionName"`
-    ProcessingTimeMs int64                  `json:"processingTimeMs"`
-    Stage            string                 `json:"stage"`
-    Metrics          map[string]interface{} `json:"metrics,omitempty"`
+	Status           string                 `json:"status"`
+	Timestamp        string                 `json:"timestamp"`
+	FunctionName     string                 `json:"functionName"`
+	ProcessingTimeMs int64                  `json:"processingTimeMs"`
+	Stage            string                 `json:"stage"`
+	Metrics          map[string]interface{} `json:"metrics,omitempty"`
 }
 
 // ProcessingMetrics tracks performance across turns
 type ProcessingMetrics struct {
-    WorkflowTotal *WorkflowMetrics `json:"workflowTotal,omitempty"`
-    Turn1         *TurnMetrics     `json:"turn1,omitempty"`
-    Turn2         *TurnMetrics     `json:"turn2,omitempty"`
+	WorkflowTotal *WorkflowMetrics `json:"workflowTotal,omitempty"`
+	Turn1         *TurnMetrics     `json:"turn1,omitempty"`
+	Turn2         *TurnMetrics     `json:"turn2,omitempty"`
 }
 
 // WorkflowMetrics represents overall workflow performance
 type WorkflowMetrics struct {
-    StartTime     string `json:"startTime"`
-    EndTime       string `json:"endTime"`
-    TotalTimeMs   int64  `json:"totalTimeMs"`
-    FunctionCount int    `json:"functionCount"`
+	StartTime     string `json:"startTime"`
+	EndTime       string `json:"endTime"`
+	TotalTimeMs   int64  `json:"totalTimeMs"`
+	FunctionCount int    `json:"functionCount"`
 }
 
 // TurnMetrics represents individual turn performance
 type TurnMetrics struct {
-    StartTime          string      `json:"startTime"`
-    EndTime            string      `json:"endTime"`
-    TotalTimeMs        int64       `json:"totalTimeMs"`
-    BedrockLatencyMs   int64       `json:"bedrockLatencyMs"`
-    ProcessingTimeMs   int64       `json:"processingTimeMs"`
-    RetryAttempts      int         `json:"retryAttempts"`
-    TokenUsage         *TokenUsage `json:"tokenUsage,omitempty"`
+	StartTime        string      `json:"startTime"`
+	EndTime          string      `json:"endTime"`
+	TotalTimeMs      int64       `json:"totalTimeMs"`
+	BedrockLatencyMs int64       `json:"bedrockLatencyMs"`
+	ProcessingTimeMs int64       `json:"processingTimeMs"`
+	RetryAttempts    int         `json:"retryAttempts"`
+	TokenUsage       *TokenUsage `json:"tokenUsage,omitempty"`
 }
 
 // ErrorTracking manages error state throughout workflow
 type ErrorTracking struct {
-    HasErrors        bool        `json:"hasErrors"`
-    CurrentError     *ErrorInfo  `json:"currentError"`
-    ErrorHistory     []ErrorInfo `json:"errorHistory"`
-    RecoveryAttempts int         `json:"recoveryAttempts"`
-    LastErrorAt      string      `json:"lastErrorAt"`
+	HasErrors        bool        `json:"hasErrors"`
+	CurrentError     *ErrorInfo  `json:"currentError"`
+	ErrorHistory     []ErrorInfo `json:"errorHistory"`
+	RecoveryAttempts int         `json:"recoveryAttempts"`
+	LastErrorAt      string      `json:"lastErrorAt"`
 }
 
 // Enhanced VerificationContext now includes fields for combined function operations:
 // - CurrentStatus: Current processing status
-// - LastUpdatedAt: Last update timestamp  
+// - LastUpdatedAt: Last update timestamp
 // - StatusHistory: Complete status transition history
 // - ProcessingMetrics: Performance metrics tracking
 // - ErrorTracking: Error state management
 
 // ADD: Complete DynamoDB table structures
 type ConversationHistory struct {
-    VerificationId   string        `json:"verificationId" dynamodbav:"verificationId"`
-    ConversationAt   string        `json:"conversationAt" dynamodbav:"conversationAt"`
-    VendingMachineId string        `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
-    LayoutId         int           `json:"layoutId" dynamodbav:"layoutId"`
-    LayoutPrefix     string        `json:"layoutPrefix" dynamodbav:"layoutPrefix"`
-    CurrentTurn      int           `json:"currentTurn" dynamodbav:"currentTurn"`
-    MaxTurns         int           `json:"maxTurns" dynamodbav:"maxTurns"`
-    TurnStatus       string        `json:"turnStatus" dynamodbav:"turnStatus"`
-    History          []TurnHistory `json:"history" dynamodbav:"history"`
-    ExpiresAt        int64         `json:"expiresAt,omitempty" dynamodbav:"expiresAt,omitempty"`
-    Metadata         map[string]interface{} `json:"metadata" dynamodbav:"metadata"`
+	VerificationId   string                 `json:"verificationId" dynamodbav:"verificationId"`
+	ConversationAt   string                 `json:"conversationAt" dynamodbav:"conversationAt"`
+	VendingMachineId string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	LayoutId         int                    `json:"layoutId" dynamodbav:"layoutId"`
+	LayoutPrefix     string                 `json:"layoutPrefix" dynamodbav:"layoutPrefix"`
+	CurrentTurn      int                    `json:"currentTurn" dynamodbav:"currentTurn"`
+	MaxTurns         int                    `json:"maxTurns" dynamodbav:"maxTurns"`
+	TurnStatus       string                 `json:"turnStatus" dynamodbav:"turnStatus"`
+	History          []TurnHistory          `json:"history" dynamodbav:"history"`
+	ExpiresAt        int64                  `json:"expiresAt,omitempty" dynamodbav:"expiresAt,omitempty"`
+	Metadata         map[string]interface{} `json:"metadata" dynamodbav:"metadata"`
 }
 
 type VerificationResults struct {
-    VerificationId         string                 `json:"verificationId" dynamodbav:"verificationId"`
-    VerificationAt         string                 `json:"verificationAt" dynamodbav:"verificationAt"`
-    VerificationType       string                 `json:"verificationType" dynamodbav:"verificationType"`
-    PreviousVerificationId string                 `json:"previousVerificationId,omitempty" dynamodbav:"previousVerificationId"`
-    LayoutId               int                    `json:"layoutId,omitempty" dynamodbav:"layoutId"`
-    LayoutPrefix           string                 `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix"`
-    VendingMachineId       string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
-    Location               string                 `json:"location" dynamodbav:"location"`
-    ReferenceImageUrl      string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
-    CheckingImageUrl       string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
-    VerificationStatus     string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
-    MachineStructure       map[string]interface{} `json:"machineStructure" dynamodbav:"machineStructure"`
-    InitialConfirmation    string                 `json:"initialConfirmation" dynamodbav:"initialConfirmation"`
-    CorrectedRows          []string               `json:"correctedRows" dynamodbav:"correctedRows"`
-    EmptySlotReport        map[string]interface{} `json:"emptySlotReport" dynamodbav:"emptySlotReport"`
-    ReferenceStatus        map[string]string      `json:"referenceStatus" dynamodbav:"referenceStatus"`
-    CheckingStatus         map[string]string      `json:"checkingStatus" dynamodbav:"checkingStatus"`
-    Discrepancies          []Discrepancy          `json:"discrepancies" dynamodbav:"discrepancies"`
-    VerificationSummary    map[string]interface{} `json:"verificationSummary" dynamodbav:"verificationSummary"`
-    Metadata               map[string]interface{} `json:"metadata" dynamodbav:"metadata"`
+	VerificationId            string                 `json:"verificationId" dynamodbav:"verificationId"`
+	VerificationAt            string                 `json:"verificationAt" dynamodbav:"verificationAt"`
+	VerificationType          string                 `json:"verificationType" dynamodbav:"verificationType"`
+	PreviousVerificationId    string                 `json:"previousVerificationId,omitempty" dynamodbav:"previousVerificationId"`
+	LayoutId                  int                    `json:"layoutId,omitempty" dynamodbav:"layoutId"`
+	LayoutPrefix              string                 `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix"`
+	VendingMachineId          string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	Location                  string                 `json:"location" dynamodbav:"location"`
+	ReferenceImageUrl         string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
+	CheckingImageUrl          string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
+	VerificationStatus        string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
+	MachineStructure          map[string]interface{} `json:"machineStructure" dynamodbav:"machineStructure"`
+	InitialConfirmation       string                 `json:"initialConfirmation" dynamodbav:"initialConfirmation"`
+	ProcessedTurn1MarkdownRef S3Reference            `json:"processedTurn1MarkdownRef,omitempty" dynamodbav:"processedTurn1MarkdownRef,omitempty"`
+	CorrectedRows             []string               `json:"correctedRows" dynamodbav:"correctedRows"`
+	EmptySlotReport           map[string]interface{} `json:"emptySlotReport" dynamodbav:"emptySlotReport"`
+	ReferenceStatus           map[string]string      `json:"referenceStatus" dynamodbav:"referenceStatus"`
+	CheckingStatus            map[string]string      `json:"checkingStatus" dynamodbav:"checkingStatus"`
+	Discrepancies             []Discrepancy          `json:"discrepancies" dynamodbav:"discrepancies"`
+	VerificationSummary       map[string]interface{} `json:"verificationSummary" dynamodbav:"verificationSummary"`
+	Metadata                  map[string]interface{} `json:"metadata" dynamodbav:"metadata"`
 }
 
 // ADD: Notification support
 type NotificationConfig struct {
-    Enabled     bool              `json:"enabled"`
-    Channels    []string          `json:"channels"` // ["email", "sns", "webhook"]
-    Recipients  []string          `json:"recipients"`
-    Templates   map[string]string `json:"templates"`
-    Settings    map[string]interface{} `json:"settings"`
+	Enabled    bool                   `json:"enabled"`
+	Channels   []string               `json:"channels"` // ["email", "sns", "webhook"]
+	Recipients []string               `json:"recipients"`
+	Templates  map[string]string      `json:"templates"`
+	Settings   map[string]interface{} `json:"settings"`
 }
 
 type NotificationResult struct {
-    Channel     string `json:"channel"`
-    Status      string `json:"status"`
-    MessageId   string `json:"messageId,omitempty"`
-    Error       string `json:"error,omitempty"`
-    Timestamp   string `json:"timestamp"`
-    Attempts    int    `json:"attempts"`
+	Channel   string `json:"channel"`
+	Status    string `json:"status"`
+	MessageId string `json:"messageId,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Timestamp string `json:"timestamp"`
+	Attempts  int    `json:"attempts"`
 }
 
 // ADD: Enhanced error handling
 type WorkflowError struct {
-    Stage       string                 `json:"stage"`
-    Function    string                 `json:"function"`
-    ErrorType   string                 `json:"errorType"`
-    Recoverable bool                   `json:"recoverable"`
-    RetryCount  int                    `json:"retryCount"`
-    Context     map[string]interface{} `json:"context,omitempty"`
-    Timestamp   string                 `json:"timestamp"`
+	Stage       string                 `json:"stage"`
+	Function    string                 `json:"function"`
+	ErrorType   string                 `json:"errorType"`
+	Recoverable bool                   `json:"recoverable"`
+	RetryCount  int                    `json:"retryCount"`
+	Context     map[string]interface{} `json:"context,omitempty"`
+	Timestamp   string                 `json:"timestamp"`
 }

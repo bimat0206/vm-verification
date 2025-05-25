@@ -35,6 +35,9 @@ type DynamoDBService interface {
 	UpdateStatusHistory(ctx context.Context, verificationID string, statusHistory []schema.StatusHistoryEntry) error
 	UpdateErrorTracking(ctx context.Context, verificationID string, errorTracking *schema.ErrorTracking) error
 
+	// Turn1 completion update storing metrics and processed markdown reference
+	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference) error
+
 	// Real-time status tracking methods
 	InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error
 	UpdateCurrentStatus(ctx context.Context, verificationID, currentStatus, lastUpdatedAt string, metrics map[string]interface{}) error
@@ -607,6 +610,69 @@ func (d *dynamoClient) StoreParsedTurn1VerificationData(ctx context.Context, ver
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to store parsed turn1 data", true)
 	}
+	return nil
+}
+
+// UpdateTurn1CompletionDetails updates verification record with Turn1 metrics and processed markdown reference
+func (d *dynamoClient) UpdateTurn1CompletionDetails(
+	ctx context.Context,
+	verificationID string,
+	verificationAt string,
+	statusEntry schema.StatusHistoryEntry,
+	turn1Metrics *schema.TurnMetrics,
+	processedMarkdownRef *models.S3Reference,
+) error {
+	if verificationID == "" || verificationAt == "" {
+		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
+	}
+
+	avStatusEntry, err := attributevalue.MarshalMap(statusEntry)
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+			"failed to marshal status entry", true)
+	}
+
+	update := expression.Set(expression.Name("currentStatus"), expression.Value(statusEntry.Status)).
+		Set(expression.Name("lastUpdatedAt"), expression.Value(statusEntry.Timestamp)).
+		Set(expression.Name("statusHistory"), expression.ListAppend(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}})))
+
+	if turn1Metrics != nil {
+		avMetrics, err := attributevalue.MarshalMap(turn1Metrics)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal turn1 metrics", true)
+		}
+		update = update.Set(expression.Name("processingMetrics.turn1"), expression.Value(avMetrics))
+	}
+
+	if processedMarkdownRef != nil && processedMarkdownRef.Key != "" {
+		avRef, err := attributevalue.MarshalMap(processedMarkdownRef)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal processed markdown ref", true)
+		}
+		update = update.Set(expression.Name("processedTurn1MarkdownRef"), expression.Value(avRef))
+	}
+
+	builder := expression.NewBuilder().WithUpdate(update)
+	expr, err := builder.Build()
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to build update expression", false)
+	}
+
+	input := &dynamodb.UpdateItemInput{
+		TableName:                 &d.verificationTable,
+		Key:                       d.getVerificationResultsKey(verificationID, verificationAt),
+		UpdateExpression:          expr.Update(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+
+	_, err = d.client.UpdateItem(ctx, input)
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn1 completion details", true)
+	}
+
 	return nil
 }
 

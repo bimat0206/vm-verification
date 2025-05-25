@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 
-	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	"workflow-function/ExecuteTurn1Combined/internal/config"
+	"workflow-function/ExecuteTurn1Combined/internal/models"
 	"workflow-function/ExecuteTurn1Combined/internal/services"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -24,13 +24,14 @@ func NewDynamoManager(dynamo services.DynamoDBService, _ config.Config, log logg
 
 // Update writes the final status and conversation turn. It returns true
 // only if both writes succeed.
-func (d *DynamoManager) Update(
+func (d *DynamoManager) UpdateTurn1Completion(
 	ctx context.Context,
 	verificationID string,
 	initialVerificationAt string,
 	statusEntry schema.StatusHistoryEntry,
 	turnEntry *schema.TurnResponse,
-	parsedData *bedrockparser.ParsedTurn1Data,
+	turn1Metrics *schema.TurnMetrics,
+	processedMarkdownRef *models.S3Reference,
 ) bool {
 	dynamoOK := true
 
@@ -50,14 +51,12 @@ func (d *DynamoManager) Update(
 		dynamoOK = false
 	}
 
-	if parsedData != nil {
-		if err := d.dynamo.StoreParsedTurn1VerificationData(ctx, verificationID, initialVerificationAt, parsedData); err != nil {
-			d.log.Warn("dynamodb store parsed turn1 data failed", map[string]interface{}{
-				"error":     err.Error(),
-				"retryable": errors.IsRetryable(err),
-			})
-			dynamoOK = false
-		}
+	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef); err != nil {
+		d.log.Warn("dynamodb update turn1 completion details failed", map[string]interface{}{
+			"error":     err.Error(),
+			"retryable": errors.IsRetryable(err),
+		})
+		dynamoOK = false
 	}
 
 	return dynamoOK

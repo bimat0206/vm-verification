@@ -5,6 +5,14 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-05-25
+### Changed
+- **Refactor: Adopt "Markdown-Centric" Approach for Turn 1 Bedrock Response Processing (POC Simplification).**
+  - Simplified `internal/bedrockparser` to return cleaned Markdown via `ParseBedrockResponseAsMarkdown`.
+  - `StorageManager` now stores the Markdown output in `processing/turn1-processed-response.md` with `text/markdown` content type.
+  - DynamoDB `VerificationResults` records now reference this Markdown file using `processedTurn1MarkdownRef` instead of storing deeply parsed fields.
+  - Added `UpdateTurn1CompletionDetails` in DynamoDB service and updated handler logic accordingly.
+
 ## [2.3.0] - 2025-05-25
 ### Added
 - **New `internal/bedrockparser` package:** Introduced parser for Bedrock Turn 1 response.

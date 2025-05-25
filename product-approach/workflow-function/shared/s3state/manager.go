@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -17,6 +17,7 @@ import (
 // Manager interface for S3 state operations
 type Manager interface {
 	Store(category, key string, data []byte) (*Reference, error)
+	StoreWithContentType(category, key string, data []byte, contentType string) (*Reference, error)
 	Retrieve(ref *Reference) ([]byte, error)
 	StoreJSON(category, key string, data interface{}) (*Reference, error)
 	RetrieveJSON(ref *Reference, target interface{}) error
@@ -51,8 +52,24 @@ func (m *manager) GetStateBucket() string {
 // Store saves raw bytes to S3 with category-based organization
 func (m *manager) Store(category, key string, data []byte) (*Reference, error) {
 	s3Key := fmt.Sprintf("%s/%s", category, key)
-	
+
 	err := m.putObject(s3Key, data, "application/octet-stream")
+	if err != nil {
+		return nil, fmt.Errorf("failed to store object: %w", err)
+	}
+
+	return &Reference{
+		Bucket: m.bucket,
+		Key:    s3Key,
+		Size:   int64(len(data)),
+	}, nil
+}
+
+// StoreWithContentType saves raw bytes to S3 with a specified content type
+func (m *manager) StoreWithContentType(category, key string, data []byte, contentType string) (*Reference, error) {
+	s3Key := fmt.Sprintf("%s/%s", category, key)
+
+	err := m.putObject(s3Key, data, contentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store object: %w", err)
 	}
@@ -92,7 +109,7 @@ func (m *manager) StoreJSON(category, key string, data interface{}) (*Reference,
 	} else {
 		s3Key = fmt.Sprintf("%s/%s", category, key)
 	}
-	
+
 	err = m.putObject(s3Key, jsonData, "application/json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to store JSON object: %w", err)
@@ -151,13 +168,13 @@ func (m *manager) SaveToEnvelope(envelope *Envelope, category, filename string, 
 	year := now.Format("2006")
 	month := now.Format("01")
 	day := now.Format("02")
-	
+
 	// Generate the date-based path prefix
 	datePath := fmt.Sprintf("%s/%s/%s", year, month, day)
-	
+
 	// Build the S3 key with date-based hierarchy
 	var key string
-	
+
 	// Check if category already contains a date path or verification ID
 	if isDatePath(category) {
 		// Category already contains date path, don't add it again
@@ -175,35 +192,35 @@ func (m *manager) SaveToEnvelope(envelope *Envelope, category, filename string, 
 		// Standard case: neither date path nor verification ID in category
 		key = fmt.Sprintf("%s/%s/%s/%s.json", datePath, envelope.VerificationID, category, filename)
 	}
-	
+
 	// Store the data
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	
+
 	err = m.putObject(key, jsonData, "application/json")
 	if err != nil {
 		return fmt.Errorf("failed to store JSON object: %w", err)
 	}
-	
+
 	// Create reference
 	ref := &Reference{
 		Bucket: m.bucket,
 		Key:    key,
 		Size:   int64(len(jsonData)),
 	}
-	
+
 	// Initialize references map if needed
 	if envelope.References == nil {
 		envelope.References = make(map[string]*Reference)
 	}
-	
+
 	// Create clean reference key without path components
 	// Simply use {category}_{filename} format
 	refKey := fmt.Sprintf("%s_%s", category, strings.TrimSuffix(filename, ".json"))
 	envelope.References[refKey] = ref
-	
+
 	return nil
 }
 
@@ -213,7 +230,7 @@ func (m *manager) putObject(key string, data []byte, contentType string) error {
 	const baseDelay = 100 * time.Millisecond
 
 	var lastErr error
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		_, err := m.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
 			Bucket:      aws.String(m.bucket),
@@ -221,20 +238,20 @@ func (m *manager) putObject(key string, data []byte, contentType string) error {
 			Body:        bytes.NewReader(data),
 			ContentType: aws.String(contentType),
 		})
-		
+
 		if err == nil {
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Don't retry on the last attempt
 		if attempt < maxRetries-1 {
 			delay := baseDelay * time.Duration(1<<attempt) // Exponential backoff
 			time.Sleep(delay)
 		}
 	}
-	
+
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
 }
 
@@ -244,40 +261,40 @@ func (m *manager) getObject(key string) ([]byte, error) {
 	const baseDelay = 100 * time.Millisecond
 
 	var lastErr error
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		result, err := m.s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
 			Bucket: aws.String(m.bucket),
 			Key:    aws.String(key),
 		})
-		
+
 		if err == nil {
 			defer result.Body.Close()
-			
+
 			buf := new(bytes.Buffer)
 			_, err = buf.ReadFrom(result.Body)
 			if err != nil {
 				lastErr = err
 				continue
 			}
-			
+
 			return buf.Bytes(), nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Don't retry on certain error types
 		if strings.Contains(err.Error(), "NoSuchKey") {
 			return nil, fmt.Errorf("object not found: %s", key)
 		}
-		
+
 		// Don't retry on the last attempt
 		if attempt < maxRetries-1 {
 			delay := baseDelay * time.Duration(1<<attempt) // Exponential backoff
 			time.Sleep(delay)
 		}
 	}
-	
+
 	return nil, fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
 }
 
