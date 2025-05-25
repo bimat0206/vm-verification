@@ -41,7 +41,7 @@ type DynamoDBService interface {
 	// Conversation management methods
 	InitializeConversationHistory(ctx context.Context, verificationID string, maxTurns int, metadata map[string]interface{}) error
 	UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error
-	CompleteConversation(ctx context.Context, verificationID string, finalStatus string) error
+	CompleteConversation(ctx context.Context, verificationID string, conversationAt string, finalStatus string) error
 
 	// Query methods for historical data (supporting Use Case 2)
 	QueryPreviousVerification(ctx context.Context, checkingImageUrl string) (*schema.VerificationContext, error)
@@ -183,12 +183,32 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 
 // Enhanced method: RecordConversationHistory manages comprehensive conversation tracking.
 func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error {
-	item, err := attributevalue.MarshalMap(conversationTracker)
+	historyItems := make([]types.AttributeValue, len(conversationTracker.History))
+	for i, h := range conversationTracker.History {
+		av, err := attributevalue.Marshal(h)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				fmt.Sprintf("failed to marshal history item at index %d", i), true).
+				WithContext("conversation_id", conversationTracker.ConversationId)
+		}
+		historyItems[i] = av
+	}
+
+	avMetadata, err := attributevalue.MarshalMap(conversationTracker.Metadata)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to marshal conversation tracker", true).
-			WithContext("conversation_id", conversationTracker.ConversationId).
-			WithContext("current_turn", conversationTracker.CurrentTurn)
+			"failed to marshal conversation metadata", true).
+			WithContext("conversation_id", conversationTracker.ConversationId)
+	}
+
+	item := map[string]types.AttributeValue{
+		"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
+		"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
+		"currentTurn":    &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
+		"maxTurns":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.MaxTurns)},
+		"turnStatus":     &types.AttributeValueMemberS{Value: conversationTracker.TurnStatus},
+		"history":        &types.AttributeValueMemberL{Value: historyItems},
+		"metadata":       &types.AttributeValueMemberM{Value: avMetadata},
 	}
 
 	// Use PutItem with condition to prevent overwrites
@@ -535,16 +555,16 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 }
 
 // Conversation management: CompleteConversation marks conversation as completed.
-func (d *dynamoClient) CompleteConversation(ctx context.Context, verificationID string, finalStatus string) error {
+func (d *dynamoClient) CompleteConversation(ctx context.Context, verificationID string, conversationAt string, finalStatus string) error {
 	input := &dynamodb.UpdateItemInput{
 		TableName: &d.conversationTable,
 		Key: map[string]types.AttributeValue{
 			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
+			"conversationAt": &types.AttributeValueMemberS{Value: conversationAt},
 		},
-		UpdateExpression: aws.String("SET turnStatus = :status, conversationAt = :updated"),
+		UpdateExpression: aws.String("SET turnStatus = :status"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":status":  &types.AttributeValueMemberS{Value: finalStatus},
-			":updated": &types.AttributeValueMemberS{Value: schema.FormatISO8601()},
+			":status": &types.AttributeValueMemberS{Value: finalStatus},
 		},
 	}
 

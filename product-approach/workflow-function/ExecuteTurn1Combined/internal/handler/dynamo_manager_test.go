@@ -53,7 +53,7 @@ func (m *mockDynamo) InitializeConversationHistory(ctx context.Context, verifica
 func (m *mockDynamo) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
 	return m.turnErr
 }
-func (m *mockDynamo) CompleteConversation(ctx context.Context, verificationID string, finalStatus string) error {
+func (m *mockDynamo) CompleteConversation(ctx context.Context, verificationID string, conversationAt string, finalStatus string) error {
 	return nil
 }
 func (m *mockDynamo) QueryPreviousVerification(ctx context.Context, checkingImageUrl string) (*schema.VerificationContext, error) {
