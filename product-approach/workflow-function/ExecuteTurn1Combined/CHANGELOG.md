@@ -5,6 +5,14 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.5] - 2025-05-30
+
+### Fixed
+- **DynamoDB Update Failures:**
+    - Added `verificationAt` sort key to `UpdateVerificationStatusEnhanced` so updates correctly target existing `VerificationResults` records. Requires passing the initial timestamp through `DynamoManager.Update`.
+    - Corrected `UpdateConversationTurn` query to use `verificationId` as the partition key for `ConversationHistory`.
+    - Corrected `updateExistingConversationHistory` and `CompleteConversation` to use `verificationId` in DynamoDB keys.
+
 ## [2.2.4] - 2025-05-29
 
 ### Fixed

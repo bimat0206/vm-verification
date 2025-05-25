@@ -23,7 +23,7 @@ func (m *mockDynamo) UpdateVerificationStatus(ctx context.Context, verificationI
 func (m *mockDynamo) RecordConversationTurn(ctx context.Context, turn *models.ConversationTurn) error {
 	return nil
 }
-func (m *mockDynamo) UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, entry schema.StatusHistoryEntry) error {
+func (m *mockDynamo) UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, initialVerificationAt string, entry schema.StatusHistoryEntry) error {
 	return m.statusErr
 }
 func (m *mockDynamo) RecordConversationHistory(ctx context.Context, ct *schema.ConversationTracker) error {
@@ -65,7 +65,7 @@ func (m *mockDynamo) GetLayoutMetadata(ctx context.Context, layoutID int, layout
 
 func TestDynamoManagerUpdateSuccess(t *testing.T) {
 	mgr := NewDynamoManager(&mockDynamo{}, config.Config{}, logger.New("test", "test"))
-	ok := mgr.Update(context.Background(), "id", schema.StatusHistoryEntry{}, &schema.TurnResponse{})
+	ok := mgr.Update(context.Background(), "id", "2025-05-30T00:00:00Z", schema.StatusHistoryEntry{}, &schema.TurnResponse{})
 	if !ok {
 		t.Errorf("expected true on success")
 	}
@@ -73,7 +73,7 @@ func TestDynamoManagerUpdateSuccess(t *testing.T) {
 
 func TestDynamoManagerUpdateFailure(t *testing.T) {
 	mgr := NewDynamoManager(&mockDynamo{statusErr: errors.New("fail")}, config.Config{}, logger.New("test", "test"))
-	ok := mgr.Update(context.Background(), "id", schema.StatusHistoryEntry{}, &schema.TurnResponse{})
+	ok := mgr.Update(context.Background(), "id", "2025-05-30T00:00:00Z", schema.StatusHistoryEntry{}, &schema.TurnResponse{})
 	if ok {
 		t.Errorf("expected false on failure")
 	}

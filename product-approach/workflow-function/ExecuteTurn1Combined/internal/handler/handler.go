@@ -196,7 +196,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	}
 
 	// Perform DynamoDB updates synchronously
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, statusEntry, turnEntry)
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
@@ -349,7 +349,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		},
 	}
 
-	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, statusEntry, turnEntry)
+	dynamoOK := h.dynamoManager.Update(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{

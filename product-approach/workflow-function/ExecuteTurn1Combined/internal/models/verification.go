@@ -9,6 +9,8 @@ import (
 // VerificationContext carries metadata to drive prompt generation.
 // This is compatible with the schema package but maintains local structure
 type VerificationContext struct {
+	// Timestamp when the verification was first initialized
+	VerificationAt string `json:"verificationAt,omitempty"`
 	// Type of verification: e.g. "LAYOUT_VS_CHECKING" or "PREVIOUS_VS_CURRENT"
 	VerificationType string `json:"verificationType"`
 	// Arbitrary planogram/layout details for LAYOUT_VS_CHECKING

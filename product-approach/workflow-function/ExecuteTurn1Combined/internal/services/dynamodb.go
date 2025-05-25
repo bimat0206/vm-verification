@@ -27,7 +27,7 @@ type DynamoDBService interface {
 	RecordConversationTurn(ctx context.Context, turn *models.ConversationTurn) error
 
 	// Enhanced methods for comprehensive design integration
-	UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, statusEntry schema.StatusHistoryEntry) error
+	UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, initialVerificationAt string, statusEntry schema.StatusHistoryEntry) error
 	RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error
 	UpdateProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) error
 	UpdateStatusHistory(ctx context.Context, verificationID string, statusHistory []schema.StatusHistoryEntry) error
@@ -117,7 +117,7 @@ func (d *dynamoClient) UpdateVerificationStatus(ctx context.Context, verificatio
 }
 
 // Enhanced method: UpdateVerificationStatusEnhanced updates status with comprehensive tracking.
-func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, statusEntry schema.StatusHistoryEntry) error {
+func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, initialVerificationAt string, statusEntry schema.StatusHistoryEntry) error {
 	// Marshal status entry
 	avStatusEntry, err := attributevalue.MarshalMap(statusEntry)
 	if err != nil {
@@ -132,6 +132,7 @@ func (d *dynamoClient) UpdateVerificationStatusEnhanced(ctx context.Context, ver
 		TableName: &d.verificationTable,
 		Key: map[string]types.AttributeValue{
 			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
+			"verificationAt": &types.AttributeValueMemberS{Value: initialVerificationAt},
 		},
 		UpdateExpression: aws.String("SET currentStatus = :status, lastUpdatedAt = :updated, " +
 			"statusHistory = list_append(if_not_exists(statusHistory, :empty), :entry)"),
@@ -194,7 +195,7 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 	input := &dynamodb.PutItemInput{
 		TableName:           &d.conversationTable,
 		Item:                item,
-		ConditionExpression: aws.String("attribute_not_exists(conversationId) OR conversationAt < :newTime"),
+		ConditionExpression: aws.String("attribute_not_exists(verificationId) OR conversationAt < :newTime"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":newTime": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
 		},
@@ -235,7 +236,7 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	input := &dynamodb.UpdateItemInput{
 		TableName: &d.conversationTable,
 		Key: map[string]types.AttributeValue{
-			"conversationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
+			"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
 			"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
 		},
 		UpdateExpression: aws.String("SET currentTurn = :turn, turnStatus = :status, history = :history, metadata = :metadata"),
@@ -470,7 +471,7 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 	// Query to find the most recent conversation record for this verificationID
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &d.conversationTable,
-		KeyConditionExpression: aws.String("conversationId = :id"),
+		KeyConditionExpression: aws.String("verificationId = :id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":id": &types.AttributeValueMemberS{Value: verificationID},
 		},
@@ -538,7 +539,7 @@ func (d *dynamoClient) CompleteConversation(ctx context.Context, verificationID 
 	input := &dynamodb.UpdateItemInput{
 		TableName: &d.conversationTable,
 		Key: map[string]types.AttributeValue{
-			"conversationId": &types.AttributeValueMemberS{Value: verificationID},
+			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
 		},
 		UpdateExpression: aws.String("SET turnStatus = :status, conversationAt = :updated"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
