@@ -60,7 +60,7 @@ func NewHandler(
 		eventTransformer: NewEventTransformer(s3Mgr, log),
 		promptGenerator:  NewPromptGenerator(promptGen, *cfg),
 		contextLoader:    NewContextLoader(s3Mgr, log),
-		historicalLoader: NewHistoricalContextLoader(dynamoClient, log),
+		historicalLoader: NewHistoricalContextLoader(s3Mgr, dynamoClient, log),
 		bedrockInvoker:   NewBedrockInvoker(bedrockClient, *cfg, log),
 		storageManager:   NewStorageManager(s3Mgr, *cfg, log),
 		dynamoManager:    NewDynamoManager(dynamoClient, *cfg, log),

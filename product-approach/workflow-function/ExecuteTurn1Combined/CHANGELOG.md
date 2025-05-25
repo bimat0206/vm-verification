@@ -5,6 +5,16 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.6] - 2025-05-31
+
+### Changed
+- **Historical Context Loading Refactor:**
+  - Historical context for `PREVIOUS_VS_CURRENT` verifications is now loaded from the provided S3 reference `processing_historical-context`.
+  - Removed direct DynamoDB queries for previous verification data in `HistoricalContextLoader`.
+  - `EventTransformer` now passes the historical context S3 reference through to the `Turn1Request` structure.
+  - `Turn1RequestS3Refs` updated to include `Processing` references.
+  - `NewHistoricalContextLoader` accepts an `S3StateManager` instance for S3 operations.
+
 ## [2.2.5] - 2025-05-30
 
 ### Fixed
