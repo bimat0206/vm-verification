@@ -9,12 +9,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
 
+	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
 	// Using shared packages for enhanced functionality
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
@@ -46,6 +48,7 @@ type DynamoDBService interface {
 	// Query methods for historical data (supporting Use Case 2)
 	QueryPreviousVerification(ctx context.Context, checkingImageUrl string) (*schema.VerificationContext, error)
 	GetLayoutMetadata(ctx context.Context, layoutID int, layoutPrefix string) (*schema.LayoutMetadata, error)
+	StoreParsedTurn1VerificationData(ctx context.Context, verificationID string, verificationAt string, parsedData *bedrockparser.ParsedTurn1Data) error
 }
 
 // VerificationStatusInfo represents current verification status information
@@ -577,6 +580,35 @@ func (d *dynamoClient) CompleteConversation(ctx context.Context, verificationID 
 	return nil
 }
 
+// StoreParsedTurn1VerificationData stores parsed Turn 1 analysis data in VerificationResults
+func (d *dynamoClient) StoreParsedTurn1VerificationData(ctx context.Context, verificationID string, verificationAt string, parsedData *bedrockparser.ParsedTurn1Data) error {
+	if parsedData == nil {
+		return nil
+	}
+	update := expression.Set(expression.Name("initialConfirmation"), expression.Value(parsedData.InitialConfirmation)).
+		Set(expression.Name("machineStructure"), expression.Value(parsedData.MachineStructure)).
+		Set(expression.Name("referenceStatus"), expression.Value(parsedData.ReferenceRowStatus)).
+		Set(expression.Name("referenceSummary"), expression.Value(parsedData.ReferenceSummary)).
+		Set(expression.Name("lastUpdatedAt"), expression.Value(schema.FormatISO8601()))
+	expr, err := update.Build()
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to build expression for parsed turn1 data", false)
+	}
+	input := &dynamodb.UpdateItemInput{
+		TableName:                 &d.verificationTable,
+		Key:                       d.getVerificationResultsKey(verificationID, verificationAt),
+		UpdateExpression:          expr.Update(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		ReturnValues:              types.ReturnValueNone,
+	}
+	_, err = d.client.UpdateItem(ctx, input)
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to store parsed turn1 data", true)
+	}
+	return nil
+}
+
 // Query methods: QueryPreviousVerification supports Use Case 2 historical lookup.
 func (d *dynamoClient) QueryPreviousVerification(ctx context.Context, checkingImageUrl string) (*schema.VerificationContext, error) {
 	// Query GSI4 (checkingImageUrl-verificationAt) to find most recent verification
@@ -685,4 +717,11 @@ type VerificationStatusUpdate struct {
 	VerificationID string                    `json:"verificationId"`
 	StatusEntry    schema.StatusHistoryEntry `json:"statusEntry"`
 	Metrics        *schema.ProcessingMetrics `json:"metrics,omitempty"`
+}
+
+func (d *dynamoClient) getVerificationResultsKey(verificationID, verificationAt string) map[string]types.AttributeValue {
+	return map[string]types.AttributeValue{
+		"verificationId": &types.AttributeValueMemberS{Value: verificationID},
+		"verificationAt": &types.AttributeValueMemberS{Value: verificationAt},
+	}
 }
