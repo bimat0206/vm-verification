@@ -146,6 +146,7 @@ func buildSummary(
 	totalDurationMs int64, 
 	invoke *models.BedrockResponse, 
 	verificationType string,
+	bedrockLatencyMs int64,
 	dynamoOK *bool,
 ) ExecutionSummary {
 	// Convert TokenUsage to TokenUsageDetailed
@@ -167,9 +168,7 @@ func buildSummary(
 		dynamodbUpdated = *dynamoOK
 	}
 	
-	// Use a default value for BedrockLatencyMs since it's not available in the invoke struct
-	// In a real implementation, this would be calculated from the Bedrock response
-	bedrockLatencyMs := int64(2000) // Default to 2 seconds
+	// Use the provided bedrock latency
 	
 	return ExecutionSummary{
 		AnalysisStage:       "REFERENCE_ANALYSIS",

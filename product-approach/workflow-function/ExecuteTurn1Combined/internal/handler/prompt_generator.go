@@ -22,6 +22,14 @@ func NewPromptGenerator(promptService services.PromptService, cfg config.Config)
 	}
 }
 
+// GetTemplateUsed returns the template name based on verification type
+func (p *PromptGenerator) GetTemplateUsed(vCtx models.VerificationContext) string {
+	if vCtx.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		return "turn1-previous-vs-current"
+	}
+	return "turn1-layout-vs-checking"
+}
+
 // GenerateTurn1PromptEnhanced generates Turn1 prompt with enhanced template processing
 func (p *PromptGenerator) GenerateTurn1PromptEnhanced(ctx context.Context, vCtx models.VerificationContext, systemPrompt string) (string, *schema.TemplateProcessor, error) {
 	// For now, use the existing prompt service but capture processing info

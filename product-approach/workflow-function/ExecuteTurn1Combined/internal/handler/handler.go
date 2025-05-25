@@ -187,7 +187,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	response := h.responseBuilder.BuildCombinedTurnResponse(
 		req, promptResult.Prompt, promptRef, storageResult.RawRef, storageResult.ProcessedRef,
 		invokeResult.Response, h.processingTracker.GetStages(), totalDuration.Milliseconds(),
-		dynamoOK,
+		invokeResult.Duration.Milliseconds(), dynamoOK,
 	)
 
 	// Wait for async updates
@@ -197,6 +197,146 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	h.validateAndLogCompletion(response, totalDuration, invokeResult.Response, contextLogger)
 
 	return response, nil
+}
+
+// HandleForStepFunction processes Turn1 and returns StepFunctionResponse
+func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Request) (*models.StepFunctionResponse, error) {
+	// Initialize tracking
+	h.startTime = time.Now()
+	h.processingTracker = NewProcessingStagesTracker(h.startTime)
+	h.statusTracker = NewStatusTracker(h.startTime)
+	
+	processingMetrics := h.initializeProcessingMetrics()
+	contextLogger := h.createContextLogger(req)
+
+	contextLogger.Info("Starting ExecuteTurn1Combined", map[string]interface{}{
+		"verification_type": req.VerificationContext.VerificationType,
+		"layout_id":         req.VerificationContext.LayoutId,
+		"schema_version":    h.validator.GetSchemaVersion(),
+	})
+
+	// STAGE 1: Validation
+	h.processingTracker.RecordStage("validation", "started", 0, nil)
+	if err := h.validator.ValidateRequest(req); err != nil {
+		contextLogger.Error("input validation error", map[string]interface{}{
+			"validation_error": err.Error(),
+		})
+		h.processingTracker.RecordStage("validation", "failed", 0, map[string]interface{}{
+			"error": err.Error(),
+		})
+		h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Error, "validation_failed", map[string]interface{}{
+			"error_details": err.Error(),
+		})
+		return nil, err
+	}
+	h.processingTracker.RecordStage("validation", "completed", 0, nil)
+
+	// Update status to Turn1Started
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "turn1_start", map[string]interface{}{
+		"function_name": "ExecuteTurn1Combined",
+	})
+
+	// STAGE 2: Load context (system prompt and images)
+	contextLogger.Info("Loading context", map[string]interface{}{
+		"system_prompt_key": req.S3Refs.Prompts.System.Key,
+		"reference_image":   req.S3Refs.Images.ReferenceBase64.Key,
+	})
+
+	loadResult := h.contextLoader.LoadContext(ctx, req)
+	if loadResult.Error != nil {
+		h.handleContextLoadError(ctx, req.VerificationID, loadResult, contextLogger)
+		return nil, loadResult.Error
+	}
+	h.recordContextLoadSuccess(ctx, req.VerificationID, loadResult)
+
+	// STAGE 3: Generate prompt
+	promptResult := h.generatePrompt(ctx, req, loadResult.SystemPrompt)
+	if promptResult.Error != nil {
+		h.handlePromptError(ctx, req.VerificationID, promptResult, contextLogger)
+		return nil, promptResult.Error
+	}
+
+	h.processingTracker.RecordStage("prompt_generation", "completed", promptResult.Duration, map[string]interface{}{
+		"prompt_length":    len(promptResult.Prompt),
+		"template_used":    h.promptGenerator.GetTemplateUsed(req.VerificationContext),
+		"template_version": h.cfg.Prompts.TemplateVersion,
+	})
+
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1PromptPrepared, "prompt_prepared", map[string]interface{}{
+		"prompt_size":      len(promptResult.Prompt),
+		"template_version": h.cfg.Prompts.TemplateVersion,
+	})
+
+	// STAGE 4: Invoke Bedrock
+	invokeResult := h.bedrockInvoker.InvokeBedrock(ctx, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, req.VerificationID)
+	if invokeResult.Error != nil {
+		h.handleBedrockError(ctx, req.VerificationID, invokeResult)
+		return nil, invokeResult.Error
+	}
+	h.recordBedrockSuccess(ctx, req.VerificationID, invokeResult, promptResult.TemplateProcessor)
+
+	// STAGE 5: Store response and processed analysis
+	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image))
+	if storageResult.Error != nil {
+		contextLogger.Error("storage error", map[string]interface{}{
+			"error": storageResult.Error.Error(),
+		})
+		return nil, storageResult.Error
+	}
+	h.recordStorageSuccess(storageResult)
+
+	// STAGE 6: Store prompt
+	promptStart := time.Now()
+	promptRef, err := h.storageManager.StorePrompt(ctx, req, 1, promptResult)
+	if err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store prompt", true).
+			WithContext("verification_id", req.VerificationID)
+	}
+
+	// Record prompt storage success
+	h.processingTracker.RecordStage("prompt_storage", "completed", time.Since(promptStart), map[string]interface{}{
+		"prompt_length":  len(promptResult.Prompt),
+		"prompt_ref_key": promptRef.Key,
+	})
+
+	// STAGE 7: Update metrics and async operations
+	totalDuration := time.Since(h.startTime)
+	h.updateProcessingMetrics(processingMetrics, totalDuration, invokeResult)
+
+	// Start async DynamoDB updates
+	updateComplete, dynamoOK := h.dynamoManager.UpdateAsync(ctx, req.VerificationID,
+		invokeResult.Response.TokenUsage, invokeResult.Response.RequestID,
+		storageResult.RawRef, storageResult.ProcessedRef)
+
+	// Final status update
+	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
+		"total_duration_ms": totalDuration.Milliseconds(),
+		"processing_stages": h.processingTracker.GetStageCount(),
+		"status_updates":    h.statusTracker.GetHistoryCount(),
+		"dynamodb_updated":  *dynamoOK,
+	})
+
+	// Build Step Function response
+	stepFunctionResponse := h.responseBuilder.BuildStepFunctionResponse(
+		req, promptRef, storageResult.RawRef, storageResult.ProcessedRef,
+		invokeResult.Response, totalDuration.Milliseconds(), invokeResult.Duration.Milliseconds(), dynamoOK,
+	)
+
+	// Wait for async updates
+	h.dynamoManager.WaitForUpdates(updateComplete, 5*time.Second, contextLogger)
+
+	// Log completion
+	contextLogger.Info("Completed ExecuteTurn1Combined", map[string]interface{}{
+		"duration_ms":       totalDuration.Milliseconds(),
+		"processing_stages": h.processingTracker.GetStageCount(),
+		"status_updates":    h.statusTracker.GetHistoryCount(),
+		"schema_version":    h.validator.GetSchemaVersion(),
+		"verification_id":   req.VerificationID,
+		"status":           schema.StatusTurn1Completed,
+	})
+
+	return stepFunctionResponse, nil
 }
 
 // HandleTurn1Combined is the Lambda entrypoint invoked by Step Functions.

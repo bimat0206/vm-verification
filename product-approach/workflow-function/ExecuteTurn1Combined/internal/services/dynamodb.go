@@ -467,24 +467,27 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
 func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
-	// First, get current conversation state
-	getInput := &dynamodb.GetItemInput{
-		TableName: &d.conversationTable,
-		Key: map[string]types.AttributeValue{
-			"conversationId": &types.AttributeValueMemberS{Value: verificationID},
+	// Query to find the most recent conversation record for this verificationID
+	queryInput := &dynamodb.QueryInput{
+		TableName:              &d.conversationTable,
+		KeyConditionExpression: aws.String("conversationId = :id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":id": &types.AttributeValueMemberS{Value: verificationID},
 		},
+		ScanIndexForward: aws.Bool(false), // Get most recent first
+		Limit:            aws.Int32(1),
 	}
 
-	result, err := d.client.GetItem(ctx, getInput)
+	queryResult, err := d.client.Query(ctx, queryInput)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to get conversation for update", true).
+			"failed to query conversation for update", true).
 			WithContext("verificationId", verificationID)
 	}
 
 	var conversationTracker schema.ConversationTracker
-	if result.Item != nil {
-		if err := attributevalue.UnmarshalMap(result.Item, &conversationTracker); err != nil {
+	if len(queryResult.Items) > 0 {
+		if err := attributevalue.UnmarshalMap(queryResult.Items[0], &conversationTracker); err != nil {
 			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				"failed to unmarshal conversation tracker", false).
 				WithContext("verificationId", verificationID)
@@ -517,8 +520,16 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 
 	conversationTracker.History = append(conversationTracker.History, turnEntry)
 	conversationTracker.CurrentTurn = turnData.TurnId
-	conversationTracker.ConversationAt = schema.FormatISO8601()
+	// Keep the existing ConversationAt timestamp if updating, only set new one if creating
+	if len(queryResult.Items) == 0 {
+		// This is a new conversation, so we set the timestamp
+		conversationTracker.ConversationAt = schema.FormatISO8601()
+	}
 
+	// Use updateExistingConversationHistory directly if record exists
+	if len(queryResult.Items) > 0 {
+		return d.updateExistingConversationHistory(ctx, &conversationTracker)
+	}
 	return d.RecordConversationHistory(ctx, &conversationTracker)
 }
 

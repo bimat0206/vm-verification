@@ -5,6 +5,51 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2025-05-24
+
+### Fixed
+- **DynamoDB Conversation History Update**: Fixed error when updating conversation history by using Query operation instead of GetItem
+  - Conversation table uses composite key (conversationId + conversationAt) but code was only using partition key
+  - Changed from GetItem to Query to find the most recent conversation record
+  - Preserves existing conversationAt timestamp when updating existing records
+  - Properly handles both new conversation creation and existing conversation updates
+
+## [2.2.1] - 2025-05-24
+
+### Fixed
+- **Nil Pointer Dereference**: Fixed runtime panic in `HandleForStepFunction` by properly initializing `ProcessingStagesTracker` and `StatusTracker` before use
+
+## [2.2.0] - 2025-05-24
+
+### Added
+- **StepFunctionResponse struct**: New response structure in `models/shared_types.go` that matches the expected Step Function output format
+- **HandleForStepFunction method**: New handler method that specifically returns `StepFunctionResponse` for Step Function invocations
+- **BuildStepFunctionResponse method**: New response builder method to construct the simplified Step Function output
+
+### Changed
+- **Response Format**: Step Functions now receive a simplified output structure with just `verificationId`, `s3References`, `status`, and `summary` fields
+- **S3 References Structure**: Aligned S3 references format with expected output, including proper nesting for initialization, images, processing, prompts_system, and responses
+- **Bedrock Latency**: Now uses actual Bedrock invocation duration instead of hardcoded 2000ms value
+
+### Fixed
+- **Output Structure Mismatch**: Resolved issue where ExecuteTurn1Combined was returning a complex nested structure instead of the simplified format expected by Step Functions
+- **Method Signatures**: Fixed compilation errors related to mismatched method signatures and return types
+
+### Technical Details
+- Modified `handleStepFunctionEvent` to use the new `HandleForStepFunction` method
+- Updated `buildSummary` to accept actual Bedrock latency as a parameter
+- Added `GetTemplateUsed` method to PromptGenerator for determining the template based on verification type
+- Fixed validator method call from `ValidateInput` to `ValidateRequest`
+- Fixed storage manager method call from `StoreResponse` to `StoreResponses`
+
+## [2.1.4] - 2025-05-27
+
+### Fixed - Step Function Output
+- **Simplified Response**: `handleStepFunctionEvent` now returns a concise payload
+  `{verificationId, s3References, status, summary}` for Step Functions.
+- **Impact**: Downstream states receive consistent data across workflow functions.
+
+
 ## [2.1.3] - 2025-05-27
 
 ### Fixed - DynamoDB Update Expression

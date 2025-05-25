@@ -218,6 +218,19 @@ func CreateConversationTracker(verificationID string, maxTurns int) *SchemaConve
 }
 
 // ===================================================================
+// STEP FUNCTION RESPONSE TYPES
+// ===================================================================
+
+// StepFunctionResponse represents the response structure for Step Functions
+// This matches the expected output format from the requirements
+type StepFunctionResponse struct {
+	VerificationID string                          `json:"verificationId"`
+	S3References   map[string]interface{}          `json:"s3References"`
+	Status         string                          `json:"status"`
+	Summary        map[string]interface{}          `json:"summary"`
+}
+
+// ===================================================================
 // UTILITY FUNCTIONS FOR TYPE CHECKING
 // ===================================================================
 

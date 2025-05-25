@@ -26,6 +26,7 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 	invoke *models.BedrockResponse,
 	stages []schema.ProcessingStage,
 	totalDurationMs int64,
+	bedrockLatencyMs int64,
 	dynamoOK *bool,
 ) *schema.CombinedTurnResponse {
 	
@@ -66,7 +67,7 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 		"verification_type":  req.VerificationContext.VerificationType,
 		"s3_references":      s3RefTree,
 		"status":             schema.StatusTurn1Completed,
-		"summary":            buildSummary(totalDurationMs, invoke, req.VerificationContext.VerificationType, dynamoOK),
+		"summary":            buildSummary(totalDurationMs, invoke, req.VerificationContext.VerificationType, bedrockLatencyMs, dynamoOK),
 		"schema_version":     schema.SchemaVersion,
 		"layout_integrated":  req.VerificationContext.LayoutId != 0,
 		"historical_context": req.VerificationContext.HistoricalContext != nil,
@@ -82,4 +83,62 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 	}
 
 	return resp
+}
+
+// BuildStepFunctionResponse builds a response formatted for Step Functions
+func (r *ResponseBuilder) BuildStepFunctionResponse(
+	req *models.Turn1Request,
+	promptRef, rawRef, procRef models.S3Reference,
+	invoke *models.BedrockResponse,
+	totalDurationMs int64,
+	bedrockLatencyMs int64,
+	dynamoOK *bool,
+) *models.StepFunctionResponse {
+	// Build S3 reference tree in the expected format
+	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef)
+	
+	// Convert S3RefTree to map[string]interface{} for Step Functions
+	s3References := map[string]interface{}{
+		"initialization": s3RefTree.Initialization,
+		"images": map[string]interface{}{
+			"metadata": s3RefTree.Images.Metadata,
+		},
+		"processing": map[string]interface{}{
+			"historicalContext": s3RefTree.Processing.HistoricalContext,
+			"layoutMetadata":    s3RefTree.Processing.LayoutMetadata,
+		},
+		"prompts_system": s3RefTree.Prompts.SystemPrompt,
+		"responses": map[string]interface{}{
+			"turn1Raw":       rawRef,
+			"turn1Processed": procRef,
+		},
+	}
+	
+	// Build summary in the expected format
+	summary := buildSummary(totalDurationMs, invoke, req.VerificationContext.VerificationType, bedrockLatencyMs, dynamoOK)
+	
+	// Convert ExecutionSummary to map[string]interface{}
+	summaryMap := map[string]interface{}{
+		"analysisStage":       summary.AnalysisStage,
+		"verificationType":    summary.VerificationType,
+		"processingTimeMs":    summary.ProcessingTimeMs,
+		"tokenUsage": map[string]interface{}{
+			"input":    summary.TokenUsage.Input,
+			"output":   summary.TokenUsage.Output,
+			"thinking": summary.TokenUsage.Thinking,
+			"total":    summary.TokenUsage.Total,
+		},
+		"bedrockLatencyMs":    summary.BedrockLatencyMs,
+		"bedrockRequestId":    summary.BedrockRequestId,
+		"dynamodbUpdated":     summary.DynamodbUpdated,
+		"conversationTracked": summary.ConversationTracked,
+		"s3StorageCompleted":  summary.S3StorageCompleted,
+	}
+	
+	return &models.StepFunctionResponse{
+		VerificationID: req.VerificationID,
+		S3References:   s3References,
+		Status:         schema.StatusTurn1Completed,
+		Summary:        summaryMap,
+	}
 }

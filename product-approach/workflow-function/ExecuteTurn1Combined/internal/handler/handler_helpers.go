@@ -232,22 +232,15 @@ func (h *Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctio
 		return nil, err
 	}
 
-	response, err := h.Handle(ctx, req)
+	// Use the new HandleForStepFunction method that returns StepFunctionResponse
+	stepFunctionResponse, err := h.HandleForStepFunction(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	h.log.LogOutputEvent(response)
+	h.log.LogOutputEvent(stepFunctionResponse)
 
-	// Transform combined response into simplified structure for Step Functions
-	output := map[string]interface{}{
-		"verificationId": event.VerificationID,
-		"s3References":   response.ContextEnrichment["s3_references"],
-		"status":         response.ContextEnrichment["status"],
-		"summary":        response.ContextEnrichment["summary"],
-	}
-
-	return output, nil
+	return stepFunctionResponse, nil
 }
 
 // handleDirectRequest handles direct request format
