@@ -28,6 +28,7 @@ const (
 	ErrorTypeTimeout      ErrorType = "TimeoutException"
 	ErrorTypeRetryable    ErrorType = "RetryableException"
 	ErrorTypeConversion   ErrorType = "ConversionException"
+	ErrorTypeConfig       ErrorType = "ConfigException"
 )
 
 // Error severities
@@ -96,6 +97,14 @@ func (e *WorkflowError) IsAPISpecific() bool {
 func IsRetryable(err error) bool {
 	if workflowErr, ok := err.(*WorkflowError); ok {
 		return workflowErr.Retryable
+	}
+	return false
+}
+
+// IsConfigError checks if an error is a configuration error
+func IsConfigError(err error) bool {
+	if workflowErr, ok := err.(*WorkflowError); ok {
+		return workflowErr.Type == ErrorTypeConfig
 	}
 	return false
 }
@@ -290,6 +299,23 @@ func NewParsingError(format string, err error) *WorkflowError {
 		Retryable:      false,
 		Timestamp:      time.Now(),
 		Severity:       ErrorSeverityMedium,
+		APISource:      APISourceUnknown,
+	}
+}
+
+// NewConfigError creates a new configuration error
+func NewConfigError(code string, message string, variable string) *WorkflowError {
+	return &WorkflowError{
+		Type:    ErrorTypeConfig,
+		Message: message,
+		Code:    code,
+		Details: map[string]interface{}{
+			"variable": variable,
+		},
+		HTTPStatusCode: 500,
+		Retryable:      false,
+		Timestamp:      time.Now(),
+		Severity:       ErrorSeverityCritical,
 		APISource:      APISourceUnknown,
 	}
 }

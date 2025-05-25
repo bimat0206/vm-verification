@@ -650,3 +650,111 @@ func ValidateVerificationContextEnhanced(ctx *VerificationContext) Errors {
 	
 	return errors
 }
+
+// ADD: New validation functions
+func ValidateConversationHistory(ch *ConversationHistory) Errors {
+    var errors Errors
+    
+    if ch == nil {
+        errors = append(errors, ValidationError{Field: "conversationHistory", Message: "cannot be nil"})
+        return errors
+    }
+    
+    if ch.VerificationId == "" {
+        errors = append(errors, ValidationError{Field: "verificationId", Message: "required"})
+    }
+    
+    if ch.ConversationAt == "" {
+        errors = append(errors, ValidationError{Field: "conversationAt", Message: "required"})
+    }
+    
+    if ch.CurrentTurn < 0 || ch.CurrentTurn > ch.MaxTurns {
+        errors = append(errors, ValidationError{Field: "currentTurn", Message: "invalid turn number"})
+    }
+    
+    // Validate turn status
+    validTurnStatuses := []string{TurnStatusActive, TurnStatusCompleted, TurnStatusFailed}
+    if !contains(validTurnStatuses, ch.TurnStatus) {
+        errors = append(errors, ValidationError{Field: "turnStatus", Message: "invalid turn status"})
+    }
+    
+    return errors
+}
+
+func ValidateVerificationResults(vr *VerificationResults) Errors {
+    var errors Errors
+    
+    if vr == nil {
+        errors = append(errors, ValidationError{Field: "verificationResults", Message: "cannot be nil"})
+        return errors
+    }
+    
+    if vr.VerificationId == "" {
+        errors = append(errors, ValidationError{Field: "verificationId", Message: "required"})
+    }
+    
+    if vr.VerificationAt == "" {
+        errors = append(errors, ValidationError{Field: "verificationAt", Message: "required"})
+    }
+    
+    // Validate verification type
+    validTypes := []string{VerificationTypeLayoutVsChecking, VerificationTypePreviousVsCurrent}
+    if !contains(validTypes, vr.VerificationType) {
+        errors = append(errors, ValidationError{Field: "verificationType", Message: "invalid verification type"})
+    }
+    
+    // Validate verification status
+    validStatuses := []string{VerificationStatusCorrect, VerificationStatusIncorrect, VerificationStatusPartial, VerificationStatusFailed}
+    if !contains(validStatuses, vr.VerificationStatus) {
+        errors = append(errors, ValidationError{Field: "verificationStatus", Message: "invalid verification status"})
+    }
+    
+    // Type-specific validations
+    if vr.VerificationType == VerificationTypeLayoutVsChecking {
+        if vr.LayoutId == 0 {
+            errors = append(errors, ValidationError{Field: "layoutId", Message: "required for layout verification"})
+        }
+        if vr.LayoutPrefix == "" {
+            errors = append(errors, ValidationError{Field: "layoutPrefix", Message: "required for layout verification"})
+        }
+    }
+    
+    if vr.VerificationType == VerificationTypePreviousVsCurrent {
+        if vr.PreviousVerificationId == "" {
+            errors = append(errors, ValidationError{Field: "previousVerificationId", Message: "required for temporal verification"})
+        }
+    }
+    
+    return errors
+}
+
+func ValidateNotificationConfig(nc *NotificationConfig) Errors {
+    var errors Errors
+    
+    if nc == nil {
+        return errors // Optional field
+    }
+    
+    if nc.Enabled && len(nc.Channels) == 0 {
+        errors = append(errors, ValidationError{Field: "channels", Message: "at least one channel required when enabled"})
+    }
+    
+    validChannels := []string{"email", "sns", "webhook"}
+    for _, channel := range nc.Channels {
+        if !contains(validChannels, channel) {
+            errors = append(errors, ValidationError{Field: "channels", Message: fmt.Sprintf("invalid channel: %s", channel)})
+        }
+    }
+    
+    return errors
+}
+
+// ADD: Helper function
+func contains(slice []string, item string) bool {
+    for _, s := range slice {
+        if s == item {
+            return true
+        }
+    }
+    return false
+}

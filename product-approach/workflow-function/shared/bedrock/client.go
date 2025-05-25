@@ -3,6 +3,7 @@ package bedrock
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"time"
@@ -89,12 +90,18 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					
 					// Determine the source type based on what's provided
 					if content.Image.Source.Bytes != "" {
+						// Decode base64 string to bytes
+						decodedBytes, err := base64.StdEncoding.DecodeString(content.Image.Source.Bytes)
+						if err != nil {
+							return nil, 0, fmt.Errorf("failed to decode base64 image data: %w", err)
+						}
+						
 						// Use bytes source
 						imageBlock.Source = &types.ImageSourceMemberBytes{
-							Value: []byte(content.Image.Source.Bytes),
+							Value: decodedBytes,
 						}
 						log.Printf("Added image content block for format: %s, with bytes source (size: %d bytes)", 
-							content.Image.Format, len(content.Image.Source.Bytes))
+							content.Image.Format, len(decodedBytes))
 					} else {
 						return nil, 0, fmt.Errorf("image source must be provided as bytes")
 					}

@@ -1,0 +1,9 @@
+{
+  "Variables": {
+    "DYNAMODB_LAYOUT_TABLE": "VendingMachineLayoutMetadata",
+    "DYNAMODB_VERIFICATION_TABLE": "VerificationResults",
+    "VERIFICATION_PREFIX": "verif-",
+    "REFERENCE_BUCKET": "vending-machine-verification-image-reference-a11",
+    "CHECKING_BUCKET": "vending-machine-verification-image-checking-a12"
+  }
+}

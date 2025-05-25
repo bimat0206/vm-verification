@@ -52,7 +52,8 @@ func (tm *TemplateManager) ProcessTemplate(templateId string, context map[string
         ContextData:     context,
         ProcessedPrompt: buf.String(),
         ProcessingTime:  0, // Set by caller
-        TokenEstimate:   len(buf.String()) / 4, // Rough estimate
+        InputTokens:     0, // Set by caller after Bedrock response
+        OutputTokens:    0, // Set by caller after Bedrock response
     }, nil
 }
 
@@ -65,4 +66,45 @@ func GetTemplateTypes() []string {
         "turn2-previous-vs-current",
         "turn2-historical-enhancement",
     }
+}
+
+// ADD: Use case specific template functions
+func GetTemplateForUseCase(verificationType string, turnNumber int) (string, error) {
+    switch verificationType {
+    case VerificationTypeLayoutVsChecking:
+        if turnNumber == 1 {
+            return "turn1-layout-vs-checking", nil
+        }
+        return "turn2-layout-vs-checking", nil
+    case VerificationTypePreviousVsCurrent:
+        if turnNumber == 1 {
+            return "turn1-previous-vs-current", nil
+        }
+        return "turn2-previous-vs-current", nil
+    default:
+        return "", fmt.Errorf("unknown verification type: %s", verificationType)
+    }
+}
+
+// ADD: Enhanced template context builder
+func BuildTemplateContext(verificationContext *VerificationContext, layoutMetadata *LayoutMetadata, historicalContext map[string]interface{}) *TemplateContext {
+    ctx := &TemplateContext{
+        VerificationType: verificationContext.VerificationType,
+    }
+    
+    if layoutMetadata != nil {
+        ctx.LayoutMetadata = map[string]interface{}{
+            "layoutId":           layoutMetadata.LayoutId,
+            "layoutPrefix":       layoutMetadata.LayoutPrefix,
+            "machineStructure":   layoutMetadata.MachineStructure,
+            "productPositionMap": layoutMetadata.ProductPositionMap,
+        }
+        ctx.MachineStructure = layoutMetadata.MachineStructure
+    }
+    
+    if historicalContext != nil {
+        ctx.HistoricalContext = historicalContext
+    }
+    
+    return ctx
 }

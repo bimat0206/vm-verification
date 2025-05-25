@@ -2,7 +2,7 @@
 package schema
 
 // SchemaVersion is the current version of the schema
-const SchemaVersion = "2.0.0" // Updated to align with JSON schema v2.0.0
+const SchemaVersion = "2.1.0" // Updated to use InputTokens/OutputTokens instead of TokenEstimate
 
 // Verification types
 const (
@@ -73,4 +73,34 @@ const (
     StatusTurn1Error                = "TURN1_ERROR"
     StatusTurn2Error                = "TURN2_ERROR"
     StatusTemplateProcessingError   = "TEMPLATE_PROCESSING_ERROR"
+)
+
+// ADD: More specific status constants for DynamoDB operations
+const (
+    // Existing constants remain...
+    
+    // DynamoDB operation statuses
+    StatusDynamoDBWriteStarted   = "DYNAMODB_WRITE_STARTED"
+    StatusDynamoDBWriteCompleted = "DYNAMODB_WRITE_COMPLETED"
+    StatusDynamoDBWriteFailed    = "DYNAMODB_WRITE_FAILED"
+    
+    // Notification statuses
+    StatusNotificationStarted    = "NOTIFICATION_STARTED"
+    StatusNotificationCompleted  = "NOTIFICATION_COMPLETED"
+    StatusNotificationFailed     = "NOTIFICATION_FAILED"
+)
+
+// ADD: Verification result status constants
+const (
+    VerificationStatusCorrect   = "CORRECT"
+    VerificationStatusIncorrect = "INCORRECT"
+    VerificationStatusPartial   = "PARTIAL"
+    VerificationStatusFailed    = "FAILED"
+)
+
+// ADD: Turn status constants for ConversationHistory
+const (
+    TurnStatusActive    = "ACTIVE"
+    TurnStatusCompleted = "COMPLETED"
+    TurnStatusFailed    = "FAILED"
 )

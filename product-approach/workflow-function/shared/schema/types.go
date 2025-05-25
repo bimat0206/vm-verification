@@ -60,7 +60,8 @@ type TemplateProcessor struct {
     ContextData     map[string]interface{} `json:"contextData"`
     ProcessedPrompt string                 `json:"processedPrompt"`
     ProcessingTime  int64                  `json:"processingTimeMs"`
-    TokenEstimate   int                    `json:"tokenEstimate"`
+    InputTokens     int                    `json:"inputTokens"`
+    OutputTokens    int                    `json:"outputTokens"`
 }
 
 // ConversationTracker tracks conversation progress

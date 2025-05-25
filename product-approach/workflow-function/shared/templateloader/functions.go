@@ -9,11 +9,12 @@ import (
 // DefaultFunctions contains all built-in template functions
 var DefaultFunctions = template.FuncMap{
 	// String functions
-	"split": strings.Split,
-	"join":  strings.Join,
-	"upper": strings.ToUpper,
-	"lower": strings.ToLower,
-	"trim":  strings.TrimSpace,
+	"split":  strings.Split,
+	"join":   strings.Join,
+	"upper":  strings.ToUpper,
+	"lower":  strings.ToLower,
+	"trim":   strings.TrimSpace,
+	"printf": fmt.Sprintf,
 	
 	// Math functions
 	"add": func(a, b int) int { return a + b },

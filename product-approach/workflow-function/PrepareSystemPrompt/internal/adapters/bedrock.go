@@ -29,8 +29,6 @@ func (b *BedrockAdapter) ConfigureBedrockSettings() *schema.BedrockConfig {
 	return &schema.BedrockConfig{
 		AnthropicVersion: "bedrock-2023-05-31", // This is fixed for Bedrock
 		MaxTokens:        b.config.MaxTokens,
-		Temperature:      0.7, // Default temperature, could be made configurable
-		TopP:             0.9, // Default topP, could be made configurable
 		Thinking: &schema.Thinking{
 			Type:         "enabled",
 			BudgetTokens: b.config.BudgetTokens,

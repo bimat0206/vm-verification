@@ -142,3 +142,35 @@ func ConvertToCompleteSystemPrompt(prompt *SystemPrompt, verificationContext *Ve
 
 	return completePrompt
 }
+// ADD: Enhanced system prompt with design-specific fields
+type EnhancedSystemPrompt struct {
+    *CompleteSystemPrompt
+    
+    // Add fields from design document
+    RowProtocol         []RowProtocolEntry `json:"rowProtocol,omitempty"`
+    ProductCatalog      []ProductInfo      `json:"productCatalog,omitempty"`
+    ValidationFramework *ValidationFramework `json:"validationFramework,omitempty"`
+    TokenOptimization   *TokenConfig       `json:"tokenOptimization,omitempty"`
+}
+
+type RowProtocolEntry struct {
+    RowCode     string `json:"rowCode"`
+    Description string `json:"description"`
+}
+
+type ProductInfo struct {
+    ProductId   int    `json:"productId"`
+    ProductName string `json:"productName"`
+    Description string `json:"description"`
+}
+
+type ValidationFramework struct {
+    CriticalRequirements []string `json:"criticalRequirements"`
+    OutputFormat         string   `json:"outputFormat"`
+    QualityChecks        []string `json:"qualityChecks"`
+}
+
+type TokenConfig struct {
+    MaxInputTokens  int `json:"maxInputTokens"`
+    MaxOutputTokens int `json:"maxOutputTokens"`
+}
