@@ -11,6 +11,11 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 ### Fixed
 - **Vietnamese Character Encoding:** Ensured UTF-8 preservation when storing the processed Turn 1 Markdown in S3. The `turn1-processed-response.md` object now sets `ContentType` to `text/markdown; charset=utf-8` for proper Unicode display.
 
+## [2.4.4] - 2025-05-31
+### Changed
+- Layout dimensions (`RowCount`, `ColumnCount`) are now loaded from layout metadata instead of using hard-coded defaults.
+- Simplified `VerificationContext.Validate` to only check for presence of `LayoutMetadata` or `HistoricalContext` as required.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

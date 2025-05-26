@@ -3,12 +3,14 @@ package templateloader
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 )
 
 // Config holds configuration for the template loader
@@ -21,7 +23,7 @@ type Config struct {
 // Loader handles template loading and rendering
 type Loader struct {
 	basePath  string
-	cache     map[string]*template.Template
+	cache     TemplateCache
 	functions template.FuncMap
 	versions  map[string]string
 	mu        sync.RWMutex
@@ -51,9 +53,15 @@ func New(config Config) (*Loader, error) {
 		versions:  make(map[string]string),
 	}
 
-	// Initialize cache if enabled
+	// Initialize cache if enabled using MemoryCache, otherwise NoCache
 	if config.CacheEnabled {
-		loader.cache = make(map[string]*template.Template)
+		mc, err := NewMemoryCache(100, "LRU", time.Hour)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cache: %w", err)
+		}
+		loader.cache = mc
+	} else {
+		loader.cache = NewNoCache()
 	}
 
 	// Add default functions
@@ -73,6 +81,12 @@ func New(config Config) (*Loader, error) {
 		return nil, fmt.Errorf("failed to discover template versions: %w", err)
 	}
 
+	// Conceptual: start file watcher for hot-reload if enabled via AdvancedConfig
+	// This is not fully implemented but outlines the necessary structure.
+	// if config.Discovery.WatchEnabled {
+	//         go loader.startWatcher(config.Discovery.WatchInterval)
+	// }
+
 	return loader, nil
 }
 
@@ -90,12 +104,10 @@ func (l *Loader) LoadTemplateWithVersion(templateType, version string) (*templat
 	// Check cache first if enabled
 	if l.cache != nil {
 		cacheKey := fmt.Sprintf("%s:%s", templateType, version)
-		l.mu.RLock()
-		if tmpl, exists := l.cache[cacheKey]; exists {
-			l.mu.RUnlock()
+		if tmpl, meta, ok := l.cache.Get(cacheKey); ok {
+			_ = meta // metadata currently unused
 			return tmpl, nil
 		}
-		l.mu.RUnlock()
 	}
 
 	// Try versioned template first
@@ -119,9 +131,16 @@ func (l *Loader) LoadTemplateWithVersion(templateType, version string) (*templat
 	// Cache the template if caching is enabled
 	if l.cache != nil {
 		cacheKey := fmt.Sprintf("%s:%s", templateType, version)
-		l.mu.Lock()
-		l.cache[cacheKey] = tmpl
-		l.mu.Unlock()
+		metadata := TemplateMetadata{
+			Type:     templateType,
+			Version:  version,
+			Path:     templatePath,
+			LoadedAt: time.Now(),
+			Size:     int64(len(content)),
+		}
+		if errCache := l.cache.Set(cacheKey, tmpl, &metadata, 0); errCache != nil {
+			log.Printf("Warning: failed to cache template %s:%s - %v", templateType, version, errCache)
+		}
 	}
 
 	return tmpl, nil
@@ -187,11 +206,7 @@ func (l *Loader) ClearCache() error {
 	if l.cache == nil {
 		return nil
 	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.cache = make(map[string]*template.Template)
-	return nil
+	return l.cache.Clear()
 }
 
 // RefreshVersions re-discovers available template versions
@@ -293,4 +308,15 @@ func parseVersionPart(s string) int {
 		return sum
 	}
 	return num
+}
+
+// startWatcher outlines a periodic refresh routine for template versions.
+// When enabled, it would refresh versions and clear outdated cache entries.
+func (l *Loader) startWatcher(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	for range ticker.C {
+		// In a full implementation, discoverVersions would detect changed
+		// templates and l.cache.Delete(...) would remove stale entries.
+		l.RefreshVersions()
+	}
 }

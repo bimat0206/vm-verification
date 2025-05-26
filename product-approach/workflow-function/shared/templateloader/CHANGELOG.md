@@ -12,7 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Template hot-reloading support
 - GraphQL-like template queries
 - Template composition and inheritance
-- Performance profiling tools
+ - Performance profiling tools
+
+## [1.0.1] - 2025-05-31
+
+### Fixed
+- Consolidated duplicate cache entry types to use `CacheItem` only.
+- Removed unused `TemplateDiscovery` struct.
+- Refactored `Loader` to utilize the `TemplateCache` interface with `MemoryCache` or `NoCache`.
+- Logged errors from cache `Set` without failing template loads.
+
+### Added
+- Conceptual hook for file watching and hot-reloading.
 
 ## [1.0.0] - 2025-01-20
 
