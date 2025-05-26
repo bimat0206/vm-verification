@@ -123,6 +123,8 @@ type S3StateManager interface {
 
 	// Generic JSON loading capability (architectural enhancement)
 	LoadJSON(ctx context.Context, ref models.S3Reference, target interface{}) error
+	// StoreJSONAtReference stores arbitrary JSON data at the provided S3 reference
+	StoreJSONAtReference(ctx context.Context, ref models.S3Reference, data interface{}) (models.S3Reference, error)
 
 	// STRATEGIC: Schema-integrated specialized loaders
 	LoadInitializationData(ctx context.Context, ref models.S3Reference) (*InitializationData, error)
@@ -925,7 +927,22 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 
 	return result, nil
 }
+// StoreJSONAtReference stores arbitrary JSON data at the given S3 reference
+func (m *s3Manager) StoreJSONAtReference(ctx context.Context, ref models.S3Reference, data interface{}) (models.S3Reference, error) {
+	if err := m.validateReference(ref, "store_json_at_reference"); err != nil {
+		return models.S3Reference{}, err
+	}
 
+	stateRef, err := m.stateManager.StoreJSON("", ref.Key, data)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store JSON data", true).
+			WithContext("bucket", ref.Bucket).
+			WithContext("s3_key", ref.Key)
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
 // ===================================================================
 // STRATEGIC UTILITY FUNCTIONS
 // ===================================================================

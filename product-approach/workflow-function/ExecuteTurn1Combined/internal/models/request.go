@@ -6,6 +6,10 @@ type Turn1Request struct {
 	VerificationID      string              `json:"verificationId"`
 	VerificationContext VerificationContext `json:"verificationContext"`
 	S3Refs              Turn1RequestS3Refs  `json:"s3Refs"`
+		// InputInitializationFileRef stores the S3 location of the initialization.json
+	// that was used to create this request. It is not part of the incoming
+	// JSON payload but is populated internally for status updates.
+	InputInitializationFileRef S3Reference `json:"-"`
 }
 
 // Turn1RequestS3Refs groups the S3 references needed for Turn-1.

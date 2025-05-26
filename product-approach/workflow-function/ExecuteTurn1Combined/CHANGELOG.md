@@ -1,6 +1,9 @@
 # Changelog
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
+## [2.4.7] - 2025-06-03
+### Added
+- Execution status is now written back to the input `initialization.json` after processing. The handler updates `verificationContext.status` and `lastUpdatedAt` and stores the file back to the original S3 location.
 
 ## [2.4.6] - 2025-06-02
 ### Fixed

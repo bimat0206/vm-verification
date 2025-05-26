@@ -70,14 +70,26 @@ func NewHandler(
 }
 
 // Handle executes a single Turn-1 verification cycle with comprehensive tracking.
-func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema.CombinedTurnResponse, error) {
+func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *schema.CombinedTurnResponse, err error) {
 	h.startTime = time.Now()
 	h.processingTracker = NewProcessingStagesTracker(h.startTime)
 	h.statusTracker = NewStatusTracker(h.startTime)
 
 	// Initialize processing metrics
 	processingMetrics := h.initializeProcessingMetrics()
-
+	// Create context logger
+	contextLogger := h.createContextLogger(req)
+	defer func() {
+		finalStatus := schema.StatusTurn1Completed
+		if err != nil {
+			if wfErr, ok := err.(*errors.WorkflowError); ok {
+				finalStatus = string(wfErr.Type)
+			} else {
+				finalStatus = schema.StatusTurn1Error
+			}
+		}
+		h.updateInitializationFile(ctx, req, finalStatus, contextLogger)
+	}()
 	// Validate request
 	if err := h.validator.ValidateRequest(req); err != nil {
 		h.processingTracker.RecordStage("validation", "failed", time.Since(h.startTime), map[string]interface{}{
@@ -87,8 +99,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 	}
 	h.processingTracker.RecordStage("validation", "completed", time.Since(h.startTime), nil)
 
-	// Create context logger
-	contextLogger := h.createContextLogger(req)
+
 
 	// Update initial status
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
@@ -246,7 +257,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema
 }
 
 // HandleForStepFunction processes Turn1 and returns StepFunctionResponse
-func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Request) (*models.StepFunctionResponse, error) {
+func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Request) (resp *models.StepFunctionResponse, err error) {
 	// Initialize tracking
 	h.startTime = time.Now()
 	h.processingTracker = NewProcessingStagesTracker(h.startTime)
@@ -254,7 +265,17 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 
 	processingMetrics := h.initializeProcessingMetrics()
 	contextLogger := h.createContextLogger(req)
-
+	defer func() {
+		finalStatus := schema.StatusTurn1Completed
+		if err != nil {
+			if wfErr, ok := err.(*errors.WorkflowError); ok {
+				finalStatus = string(wfErr.Type)
+			} else {
+				finalStatus = schema.StatusTurn1Error
+			}
+		}
+		h.updateInitializationFile(ctx, req, finalStatus, contextLogger)
+	}()
 	contextLogger.Info("Starting ExecuteTurn1Combined", map[string]interface{}{
 		"verification_type": req.VerificationContext.VerificationType,
 		"layout_id":         req.VerificationContext.LayoutId,

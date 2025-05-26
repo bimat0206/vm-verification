@@ -180,6 +180,40 @@ func (h *Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, tot
 	metrics.Turn1.TokenUsage = &invokeResult.Response.TokenUsage
 }
 
+// updateInitializationFile writes the final status back to the input initialization.json
+func (h *Handler) updateInitializationFile(ctx context.Context, req *models.Turn1Request, status string, contextLogger logger.Logger) {
+	ref := req.InputInitializationFileRef
+	if ref.Bucket == "" || ref.Key == "" {
+		contextLogger.Warn("initialization reference missing, skipping update", nil)
+		return
+	}
+
+	initData, err := h.s3.LoadInitializationData(ctx, ref)
+	if err != nil {
+		contextLogger.Warn("failed to load initialization.json for update", map[string]interface{}{
+			"error": err.Error(),
+			"key":   ref.Key,
+		})
+		return
+	}
+
+	initData.VerificationContext.Status = status
+	initData.VerificationContext.LastUpdatedAt = schema.FormatISO8601()
+	initData.SchemaVersion = schema.SchemaVersion
+
+	if _, err := h.s3.StoreJSONAtReference(ctx, ref, initData); err != nil {
+		contextLogger.Warn("failed to store updated initialization.json", map[string]interface{}{
+			"error": err.Error(),
+			"key":   ref.Key,
+		})
+		return
+	}
+
+	contextLogger.Info("updated initialization.json status", map[string]interface{}{
+		"key":    ref.Key,
+		"status": status,
+	})
+}
 // validateAndLogCompletion validates response and logs completion
 func (h *Handler) validateAndLogCompletion(response *schema.CombinedTurnResponse, totalDuration time.Duration, bedrockResp *models.BedrockResponse, contextLogger logger.Logger) {
 	// Create Turn1Response for validation
