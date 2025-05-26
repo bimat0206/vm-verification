@@ -1,17 +1,35 @@
 package services
 
-// PromptService generates prompts for Turn 2
+import (
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/shared/templateloader"
+)
 
+// PromptService renders the Turn 2 prompt using a template and previous analysis.
 type PromptService interface {
-    GenerateTurn2Prompt(systemPrompt string, imageData string, previousAnalysis interface{}) (string, error)
+	GenerateTurn2Prompt(systemPrompt string, ctx models.VerificationContext, previous interface{}) (string, error)
 }
 
-func NewPromptService(cfg interface{}, log interface{}) (PromptService, error) {
-    return &noopPrompt{}, nil
+type promptService struct {
+	loader templateloader.TemplateLoader
+	cfg    config.Config
 }
 
-type noopPrompt struct{}
+// NewPromptService creates a prompt service.
+func NewPromptService(cfg *config.Config) (PromptService, error) {
+	loader, err := templateloader.New(templateloader.Config{BasePath: cfg.Prompts.TemplateBasePath})
+	if err != nil {
+		return nil, err
+	}
+	return &promptService{loader: loader, cfg: *cfg}, nil
+}
 
-func (n *noopPrompt) GenerateTurn2Prompt(systemPrompt string, imageData string, previousAnalysis interface{}) (string, error) {
-    return systemPrompt, nil
+func (p *promptService) GenerateTurn2Prompt(systemPrompt string, ctx models.VerificationContext, previous interface{}) (string, error) {
+	data := map[string]interface{}{
+		"SystemPrompt":     systemPrompt,
+		"Verification":     ctx,
+		"PreviousAnalysis": previous,
+	}
+	return p.loader.RenderTemplateWithVersion("turn2", p.cfg.Prompts.TemplateVersion, data)
 }
