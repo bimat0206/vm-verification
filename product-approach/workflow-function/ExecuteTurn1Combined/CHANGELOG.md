@@ -2,6 +2,10 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.4.6] - 2025-06-02
+### Fixed
+- Corrected the S3 path for the processed Turn 1 Markdown response. The file is now stored under the `response/` directory instead of `processing/`.
+
 ## [2.4.2] - 2025-05-26
 ### Fixed
 - Restored `ParsedTurn1Data` type to resolve compilation errors.
