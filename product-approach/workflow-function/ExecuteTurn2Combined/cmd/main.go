@@ -43,13 +43,16 @@ func init() {
 		log.Fatalf("failed to init s3 manager: %v", err)
 	}
 
-	bedrockSvc := services.NewBedrockService(logr)
+	bedrockSvc, err := services.NewBedrockService(context.Background(), *cfg)
+	if err != nil {
+		log.Fatalf("failed to init bedrock service: %v", err)
+	}
 	dynamoSvc, err := services.NewDynamoDBService(cfg)
 	if err != nil {
 		log.Fatalf("failed to init dynamodb service: %v", err)
 	}
 
-	promptSvc, err := services.NewPromptService(cfg, logr)
+	promptSvc, err := services.NewPromptService(cfg)
 	if err != nil {
 		log.Fatalf("failed to init prompt service: %v", err)
 	}
