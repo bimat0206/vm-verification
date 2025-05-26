@@ -99,19 +99,23 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 
 	// Convert S3RefTree to map[string]interface{} for Step Functions
 	s3References := map[string]interface{}{
-		"initialization": s3RefTree.Initialization,
-		"images": map[string]interface{}{
-			"metadata": s3RefTree.Images.Metadata,
-		},
-		"processing": map[string]interface{}{
-			"historicalContext": s3RefTree.Processing.HistoricalContext,
-			"layoutMetadata":    s3RefTree.Processing.LayoutMetadata,
-		},
-		"prompts_system": s3RefTree.Prompts.SystemPrompt,
+		"processing_initialization": s3RefTree.Initialization,
+		"images_metadata":           s3RefTree.Images.Metadata,
+		"prompts_system":            s3RefTree.Prompts.SystemPrompt,
 		"responses": map[string]interface{}{
 			"turn1Raw":       rawRef,
 			"turn1Processed": procRef,
 		},
+	}
+
+	if s3RefTree.Processing.LayoutMetadata.Key != "" {
+		s3References["processing_layout-metadata"] = s3RefTree.Processing.LayoutMetadata
+	}
+
+	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
+		if s3RefTree.Processing.HistoricalContext.Key != "" {
+			s3References["processing_historical-context"] = s3RefTree.Processing.HistoricalContext
+		}
 	}
 
 	// Build summary in the expected format

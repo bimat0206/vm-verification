@@ -3,6 +3,7 @@ package handler
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
@@ -73,29 +74,41 @@ func buildS3RefTree(
 ) S3ReferenceTree {
 	// Extract verification ID from the key pattern
 	verificationID := extractVerificationID(rawRef.Key)
+	datePartition := extractDatePartitionFromKey(rawRef.Key)
+
+	prefix := func(key string) string {
+		if datePartition != "" {
+			return fmt.Sprintf("%s/%s", datePartition, key)
+		}
+		return key
+	}
 
 	// Create initialization reference
+	initRefKey := prefix(fmt.Sprintf("%s/initialization.json", verificationID))
 	initRef := models.S3Reference{
 		Bucket: rawRef.Bucket,
-		Key:    fmt.Sprintf("%s/initialization.json", verificationID),
+		Key:    initRefKey,
 	}
 
 	// Create images metadata reference
+	imagesMetadataKey := prefix(fmt.Sprintf("%s/images/metadata.json", verificationID))
 	imagesMetadataRef := models.S3Reference{
 		Bucket: rawRef.Bucket,
-		Key:    fmt.Sprintf("%s/images/metadata.json", verificationID),
+		Key:    imagesMetadataKey,
 	}
 
 	// Create layout metadata reference for LAYOUT_VS_CHECKING
+	layoutMetadataKey := prefix(fmt.Sprintf("%s/processing/layout-metadata.json", verificationID))
 	layoutMetadataRef := models.S3Reference{
 		Bucket: rawRef.Bucket,
-		Key:    fmt.Sprintf("%s/processing/layout-metadata.json", verificationID),
+		Key:    layoutMetadataKey,
 	}
 
 	// Create historical context reference for PREVIOUS_VS_CURRENT
+	historicalContextKey := prefix(fmt.Sprintf("%s/processing/historical-context.json", verificationID))
 	historicalContextRef := models.S3Reference{
 		Bucket: rawRef.Bucket,
-		Key:    fmt.Sprintf("%s/processing/historical-context.json", verificationID),
+		Key:    historicalContextKey,
 	}
 
 	tree := S3ReferenceTree{
@@ -139,6 +152,32 @@ func extractVerificationID(key string) string {
 
 	// If we can't find a verification ID, return a placeholder
 	return "unknown-verification-id"
+}
+
+// extractDatePartitionFromKey extracts the YYYY/MM/DD prefix from an S3 key if present.
+func extractDatePartitionFromKey(key string) string {
+	parts := strings.Split(key, "/")
+	if len(parts) >= 4 {
+		year, month, day := parts[0], parts[1], parts[2]
+		if len(year) == 4 && len(month) == 2 && len(day) == 2 &&
+			isAllDigits(year) && isAllDigits(month) && isAllDigits(day) {
+			return fmt.Sprintf("%s/%s/%s", year, month, day)
+		}
+	}
+	return ""
+}
+
+// isAllDigits returns true if all characters in the string are digits
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // buildSummary creates a summary of the turn execution
