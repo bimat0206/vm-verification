@@ -16,6 +16,18 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 - Layout dimensions (`RowCount`, `ColumnCount`) are now loaded from layout metadata instead of using hard-coded defaults.
 - Simplified `VerificationContext.Validate` to only check for presence of `LayoutMetadata` or `HistoricalContext` as required.
 
+## [2.4.5] - 2025-06-01
+### Changed
+- Modified the structure of the `s3References` field in the Step Function output
+  to align with downstream expectations.
+  - `initialization` renamed to `processing_initialization`.
+  - `images.metadata` flattened to `images_metadata`.
+  - `processing.layoutMetadata` flattened to `processing_layout-metadata`.
+  - `processing.historicalContext` now outputs as `processing_historical-context`
+    only when `verificationType` is `PREVIOUS_VS_CURRENT`.
+- Ensured all generated S3 reference keys include the date-partition prefix so
+  paths are consistent across artifacts.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
