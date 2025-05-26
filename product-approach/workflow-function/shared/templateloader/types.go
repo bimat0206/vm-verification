@@ -1,81 +1,81 @@
 package templateloader
 
 import (
+	"fmt"
 	"text/template"
 	"time"
-	"fmt"
 )
 
 // TemplateMetadata holds metadata about a template
 type TemplateMetadata struct {
-	Type        string                 `json:"type"`
-	Version     string                 `json:"version"`
-	Path        string                 `json:"path"`
-	LoadedAt    time.Time              `json:"loaded_at"`
-	Size        int64                  `json:"size"`
-	Checksum    string                 `json:"checksum,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Type     string                 `json:"type"`
+	Version  string                 `json:"version"`
+	Path     string                 `json:"path"`
+	LoadedAt time.Time              `json:"loaded_at"`
+	Size     int64                  `json:"size"`
+	Checksum string                 `json:"checksum,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // TemplateInfo represents information about an available template
 type TemplateInfo struct {
-	Type            string             `json:"type"`
-	AvailableVersions []string         `json:"available_versions"`
-	LatestVersion   string             `json:"latest_version"`
-	Metadata        *TemplateMetadata  `json:"metadata,omitempty"`
+	Type              string            `json:"type"`
+	AvailableVersions []string          `json:"available_versions"`
+	LatestVersion     string            `json:"latest_version"`
+	Metadata          *TemplateMetadata `json:"metadata,omitempty"`
 }
 
 // LoaderStats provides statistics about the template loader
 type LoaderStats struct {
-	CacheEnabled     bool               `json:"cache_enabled"`
-	CacheSize        int                `json:"cache_size"`
-	CacheHits        int64              `json:"cache_hits"`
-	CacheMisses      int64              `json:"cache_misses"`
-	TemplatesLoaded  int                `json:"templates_loaded"`
-	TotalRenders     int64              `json:"total_renders"`
-	LastRefresh      time.Time          `json:"last_refresh"`
-	TemplateTypes    []string           `json:"template_types"`
+	CacheEnabled    bool      `json:"cache_enabled"`
+	CacheSize       int       `json:"cache_size"`
+	CacheHits       int64     `json:"cache_hits"`
+	CacheMisses     int64     `json:"cache_misses"`
+	TemplatesLoaded int       `json:"templates_loaded"`
+	TotalRenders    int64     `json:"total_renders"`
+	LastRefresh     time.Time `json:"last_refresh"`
+	TemplateTypes   []string  `json:"template_types"`
 }
 
 // RenderOptions provides options for template rendering
 type RenderOptions struct {
 	// IncludeMetadata adds metadata to the rendered output
 	IncludeMetadata bool `json:"include_metadata"`
-	
+
 	// StrictMode enables strict template parsing (fails on undefined variables)
 	StrictMode bool `json:"strict_mode"`
-	
+
 	// MaxExecutionTime sets a timeout for template execution
 	MaxExecutionTime time.Duration `json:"max_execution_time"`
-	
+
 	// CustomFunctions allows passing additional functions for this render
 	CustomFunctions template.FuncMap `json:"-"`
 }
 
 // RenderResult contains the result of a template render operation
 type RenderResult struct {
-	Output      string             `json:"output"`
-	Metadata    *TemplateMetadata  `json:"metadata,omitempty"`
-	RenderTime  time.Duration      `json:"render_time"`
-	Size        int                `json:"size"`
-	Error       error              `json:"error,omitempty"`
+	Output     string            `json:"output"`
+	Metadata   *TemplateMetadata `json:"metadata,omitempty"`
+	RenderTime time.Duration     `json:"render_time"`
+	Size       int               `json:"size"`
+	Error      error             `json:"error,omitempty"`
 }
 
 // ValidationRule defines a rule for template validation
 type ValidationRule struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Required    bool        `json:"required"`
-	Pattern     string      `json:"pattern,omitempty"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Required    bool                    `json:"required"`
+	Pattern     string                  `json:"pattern,omitempty"`
 	Validator   func(interface{}) error `json:"-"`
 }
 
 // ValidationResult contains the result of template validation
 type ValidationResult struct {
-	Valid   bool           `json:"valid"`
-	Errors  []string       `json:"errors,omitempty"`
-	Warnings []string      `json:"warnings,omitempty"`
-	Rules   []ValidationRule `json:"rules,omitempty"`
+	Valid    bool             `json:"valid"`
+	Errors   []string         `json:"errors,omitempty"`
+	Warnings []string         `json:"warnings,omitempty"`
+	Rules    []ValidationRule `json:"rules,omitempty"`
 }
 
 // TemplateSource defines where templates are loaded from
@@ -84,13 +84,13 @@ type TemplateSource int
 const (
 	// SourceUnknown represents an unknown template source
 	SourceUnknown TemplateSource = iota
-	
+
 	// SourceFilesystem represents templates loaded from filesystem
 	SourceFilesystem
-	
+
 	// SourceVersioned represents templates loaded from versioned directories
 	SourceVersioned
-	
+
 	// SourceFlat represents templates loaded from flat file structure
 	SourceFlat
 )
@@ -115,30 +115,30 @@ type ErrorType string
 const (
 	// ErrorTypeNotFound indicates template was not found
 	ErrorTypeNotFound ErrorType = "not_found"
-	
+
 	// ErrorTypeParsing indicates template parsing failed
 	ErrorTypeParsing ErrorType = "parsing"
-	
+
 	// ErrorTypeExecution indicates template execution failed
 	ErrorTypeExecution ErrorType = "execution"
-	
+
 	// ErrorTypeValidation indicates template validation failed
 	ErrorTypeValidation ErrorType = "validation"
-	
+
 	// ErrorTypeConfiguration indicates configuration error
 	ErrorTypeConfiguration ErrorType = "configuration"
 )
 
 // TemplateError represents a template-related error with additional context
 type TemplateError struct {
-	Type        ErrorType   `json:"type"`
-	Message     string      `json:"message"`
-	TemplateType string     `json:"template_type,omitempty"`
-	Version     string      `json:"version,omitempty"`
-	Path        string      `json:"path,omitempty"`
-	Line        int         `json:"line,omitempty"`
-	Column      int         `json:"column,omitempty"`
-	Cause       error       `json:"-"`
+	Type         ErrorType `json:"type"`
+	Message      string    `json:"message"`
+	TemplateType string    `json:"template_type,omitempty"`
+	Version      string    `json:"version,omitempty"`
+	Path         string    `json:"path,omitempty"`
+	Line         int       `json:"line,omitempty"`
+	Column       int       `json:"column,omitempty"`
+	Cause        error     `json:"-"`
 }
 
 // Error implements the error interface
@@ -156,9 +156,9 @@ func (te *TemplateError) Unwrap() error {
 
 // ConfigDefaults provides default configuration values
 type ConfigDefaults struct {
-	BasePath     string
-	CacheEnabled bool
-	MaxCacheSize int
+	BasePath        string
+	CacheEnabled    bool
+	MaxCacheSize    int
 	RefreshInterval time.Duration
 }
 
@@ -221,34 +221,11 @@ func (tfr *TemplateFuncRegistry) ToFuncMap() template.FuncMap {
 	return funcMap
 }
 
-// CacheEntry represents a cached template with metadata
-type CacheEntry struct {
-	Template    *template.Template
-	Metadata    *TemplateMetadata
-	AccessTime  time.Time
-	AccessCount int64
-}
-
 // VersionInfo contains information about a specific template version
 type VersionInfo struct {
-	Version     string    `json:"version"`
-	Path        string    `json:"path"`
-	Size        int64     `json:"size"`
-	ModTime     time.Time `json:"mod_time"`
-	IsLatest    bool      `json:"is_latest"`
+	Version  string    `json:"version"`
+	Path     string    `json:"path"`
+	Size     int64     `json:"size"`
+	ModTime  time.Time `json:"mod_time"`
+	IsLatest bool      `json:"is_latest"`
 }
-
-// TemplateDiscovery handles template discovery and version management
-type TemplateDiscovery struct {
-	BasePath string
-	Types    map[string][]VersionInfo
-}
-
-// NewTemplateDiscovery creates a new template discovery instance
-func NewTemplateDiscovery(basePath string) *TemplateDiscovery {
-	return &TemplateDiscovery{
-		BasePath: basePath,
-		Types:    make(map[string][]VersionInfo),
-	}
-}
-

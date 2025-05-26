@@ -31,48 +31,13 @@ func (vc *VerificationContext) Validate() error {
 
 	switch vc.VerificationType {
 	case "LAYOUT_VS_CHECKING":
-		// Ensure layout metadata has minimum required fields
 		if vc.LayoutMetadata == nil {
-			vc.LayoutMetadata = make(map[string]interface{})
-		}
-
-		// Ensure RowCount exists
-		if _, ok := vc.LayoutMetadata["RowCount"]; !ok {
-			vc.LayoutMetadata["RowCount"] = 6 // Default
-		}
-
-		// Ensure ColumnCount exists
-		if _, ok := vc.LayoutMetadata["ColumnCount"]; !ok {
-			vc.LayoutMetadata["ColumnCount"] = 10 // Default
+			return fmt.Errorf("LayoutMetadata is required for LAYOUT_VS_CHECKING verification type")
 		}
 
 	case "PREVIOUS_VS_CURRENT":
-		// Ensure historical context exists
 		if vc.HistoricalContext == nil {
-			vc.HistoricalContext = make(map[string]interface{})
-		}
-
-		// Ensure required fields have defaults
-		if _, ok := vc.HistoricalContext["PreviousVerificationAt"]; !ok {
-			vc.HistoricalContext["PreviousVerificationAt"] = "unknown"
-		}
-
-		if _, ok := vc.HistoricalContext["HoursSinceLastVerification"]; !ok {
-			vc.HistoricalContext["HoursSinceLastVerification"] = 0.0
-		}
-
-		if _, ok := vc.HistoricalContext["PreviousVerificationStatus"]; !ok {
-			vc.HistoricalContext["PreviousVerificationStatus"] = "unknown"
-		}
-
-		// Initialize VerificationSummary if missing
-		if _, ok := vc.HistoricalContext["VerificationSummary"]; !ok {
-			vc.HistoricalContext["VerificationSummary"] = map[string]interface{}{
-				"OverallAccuracy":       0.0,
-				"MissingProducts":       0,
-				"IncorrectProductTypes": 0,
-				"EmptyPositionsCount":   0,
-			}
+			return fmt.Errorf("HistoricalContext is required for PREVIOUS_VS_CURRENT verification type")
 		}
 	}
 

@@ -231,13 +231,43 @@ func (p *promptService) buildTemplateContext(vCtx models.VerificationContext, sy
 		"CreatedAt":        schema.FormatISO8601(),
 	}
 
-	// Ensure essential fields are initialized with defaults if missing
-	context["RowCount"] = p.getIntOrDefault(vCtx, "RowCount", 6)
-	context["ColumnCount"] = p.getIntOrDefault(vCtx, "ColumnCount", 10)
+	// Extract layout dimensions from metadata when available
+	rowCount := -1
+	colCount := -1
+	if vCtx.LayoutMetadata != nil {
+		if rc, ok := vCtx.LayoutMetadata["RowCount"]; ok {
+			switch v := rc.(type) {
+			case int:
+				rowCount = v
+			case float64:
+				rowCount = int(v)
+			case int64:
+				rowCount = int(v)
+			}
+		}
+		if cc, ok := vCtx.LayoutMetadata["ColumnCount"]; ok {
+			switch v := cc.(type) {
+			case int:
+				colCount = v
+			case float64:
+				colCount = int(v)
+			case int64:
+				colCount = int(v)
+			}
+		}
+	}
+	if rowCount == -1 || colCount == -1 {
+		p.logger.Warn("layout_dimensions_missing", map[string]interface{}{"rowCount": rowCount, "columnCount": colCount})
+	}
+	context["RowCount"] = rowCount
+	context["ColumnCount"] = colCount
 
-	// Ensure RowLabels is properly initialized
-	rowCount := context["RowCount"].(int)
-	context["RowLabels"] = p.ensureRowLabels(vCtx, rowCount)
+	// Row labels only generated when row count is valid
+	if rowCount > 0 {
+		context["RowLabels"] = p.ensureRowLabels(vCtx, rowCount)
+	} else {
+		context["RowLabels"] = []string{}
+	}
 
 	// Add layout-specific context
 	if vCtx.VerificationType == schema.VerificationTypeLayoutVsChecking {
@@ -445,6 +475,9 @@ func (p *promptService) getStringOrDefault(data map[string]interface{}, key stri
 }
 
 func (p *promptService) ensureRowLabels(vCtx models.VerificationContext, rowCount int) []string {
+	if rowCount <= 0 {
+		return []string{}
+	}
 	// Check if RowLabels already exists in context
 	if vCtx.LayoutMetadata != nil {
 		if labels, ok := vCtx.LayoutMetadata["RowLabels"].([]string); ok && len(labels) >= rowCount {
