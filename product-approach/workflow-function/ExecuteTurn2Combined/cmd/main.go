@@ -11,6 +11,7 @@ import (
 
 	internalConfig "workflow-function/ExecuteTurn2Combined/internal/config"
 	"workflow-function/ExecuteTurn2Combined/internal/handler"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/services"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -66,8 +67,8 @@ func init() {
 }
 
 func main() {
-	lambda.Start(func(ctx context.Context, event json.RawMessage) (*handler.StepFunctionResponse, error) {
-		var req handler.Turn2Request
+	lambda.Start(func(ctx context.Context, event json.RawMessage) (*models.StepFunctionResponse, error) {
+		var req models.Turn2Request
 		if err := json.Unmarshal(event, &req); err != nil {
 			return nil, errors.NewInternalError("json_parse", err)
 		}

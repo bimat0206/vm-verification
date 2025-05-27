@@ -155,8 +155,8 @@ func BuildReferenceKey(category, filename string) string {
 const (
 	// Images category files
 	ImageMetadataFile     = "metadata.json"
-	ReferenceBase64File   = "reference-base64.json"
-	CheckingBase64File    = "checking-base64.json"
+	ReferenceBase64File   = "reference-base64.base64"
+	CheckingBase64File    = "checking-base64.base64"
 	
 	// Prompts category files
 	SystemPromptFile      = "system-prompt.json"
@@ -164,15 +164,15 @@ const (
 	Turn2PromptFile       = "turn2-prompt.json"
 	
 	// Responses category files
-	Turn1ResponseFile     = "turn1-response.json"
-	Turn2ResponseFile     = "turn2-response.json"
+	Turn1ResponseFile     = "turn1-raw-response.json"
+	Turn2ResponseFile     = "turn2-raw-response.json"
 	
 	// Processing category files
 	InitializationFile    = "initialization.json"
 	LayoutMetadataFile    = "layout-metadata.json"
 	HistoricalContextFile = "historical-context.json"
-	Turn1AnalysisFile     = "turn1-analysis.json"
-	Turn2AnalysisFile     = "turn2-analysis.json"
+	Turn1AnalysisFile     = "turn1-processed-response.json"
+	Turn2AnalysisFile     = "turn2-processed-response.json"
 	FinalResultsFile      = "final-results.json"
 )
 

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"workflow-function/shared/errors"
 )
@@ -103,4 +105,22 @@ func (c *Config) Validate() error {
 		return errors.NewConfigError("BedrockTimeoutInvalid", "call timeout must be greater than connect timeout", "BEDROCK_CALL_TIMEOUT_SEC")
 	}
 	return nil
+}
+
+// CurrentDatePartition returns the current date partition in YYYY/MM/DD format
+func (c *Config) CurrentDatePartition() string {
+	loc, _ := time.LoadLocation(c.DatePartitionTimezone)
+	now := time.Now().In(loc)
+	return fmt.Sprintf("%04d/%02d/%02d", now.Year(), now.Month(), now.Day())
+}
+
+// DatePartitionFromTimestamp returns the date partition for a given timestamp
+func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
+	loc, _ := time.LoadLocation(c.DatePartitionTimezone)
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return "", err
+	}
+	t = t.In(loc)
+	return fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day()), nil
 }
