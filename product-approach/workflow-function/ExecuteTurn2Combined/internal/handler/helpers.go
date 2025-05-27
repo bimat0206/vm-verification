@@ -246,7 +246,7 @@ func calculateHoursSince(timestamp string) float64 {
 }
 
 // Helper function to extract image reference URL from request
-func (h *Handler) ImageRef(req *models.Turn1Request) string {
+func (h *Turn2Handler) ImageRef(req *models.Turn1Request) string {
 	if req != nil && req.S3Refs.Images.ReferenceBase64.Key != "" {
 		return req.S3Refs.Images.ReferenceBase64.Key
 	}
