@@ -146,6 +146,10 @@ type S3StateManager interface {
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
 
+	// Turn1 specific loaders used by ExecuteTurn2Combined
+	LoadTurn1ProcessedResponse(ctx context.Context, ref models.S3Reference) (*schema.Turn1ProcessedResponse, error)
+	LoadTurn1RawResponse(ctx context.Context, ref models.S3Reference) (json.RawMessage, error)
+
 	// Turn2 specific storage helpers
 	StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)
 	StoreTurn2Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
