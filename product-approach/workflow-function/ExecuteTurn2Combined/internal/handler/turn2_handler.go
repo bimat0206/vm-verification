@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
@@ -197,6 +199,18 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		return nil, wfErr
 	}
 
+	// Interpret discrepancies with business rules
+	finalStatus, refinedSummary, err := h.interpretDiscrepancies(parsedData, &req.VerificationContext)
+	if err != nil {
+		h.log.Warn("discrepancy_interpretation_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+		// Fall back to Bedrock outcome if interpretation fails
+		finalStatus = parsedData.VerificationOutcome
+		refinedSummary = parsedData.ComparisonSummary
+	}
+
 	// Store processed Turn2 response
 	processedRef, err := h.s3Service.StoreTurn2Response(ctx, req.VerificationID, parsedData)
 	if err != nil {
@@ -239,9 +253,9 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	response := &models.Turn2Response{
 		VerificationID:      req.VerificationID,
 		VerificationType:    req.VerificationType,
-		VerificationOutcome: parsedData.VerificationOutcome,
+		VerificationOutcome: finalStatus,
 		Discrepancies:       parsedData.Discrepancies,
-		ComparisonSummary:   parsedData.ComparisonSummary,
+		ComparisonSummary:   refinedSummary,
 		S3Refs: models.Turn2ResponseS3Refs{
 			RawResponse:       rawResponseRef,
 			MarkdownResponse:  markdownRef,
@@ -255,7 +269,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	h.log.Info("turn2_processing_completed", map[string]interface{}{
 		"verification_id":       req.VerificationID,
 		"verification_type":     req.VerificationType,
-		"verification_outcome":  parsedData.VerificationOutcome,
+		"verification_outcome":  finalStatus,
 		"discrepancy_count":     len(parsedData.Discrepancies),
 		"total_processing_time": processingMetrics.TotalTimeMs,
 		"input_tokens":          processingMetrics.TokenUsage.InputTokens,
@@ -273,7 +287,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		Metrics: map[string]interface{}{
 			"bedrock_request_id":   bedrockResponse.RequestID,
 			"discrepancy_count":    len(parsedData.Discrepancies),
-			"verification_outcome": parsedData.VerificationOutcome,
+			"verification_outcome": finalStatus,
 		},
 	}
 
@@ -294,9 +308,9 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		req.VerificationContext.VerificationAt,
 		statusEntry,
 		turn2Metrics,
-		parsedData.VerificationOutcome,
+		finalStatus,
 		parsedData.Discrepancies,
-		parsedData.ComparisonSummary,
+		refinedSummary,
 	)
 	if err != nil {
 		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
@@ -336,6 +350,47 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	return response, nil
+}
+
+// interpretDiscrepancies applies business rules to refine verification outcome
+func (h *Turn2Handler) interpretDiscrepancies(parsedData *bedrockparser.ParsedTurn2Data, vCtx *models.VerificationContext) (string, string, error) {
+	if parsedData == nil {
+		return schema.VerificationStatusFailed, "", fmt.Errorf("parsed data is nil")
+	}
+
+	finalStatus := parsedData.VerificationOutcome
+	summary := parsedData.ComparisonSummary
+
+	highSeverity := false
+	mismatchCount := 0
+
+	for _, d := range parsedData.Discrepancies {
+		if strings.EqualFold(d.Severity, "HIGH") {
+			highSeverity = true
+		}
+		if d.Type == "MISSING" || d.Type == "MISPLACED" {
+			mismatchCount++
+		}
+	}
+
+	if highSeverity {
+		finalStatus = schema.VerificationStatusIncorrect
+	}
+
+	if h.cfg.Processing.DiscrepancyThreshold > 0 && mismatchCount >= h.cfg.Processing.DiscrepancyThreshold {
+		finalStatus = schema.VerificationStatusIncorrect
+	}
+
+	if finalStatus != parsedData.VerificationOutcome {
+		note := fmt.Sprintf("Assessment: %s due to %d discrepancies.", finalStatus, mismatchCount)
+		if summary != "" {
+			summary = summary + " " + note
+		} else {
+			summary = note
+		}
+	}
+
+	return finalStatus, summary, nil
 }
 
 // persistErrorState attempts to record error information in DynamoDB before returning the error.

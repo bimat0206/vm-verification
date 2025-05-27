@@ -14,9 +14,9 @@ type ParsedTurn2Markdown struct {
 
 // ParsedTurn2Data holds structured fields extracted from the Turn 2 Markdown.
 type ParsedTurn2Data struct {
-	Discrepancies      []models.Discrepancy `json:"discrepancies"`
+	Discrepancies       []models.Discrepancy `json:"discrepancies"`
 	VerificationOutcome string               `json:"verificationOutcome"`
-	ComparisonSummary  string               `json:"comparisonSummary"`
+	ComparisonSummary   string               `json:"comparisonSummary"`
 }
 
 // ParseBedrockResponseAsMarkdown extracts and cleans the Bedrock Turn 2 textual response.
@@ -59,7 +59,7 @@ func ParseTurn2Response(text string) (*ParsedTurn2Data, error) {
 	if matches := discrepanciesRe.FindStringSubmatch(text); len(matches) > 1 {
 		discrepanciesBlock := strings.TrimSpace(matches[1])
 		lines := strings.Split(discrepanciesBlock, "\n")
-		
+
 		// Process each line as a potential discrepancy
 		discrepancyRe := regexp.MustCompile(`(?i)\s*[-*]\s*([^:]+):\s*expected\s+in\s+([^,]+),\s*(?:found\s+in\s+([^,]+)|not\s+found)`)
 		for _, line := range lines {
@@ -67,23 +67,28 @@ func ParseTurn2Response(text string) (*ParsedTurn2Data, error) {
 			if line == "" {
 				continue
 			}
-			
+
 			if matches := discrepancyRe.FindStringSubmatch(line); len(matches) > 2 {
 				item := strings.TrimSpace(matches[1])
 				expected := strings.TrimSpace(matches[2])
 				found := ""
 				discrepancyType := "MISSING"
-				
+				severity := "MEDIUM"
+
 				if len(matches) > 3 && matches[3] != "" {
 					found = strings.TrimSpace(matches[3])
 					discrepancyType = "MISPLACED"
+					severity = "MEDIUM"
+				} else {
+					severity = "HIGH"
 				}
-				
+
 				result.Discrepancies = append(result.Discrepancies, models.Discrepancy{
 					Item:     item,
 					Expected: expected,
 					Found:    found,
 					Type:     discrepancyType,
+					Severity: severity,
 				})
 			}
 		}
