@@ -26,14 +26,16 @@ type Config struct {
 		MaxRetries               int
 		BedrockConnectTimeoutSec int
 		BedrockCallTimeoutSec    int
+		DiscrepancyThreshold     int
 	}
 	Logging struct {
 		Level  string
 		Format string
 	}
 	Prompts struct {
-		TemplateVersion  string
-		TemplateBasePath string
+		TemplateVersion      string
+		TemplateBasePath     string
+		Turn2TemplateVersion string
 	}
 	DatePartitionTimezone string
 }
@@ -72,12 +74,14 @@ func LoadConfiguration() (*Config, error) {
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 3)
 	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
 	cfg.Processing.BedrockCallTimeoutSec = getInt("BEDROCK_CALL_TIMEOUT_SEC", 30)
+	cfg.Processing.DiscrepancyThreshold = getInt("DISCREPANCY_THRESHOLD", 5)
 
 	cfg.Logging.Level = getEnv("LOG_LEVEL", "INFO")
 	cfg.Logging.Format = getEnv("LOG_FORMAT", "json")
 
 	cfg.Prompts.TemplateVersion = getEnv("TURN1_PROMPT_VERSION", "v1.0")
 	cfg.Prompts.TemplateBasePath = getEnv("TEMPLATE_BASE_PATH", "/opt/templates")
+	cfg.Prompts.Turn2TemplateVersion = getEnv("TURN2_PROMPT_VERSION", "v1.0")
 	cfg.DatePartitionTimezone = getEnv("DATE_PARTITION_TIMEZONE", "UTC")
 
 	// Validate configuration

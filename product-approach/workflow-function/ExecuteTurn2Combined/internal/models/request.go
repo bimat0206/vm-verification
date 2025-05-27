@@ -6,7 +6,7 @@ type Turn1Request struct {
 	VerificationID      string              `json:"verificationId"`
 	VerificationContext VerificationContext `json:"verificationContext"`
 	S3Refs              Turn1RequestS3Refs  `json:"s3Refs"`
-		// InputInitializationFileRef stores the S3 location of the initialization.json
+	// InputInitializationFileRef stores the S3 location of the initialization.json
 	// that was used to create this request. It is not part of the incoming
 	// JSON payload but is populated internally for status updates.
 	InputInitializationFileRef S3Reference `json:"-"`
@@ -87,10 +87,11 @@ type Summary struct {
 
 // Discrepancy represents a single discrepancy found during verification.
 type Discrepancy struct {
-	Item     string `json:"item"`     // Product name
-	Expected string `json:"expected"` // Expected location
-	Found    string `json:"found"`    // Actual location (empty if missing)
-	Type     string `json:"type"`     // Type of discrepancy (MISSING, MISPLACED, INCORRECT_PRODUCT)
+	Item     string `json:"item"`               // Product name
+	Expected string `json:"expected"`           // Expected location
+	Found    string `json:"found"`              // Actual location (empty if missing)
+	Type     string `json:"type"`               // Type of discrepancy (MISSING, MISPLACED, INCORRECT_PRODUCT)
+	Severity string `json:"severity,omitempty"` // Severity of the discrepancy (LOW, MEDIUM, HIGH)
 }
 
 // Turn1Response is the output payload from ExecuteTurn1Combined.
@@ -102,9 +103,9 @@ type Turn1Response struct {
 
 // Turn2Response is the output payload from ExecuteTurn2Combined.
 type Turn2Response struct {
-	S3Refs             Turn2ResponseS3Refs `json:"s3Refs"`
-	Status             VerificationStatus  `json:"status"`
-	Summary            Summary             `json:"summary"`
-	Discrepancies      []Discrepancy       `json:"discrepancies"`
+	S3Refs              Turn2ResponseS3Refs `json:"s3Refs"`
+	Status              VerificationStatus  `json:"status"`
+	Summary             Summary             `json:"summary"`
+	Discrepancies       []Discrepancy       `json:"discrepancies"`
 	VerificationOutcome string              `json:"verificationOutcome"` // CORRECT or INCORRECT
 }

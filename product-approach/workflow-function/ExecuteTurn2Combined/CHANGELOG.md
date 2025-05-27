@@ -2,6 +2,22 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [1.3.0] - 2025-06-05
+### Added
+- **Business Logic for Discrepancy Interpretation**:
+  - Implemented a new method in `Turn2Handler` to apply business rules to the discrepancies and verification outcome parsed from Bedrock's Turn 2 response.
+  - This allows for refinement of the AI's output, such as adjusting the final `verificationStatus` based on the severity or quantity of discrepancies, overriding Bedrock's initial assessment if specific critical conditions are met.
+  - Introduced configurable thresholds (e.g., `DiscrepancyThreshold` in `config.Config`) for rule-based decision making.
+- **`PromptServiceTurn2` Implementation**:
+  - Provided a concrete implementation for the `PromptServiceTurn2` interface in `internal/services/prompt_turn2.go`.
+  - This service now dynamically generates Turn 2 comparison prompts by selecting templates based on `VerificationContext.VerificationType` and building rich context for template rendering.
+  - Returns the rendered prompt and a `*schema.TemplateProcessor` object with processing metrics.
+### Changed
+- Modified `turn2_handler.go` to utilize the new discrepancy interpretation logic and updated configuration values.
+- Added new configuration fields `DiscrepancyThreshold` and `Turn2TemplateVersion`.
+### Purpose
+- These changes improve the robustness, accuracy, and configurability of the ExecuteTurn2Combined function, enabling more reliable verification results and prompt generation.
+
 ## [1.2.0] - 2025-05-28
 ### Added
 - **DynamoDB Integration for Turn 2**:
