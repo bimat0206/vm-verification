@@ -25,6 +25,13 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Corrected unused variables and token usage fields in `Turn2Handler`.
 - Defined `ErrorTypeTemplate` for template rendering errors.
 
+## [1.3.3] - 2025-06-08
+### Fixed
+- Resolved missing field errors in `handler_helpers.go` by expanding `Turn2Handler` with
+  validator, tracking utilities, and service references.
+- Added stub implementations for `Handle` and `HandleForStepFunction` to satisfy
+  compiler requirements.
+
 ## [1.3.0] - 2025-06-05
 ### Added
 - **Business Logic for Discrepancy Interpretation**:
