@@ -2,6 +2,22 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [1.2.0] - 2025-05-28
+### Added
+- **DynamoDB Integration for Turn 2**:
+  - Implemented updates to the `VerificationResults` table upon successful completion or critical failure of Turn 2 processing. This includes persisting `currentStatus`, `processingMetrics.turn2`, final `verificationStatus`, `discrepancies`, `verificationSummary`, and error tracking information.
+  - Implemented updates to the `ConversationHistory` table to append Turn 2 interaction details and finalize `currentTurn` and `turnStatus`.
+- **Enhanced Error Handling**:
+  - Added granular error logging and persistence using `shared/errors.WorkflowError` and structured logger.
+  - Critical failures now update DynamoDB error tracking before the error is returned.
+
+### Fixed
+- Addressed gap where Turn 2 processing outcomes were not persisted to DynamoDB.
+- Improved robustness by ensuring errors are categorized and logged consistently.
+
+### Purpose
+- These changes ensure comprehensive data persistence for Turn 2 and better observability for debugging and workflow management.
+
 ## [1.1.0] - 2025-05-27
 ### Added
 - **Complete architectural transformation from ExecuteTurn1Combined to ExecuteTurn2Combined**
