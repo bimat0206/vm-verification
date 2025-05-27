@@ -110,7 +110,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store prompt processor metrics
-	promptProcessorRef, err := h.s3Service.StoreTemplateProcessor(ctx, req.VerificationID, promptProcessor)
+	_, err = h.s3Service.StoreTemplateProcessor(ctx, req.VerificationID, promptProcessor)
 	if err != nil {
 		h.log.Warn("failed_to_store_prompt_processor", map[string]interface{}{
 			"error":           err.Error(),
@@ -172,7 +172,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store markdown response
-	markdownRef, err := h.s3Service.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse)
+	_, err = h.s3Service.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse.ComparisonMarkdown)
 	if err != nil {
 		h.log.Warn("failed_to_store_markdown_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -239,7 +239,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store processing metrics
-	metricsRef, err := h.s3Service.StoreProcessingMetrics(ctx, req.VerificationID, processingMetrics)
+	_, err = h.s3Service.StoreProcessingMetrics(ctx, req.VerificationID, processingMetrics)
 	if err != nil {
 		h.log.Warn("failed_to_store_processing_metrics", map[string]interface{}{
 			"error":           err.Error(),
@@ -259,10 +259,10 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			AnalysisStage:    models.StageProcessing,
 			ProcessingTimeMs: processingMetrics.Turn2.TotalTimeMs,
 			TokenUsage: models.TokenUsage{
-				InputTokens:  bedrockResponse.InputTokens,
-				OutputTokens: bedrockResponse.OutputTokens,
-				Thinking:     0,
-				Total:        bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+				InputTokens:    bedrockResponse.InputTokens,
+				OutputTokens:   bedrockResponse.OutputTokens,
+				ThinkingTokens: 0,
+				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
 			},
 			BedrockRequestID: "",
 		},

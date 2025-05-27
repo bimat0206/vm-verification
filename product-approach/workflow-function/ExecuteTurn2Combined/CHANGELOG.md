@@ -8,6 +8,12 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Updated `S3StateManager` interface to include Turn 2 storage helpers.
 - Adjusted `Turn2Handler` to use `VerificationContext` fields and updated processing metrics structure.
 
+## [1.3.2] - 2025-06-07
+### Fixed
+- Added `LoadTurn1ProcessedResponse` and `LoadTurn1RawResponse` to `S3StateManager` interface.
+- Corrected unused variables and token usage fields in `Turn2Handler`.
+- Defined `ErrorTypeTemplate` for template rendering errors.
+
 ## [1.3.0] - 2025-06-05
 ### Added
 - **Business Logic for Discrepancy Interpretation**:

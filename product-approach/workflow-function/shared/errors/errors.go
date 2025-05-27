@@ -18,17 +18,19 @@ type APIErrorSource string
 
 // Error types
 const (
-	ErrorTypeValidation   ErrorType = "ValidationException"
-	ErrorTypeAPI          ErrorType = "APIException"
-	ErrorTypeBedrock      ErrorType = "BedrockException"
-	ErrorTypeConverse     ErrorType = "ConverseException"
-	ErrorTypeS3           ErrorType = "S3Exception"
-	ErrorTypeDynamoDB     ErrorType = "DynamoDBException"
-	ErrorTypeInternal     ErrorType = "InternalException"
-	ErrorTypeTimeout      ErrorType = "TimeoutException"
-	ErrorTypeRetryable    ErrorType = "RetryableException"
-	ErrorTypeConversion   ErrorType = "ConversionException"
-	ErrorTypeConfig       ErrorType = "ConfigException"
+	ErrorTypeValidation ErrorType = "ValidationException"
+	ErrorTypeAPI        ErrorType = "APIException"
+	ErrorTypeBedrock    ErrorType = "BedrockException"
+	ErrorTypeConverse   ErrorType = "ConverseException"
+	ErrorTypeS3         ErrorType = "S3Exception"
+	ErrorTypeDynamoDB   ErrorType = "DynamoDBException"
+	ErrorTypeInternal   ErrorType = "InternalException"
+	// ErrorTypeTemplate represents errors encountered during template processing
+	ErrorTypeTemplate   ErrorType = "TemplateException"
+	ErrorTypeTimeout    ErrorType = "TimeoutException"
+	ErrorTypeRetryable  ErrorType = "RetryableException"
+	ErrorTypeConversion ErrorType = "ConversionException"
+	ErrorTypeConfig     ErrorType = "ConfigException"
 )
 
 // Error severities
@@ -41,9 +43,9 @@ const (
 
 // API sources
 const (
-	APISourceLegacy    APIErrorSource = "InvokeModel"
-	APISourceConverse  APIErrorSource = "Converse"
-	APISourceUnknown   APIErrorSource = "Unknown"
+	APISourceLegacy   APIErrorSource = "InvokeModel"
+	APISourceConverse APIErrorSource = "Converse"
+	APISourceUnknown  APIErrorSource = "Unknown"
 )
 
 // WorkflowError represents a structured error for workflow functions
