@@ -17,6 +17,18 @@ type DynamoManager struct {
 	log    logger.Logger
 }
 
+// Turn2Result holds data required to finalize Turn2 processing
+type Turn2Result struct {
+	VerificationID     string
+	VerificationAt     string
+	StatusEntry        schema.StatusHistoryEntry
+	TurnEntry          *schema.TurnResponse
+	Metrics            *schema.TurnMetrics
+	VerificationStatus string
+	Discrepancies      []schema.Discrepancy
+	ComparisonSummary  string
+}
+
 // NewDynamoManager creates a DynamoManager instance.
 func NewDynamoManager(dynamo services.DynamoDBService, _ config.Config, log logger.Logger) *DynamoManager {
 	return &DynamoManager{dynamo: dynamo, log: log}
@@ -53,6 +65,37 @@ func (d *DynamoManager) UpdateTurn1Completion(
 
 	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef); err != nil {
 		d.log.Warn("dynamodb update turn1 completion details failed", map[string]interface{}{
+			"error":     err.Error(),
+			"retryable": errors.IsRetryable(err),
+		})
+		dynamoOK = false
+	}
+
+	return dynamoOK
+}
+
+// UpdateTurn2Completion persists Turn2 processing results and status
+func (d *DynamoManager) UpdateTurn2Completion(ctx context.Context, res Turn2Result) bool {
+	dynamoOK := true
+
+	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry); err != nil {
+		d.log.Warn("dynamodb status update failed", map[string]interface{}{
+			"error":     err.Error(),
+			"retryable": errors.IsRetryable(err),
+		})
+		dynamoOK = false
+	}
+
+	if err := d.dynamo.UpdateConversationTurn(ctx, res.VerificationID, res.TurnEntry); err != nil {
+		d.log.Warn("conversation history recording failed", map[string]interface{}{
+			"error":     err.Error(),
+			"retryable": errors.IsRetryable(err),
+		})
+		dynamoOK = false
+	}
+
+	if err := d.dynamo.UpdateTurn2CompletionDetails(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry, res.Metrics, res.VerificationStatus, res.Discrepancies, res.ComparisonSummary); err != nil {
+		d.log.Warn("dynamodb update turn2 completion details failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),
 		})

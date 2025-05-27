@@ -2,6 +2,16 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [Unreleased] – 2025-05-27
+### Added
+- `DynamoManager.UpdateTurn2Completion`
+- `S3Manager.StoreTurn2RawResponse` and `StoreTurn2ProcessedResponse`
+### Changed
+- Removed stubbed `handler.go`
+- Wired `PromptServiceTurn2` into `turn2_handler.go`
+### Fixed
+- Ensured DynamoDB statuses now include `TURN2_COMPLETED`
+
 ## [1.3.1] - 2025-06-06
 ### Fixed
 - Resolved compilation errors due to outdated struct fields and renamed parser functions.

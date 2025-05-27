@@ -153,6 +153,8 @@ type S3StateManager interface {
 	// Turn2 specific storage helpers
 	StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)
 	StoreTurn2Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
+	StoreTurn2RawResponse(ctx context.Context, verificationID string, raw interface{}) (models.S3Reference, error)
+	StoreTurn2ProcessedResponse(ctx context.Context, verificationID string, processed *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)
 
 	// STRATEGIC: Schema-based workflow state operations
 	StoreWorkflowState(ctx context.Context, verificationID string, state *schema.WorkflowState) (models.S3Reference, error)

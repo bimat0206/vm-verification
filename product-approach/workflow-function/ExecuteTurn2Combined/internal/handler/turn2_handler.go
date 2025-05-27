@@ -22,6 +22,7 @@ type Turn2Handler struct {
 	bedrockService services.BedrockServiceTurn2
 	s3Service      services.S3StateManager
 	dynamoService  services.DynamoDBService
+	dynamoManager  *DynamoManager
 	log            logger.Logger
 	cfg            config.Config
 }
@@ -42,6 +43,7 @@ func NewTurn2Handler(
 		bedrockService: bedrockService,
 		s3Service:      s3Service,
 		dynamoService:  dynamoService,
+		dynamoManager:  NewDynamoManager(dynamoService, cfg, log),
 		log:            log,
 		cfg:            cfg,
 	}
@@ -144,7 +146,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store raw Bedrock response
-	rawResponseRef, err := h.s3Service.StoreRawResponse(ctx, req.VerificationID, bedrockResponse)
+	rawResponseRef, err := h.s3Service.StoreTurn2RawResponse(ctx, req.VerificationID, bedrockResponse)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -212,7 +214,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store processed Turn2 response
-	processedRef, err := h.s3Service.StoreTurn2Response(ctx, req.VerificationID, parsedData)
+	processedRef, err := h.s3Service.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
 	if err != nil {
 		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -316,25 +318,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		})
 	}
 
-	err = h.dynamoService.UpdateTurn2CompletionDetails(
-		ctx,
-		req.VerificationID,
-		req.VerificationContext.VerificationAt,
-		statusEntry,
-		turn2Metrics,
-		finalStatus,
-		discrepancies,
-		refinedSummary,
-	)
-	if err != nil {
-		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
-			"error":           err.Error(),
-			"retryable":       errors.IsRetryable(err),
-			"verification_id": req.VerificationID,
-		})
-	}
-
-	// Append conversation history for Turn2
+	// Prepare conversation history entry
 	turnEntry := &schema.TurnResponse{
 		TurnId:    2,
 		Timestamp: schema.FormatISO8601(),
@@ -355,10 +339,18 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 		Stage: "CHECKING_ANALYSIS",
 	}
-
-	if err := h.dynamoService.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
-		h.log.Warn("conversation_history_update_failed", map[string]interface{}{
-			"error":           err.Error(),
+	dynamoOK := h.dynamoManager.UpdateTurn2Completion(ctx, Turn2Result{
+		VerificationID:     req.VerificationID,
+		VerificationAt:     req.VerificationContext.VerificationAt,
+		StatusEntry:        statusEntry,
+		TurnEntry:          turnEntry,
+		Metrics:            turn2Metrics,
+		VerificationStatus: finalStatus,
+		Discrepancies:      discrepancies,
+		ComparisonSummary:  refinedSummary,
+	})
+	if !dynamoOK {
+		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
 			"verification_id": req.VerificationID,
 		})
 	}
