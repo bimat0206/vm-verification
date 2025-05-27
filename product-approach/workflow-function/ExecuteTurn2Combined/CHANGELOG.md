@@ -2,6 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [1.3.1] - 2025-06-06
+### Fixed
+- Resolved compilation errors due to outdated struct fields and renamed parser functions.
+- Updated `S3StateManager` interface to include Turn 2 storage helpers.
+- Adjusted `Turn2Handler` to use `VerificationContext` fields and updated processing metrics structure.
+
 ## [1.3.0] - 2025-06-05
 ### Added
 - **Business Logic for Discrepancy Interpretation**:

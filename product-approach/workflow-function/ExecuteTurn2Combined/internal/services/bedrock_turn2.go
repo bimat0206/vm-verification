@@ -26,7 +26,7 @@ type bedrockServiceTurn2 struct {
 // NewBedrockServiceTurn2 creates a new BedrockServiceTurn2 instance
 func NewBedrockServiceTurn2(cfg config.Config, log logger.Logger) (BedrockServiceTurn2, error) {
 	// Create base service
-	baseService, err := NewBedrockService(cfg, log)
+	baseService, err := NewBedrockService(context.Background(), cfg)
 	if err != nil {
 		return nil, err
 	}

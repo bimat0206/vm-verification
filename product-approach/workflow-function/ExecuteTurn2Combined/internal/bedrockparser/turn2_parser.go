@@ -19,8 +19,8 @@ type ParsedTurn2Data struct {
 	ComparisonSummary   string               `json:"comparisonSummary"`
 }
 
-// ParseBedrockResponseAsMarkdown extracts and cleans the Bedrock Turn 2 textual response.
-func ParseBedrockResponseAsMarkdown(bedrockTextResponse string) (*ParsedTurn2Markdown, error) {
+// ParseTurn2BedrockResponseAsMarkdown extracts and cleans the Bedrock Turn 2 textual response.
+func ParseTurn2BedrockResponseAsMarkdown(bedrockTextResponse string) (*ParsedTurn2Markdown, error) {
 	if strings.TrimSpace(bedrockTextResponse) == "" {
 		// Return empty markdown struct for empty input
 		return &ParsedTurn2Markdown{ComparisonMarkdown: ""}, nil
