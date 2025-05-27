@@ -17,14 +17,24 @@ import (
 
 // Turn2Handler handles the complete Turn2 processing flow
 type Turn2Handler struct {
-	contextLoader  *ContextLoader
-	promptService  services.PromptServiceTurn2
-	bedrockService services.BedrockServiceTurn2
-	s3Service      services.S3StateManager
-	dynamoService  services.DynamoDBService
-	dynamoManager  *DynamoManager
-	log            logger.Logger
-	cfg            config.Config
+	contextLoader *ContextLoader
+	promptService services.PromptServiceTurn2
+	bedrock       services.BedrockServiceTurn2
+	s3            services.S3StateManager
+	dynamo        services.DynamoDBService
+	dynamoManager *DynamoManager
+	log           logger.Logger
+	cfg           config.Config
+
+	// Additional components required by helper utilities
+	validator         *Validator
+	statusTracker     *StatusTracker
+	processingTracker *ProcessingStagesTracker
+	promptGenerator   *PromptGenerator
+	bedrockInvoker    *BedrockInvoker
+	storageManager    *StorageManager
+	eventTransformer  *EventTransformer
+	startTime         time.Time
 }
 
 // NewTurn2Handler creates a new Turn2Handler instance
@@ -38,14 +48,19 @@ func NewTurn2Handler(
 	cfg config.Config,
 ) *Turn2Handler {
 	return &Turn2Handler{
-		contextLoader:  contextLoader,
-		promptService:  promptService,
-		bedrockService: bedrockService,
-		s3Service:      s3Service,
-		dynamoService:  dynamoService,
-		dynamoManager:  NewDynamoManager(dynamoService, cfg, log),
-		log:            log,
-		cfg:            cfg,
+		contextLoader:    contextLoader,
+		promptService:    promptService,
+		bedrock:          bedrockService,
+		s3:               s3Service,
+		dynamo:           dynamoService,
+		dynamoManager:    NewDynamoManager(dynamoService, cfg, log),
+		log:              log,
+		cfg:              cfg,
+		validator:        NewValidator(),
+		promptGenerator:  NewPromptGenerator(nil, cfg),
+		eventTransformer: NewEventTransformer(s3Service, log),
+		bedrockInvoker:   NewBedrockInvoker(bedrockService, cfg, log),
+		storageManager:   NewStorageManager(s3Service, cfg, log),
 	}
 }
 
@@ -112,7 +127,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store prompt processor metrics
-	_, err = h.s3Service.StoreTemplateProcessor(ctx, req.VerificationID, promptProcessor)
+	_, err = h.s3.StoreTemplateProcessor(ctx, req.VerificationID, promptProcessor)
 	if err != nil {
 		h.log.Warn("failed_to_store_prompt_processor", map[string]interface{}{
 			"error":           err.Error(),
@@ -122,7 +137,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Invoke Bedrock with conversation history
-	bedrockResponse, err := h.bedrockService.ConverseWithHistory(
+	bedrockResponse, err := h.bedrock.ConverseWithHistory(
 		ctx,
 		loadResult.SystemPrompt,
 		prompt,
@@ -146,7 +161,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store raw Bedrock response
-	rawResponseRef, err := h.s3Service.StoreTurn2RawResponse(ctx, req.VerificationID, bedrockResponse)
+	rawResponseRef, err := h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, bedrockResponse)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -174,7 +189,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store markdown response
-	_, err = h.s3Service.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse.ComparisonMarkdown)
+	_, err = h.s3.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse.ComparisonMarkdown)
 	if err != nil {
 		h.log.Warn("failed_to_store_markdown_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -214,7 +229,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store processed Turn2 response
-	processedRef, err := h.s3Service.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
+	processedRef, err := h.s3.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
 	if err != nil {
 		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -241,7 +256,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store processing metrics
-	_, err = h.s3Service.StoreProcessingMetrics(ctx, req.VerificationID, processingMetrics)
+	_, err = h.s3.StoreProcessingMetrics(ctx, req.VerificationID, processingMetrics)
 	if err != nil {
 		h.log.Warn("failed_to_store_processing_metrics", map[string]interface{}{
 			"error":           err.Error(),
@@ -423,14 +438,14 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 		LastErrorAt:  schema.FormatISO8601(),
 	}
 
-	if err := h.dynamoService.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry); err != nil {
+	if err := h.dynamo.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry); err != nil {
 		h.log.Warn("dynamodb_status_error_update_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
 	}
 
-	if err := h.dynamoService.UpdateErrorTracking(ctx, req.VerificationID, tracking); err != nil {
+	if err := h.dynamo.UpdateErrorTracking(ctx, req.VerificationID, tracking); err != nil {
 		h.log.Warn("dynamodb_error_tracking_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
@@ -445,10 +460,20 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 			"error": wfErr.Message,
 		},
 	}
-	if err := h.dynamoService.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
+	if err := h.dynamo.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
 		h.log.Warn("conversation_history_error_update_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
 	}
+}
+
+// Handle is currently not implemented for Turn2Handler.
+func (h *Turn2Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema.CombinedTurnResponse, error) {
+	return nil, fmt.Errorf("Handle not implemented")
+}
+
+// HandleForStepFunction is currently not implemented for Turn2Handler.
+func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Request) (*models.StepFunctionResponse, error) {
+	return nil, fmt.Errorf("HandleForStepFunction not implemented")
 }
