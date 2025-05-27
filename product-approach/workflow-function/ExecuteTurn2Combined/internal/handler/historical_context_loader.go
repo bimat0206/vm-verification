@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"workflow-function/ExecuteTurn1Combined/internal/models"
-	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/services"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 )

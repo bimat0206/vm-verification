@@ -3,9 +3,9 @@ package handler
 import (
 	"context"
 	"time"
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
-	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/services"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 )

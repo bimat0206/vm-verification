@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
 )

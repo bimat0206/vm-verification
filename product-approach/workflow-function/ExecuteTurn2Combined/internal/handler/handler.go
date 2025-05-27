@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"time"
 
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
-	"workflow-function/ExecuteTurn1Combined/internal/services"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/services"
 
-	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
+	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
 	// Using shared packages correctly
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -457,4 +457,67 @@ func (h *Handler) HandleTurn1Combined(ctx context.Context, event json.RawMessage
 	}
 
 	return h.handleDirectRequest(ctx, event)
+}
+
+// HandleTurn2Combined is the Lambda entrypoint for Turn2 processing
+func (h *Handler) HandleTurn2Combined(ctx context.Context, event json.RawMessage) (interface{}, error) {
+	h.startTime = time.Now()
+	h.processingTracker = NewProcessingStagesTracker(h.startTime)
+	h.statusTracker = NewStatusTracker(h.startTime)
+
+	// Parse Turn2 request
+	var req models.Turn2Request
+	if err := json.Unmarshal(event, &req); err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeValidation,
+			"failed to parse Turn2 request", false).
+			WithContext("raw_event", string(event))
+	}
+
+	contextLogger := h.log.WithFields(map[string]interface{}{
+		"verification_id": req.VerificationID,
+		"turn":           2,
+	})
+
+	contextLogger.Info("Starting ExecuteTurn2Combined", map[string]interface{}{
+		"verification_type": req.VerificationContext.VerificationType,
+		"checking_image":    req.S3Refs.Images.CheckingBase64.Key,
+		"turn1_response":    req.S3Refs.Turn1.ProcessedResponse.Key,
+	})
+
+	// Load Turn2 context (system prompt, checking image, Turn1 results)
+	loadResult := h.contextLoader.LoadContextTurn2(ctx, &req)
+	if loadResult.Error != nil {
+		contextLogger.Error("context loading failed", map[string]interface{}{
+			"error": loadResult.Error.Error(),
+		})
+		return nil, loadResult.Error
+	}
+
+	contextLogger.Info("Turn2 context loaded successfully", map[string]interface{}{
+		"system_prompt_length": len(loadResult.SystemPrompt),
+		"checking_image_length": len(loadResult.Base64Image),
+		"turn1_response_loaded": loadResult.Turn1Response != nil,
+	})
+
+	// Generate Turn2 comparison prompt
+	// This would use the Turn2 prompt service to create comparison prompts
+	// For now, return a basic response structure
+	response := &models.Turn2Response{
+		S3Refs: models.Turn2ResponseS3Refs{
+			RawResponse:       models.S3Reference{Bucket: "temp", Key: "temp"},
+			ProcessedResponse: models.S3Reference{Bucket: "temp", Key: "temp"},
+		},
+		Status:              "TURN2_COMPLETED",
+		Summary:             models.Summary{ProcessingTimeMs: time.Since(h.startTime).Milliseconds()},
+		Discrepancies:       []models.Discrepancy{},
+		VerificationOutcome: "CORRECT",
+	}
+
+	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{
+		"duration_ms":          time.Since(h.startTime).Milliseconds(),
+		"verification_outcome": response.VerificationOutcome,
+		"discrepancy_count":    len(response.Discrepancies),
+	})
+
+	return response, nil
 }

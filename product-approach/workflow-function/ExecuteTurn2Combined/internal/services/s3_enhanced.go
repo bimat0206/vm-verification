@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"

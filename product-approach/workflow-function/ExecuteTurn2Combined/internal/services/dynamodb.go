@@ -13,10 +13,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 
-	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
+	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
 	// Using shared packages for enhanced functionality
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"

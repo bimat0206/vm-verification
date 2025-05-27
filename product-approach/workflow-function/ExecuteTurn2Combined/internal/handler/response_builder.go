@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/schema"
 )
 

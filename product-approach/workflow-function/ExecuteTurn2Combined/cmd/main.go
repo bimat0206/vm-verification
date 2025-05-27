@@ -18,13 +18,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 
-	internalConfig "workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/handler"
-	"workflow-function/ExecuteTurn1Combined/internal/services"
-	"workflow-function/ExecuteTurn1Combined/internal/utils"
+	internalConfig "workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/handler"
+	"workflow-function/ExecuteTurn2Combined/internal/services"
+	"workflow-function/ExecuteTurn2Combined/internal/utils"
 
 	// Strategic addition: Local bedrock package for deterministic control
-	localBedrock "workflow-function/ExecuteTurn1Combined/internal/bedrock"
+	localBedrock "workflow-function/ExecuteTurn2Combined/internal/bedrock"
 
 	// Shared packages with strategic integration
 	sharedBedrock "workflow-function/shared/bedrock"
@@ -142,9 +142,9 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	initializationMetrics.ConfigurationLoadTime = time.Since(configStartTime)
 
 	// Initialize structured logger with architectural context
-	logger := logger.New("ExecuteTurn1Combined", "main").
+	logger := logger.New("ExecuteTurn2Combined", "main").
 		WithFields(map[string]interface{}{
-			"architecture": "deterministic_control",
+			"architecture": "turn2_comparison",
 			"version":      "2.1.0", // Updated to match schema version
 		})
 
@@ -425,7 +425,7 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	contextLogger.LogReceivedEvent(event)
 
 	// Execute handler with deterministic architecture
-	response, err := applicationContainer.handler.HandleTurn1Combined(enrichedCtx, event)
+	response, err := applicationContainer.handler.HandleTurn2Combined(enrichedCtx, event)
 
 	executionContext.ExecutionMetrics.ProcessingDuration = time.Since(executionStartTime)
 
@@ -484,7 +484,7 @@ func generateCorrelationID() string {
 	randomHex := hex.EncodeToString(randomBytes)
 	counter := atomic.AddUint64(&correlationCounter, 1)
 
-	return fmt.Sprintf("turn1-%d-%s-%d", timestamp, randomHex, counter)
+	return fmt.Sprintf("turn2-%d-%s-%d", timestamp, randomHex, counter)
 }
 
 // main represents the strategic Lambda bootstrap entry point

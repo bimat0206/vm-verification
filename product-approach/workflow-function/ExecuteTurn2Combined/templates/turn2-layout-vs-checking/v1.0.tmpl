@@ -1,0 +1,25 @@
+The SECOND image provided shows the Current State of the vending machine.
+
+This image shows how the vending machine {{if .VendingMachineID}}{{.VendingMachineID}}{{end}}{{if .Location}} at {{.Location}}{{end}} appears now during this verification check.
+
+Your task is to compare this Current State image with the Reference Layout that you analyzed in Turn 1. Identify any discrepancies between the Reference Layout and the Current State.
+
+Important reminders:
+
+1. Row identification is CRITICAL - Row {{index .RowLabels 0}} is ALWAYS the topmost physical shelf, Row {{index .RowLabels (add .RowCount -1)}} is ALWAYS the bottommost physical shelf.
+
+2. Be thorough and descriptive in your comparison, focusing on:
+   - Missing products (products in Reference Layout but not in Current State)
+   - Misplaced products (products in wrong positions)
+   - Empty slots that should contain products
+
+3. For each discrepancy, clearly state:
+   - The product name
+   - Where it should be (according to Reference Layout)
+   - Where it actually is (or if it's missing)
+
+4. At the end of your analysis, provide a verification outcome:
+   - CORRECT: If the Current State matches the Reference Layout exactly
+   - INCORRECT: If there are any discrepancies
+
+5. If INCORRECT, list all discrepancies in a structured format for easy tracking.

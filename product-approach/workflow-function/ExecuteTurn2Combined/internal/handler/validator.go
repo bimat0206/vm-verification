@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"workflow-function/ExecuteTurn1Combined/internal/models"
-	"workflow-function/ExecuteTurn1Combined/internal/validation"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/validation"
 	"workflow-function/shared/errors"
 )
 

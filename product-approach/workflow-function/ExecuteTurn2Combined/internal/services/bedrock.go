@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	localBedrock "workflow-function/ExecuteTurn1Combined/internal/bedrock"
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	localBedrock "workflow-function/ExecuteTurn2Combined/internal/bedrock"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
@@ -27,7 +27,7 @@ type bedrockService struct {
 // NewBedrockService creates a new BedrockService
 func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, error) {
 	// Initialize structured logger for comprehensive observability
-	log := logger.New("ExecuteTurn1Combined", "BedrockService")
+	log := logger.New("ExecuteTurn2Combined", "BedrockService")
 
 	// Create shared bedrock client first
 	clientConfig := sharedBedrock.CreateClientConfig(
@@ -121,4 +121,3 @@ func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt,
 
 	return bedrockResponse, nil
 }
-

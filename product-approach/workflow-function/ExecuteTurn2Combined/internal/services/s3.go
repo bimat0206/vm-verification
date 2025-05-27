@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"workflow-function/ExecuteTurn1Combined/internal/bedrockparser"
-	"workflow-function/ExecuteTurn1Combined/internal/config"
-	"workflow-function/ExecuteTurn1Combined/internal/models"
+	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
+	"workflow-function/ExecuteTurn2Combined/internal/config"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
