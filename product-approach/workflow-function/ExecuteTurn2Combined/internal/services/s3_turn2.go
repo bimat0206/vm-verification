@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
 )
@@ -73,8 +73,8 @@ func (m *s3Manager) LoadTurn1ProcessedResponse(ctx context.Context, ref models.S
 	// Convert to schema.Turn1ProcessedResponse
 	response := &schema.Turn1ProcessedResponse{
 		InitialConfirmation: parsedData.InitialConfirmation,
-		MachineStructure:    parsedData.MachineStructure,
-		ReferenceRowStatus:  parsedData.ReferenceRowStatus,
+		MachineStructure:    fmt.Sprintf("%v", parsedData.MachineStructure),
+		ReferenceRowStatus:  fmt.Sprintf("%v", parsedData.ReferenceRowStatus),
 	}
 
 	duration := time.Since(startTime)

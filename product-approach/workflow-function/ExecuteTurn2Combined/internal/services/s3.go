@@ -146,6 +146,10 @@ type S3StateManager interface {
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
 
+	// Turn2 specific storage helpers
+	StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)
+	StoreTurn2Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
+
 	// STRATEGIC: Schema-based workflow state operations
 	StoreWorkflowState(ctx context.Context, verificationID string, state *schema.WorkflowState) (models.S3Reference, error)
 	LoadWorkflowState(ctx context.Context, verificationID string) (*schema.WorkflowState, error)
@@ -927,6 +931,7 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 
 	return result, nil
 }
+
 // StoreJSONAtReference stores arbitrary JSON data at the given S3 reference
 func (m *s3Manager) StoreJSONAtReference(ctx context.Context, ref models.S3Reference, data interface{}) (models.S3Reference, error) {
 	if err := m.validateReference(ref, "store_json_at_reference"); err != nil {
@@ -943,6 +948,7 @@ func (m *s3Manager) StoreJSONAtReference(ctx context.Context, ref models.S3Refer
 
 	return m.fromStateReference(stateRef), nil
 }
+
 // ===================================================================
 // STRATEGIC UTILITY FUNCTIONS
 // ===================================================================

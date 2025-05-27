@@ -99,8 +99,6 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 	}
 	h.processingTracker.RecordStage("validation", "completed", time.Since(h.startTime), nil)
 
-
-
 	// Update initial status
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
 		"function_start_time": schema.FormatISO8601(),
@@ -167,7 +165,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
 		bedrockTextOutput = rawResp.Content
 	}
-	parsedTurn1Data, parseErr := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockTextOutput)
+	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1BedrockResponseAsMarkdown(bedrockTextOutput)
 	if parseErr != nil {
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{
 			"error": parseErr.Error(),
@@ -355,7 +353,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		_ = json.Unmarshal(invokeResult.Response.Raw, &rawResp)
 		bedrockTextOutput = rawResp.Content
 	}
-	parsedTurn1Data, parseErr := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockTextOutput)
+	parsedTurn1Data, parseErr := bedrockparser.ParseTurn1BedrockResponseAsMarkdown(bedrockTextOutput)
 	if parseErr != nil {
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{"error": parseErr.Error()})
 	}
@@ -475,7 +473,7 @@ func (h *Handler) HandleTurn2Combined(ctx context.Context, event json.RawMessage
 
 	contextLogger := h.log.WithFields(map[string]interface{}{
 		"verification_id": req.VerificationID,
-		"turn":           2,
+		"turn":            2,
 	})
 
 	contextLogger.Info("Starting ExecuteTurn2Combined", map[string]interface{}{
@@ -494,7 +492,7 @@ func (h *Handler) HandleTurn2Combined(ctx context.Context, event json.RawMessage
 	}
 
 	contextLogger.Info("Turn2 context loaded successfully", map[string]interface{}{
-		"system_prompt_length": len(loadResult.SystemPrompt),
+		"system_prompt_length":  len(loadResult.SystemPrompt),
 		"checking_image_length": len(loadResult.Base64Image),
 		"turn1_response_loaded": loadResult.Turn1Response != nil,
 	})

@@ -52,9 +52,9 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	startTime := time.Now()
 	h.log.Info("turn2_processing_started", map[string]interface{}{
 		"verification_id":    req.VerificationID,
-		"verification_type":  req.VerificationType,
+		"verification_type":  req.VerificationContext.VerificationType,
 		"checking_image_key": req.S3Refs.Images.CheckingBase64.Key,
-		"turn1_response_key": req.S3Refs.Turn1References.ProcessedResponse.Key,
+		"turn1_response_key": req.S3Refs.Turn1.ProcessedResponse.Key,
 	})
 
 	// Load context (system prompt, checking image, Turn1 results)
@@ -78,11 +78,11 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Create verification context
 	vCtx := &schema.VerificationContext{
 		VerificationId:   req.VerificationID,
-		VerificationType: req.VerificationType,
-		LayoutId:         req.LayoutID,
-		VendingMachineId: req.VendingMachineID,
-		Location:         req.Location,
-		Timestamp:        time.Now().Format(time.RFC3339),
+		VerificationAt:   req.VerificationContext.VerificationAt,
+		VerificationType: req.VerificationContext.VerificationType,
+		VendingMachineId: req.VerificationContext.VendingMachineId,
+		LayoutId:         req.VerificationContext.LayoutId,
+		LayoutPrefix:     req.VerificationContext.LayoutPrefix,
 	}
 
 	// Generate Turn2 prompt
@@ -94,7 +94,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		loadResult.Turn1RawResponse,
 	)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeTemplate,
+		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
 			"failed to generate Turn2 prompt", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "prompt_generation")
@@ -154,9 +154,9 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Parse Bedrock response
-	markdownResponse, err := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockResponse.Content)
+	markdownResponse, err := bedrockparser.ParseTurn2BedrockResponseAsMarkdown(bedrockResponse.Content)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeParser,
+		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
 			"failed to parse Bedrock response as markdown", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "response_parsing")
@@ -184,7 +184,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Parse structured data from response
 	parsedData, err := bedrockparser.ParseTurn2Response(bedrockResponse.Content)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeParser,
+		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
 			"failed to parse Turn2 response", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "response_parsing")
@@ -223,20 +223,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Create processing metrics
 	processingMetrics := &schema.ProcessingMetrics{
-		VerificationId:      req.VerificationID,
-		VerificationType:    req.VerificationType,
-		Turn:                2,
-		TotalTimeMs:         time.Since(startTime).Milliseconds(),
-		ContextLoadingMs:    loadResult.Duration.Milliseconds(),
-		PromptGenerationMs:  promptProcessor.ProcessingTimeMs,
-		BedrockInvocationMs: bedrockResponse.LatencyMs,
-		ResponseParsingMs:   0, // Not tracked separately
-		TokenUsage: schema.TokenUsage{
-			InputTokens:  bedrockResponse.InputTokens,
-			OutputTokens: bedrockResponse.OutputTokens,
-			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+		Turn2: &schema.TurnMetrics{
+			StartTime:        startTime.Format(time.RFC3339),
+			EndTime:          time.Now().Format(time.RFC3339),
+			TotalTimeMs:      time.Since(startTime).Milliseconds(),
+			BedrockLatencyMs: bedrockResponse.LatencyMs,
+			ProcessingTimeMs: time.Since(startTime).Milliseconds() - bedrockResponse.LatencyMs,
+			RetryAttempts:    0,
+			TokenUsage: &schema.TokenUsage{
+				InputTokens:  bedrockResponse.InputTokens,
+				OutputTokens: bedrockResponse.OutputTokens,
+				TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+			},
 		},
-		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	// Store processing metrics
@@ -251,30 +250,35 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Create Turn2 response
 	response := &models.Turn2Response{
-		VerificationID:      req.VerificationID,
-		VerificationType:    req.VerificationType,
-		VerificationOutcome: finalStatus,
-		Discrepancies:       parsedData.Discrepancies,
-		ComparisonSummary:   refinedSummary,
 		S3Refs: models.Turn2ResponseS3Refs{
 			RawResponse:       rawResponseRef,
-			MarkdownResponse:  markdownRef,
 			ProcessedResponse: processedRef,
-			PromptProcessor:   promptProcessorRef,
-			ProcessingMetrics: metricsRef,
 		},
-		ProcessingMetrics: processingMetrics,
+		Status: models.ConvertFromSchemaStatus(schema.StatusTurn2Completed),
+		Summary: models.Summary{
+			AnalysisStage:    models.StageProcessing,
+			ProcessingTimeMs: processingMetrics.Turn2.TotalTimeMs,
+			TokenUsage: models.TokenUsage{
+				InputTokens:  bedrockResponse.InputTokens,
+				OutputTokens: bedrockResponse.OutputTokens,
+				Thinking:     0,
+				Total:        bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+			},
+			BedrockRequestID: "",
+		},
+		Discrepancies:       parsedData.Discrepancies,
+		VerificationOutcome: finalStatus,
 	}
 
 	h.log.Info("turn2_processing_completed", map[string]interface{}{
 		"verification_id":       req.VerificationID,
-		"verification_type":     req.VerificationType,
+		"verification_type":     req.VerificationContext.VerificationType,
 		"verification_outcome":  finalStatus,
 		"discrepancy_count":     len(parsedData.Discrepancies),
-		"total_processing_time": processingMetrics.TotalTimeMs,
-		"input_tokens":          processingMetrics.TokenUsage.InputTokens,
-		"output_tokens":         processingMetrics.TokenUsage.OutputTokens,
-		"total_tokens":          processingMetrics.TokenUsage.TotalTokens,
+		"total_processing_time": processingMetrics.Turn2.TotalTimeMs,
+		"input_tokens":          processingMetrics.Turn2.TokenUsage.InputTokens,
+		"output_tokens":         processingMetrics.Turn2.TokenUsage.OutputTokens,
+		"total_tokens":          processingMetrics.Turn2.TokenUsage.TotalTokens,
 	})
 
 	// Build status entry and turn metrics for DynamoDB update
@@ -285,7 +289,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		ProcessingTimeMs: time.Since(startTime).Milliseconds(),
 		Stage:            "turn2_completion",
 		Metrics: map[string]interface{}{
-			"bedrock_request_id":   bedrockResponse.RequestID,
 			"discrepancy_count":    len(parsedData.Discrepancies),
 			"verification_outcome": finalStatus,
 		},
@@ -294,14 +297,25 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	turn2Metrics := &schema.TurnMetrics{
 		StartTime:        startTime.Format(time.RFC3339),
 		EndTime:          time.Now().Format(time.RFC3339),
-		TotalTimeMs:      processingMetrics.TotalTimeMs,
+		TotalTimeMs:      processingMetrics.Turn2.TotalTimeMs,
 		BedrockLatencyMs: bedrockResponse.LatencyMs,
-		ProcessingTimeMs: processingMetrics.TotalTimeMs - bedrockResponse.LatencyMs,
+		ProcessingTimeMs: processingMetrics.Turn2.TotalTimeMs - bedrockResponse.LatencyMs,
 		RetryAttempts:    0,
-		TokenUsage:       &processingMetrics.TokenUsage,
+		TokenUsage:       processingMetrics.Turn2.TokenUsage,
 	}
 
 	// Update VerificationResults with Turn2 details
+	// Convert discrepancies to schema format
+	discrepancies := make([]schema.Discrepancy, 0, len(parsedData.Discrepancies))
+	for _, d := range parsedData.Discrepancies {
+		desc := fmt.Sprintf("%s expected %s found %s", d.Item, d.Expected, d.Found)
+		discrepancies = append(discrepancies, schema.Discrepancy{
+			Type:        d.Type,
+			Description: desc,
+			Severity:    d.Severity,
+		})
+	}
+
 	err = h.dynamoService.UpdateTurn2CompletionDetails(
 		ctx,
 		req.VerificationID,
@@ -309,7 +323,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		statusEntry,
 		turn2Metrics,
 		finalStatus,
-		parsedData.Discrepancies,
+		discrepancies,
 		refinedSummary,
 	)
 	if err != nil {
@@ -331,7 +345,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		Response: schema.BedrockApiResponse{
 			Content:   bedrockResponse.Content,
 			ModelId:   bedrockResponse.ModelId,
-			RequestId: bedrockResponse.RequestID,
+			RequestId: "",
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{

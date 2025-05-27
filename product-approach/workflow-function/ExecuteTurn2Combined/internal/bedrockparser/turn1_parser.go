@@ -25,8 +25,8 @@ type ParsedTurn1Data struct {
 	ReferenceSummary    string                  `json:"referenceSummary"`
 }
 
-// ParseBedrockResponseAsMarkdown extracts and cleans the Bedrock Turn 1 textual response.
-func ParseBedrockResponseAsMarkdown(bedrockTextResponse string) (*ParsedTurn1Markdown, error) {
+// ParseTurn1BedrockResponseAsMarkdown extracts and cleans the Bedrock Turn 1 textual response.
+func ParseTurn1BedrockResponseAsMarkdown(bedrockTextResponse string) (*ParsedTurn1Markdown, error) {
 	if strings.TrimSpace(bedrockTextResponse) == "" {
 		// Return empty markdown struct for empty input
 		return &ParsedTurn1Markdown{AnalysisMarkdown: ""}, nil
