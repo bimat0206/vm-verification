@@ -11,7 +11,7 @@ import (
 )
 
 // initializeProcessingMetrics creates initial processing metrics
-func (h *Handler) initializeProcessingMetrics() *schema.ProcessingMetrics {
+func (h *Turn2Handler) initializeProcessingMetrics() *schema.ProcessingMetrics {
 	return &schema.ProcessingMetrics{
 		WorkflowTotal: &schema.WorkflowMetrics{
 			StartTime:     schema.FormatISO8601(),
@@ -25,7 +25,7 @@ func (h *Handler) initializeProcessingMetrics() *schema.ProcessingMetrics {
 }
 
 // createContextLogger creates a logger with context fields
-func (h *Handler) createContextLogger(req *models.Turn1Request) logger.Logger {
+func (h *Turn2Handler) createContextLogger(req *models.Turn1Request) logger.Logger {
 	return h.log.WithCorrelationId(req.VerificationID).WithFields(map[string]interface{}{
 		"verificationId": req.VerificationID,
 		"turnId":         1,
@@ -35,7 +35,7 @@ func (h *Handler) createContextLogger(req *models.Turn1Request) logger.Logger {
 }
 
 // updateStatus updates status with error handling
-func (h *Handler) updateStatus(ctx context.Context, verificationID, status, stage string, metadata map[string]interface{}) {
+func (h *Turn2Handler) updateStatus(ctx context.Context, verificationID, status, stage string, metadata map[string]interface{}) {
 	if err := h.statusTracker.UpdateStatusWithHistory(ctx, verificationID, status, stage, metadata); err != nil {
 		h.log.Warn("failed to update status", map[string]interface{}{
 			"error":  err.Error(),
@@ -45,7 +45,7 @@ func (h *Handler) updateStatus(ctx context.Context, verificationID, status, stag
 }
 
 // handleContextLoadError handles errors during context loading
-func (h *Handler) handleContextLoadError(ctx context.Context, verificationID string, loadResult *LoadResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
+func (h *Turn2Handler) handleContextLoadError(ctx context.Context, verificationID string, loadResult *LoadResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("context_loading", "failed", loadResult.Duration, map[string]interface{}{
 		"s3_operations": 2,
 		"error_type":    "s3_retrieval_failure",
@@ -69,7 +69,7 @@ func (h *Handler) handleContextLoadError(ctx context.Context, verificationID str
 }
 
 // recordContextLoadSuccess records successful context loading
-func (h *Handler) recordContextLoadSuccess(ctx context.Context, verificationID string, loadResult *LoadResult) {
+func (h *Turn2Handler) recordContextLoadSuccess(ctx context.Context, verificationID string, loadResult *LoadResult) {
 	h.processingTracker.RecordStage("context_loading", "completed", loadResult.Duration, map[string]interface{}{
 		"s3_operations":        2,
 		"concurrent_loading":   true,
@@ -93,7 +93,7 @@ type PromptResult struct {
 }
 
 // generatePrompt generates the Turn1 prompt
-func (h *Handler) generatePrompt(ctx context.Context, req *models.Turn1Request, systemPrompt string) *PromptResult {
+func (h *Turn2Handler) generatePrompt(ctx context.Context, req *models.Turn1Request, systemPrompt string) *PromptResult {
 	startTime := time.Now()
 	prompt, templateProcessor, err := h.promptGenerator.GenerateTurn1PromptEnhanced(ctx, req.VerificationContext, systemPrompt)
 
@@ -106,7 +106,7 @@ func (h *Handler) generatePrompt(ctx context.Context, req *models.Turn1Request, 
 }
 
 // handlePromptError handles errors during prompt generation
-func (h *Handler) handlePromptError(ctx context.Context, verificationID string, result *PromptResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
+func (h *Turn2Handler) handlePromptError(ctx context.Context, verificationID string, result *PromptResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("prompt_generation", "failed", result.Duration, map[string]interface{}{
 		"template_version": h.cfg.Prompts.TemplateVersion,
 		"error_type":       "prompt_generation_failure",
@@ -130,7 +130,7 @@ func (h *Handler) handlePromptError(ctx context.Context, verificationID string, 
 }
 
 // handleBedrockError handles errors during Bedrock invocation
-func (h *Handler) handleBedrockError(ctx context.Context, verificationID string, result *InvokeResult) (*schema.CombinedTurnResponse, error) {
+func (h *Turn2Handler) handleBedrockError(ctx context.Context, verificationID string, result *InvokeResult) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("bedrock_invocation", "failed", result.Duration, map[string]interface{}{
 		"model_id":   h.cfg.AWS.BedrockModel,
 		"max_tokens": h.cfg.Processing.MaxTokens,
@@ -145,7 +145,7 @@ func (h *Handler) handleBedrockError(ctx context.Context, verificationID string,
 }
 
 // recordBedrockSuccess records successful Bedrock invocation
-func (h *Handler) recordBedrockSuccess(ctx context.Context, verificationID string, result *InvokeResult, templateProcessor *schema.TemplateProcessor) {
+func (h *Turn2Handler) recordBedrockSuccess(ctx context.Context, verificationID string, result *InvokeResult, templateProcessor *schema.TemplateProcessor) {
 	metadata := h.bedrockInvoker.GetInvocationMetadata(result.Response, result.Duration)
 	h.processingTracker.RecordStage("bedrock_invocation", "completed", result.Duration, metadata)
 
@@ -162,13 +162,13 @@ func (h *Handler) recordBedrockSuccess(ctx context.Context, verificationID strin
 }
 
 // recordStorageSuccess records successful storage operations
-func (h *Handler) recordStorageSuccess(result *StorageResult) {
+func (h *Turn2Handler) recordStorageSuccess(result *StorageResult) {
 	metadata := h.storageManager.GetStorageMetadata(result)
 	h.processingTracker.RecordStage("response_processing", "completed", result.Duration, metadata)
 }
 
 // updateProcessingMetrics updates processing metrics with final values
-func (h *Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, totalDuration time.Duration, invokeResult *InvokeResult) {
+func (h *Turn2Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, totalDuration time.Duration, invokeResult *InvokeResult) {
 	metrics.WorkflowTotal.EndTime = schema.FormatISO8601()
 	metrics.WorkflowTotal.TotalTimeMs = totalDuration.Milliseconds()
 	metrics.WorkflowTotal.FunctionCount = h.processingTracker.GetStageCount()
@@ -181,7 +181,7 @@ func (h *Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, tot
 }
 
 // updateInitializationFile writes the final status back to the input initialization.json
-func (h *Handler) updateInitializationFile(ctx context.Context, req *models.Turn1Request, status string, contextLogger logger.Logger) {
+func (h *Turn2Handler) updateInitializationFile(ctx context.Context, req *models.Turn1Request, status string, contextLogger logger.Logger) {
 	ref := req.InputInitializationFileRef
 	if ref.Bucket == "" || ref.Key == "" {
 		contextLogger.Warn("initialization reference missing, skipping update", nil)
@@ -214,8 +214,9 @@ func (h *Handler) updateInitializationFile(ctx context.Context, req *models.Turn
 		"status": status,
 	})
 }
+
 // validateAndLogCompletion validates response and logs completion
-func (h *Handler) validateAndLogCompletion(response *schema.CombinedTurnResponse, totalDuration time.Duration, bedrockResp *models.BedrockResponse, contextLogger logger.Logger) {
+func (h *Turn2Handler) validateAndLogCompletion(response *schema.CombinedTurnResponse, totalDuration time.Duration, bedrockResp *models.BedrockResponse, contextLogger logger.Logger) {
 	// Create Turn1Response for validation
 	turn1Response := &models.Turn1Response{
 		S3Refs: models.Turn1ResponseS3Refs{
@@ -247,7 +248,7 @@ func (h *Handler) validateAndLogCompletion(response *schema.CombinedTurnResponse
 }
 
 // handleStepFunctionEvent handles Step Functions event format
-func (h *Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (interface{}, error) {
+func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (interface{}, error) {
 	h.log.Info("processing_step_function_event", map[string]interface{}{
 		"schema_version":      event.SchemaVersion,
 		"verification_id":     event.VerificationID,
@@ -278,7 +279,7 @@ func (h *Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctio
 }
 
 // handleDirectRequest handles direct request format
-func (h *Handler) handleDirectRequest(ctx context.Context, event json.RawMessage) (interface{}, error) {
+func (h *Turn2Handler) handleDirectRequest(ctx context.Context, event json.RawMessage) (interface{}, error) {
 	var req models.Turn1Request
 	if err := json.Unmarshal(event, &req); err != nil {
 		validationErr := errors.NewValidationError(

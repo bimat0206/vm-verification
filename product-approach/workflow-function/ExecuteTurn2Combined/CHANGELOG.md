@@ -11,6 +11,7 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Wired `PromptServiceTurn2` into `turn2_handler.go`
 ### Fixed
 - Ensured DynamoDB statuses now include `TURN2_COMPLETED`
+- Resolved compilation error by renaming helper method receivers to `Turn2Handler`
 
 ## [1.3.1] - 2025-06-06
 ### Fixed
