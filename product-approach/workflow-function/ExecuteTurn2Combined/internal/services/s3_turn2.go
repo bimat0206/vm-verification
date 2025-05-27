@@ -181,6 +181,51 @@ func (m *s3Manager) StoreTurn2Response(ctx context.Context, verificationID strin
 	return m.fromStateReference(stateRef), nil
 }
 
+// StoreTurn2RawResponse stores the raw Turn2 Bedrock response
+func (m *s3Manager) StoreTurn2RawResponse(ctx context.Context, verificationID string, raw interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing Turn2 raw response",
+			map[string]interface{}{"operation": "store_turn2_raw"})
+	}
+
+	key := "responses/turn2-raw-response.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, raw)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store Turn2 raw response", true).
+			WithContext("verification_id", verificationID).
+			WithContext("category", "responses")
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
+
+// StoreTurn2ProcessedResponse stores the processed Turn2 analysis
+func (m *s3Manager) StoreTurn2ProcessedResponse(ctx context.Context, verificationID string, processed *bedrockparser.ParsedTurn2Data) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing Turn2 processed response",
+			map[string]interface{}{"operation": "store_turn2_processed"})
+	}
+	if processed == nil {
+		return models.S3Reference{}, errors.NewValidationError(
+			"processed data cannot be nil",
+			map[string]interface{}{"verification_id": verificationID})
+	}
+
+	key := "processing/turn2-processed-response.json"
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, processed)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store Turn2 processed response", true).
+			WithContext("verification_id", verificationID).
+			WithContext("category", "processing")
+	}
+
+	return m.fromStateReference(stateRef), nil
+}
+
 // StoreTurn2Markdown stores the Markdown version of the Turn2 analysis
 func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error) {
 	if verificationID == "" {

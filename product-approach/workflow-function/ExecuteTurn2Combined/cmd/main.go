@@ -20,16 +20,14 @@ import (
 
 	internalConfig "workflow-function/ExecuteTurn2Combined/internal/config"
 	"workflow-function/ExecuteTurn2Combined/internal/handler"
+	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/services"
 	"workflow-function/ExecuteTurn2Combined/internal/utils"
 
-	// Strategic addition: Local bedrock package for deterministic control
-	localBedrock "workflow-function/ExecuteTurn2Combined/internal/bedrock"
-
 	// Shared packages with strategic integration
-	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
+	"workflow-function/shared/templateloader"
 )
 
 // ApplicationContainer represents the enhanced dependency orchestration framework
@@ -38,13 +36,13 @@ type ApplicationContainer struct {
 	config    *internalConfig.Config
 	logger    logger.Logger
 	awsConfig aws.Config
-	handler   *handler.Handler
+	handler   *handler.Turn2Handler
 
 	// Strategic service abstractions with deterministic control patterns
 	s3Service      services.S3StateManager
-	bedrockService services.BedrockService // Now using local implementation
+	bedrockService services.BedrockServiceTurn2
 	dynamoService  services.DynamoDBService
-	promptService  services.PromptService
+	promptService  services.PromptServiceTurn2
 }
 
 // SystemInitializationMetrics captures comprehensive bootstrap telemetry
@@ -187,21 +185,16 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	initializationMetrics.ServiceInitializationTime = time.Since(serviceInitStartTime)
 
 	// Strategic handler initialization with enhanced services
-	handlerInstance, err := handler.NewHandler(
-		services.s3Service,
-		services.bedrockService,
-		services.dynamoService,
+	contextLoader := handler.NewContextLoader(services.s3Service, logger)
+	handlerInstance := handler.NewTurn2Handler(
+		contextLoader,
 		services.promptService,
+		services.bedrockService,
+		services.s3Service,
+		services.dynamoService,
 		logger,
-		cfg,
+		*cfg,
 	)
-	if err != nil {
-		logger.Error("handler_initialization_failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
-			"handler initialization failed", false)
-	}
 
 	return &ApplicationContainer{
 		config:         cfg,
@@ -218,9 +211,9 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 // ServiceLayerComponents encapsulates service dependencies with architectural metadata
 type ServiceLayerComponents struct {
 	s3Service      services.S3StateManager
-	bedrockService services.BedrockService
+	bedrockService services.BedrockServiceTurn2
 	dynamoService  services.DynamoDBService
-	promptService  services.PromptService
+	promptService  services.PromptServiceTurn2
 }
 
 // initializeServiceLayerWithLocalBedrock implements strategic service initialization
@@ -233,61 +226,19 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 			"S3 service initialization failed", false)
 	}
 
-	// Strategic Bedrock service initialization with local control pattern
+	// Strategic Bedrock service initialization
 	bedrockInitStart := time.Now()
-
-	// Phase 1: Initialize shared Bedrock client for infrastructure
-	sharedClientConfig := sharedBedrock.CreateClientConfig(
-		cfg.AWS.Region,
-		cfg.AWS.AnthropicVersion,
-		cfg.Processing.MaxTokens,
-		cfg.Processing.ThinkingType,
-		cfg.Processing.BudgetTokens,
-	)
-
-	sharedClient, err := sharedBedrock.NewBedrockClient(
-		context.Background(),
-		cfg.AWS.BedrockModel,
-		sharedClientConfig,
-	)
+	bedrockService, err := services.NewBedrockServiceTurn2(*cfg, logger)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
-			"shared Bedrock client initialization failed", false).
-			WithContext("architecture", "shared_infrastructure")
+			"Bedrock service initialization failed", false)
 	}
-
-	// Phase 2: Configure local Bedrock client
-	localConfig := &localBedrock.Config{
-		ModelID:          cfg.AWS.BedrockModel,
-		MaxTokens:        cfg.Processing.MaxTokens,
-		Temperature:      0.7, // Strategic default for balanced output
-		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
-		Region:           cfg.AWS.Region,
-		AnthropicVersion: cfg.AWS.AnthropicVersion,
-	}
-
-	localClient := localBedrock.NewClient(sharedClient, localConfig, logger)
-
-	// Phase 3: Validate configuration
-	if err := localClient.ValidateConfiguration(); err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
-			"Bedrock configuration validation failed", false).
-			WithContext("architecture", "local_validation")
-	}
-
-	// Phase 4: Create service wrapper with local client
-	bedrockService := services.NewBedrockServiceWithLocalClient(localClient, *cfg, logger)
-
 	initializationMetrics.BedrockSetupTime = time.Since(bedrockInitStart)
 
 	logger.Info("bedrock_service_initialized", map[string]interface{}{
-		"architecture":        "deterministic_local_control",
-		"setup_time_ms":       initializationMetrics.BedrockSetupTime.Milliseconds(),
-		"connect_timeout_sec": cfg.Processing.BedrockConnectTimeoutSec,
-		"call_timeout_sec":    cfg.Processing.BedrockCallTimeoutSec,
-		"model":               cfg.AWS.BedrockModel,
-		"max_tokens":          cfg.Processing.MaxTokens,
-		"operational_metrics": localClient.GetOperationalMetrics(),
+		"setup_time_ms": initializationMetrics.BedrockSetupTime.Milliseconds(),
+		"model":         cfg.AWS.BedrockModel,
+		"max_tokens":    cfg.Processing.MaxTokens,
 	})
 
 	// DynamoDB service initialization
@@ -298,7 +249,17 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 	}
 
 	// Prompt service initialization
-	promptService, err := services.NewPromptService(cfg, logger)
+	loaderCfg := templateloader.Config{
+		BasePath:     cfg.Prompts.TemplateBasePath,
+		CacheEnabled: true,
+	}
+	loader, err := templateloader.New(loaderCfg)
+	if err != nil {
+		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
+			"template loader initialization failed", false)
+	}
+
+	promptService, err := services.NewPromptServiceTurn2(loader, cfg, logger)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"Prompt service initialization failed", false)
@@ -424,8 +385,16 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 
 	contextLogger.LogReceivedEvent(event)
 
+	var req models.Turn2Request
+	if err := json.Unmarshal(event, &req); err != nil {
+		wrapped := errors.WrapError(err, errors.ErrorTypeValidation,
+			"failed to parse request", false)
+		contextLogger.Error("request_parse_failed", map[string]interface{}{"error": err.Error()})
+		return nil, wrapped
+	}
+
 	// Execute handler with deterministic architecture
-	response, err := applicationContainer.handler.HandleTurn2Combined(enrichedCtx, event)
+	response, err := applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &req)
 
 	executionContext.ExecutionMetrics.ProcessingDuration = time.Since(executionStartTime)
 
