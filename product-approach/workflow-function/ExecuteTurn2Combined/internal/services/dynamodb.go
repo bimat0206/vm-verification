@@ -37,6 +37,8 @@ type DynamoDBService interface {
 
 	// Turn1 completion update storing metrics and processed markdown reference
 	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference) error
+	// Turn2 completion update storing metrics and comparison details
+	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string) error
 
 	// Real-time status tracking methods
 	InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error
@@ -671,6 +673,84 @@ func (d *dynamoClient) UpdateTurn1CompletionDetails(
 	_, err = d.client.UpdateItem(ctx, input)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn1 completion details", true)
+	}
+
+	return nil
+}
+
+// UpdateTurn2CompletionDetails updates verification record with Turn2 metrics and comparison details
+func (d *dynamoClient) UpdateTurn2CompletionDetails(
+	ctx context.Context,
+	verificationID string,
+	verificationAt string,
+	statusEntry schema.StatusHistoryEntry,
+	turn2Metrics *schema.TurnMetrics,
+	verificationStatus string,
+	discrepancies []schema.Discrepancy,
+	comparisonSummary string,
+) error {
+	if verificationID == "" || verificationAt == "" {
+		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
+	}
+
+	avStatusEntry, err := attributevalue.MarshalMap(statusEntry)
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+			"failed to marshal status entry", true)
+	}
+
+	update := expression.Set(expression.Name("currentStatus"), expression.Value(statusEntry.Status)).
+		Set(expression.Name("lastUpdatedAt"), expression.Value(statusEntry.Timestamp)).
+		Set(expression.Name("statusHistory"), expression.ListAppend(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}})))
+
+	if turn2Metrics != nil {
+		avMetrics, err := attributevalue.MarshalMap(turn2Metrics)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal turn2 metrics", true)
+		}
+		update = update.Set(expression.Name("processingMetrics.turn2"), expression.Value(avMetrics))
+	}
+
+	if verificationStatus != "" {
+		update = update.Set(expression.Name("verificationStatus"), expression.Value(verificationStatus))
+	}
+
+	if len(discrepancies) > 0 {
+		avDiscrepancies, err := attributevalue.MarshalList(discrepancies)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal discrepancies", true)
+		}
+		update = update.Set(expression.Name("discrepancies"), expression.Value(avDiscrepancies))
+	}
+
+	if comparisonSummary != "" {
+		avSummary, err := attributevalue.MarshalMap(map[string]interface{}{"comparisonSummary": comparisonSummary})
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal comparison summary", false)
+		}
+		update = update.Set(expression.Name("verificationSummary"), expression.Value(avSummary))
+	}
+
+	builder := expression.NewBuilder().WithUpdate(update)
+	expr, err := builder.Build()
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to build update expression", false)
+	}
+
+	input := &dynamodb.UpdateItemInput{
+		TableName:                 &d.verificationTable,
+		Key:                       d.getVerificationResultsKey(verificationID, verificationAt),
+		UpdateExpression:          expr.Update(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+
+	_, err = d.client.UpdateItem(ctx, input)
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn2 completion details", true)
 	}
 
 	return nil

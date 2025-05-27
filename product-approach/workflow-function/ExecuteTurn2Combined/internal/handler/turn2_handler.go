@@ -15,12 +15,13 @@ import (
 
 // Turn2Handler handles the complete Turn2 processing flow
 type Turn2Handler struct {
-	contextLoader *ContextLoader
-	promptService services.PromptServiceTurn2
+	contextLoader  *ContextLoader
+	promptService  services.PromptServiceTurn2
 	bedrockService services.BedrockServiceTurn2
-	s3Service     services.S3StateManager
-	log           logger.Logger
-	cfg           config.Config
+	s3Service      services.S3StateManager
+	dynamoService  services.DynamoDBService
+	log            logger.Logger
+	cfg            config.Config
 }
 
 // NewTurn2Handler creates a new Turn2Handler instance
@@ -29,6 +30,7 @@ func NewTurn2Handler(
 	promptService services.PromptServiceTurn2,
 	bedrockService services.BedrockServiceTurn2,
 	s3Service services.S3StateManager,
+	dynamoService services.DynamoDBService,
 	log logger.Logger,
 	cfg config.Config,
 ) *Turn2Handler {
@@ -37,6 +39,7 @@ func NewTurn2Handler(
 		promptService:  promptService,
 		bedrockService: bedrockService,
 		s3Service:      s3Service,
+		dynamoService:  dynamoService,
 		log:            log,
 		cfg:            cfg,
 	}
@@ -55,10 +58,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Load context (system prompt, checking image, Turn1 results)
 	loadResult := h.contextLoader.LoadContextTurn2(ctx, req)
 	if loadResult.Error != nil {
-		return nil, errors.WrapError(loadResult.Error, errors.ErrorTypeS3,
+		wfErr := errors.WrapError(loadResult.Error, errors.ErrorTypeS3,
 			"failed to load Turn2 context", true).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "context_loading")
+		h.log.Error("context_loading_failed", map[string]interface{}{
+			"error_type": string(wfErr.Type),
+			"error_code": wfErr.Code,
+			"message":    wfErr.Message,
+			"retryable":  wfErr.Retryable,
+			"severity":   string(wfErr.Severity),
+		})
+		h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
+		return nil, wfErr
 	}
 
 	// Create verification context
@@ -80,10 +92,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		loadResult.Turn1RawResponse,
 	)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeTemplate,
+		wfErr := errors.WrapError(err, errors.ErrorTypeTemplate,
 			"failed to generate Turn2 prompt", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "prompt_generation")
+		h.log.Error("prompt_generation_failed", map[string]interface{}{
+			"error_type": string(wfErr.Type),
+			"error_code": wfErr.Code,
+			"message":    wfErr.Message,
+			"retryable":  wfErr.Retryable,
+			"severity":   string(wfErr.Severity),
+		})
+		h.persistErrorState(ctx, req, wfErr, "prompt_generation", startTime)
+		return nil, wfErr
 	}
 
 	// Store prompt processor metrics
@@ -105,10 +126,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		loadResult.Turn1Response,
 	)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
+		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
 			"failed to invoke Bedrock for Turn2", true).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "bedrock_invocation")
+		h.log.Error("bedrock_invocation_failed", map[string]interface{}{
+			"error_type": string(wfErr.Type),
+			"error_code": wfErr.Code,
+			"message":    wfErr.Message,
+			"retryable":  wfErr.Retryable,
+			"severity":   string(wfErr.Severity),
+		})
+		h.persistErrorState(ctx, req, wfErr, "bedrock_invocation", startTime)
+		return nil, wfErr
 	}
 
 	// Store raw Bedrock response
@@ -124,10 +154,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Parse Bedrock response
 	markdownResponse, err := bedrockparser.ParseBedrockResponseAsMarkdown(bedrockResponse.Content)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeParser,
+		wfErr := errors.WrapError(err, errors.ErrorTypeParser,
 			"failed to parse Bedrock response as markdown", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "response_parsing")
+		h.log.Error("markdown_parsing_failed", map[string]interface{}{
+			"error_type": string(wfErr.Type),
+			"error_code": wfErr.Code,
+			"message":    wfErr.Message,
+			"retryable":  wfErr.Retryable,
+			"severity":   string(wfErr.Severity),
+		})
+		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
+		return nil, wfErr
 	}
 
 	// Store markdown response
@@ -143,10 +182,19 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Parse structured data from response
 	parsedData, err := bedrockparser.ParseTurn2Response(bedrockResponse.Content)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeParser,
+		wfErr := errors.WrapError(err, errors.ErrorTypeParser,
 			"failed to parse Turn2 response", false).
 			WithContext("verification_id", req.VerificationID).
 			WithContext("stage", "response_parsing")
+		h.log.Error("turn2_parsing_failed", map[string]interface{}{
+			"error_type": string(wfErr.Type),
+			"error_code": wfErr.Code,
+			"message":    wfErr.Message,
+			"retryable":  wfErr.Retryable,
+			"severity":   string(wfErr.Severity),
+		})
+		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
+		return nil, wfErr
 	}
 
 	// Store processed Turn2 response
@@ -161,12 +209,12 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Create processing metrics
 	processingMetrics := &schema.ProcessingMetrics{
-		VerificationId:   req.VerificationID,
-		VerificationType: req.VerificationType,
-		Turn:             2,
-		TotalTimeMs:      time.Since(startTime).Milliseconds(),
-		ContextLoadingMs: loadResult.Duration.Milliseconds(),
-		PromptGenerationMs: promptProcessor.ProcessingTimeMs,
+		VerificationId:      req.VerificationID,
+		VerificationType:    req.VerificationType,
+		Turn:                2,
+		TotalTimeMs:         time.Since(startTime).Milliseconds(),
+		ContextLoadingMs:    loadResult.Duration.Milliseconds(),
+		PromptGenerationMs:  promptProcessor.ProcessingTimeMs,
 		BedrockInvocationMs: bedrockResponse.LatencyMs,
 		ResponseParsingMs:   0, // Not tracked separately
 		TokenUsage: schema.TokenUsage{
@@ -189,11 +237,11 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Create Turn2 response
 	response := &models.Turn2Response{
-		VerificationID:    req.VerificationID,
-		VerificationType:  req.VerificationType,
+		VerificationID:      req.VerificationID,
+		VerificationType:    req.VerificationType,
 		VerificationOutcome: parsedData.VerificationOutcome,
-		Discrepancies:     parsedData.Discrepancies,
-		ComparisonSummary: parsedData.ComparisonSummary,
+		Discrepancies:       parsedData.Discrepancies,
+		ComparisonSummary:   parsedData.ComparisonSummary,
 		S3Refs: models.Turn2ResponseS3Refs{
 			RawResponse:       rawResponseRef,
 			MarkdownResponse:  markdownRef,
@@ -215,5 +263,131 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		"total_tokens":          processingMetrics.TokenUsage.TotalTokens,
 	})
 
+	// Build status entry and turn metrics for DynamoDB update
+	statusEntry := schema.StatusHistoryEntry{
+		Status:           schema.StatusTurn2Completed,
+		Timestamp:        schema.FormatISO8601(),
+		FunctionName:     "ExecuteTurn2Combined",
+		ProcessingTimeMs: time.Since(startTime).Milliseconds(),
+		Stage:            "turn2_completion",
+		Metrics: map[string]interface{}{
+			"bedrock_request_id":   bedrockResponse.RequestID,
+			"discrepancy_count":    len(parsedData.Discrepancies),
+			"verification_outcome": parsedData.VerificationOutcome,
+		},
+	}
+
+	turn2Metrics := &schema.TurnMetrics{
+		StartTime:        startTime.Format(time.RFC3339),
+		EndTime:          time.Now().Format(time.RFC3339),
+		TotalTimeMs:      processingMetrics.TotalTimeMs,
+		BedrockLatencyMs: bedrockResponse.LatencyMs,
+		ProcessingTimeMs: processingMetrics.TotalTimeMs - bedrockResponse.LatencyMs,
+		RetryAttempts:    0,
+		TokenUsage:       &processingMetrics.TokenUsage,
+	}
+
+	// Update VerificationResults with Turn2 details
+	err = h.dynamoService.UpdateTurn2CompletionDetails(
+		ctx,
+		req.VerificationID,
+		req.VerificationContext.VerificationAt,
+		statusEntry,
+		turn2Metrics,
+		parsedData.VerificationOutcome,
+		parsedData.Discrepancies,
+		parsedData.ComparisonSummary,
+	)
+	if err != nil {
+		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"retryable":       errors.IsRetryable(err),
+			"verification_id": req.VerificationID,
+		})
+	}
+
+	// Append conversation history for Turn2
+	turnEntry := &schema.TurnResponse{
+		TurnId:    2,
+		Timestamp: schema.FormatISO8601(),
+		Prompt:    prompt,
+		ImageUrls: map[string]string{
+			"checking": req.S3Refs.Images.CheckingBase64.Key,
+		},
+		Response: schema.BedrockApiResponse{
+			Content:   bedrockResponse.Content,
+			ModelId:   bedrockResponse.ModelId,
+			RequestId: bedrockResponse.RequestID,
+		},
+		LatencyMs: bedrockResponse.LatencyMs,
+		TokenUsage: &schema.TokenUsage{
+			InputTokens:  bedrockResponse.InputTokens,
+			OutputTokens: bedrockResponse.OutputTokens,
+			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+		},
+		Stage: "CHECKING_ANALYSIS",
+	}
+
+	if err := h.dynamoService.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
+		h.log.Warn("conversation_history_update_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+	}
+
 	return response, nil
+}
+
+// persistErrorState attempts to record error information in DynamoDB before returning the error.
+func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2Request, wfErr *errors.WorkflowError, stage string, startTime time.Time) {
+	statusEntry := schema.StatusHistoryEntry{
+		Status:           schema.StatusTurn2Error,
+		Timestamp:        schema.FormatISO8601(),
+		FunctionName:     "ExecuteTurn2Combined",
+		ProcessingTimeMs: time.Since(startTime).Milliseconds(),
+		Stage:            stage,
+	}
+
+	errorInfo := schema.ErrorInfo{
+		Code:      wfErr.Code,
+		Message:   wfErr.Message,
+		Details:   wfErr.Details,
+		Timestamp: schema.FormatISO8601(),
+	}
+
+	tracking := &schema.ErrorTracking{
+		HasErrors:    true,
+		CurrentError: &errorInfo,
+		ErrorHistory: []schema.ErrorInfo{errorInfo},
+		LastErrorAt:  schema.FormatISO8601(),
+	}
+
+	if err := h.dynamoService.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry); err != nil {
+		h.log.Warn("dynamodb_status_error_update_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+	}
+
+	if err := h.dynamoService.UpdateErrorTracking(ctx, req.VerificationID, tracking); err != nil {
+		h.log.Warn("dynamodb_error_tracking_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+	}
+
+	turnEntry := &schema.TurnResponse{
+		TurnId:    2,
+		Timestamp: schema.FormatISO8601(),
+		Stage:     stage,
+		Metadata: map[string]interface{}{
+			"error": wfErr.Message,
+		},
+	}
+	if err := h.dynamoService.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
+		h.log.Warn("conversation_history_error_update_failed", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+	}
 }
