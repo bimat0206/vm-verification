@@ -38,6 +38,17 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Added stub implementations for `Handle` and `HandleForStepFunction` to satisfy
   compiler requirements.
 
+## [1.3.5] - 2025-06-09
+### Fixed
+- `AdapterTurn2` now receives the checking image format from the handler, allowing
+  dynamic handling of `jpeg` or `png` images instead of a hardcoded format.
+- `ContextLoader` consumes the direct S3 reference for the checking image Base64
+  data, ensuring Turn 2 context loads without errors.
+- `Turn2Handler` now populates full Turn 2 response data including S3 references
+  for raw and processed outputs, updates status to `TURN2_COMPLETED`, and fills
+  new summary fields (`discrepanciesFound`, `verificationOutcome`,
+  `comparisonCompleted`, `conversationCompleted`, `dynamodbUpdated`).
+
 ## [1.3.0] - 2025-06-05
 ### Added
 - **Business Logic for Discrepancy Interpretation**:
