@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
+	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
-	sharedBedrock "workflow-function/shared/bedrock"
 )
 
 // ClientTurn2 extends Client with Turn2-specific functionality
@@ -65,7 +65,8 @@ func NewClientTurn2(cfg config.Config, log logger.Logger) (*ClientTurn2, error) 
 }
 
 // ProcessTurn2 handles the complete Turn2 processing
-func (c *ClientTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+// MODIFICATION START: added imageFormat parameter
+func (c *ClientTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
 	startTime := time.Now()
 
 	// Validate configuration
@@ -74,7 +75,7 @@ func (c *ClientTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Promp
 	}
 
 	// Process Turn2 using adapter
-	response, err := c.adapterTurn2.ProcessTurn2(ctx, systemPrompt, turn2Prompt, base64Image, turn1Response)
+	response, err := c.adapterTurn2.ProcessTurn2(ctx, systemPrompt, turn2Prompt, base64Image, imageFormat, turn1Response)
 	if err != nil {
 		return nil, err
 	}

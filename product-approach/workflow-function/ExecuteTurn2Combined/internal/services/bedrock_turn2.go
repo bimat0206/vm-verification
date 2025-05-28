@@ -14,7 +14,9 @@ type BedrockServiceTurn2 interface {
 	BedrockService
 
 	// ConverseWithHistory handles Turn2 conversation with history from Turn1
-	ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error)
+	// MODIFICATION START: added imageFormat parameter
+	ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error)
+	// MODIFICATION END
 }
 
 // bedrockServiceTurn2 implements BedrockServiceTurn2
@@ -44,6 +46,6 @@ func NewBedrockServiceTurn2(cfg config.Config, log logger.Logger) (BedrockServic
 }
 
 // ConverseWithHistory handles Turn2 conversation with history from Turn1
-func (s *bedrockServiceTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
-	return s.clientTurn2.ProcessTurn2(ctx, systemPrompt, turn2Prompt, base64Image, turn1Response)
+func (s *bedrockServiceTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+	return s.clientTurn2.ProcessTurn2(ctx, systemPrompt, turn2Prompt, base64Image, imageFormat, turn1Response)
 }
