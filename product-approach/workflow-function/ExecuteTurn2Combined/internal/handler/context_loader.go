@@ -3,12 +3,15 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"sync"
 	"time"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/services"
+	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
+	sharedS3state "workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
 )
 
@@ -30,6 +33,7 @@ func NewContextLoader(s3 services.S3StateManager, log logger.Logger) *ContextLoa
 type LoadResult struct {
 	SystemPrompt     string
 	Base64Image      string
+	ImageFormat      string
 	Turn1Response    *schema.Turn1ProcessedResponse
 	Turn1RawResponse json.RawMessage
 	Duration         time.Duration
@@ -145,13 +149,14 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 	var (
 		systemPrompt     string
 		base64Img        string
+		imageFormat      string
 		turn1Response    *schema.Turn1ProcessedResponse
 		turn1RawResponse json.RawMessage
 		loadErr          error
 	)
 
 	wg := sync.WaitGroup{}
-	wg.Add(4) // 4 concurrent operations
+	wg.Add(5) // 5 concurrent operations
 
 	// Load system prompt
 	go func() {
@@ -217,6 +222,47 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 		})
 
 		base64Img = img
+	}()
+
+	// Load checking image metadata to determine format
+	go func() {
+		defer wg.Done()
+
+		metadataKey := filepath.Join(filepath.Dir(req.S3Refs.Images.CheckingBase64.Key), sharedS3state.ImageMetadataFile)
+		metadataRef := models.S3Reference{
+			Bucket: req.S3Refs.Images.CheckingBase64.Bucket,
+			Key:    metadataKey,
+		}
+
+		c.log.Debug("loading_checking_metadata", map[string]interface{}{
+			"bucket": metadataRef.Bucket,
+			"key":    metadataRef.Key,
+		})
+
+		metadata, err := c.s3.LoadImageMetadata(ctx, metadataRef)
+		if err != nil {
+			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3,
+				"failed to load checking image metadata", true)
+
+			enrichedErr := wrappedErr.WithContext("s3_key", metadataRef.Key).
+				WithContext("stage", "context_loading").
+				WithContext("operation", "checking_metadata_load")
+
+			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
+			return
+		}
+
+		imgFormat := schema.Base64Helpers.DetectImageFormat(
+			metadata.CheckingImage.OriginalMetadata.ContentType,
+			metadata.CheckingImage.OriginalMetadata.SourceKey,
+		)
+		imageFormat = sharedBedrock.NormalizeImageFormat(imgFormat)
+
+		c.log.Debug("checking_image_metadata_loaded", map[string]interface{}{
+			"format": imageFormat,
+			"bucket": metadataRef.Bucket,
+			"key":    metadataRef.Key,
+		})
 	}()
 
 	// Load Turn1 processed response
@@ -295,6 +341,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 	// Set result fields
 	result.SystemPrompt = systemPrompt
 	result.Base64Image = base64Img
+	result.ImageFormat = imageFormat
 	result.Turn1Response = turn1Response
 	result.Turn1RawResponse = turn1RawResponse
 	result.Duration = time.Since(startTime)
@@ -304,9 +351,9 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"system_prompt_length":  len(systemPrompt),
 			"base64_image_length":   len(base64Img),
 			"turn1_response_loaded": turn1Response != nil,
-			"turn1_raw_loaded":     len(turn1RawResponse) > 0,
-			"total_duration_ms":    result.Duration.Milliseconds(),
-			"concurrent_operations": 4,
+			"turn1_raw_loaded":      len(turn1RawResponse) > 0,
+			"total_duration_ms":     result.Duration.Milliseconds(),
+			"concurrent_operations": 5,
 		})
 	}
 

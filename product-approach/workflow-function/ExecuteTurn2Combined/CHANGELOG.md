@@ -13,6 +13,12 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Ensured DynamoDB statuses now include `TURN2_COMPLETED`
 - Resolved compilation error by renaming helper method receivers to `Turn2Handler`
 
+## [1.3.4] - 2025-05-28
+### Changed
+- Modified `internal/bedrock/adapter_turn2.go` in `ConverseWithHistory` to use the actual checking image format rather than a hardcoded `"jpeg"`.
+- Updated method signatures throughout the call chain (`client_turn2.go`, `services/bedrock_turn2.go`, `handler/turn2_handler.go`) to pass the checking image format from `ContextLoader`.
+- `ContextLoader` now loads image metadata to determine the checking image format.
+
 ## [1.3.1] - 2025-06-06
 ### Fixed
 - Resolved compilation errors due to outdated struct fields and renamed parser functions.

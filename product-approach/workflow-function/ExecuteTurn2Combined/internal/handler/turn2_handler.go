@@ -137,13 +137,14 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Invoke Bedrock with conversation history
-	bedrockResponse, err := h.bedrock.ConverseWithHistory(
-		ctx,
-		loadResult.SystemPrompt,
-		prompt,
-		loadResult.Base64Image,
-		loadResult.Turn1Response,
-	)
+       bedrockResponse, err := h.bedrock.ConverseWithHistory(
+               ctx,
+               loadResult.SystemPrompt,
+               prompt,
+               loadResult.Base64Image,
+               loadResult.ImageFormat,
+               loadResult.Turn1Response,
+       )
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
 			"failed to invoke Bedrock for Turn2", true).

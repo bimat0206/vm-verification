@@ -28,7 +28,7 @@ func NewAdapterTurn2(client *sharedBedrock.BedrockClient, cfg *config.Config, lo
 }
 
 // ConverseWithHistory handles Turn2 conversation with history from Turn1
-func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
 	startTime := time.Now()
 
 	// Validate inputs
@@ -49,6 +49,16 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 			"base64 image cannot be empty",
 			map[string]interface{}{"operation": "bedrock_converse_with_history"})
 	}
+
+	if imageFormat == "" {
+		return nil, errors.NewValidationError(
+			"image format cannot be empty",
+			map[string]interface{}{"operation": "bedrock_converse_with_history"})
+	}
+
+	// MODIFICATION START: normalize image format dynamically
+	format := sharedBedrock.NormalizeImageFormat(imageFormat)
+	// MODIFICATION END
 
 	if turn1Response == nil {
 		return nil, errors.NewValidationError(
@@ -102,13 +112,15 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 					},
 					{
 						Type: "image",
+						// MODIFICATION START: use dynamic image format
 						Image: &sharedBedrock.ImageBlock{
-							Format: "jpeg", // Assume JPEG for now
+							Format: format,
 							Source: sharedBedrock.ImageSource{
 								Type:  "bytes",
 								Bytes: base64Image,
 							},
 						},
+						// MODIFICATION END
 					},
 				},
 			},
@@ -170,13 +182,13 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 }
 
 // ProcessTurn2 handles the complete Turn2 processing
-func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
 	// Apply operational timeout using Processing config
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(a.cfg.Processing.BedrockCallTimeoutSec)*time.Second)
 	defer cancel()
 
 	// Invoke Bedrock with conversation history
-	response, err := a.ConverseWithHistory(timeoutCtx, systemPrompt, turn2Prompt, base64Image, turn1Response)
+	response, err := a.ConverseWithHistory(timeoutCtx, systemPrompt, turn2Prompt, base64Image, imageFormat, turn1Response)
 	if err != nil {
 		return nil, err
 	}
