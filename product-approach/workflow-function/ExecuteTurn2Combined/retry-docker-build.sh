@@ -42,15 +42,15 @@ if [ -z "$ECR_REPO" ] || [ -z "$FUNCTION_NAME" ]; then
   exit 1
 fi
 
-echo -e "${YELLOW}Building ExecuteTurn1Combined Lambda function...${NC}"
+echo -e "${YELLOW}Building ExecuteTurn2Combined Lambda function...${NC}"
 echo "Using ECR repository: $ECR_REPO"
 echo "Function name: $FUNCTION_NAME"
 echo "AWS region: $AWS_REGION"
 
-# Verify we're in the ExecuteTurn1Combined directory
+# Verify we're in the ExecuteTurn2Combined directory
 if [ ! -f "go.mod" ] || [ ! -d "cmd" ]; then
-    echo -e "${RED}Error: Cannot find required files. Make sure you're in the ExecuteTurn1Combined directory${NC}"
-    echo -e "${RED}Expected to be in: workflow-function/ExecuteTurn1Combined/${NC}"
+    echo -e "${RED}Error: Cannot find required files. Make sure you're in the ExecuteTurn2Combined directory${NC}"
+    echo -e "${RED}Expected to be in: workflow-function/ExecuteTurn2Combined/${NC}"
     exit 1
 fi
 
@@ -88,7 +88,7 @@ fi
 # Create a modified go.mod file for Docker build
 echo -e "${YELLOW}Creating modified go.mod for Docker build...${NC}"
 cat > "$BUILD_CONTEXT/go.mod" << EOF
-module workflow-function/ExecuteTurn1Combined
+module workflow-function/ExecuteTurn2Combined
 
 go 1.24.0
 

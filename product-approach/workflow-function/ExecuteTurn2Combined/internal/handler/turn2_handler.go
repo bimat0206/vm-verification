@@ -282,7 +282,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 				ThinkingTokens: 0,
 				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
 			},
-			BedrockRequestID: bedrockResponse.RequestID,
+			BedrockRequestID: "", // RequestID not available in BedrockResponse
 		},
 		Discrepancies:       parsedData.Discrepancies,
 		VerificationOutcome: finalStatus,

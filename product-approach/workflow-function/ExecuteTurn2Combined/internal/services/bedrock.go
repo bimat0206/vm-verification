@@ -115,7 +115,7 @@ func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt,
 	s.logger.Info("bedrock_converse_completed", map[string]interface{}{
 		"total_duration_ms": totalDuration.Milliseconds(),
 		"token_usage":       bedrockResponse.TokenUsage,
-		"request_id":        bedrockResponse.RequestID,
+		"request_id":        "", // RequestID not available in schema.BedrockResponse
 		"success":           true,
 	})
 

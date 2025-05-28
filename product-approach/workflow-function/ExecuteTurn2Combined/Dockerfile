@@ -10,7 +10,7 @@ RUN apk add --no-cache \
 # Set up working directory
 WORKDIR /build
 
-# Copy the ExecuteTurn1Combined directory and shared modules
+# Copy the ExecuteTurn2Combined directory and shared modules
 COPY . .
 
 # Download dependencies and build
@@ -30,8 +30,8 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy templates with proper naming to match what the loader expects
 # This flattens the versioned directory structure
-COPY --from=builder /build/templates/turn1-layout-vs-checking/v1.0.tmpl /opt/templates/turn1-layout-vs-checking.tmpl
-COPY --from=builder /build/templates/turn1-previous-vs-current/v1.0.tmpl /opt/templates/turn1-previous-vs-current.tmpl
+COPY --from=builder /build/templates/turn2-layout-vs-checking/v1.0.tmpl /opt/templates/turn2-layout-vs-checking.tmpl
+COPY --from=builder /build/templates/turn2-previous-vs-current/v1.0.tmpl /opt/templates/turn2-previous-vs-current.tmpl
 
 # Set the binary as the Lambda handler
 ENTRYPOINT ["/var/task/main"]
