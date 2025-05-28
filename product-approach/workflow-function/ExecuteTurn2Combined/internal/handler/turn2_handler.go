@@ -137,14 +137,14 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Invoke Bedrock with conversation history
-       bedrockResponse, err := h.bedrock.ConverseWithHistory(
-               ctx,
-               loadResult.SystemPrompt,
-               prompt,
-               loadResult.Base64Image,
-               loadResult.ImageFormat,
-               loadResult.Turn1Response,
-       )
+	bedrockResponse, err := h.bedrock.ConverseWithHistory(
+		ctx,
+		loadResult.SystemPrompt,
+		prompt,
+		loadResult.Base64Image,
+		loadResult.ImageFormat,
+		loadResult.Turn1Response,
+	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
 			"failed to invoke Bedrock for Turn2", true).
@@ -282,7 +282,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 				ThinkingTokens: 0,
 				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
 			},
-			BedrockRequestID: "",
+			BedrockRequestID: bedrockResponse.RequestID,
 		},
 		Discrepancies:       parsedData.Discrepancies,
 		VerificationOutcome: finalStatus,
@@ -370,6 +370,18 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verification_id": req.VerificationID,
 		})
 	}
+
+	// Populate summary fields with completion details
+	discrepanciesFound := len(parsedData.Discrepancies)
+	comparisonCompleted := true
+	conversationCompleted := true
+	dynamoUpdated := dynamoOK
+
+	response.Summary.DiscrepanciesFound = &discrepanciesFound
+	response.Summary.VerificationOutcome = finalStatus
+	response.Summary.ComparisonCompleted = &comparisonCompleted
+	response.Summary.ConversationCompleted = &conversationCompleted
+	response.Summary.DynamodbUpdated = &dynamoUpdated
 
 	return response, nil
 }

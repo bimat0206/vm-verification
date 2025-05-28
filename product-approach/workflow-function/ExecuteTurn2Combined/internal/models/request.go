@@ -83,6 +83,12 @@ type Summary struct {
 	ProcessingTimeMs int64          `json:"processingTimeMs"`
 	TokenUsage       TokenUsage     `json:"tokenUsage"`
 	BedrockRequestID string         `json:"bedrockRequestId"`
+	// Additional fields aligned with expected Turn2 output structure
+	DiscrepanciesFound    *int   `json:"discrepanciesFound,omitempty"`
+	VerificationOutcome   string `json:"verificationOutcome,omitempty"`
+	ComparisonCompleted   *bool  `json:"comparisonCompleted,omitempty"`
+	ConversationCompleted *bool  `json:"conversationCompleted,omitempty"`
+	DynamodbUpdated       *bool  `json:"dynamodbUpdated,omitempty"`
 }
 
 // Discrepancy represents a single discrepancy found during verification.
