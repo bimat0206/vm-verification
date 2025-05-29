@@ -53,52 +53,12 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	// STRATEGIC STAGE 1: Load initialization data using schema-integrated loader
 	initRefInterface, exists := event.S3References["processing_initialization"]
 	if !exists {
-		transformLogger.Warn("processing_initialization reference missing, attempting fallback", map[string]interface{}{
-			"verification_id": event.VerificationID,
-			"available_refs":  getInterfaceMapKeys(event.S3References),
-		})
-
-		// FALLBACK: Try to construct initialization reference from other available references
-		if turn1RawRefInterface, hasRaw := event.S3References["responses_turn1_raw_response"]; hasRaw {
-			turn1RawRef, ok := convertToS3Reference(turn1RawRefInterface)
-			if !ok {
-				return nil, errors.NewValidationError(
-					"invalid turn1_raw_response reference format",
-					map[string]interface{}{
-						"verification_id": event.VerificationID,
-					})
-			}
-
-			// Extract verification ID and date partition from Turn1 raw response
-			verificationID := extractVerificationIDFromKey(turn1RawRef.Key)
-			datePartition := extractDatePartitionFromKey(turn1RawRef.Key)
-
-			var initKey string
-			if datePartition != "" {
-				initKey = fmt.Sprintf("%s/%s/initialization.json", datePartition, verificationID)
-			} else {
-				initKey = fmt.Sprintf("%s/initialization.json", verificationID)
-			}
-
-			initRefInterface = models.S3Reference{
-				Bucket: turn1RawRef.Bucket,
-				Key:    initKey,
-				Size:   0, // Unknown size
-			}
-
-			transformLogger.Info("constructed_fallback_initialization_reference", map[string]interface{}{
-				"bucket": turn1RawRef.Bucket,
-				"key":    initKey,
-				"source": "turn1_raw_response_reference",
+		return nil, errors.NewValidationError(
+			"missing processing_initialization",
+			map[string]interface{}{
+				"verification_id": event.VerificationID,
+				"available_refs":  getInterfaceMapKeys(event.S3References),
 			})
-		} else {
-			return nil, errors.NewValidationError(
-				"missing processing_initialization reference and cannot construct fallback",
-				map[string]interface{}{
-					"verification_id": event.VerificationID,
-					"available_refs":  getInterfaceMapKeys(event.S3References),
-				})
-		}
 	}
 
 	initRef, ok := convertToS3Reference(initRefInterface)
@@ -110,11 +70,21 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			})
 	}
 
-	transformLogger.Info("loading_initialization_data", map[string]interface{}{
-		"bucket":         initRef.Bucket,
-		"key":            initRef.Key,
-		"size":           initRef.Size,
-		"schema_version": schema.SchemaVersion,
+	// Ensure the key points to the /processing/initialization.json path
+	if !strings.Contains(initRef.Key, "/processing/initialization.json") && strings.HasSuffix(initRef.Key, "/initialization.json") {
+		base := strings.TrimSuffix(initRef.Key, "/initialization.json")
+		newKey := fmt.Sprintf("%s/processing/initialization.json", strings.TrimSuffix(base, "/"))
+		transformLogger.Info("adjusting_initialization_path", map[string]interface{}{
+			"from": initRef.Key,
+			"to":   newKey,
+		})
+		initRef.Key = newKey
+	}
+
+	transformLogger.Info("turn2_processing_initialization_load_start", map[string]interface{}{
+		"bucket": initRef.Bucket,
+		"key":    initRef.Key,
+		"size":   initRef.Size,
 	})
 
 	// STRATEGIC RESOLUTION: Use schema-integrated initialization data loader with fallback handling
