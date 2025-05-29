@@ -2,6 +2,17 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.0.4] - 2025-01-XX - Finalize Pure Turn2 Functionality
+
+### Changed
+- Standardized helper logic to initialize `ProcessingMetrics.Turn2` only.
+- Updated context loading and Bedrock invocation helpers to use Turn 2 status constants.
+- Logging statements now use `turn2_` prefixes for clearer intent.
+
+### Fixed
+- Corrected status updates for context loading and Bedrock invocation to use `schema.StatusTurn2*` values.
+
+
 ## [2.0.3] - 2025-01-XX - Turn 2 Alignment Cleanup
 
 ### Removed Legacy Turn 1 Components

@@ -16,7 +16,7 @@ func (h *Turn2Handler) initializeProcessingMetrics() *schema.ProcessingMetrics {
 			StartTime:     schema.FormatISO8601(),
 			FunctionCount: 0,
 		},
-		Turn1: &schema.TurnMetrics{
+		Turn2: &schema.TurnMetrics{
 			StartTime:     schema.FormatISO8601(),
 			RetryAttempts: 0,
 		},
@@ -50,12 +50,12 @@ func (h *Turn2Handler) handleContextLoadError(ctx context.Context, verificationI
 		"error_type":    "s3_retrieval_failure",
 	})
 
-	h.updateStatus(ctx, verificationID, schema.StatusTurn1Error, "context_loading_failed", map[string]interface{}{
+	h.updateStatus(ctx, verificationID, schema.StatusTurn2Error, "context_loading_failed", map[string]interface{}{
 		"error_details": loadResult.Error.Error(),
 	})
 
 	if workflowErr, ok := loadResult.Error.(*errors.WorkflowError); ok {
-		contextLogger.Error("resource loading error", map[string]interface{}{
+		contextLogger.Error("turn2_context_loading_error", map[string]interface{}{
 			"error_type":    string(workflowErr.Type),
 			"error_code":    workflowErr.Code,
 			"retryable":     workflowErr.Retryable,
@@ -76,7 +76,7 @@ func (h *Turn2Handler) recordContextLoadSuccess(ctx context.Context, verificatio
 		"image_data_length":    len(loadResult.Base64Image),
 	})
 
-	h.updateStatus(ctx, verificationID, schema.StatusTurn1ContextLoaded, "context_loading", map[string]interface{}{
+	h.updateStatus(ctx, verificationID, schema.StatusTurn2ContextLoaded, "context_loading", map[string]interface{}{
 		"system_prompt_size":  len(loadResult.SystemPrompt),
 		"image_size":          len(loadResult.Base64Image),
 		"loading_duration_ms": loadResult.Duration.Milliseconds(),
@@ -137,7 +137,7 @@ func (h *Turn2Handler) handlePromptError(ctx context.Context, verificationID str
 
 	enrichedErr := errors.SetVerificationID(promptErr, verificationID)
 
-	contextLogger.Error("prompt generation error", map[string]interface{}{
+	contextLogger.Error("turn2_prompt_generation_error", map[string]interface{}{
 		"template_version": h.cfg.Prompts.TemplateVersion,
 		"error":            result.Error.Error(),
 	})
@@ -165,7 +165,7 @@ func (h *Turn2Handler) recordBedrockSuccess(ctx context.Context, verificationID 
 	metadata := h.bedrockInvoker.GetInvocationMetadata(result.Response, result.Duration)
 	h.processingTracker.RecordStage("bedrock_invocation", "completed", result.Duration, metadata)
 
-	h.updateStatus(ctx, verificationID, schema.StatusTurn1BedrockCompleted, "bedrock_completion", map[string]interface{}{
+	h.updateStatus(ctx, verificationID, schema.StatusTurn2BedrockCompleted, "bedrock_completion", map[string]interface{}{
 		"token_usage":        result.Response.TokenUsage,
 		"bedrock_request_id": result.Response.RequestID,
 		"latency_ms":         result.Duration.Milliseconds(),
