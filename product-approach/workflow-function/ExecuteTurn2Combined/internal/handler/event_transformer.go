@@ -33,7 +33,7 @@ type StepFunctionEvent struct {
 }
 
 // TransformStepFunctionEvent provides comprehensive transformation with schema integration
-func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (*models.Turn1Request, error) {
+func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (*models.Turn2Request, error) {
 	transformLogger := e.log.WithFields(map[string]interface{}{
 		"operation":         "transform_step_function_event",
 		"verification_id":   event.VerificationID,
@@ -206,22 +206,26 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		}
 	}
 
-	// STRATEGIC STAGE 5: Turn1Request construction with schema conversion
-	req := &models.Turn1Request{
+	// STRATEGIC STAGE 5: Turn2Request construction with schema conversion
+	req := &models.Turn2Request{
 		VerificationID:      event.VerificationID,
 		VerificationContext: convertSchemaToLocalVerificationContext(initData.VerificationContext, initData.LayoutMetadata),
-		S3Refs: models.Turn1RequestS3Refs{
+		S3Refs: models.Turn2RequestS3Refs{
 			Prompts: models.PromptRefs{
 				System: systemPromptRef,
 			},
-			Images: models.ImageRefs{
-				ReferenceBase64: models.S3Reference{
-					Bucket: metadata.ReferenceImage.StorageMetadata.Bucket,
-					Key:    metadata.ReferenceImage.StorageMetadata.Key,
-					Size:   metadata.ReferenceImage.StorageMetadata.StoredSize,
+			Images: models.Turn2ImageRefs{
+				CheckingBase64: models.S3Reference{
+					Bucket: metadata.CheckingImage.StorageMetadata.Bucket,
+					Key:    metadata.CheckingImage.StorageMetadata.Key,
+					Size:   metadata.CheckingImage.StorageMetadata.StoredSize,
 				},
 			},
 			Processing: models.ProcessingReferences{},
+			Turn1: models.Turn1References{
+				ProcessedResponse: event.S3References["processing_turn1_processed_response"],
+				RawResponse:       event.S3References["responses_turn1_raw_response"],
+			},
 		},
 		InputInitializationFileRef: initRef,
 	}
@@ -249,8 +253,8 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		"layout_id":              req.VerificationContext.LayoutId,
 		"layout_prefix":          req.VerificationContext.LayoutPrefix,
 		"system_prompt_key":      req.S3Refs.Prompts.System.Key,
-		"reference_image_key":    req.S3Refs.Images.ReferenceBase64.Key,
-		"reference_image_size":   req.S3Refs.Images.ReferenceBase64.Size,
+		"checking_image_key":     req.S3Refs.Images.CheckingBase64.Key,
+		"checking_image_size":    req.S3Refs.Images.CheckingBase64.Size,
 		"has_layout_metadata":    req.VerificationContext.LayoutMetadata != nil,
 		"has_historical_context": req.VerificationContext.HistoricalContext != nil,
 		"transformation_stages":  6,
