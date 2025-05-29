@@ -39,8 +39,14 @@ const (
 	StageReferenceAnalysis ExecutionStage = "reference_analysis"
 )
 
-// Local verification statuses
+// Local verification statuses for Turn2
 const (
+	StatusTurn2Started        VerificationStatus = "TURN2_STARTED"
+	StatusTurn2PromptPrepared VerificationStatus = "TURN2_PROMPT_PREPARED"
+	StatusTurn2Completed      VerificationStatus = "TURN2_COMPLETED"
+	StatusTurn2Error          VerificationStatus = "TURN2_ERROR"
+
+	// Keep Turn1 statuses for reference/compatibility when processing Turn1 artifacts
 	StatusTurn1Started        VerificationStatus = "TURN1_STARTED"
 	StatusTurn1PromptPrepared VerificationStatus = "TURN1_PROMPT_PREPARED"
 	StatusTurn1Completed      VerificationStatus = "TURN1_COMPLETED"
@@ -125,6 +131,16 @@ var (
 // ConvertToSchemaStatus converts local status to schema status
 func ConvertToSchemaStatus(localStatus VerificationStatus) string {
 	switch localStatus {
+	// Turn 2 statuses
+	case StatusTurn2Started:
+		return schema.StatusTurn2Started
+	case StatusTurn2PromptPrepared:
+		return schema.StatusTurn2PromptPrepared
+	case StatusTurn2Completed:
+		return schema.StatusTurn2Completed
+	case StatusTurn2Error:
+		return schema.StatusTurn2Error
+	// Turn 1 statuses (for compatibility)
 	case StatusTurn1Started:
 		return schema.StatusTurn1Started
 	case StatusTurn1PromptPrepared:
@@ -139,6 +155,16 @@ func ConvertToSchemaStatus(localStatus VerificationStatus) string {
 // ConvertFromSchemaStatus converts schema status to local status
 func ConvertFromSchemaStatus(schemaStatus string) VerificationStatus {
 	switch schemaStatus {
+	// Turn 2 statuses
+	case schema.StatusTurn2Started:
+		return StatusTurn2Started
+	case schema.StatusTurn2PromptPrepared:
+		return StatusTurn2PromptPrepared
+	case schema.StatusTurn2Completed:
+		return StatusTurn2Completed
+	case schema.StatusTurn2Error:
+		return StatusTurn2Error
+	// Turn 1 statuses (for compatibility)
 	case schema.StatusTurn1Started:
 		return StatusTurn1Started
 	case schema.StatusTurn1PromptPrepared:
@@ -237,6 +263,16 @@ type StepFunctionResponse struct {
 // IsEnhancedStatus checks if a status is an enhanced schema status
 func IsEnhancedStatus(status string) bool {
 	enhancedStatuses := []string{
+		// Turn 2 statuses
+		schema.StatusTurn2Started,
+		schema.StatusTurn2ContextLoaded,
+		schema.StatusTurn2PromptPrepared,
+		schema.StatusTurn2ImageLoaded,
+		schema.StatusTurn2BedrockInvoked,
+		schema.StatusTurn2BedrockCompleted,
+		schema.StatusTurn2ResponseProcessing,
+		schema.StatusTurn2Error,
+		// Turn 1 statuses (for compatibility)
 		schema.StatusTurn1Started,
 		schema.StatusTurn1ContextLoaded,
 		schema.StatusTurn1PromptPrepared,
@@ -259,6 +295,7 @@ func IsEnhancedStatus(status string) bool {
 // IsVerificationComplete checks if verification is in a completed state
 func IsVerificationComplete(status string) bool {
 	completedStatuses := []string{
+		schema.StatusTurn2Completed,
 		schema.StatusTurn1Completed,
 		schema.StatusCompleted,
 		schema.StatusVerificationFailed,
@@ -274,7 +311,8 @@ func IsVerificationComplete(status string) bool {
 
 // IsErrorStatus checks if status indicates an error state
 func IsErrorStatus(status string) bool {
-	return status == schema.StatusTurn1Error ||
+	return status == schema.StatusTurn2Error ||
+		status == schema.StatusTurn1Error ||
 		status == schema.StatusTemplateProcessingError ||
 		status == schema.StatusVerificationFailed
 }

@@ -18,56 +18,60 @@ func NewResponseBuilder(cfg config.Config) *ResponseBuilder {
 	}
 }
 
-// BuildCombinedTurnResponse builds the combined turn response with all necessary data
-func (r *ResponseBuilder) BuildCombinedTurnResponse(
-	req *models.Turn1Request,
+// BuildCombinedTurn2Response builds the combined turn response with all necessary data for Turn2
+func (r *ResponseBuilder) BuildCombinedTurn2Response(
+	req *models.Turn2Request,
 	renderedPrompt string,
 	promptRef, rawRef, procRef models.S3Reference,
-	invoke *models.BedrockResponse,
+	invoke *schema.BedrockResponse,
 	stages []schema.ProcessingStage,
 	totalDurationMs int64,
 	bedrockLatencyMs int64,
 	dynamoOK bool,
 ) *schema.CombinedTurnResponse {
 
-	// Build base turn response
+	// Build base turn response for Turn2
 	turnResponse := &schema.TurnResponse{
-		TurnId:    1,
+		TurnId:    2,
 		Timestamp: schema.FormatISO8601(),
 		Prompt:    renderedPrompt,
 		ImageUrls: map[string]string{
-			"reference": req.S3Refs.Images.ReferenceBase64.Key,
+			"checking": req.S3Refs.Images.CheckingBase64.Key,
 		},
 		Response: schema.BedrockApiResponse{
-			Content:   string(invoke.Raw),
-			RequestId: invoke.RequestID,
+			Content:   "", // Will be populated from invoke response
+			RequestId: "", // RequestID not available in BedrockResponse
 		},
-		LatencyMs:  totalDurationMs,
-		TokenUsage: &invoke.TokenUsage,
-		Stage:      "REFERENCE_ANALYSIS",
+		LatencyMs: totalDurationMs,
+		TokenUsage: &schema.TokenUsage{
+			InputTokens:  invoke.InputTokens,
+			OutputTokens: invoke.OutputTokens,
+			TotalTokens:  invoke.InputTokens + invoke.OutputTokens,
+		},
+		Stage: "COMPARISON_ANALYSIS",
 		Metadata: map[string]interface{}{
 			"model_id":        r.cfg.AWS.BedrockModel,
 			"verification_id": req.VerificationID,
-			"function_name":   "ExecuteTurn1Combined",
+			"function_name":   "ExecuteTurn2Combined",
 		},
 	}
 
-	// Determine template used based on verification type
-	templateUsed := "turn1-layout-vs-checking"
+	// Determine template used based on verification type for Turn2
+	templateUsed := "turn2-layout-vs-checking"
 	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		templateUsed = "turn1-previous-vs-current"
+		templateUsed = "turn2-previous-vs-current"
 	}
 
-	// Build S3 reference tree
-	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef)
+	// Build S3 reference tree for Turn2
+	s3RefTree := buildTurn2S3RefTree(req.S3Refs, promptRef, rawRef, procRef)
 
 	// Build context enrichment with schema version and other required fields
 	contextEnrichment := map[string]interface{}{
 		"verification_id":    req.VerificationID,
 		"verification_type":  req.VerificationContext.VerificationType,
 		"s3_references":      s3RefTree,
-		"status":             schema.StatusTurn1Completed,
-		"summary":            buildSummary(totalDurationMs, invoke, req.VerificationContext.VerificationType, bedrockLatencyMs, dynamoOK),
+		"status":             schema.StatusTurn2Completed,
+		"summary":            buildTurn2Summary(totalDurationMs, invoke, req.VerificationContext.VerificationType, bedrockLatencyMs, dynamoOK),
 		"schema_version":     schema.SchemaVersion,
 		"layout_integrated":  req.VerificationContext.LayoutId != 0,
 		"historical_context": req.VerificationContext.HistoricalContext != nil,
@@ -85,65 +89,25 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 	return resp
 }
 
-// BuildStepFunctionResponse builds a response formatted for Step Functions
+// Legacy BuildStepFunctionResponse - not used in Turn2 processing
+// This method is kept for compatibility but should not be used for Turn2
 func (r *ResponseBuilder) BuildStepFunctionResponse(
-	req *models.Turn1Request,
+	req interface{}, // Changed to interface{} to avoid Turn1Request dependency
 	promptRef, rawRef, procRef models.S3Reference,
-	invoke *models.BedrockResponse,
+	invoke interface{}, // Changed to interface{} to avoid BedrockResponse dependency
 	totalDurationMs int64,
 	bedrockLatencyMs int64,
 	dynamoOK bool,
 ) *models.StepFunctionResponse {
-	// Build S3 reference tree in the expected format
-	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef)
-
-	// Convert S3RefTree to map[string]interface{} for Step Functions
-	s3References := map[string]interface{}{
-		"processing_initialization": s3RefTree.Initialization,
-		"images_metadata":           s3RefTree.Images.Metadata,
-		"prompts_system":            s3RefTree.Prompts.SystemPrompt,
-		"responses": map[string]interface{}{
-			"turn1Raw":       rawRef,
-			"turn1Processed": procRef,
-		},
-	}
-
-	if s3RefTree.Processing.LayoutMetadata.Key != "" {
-		s3References["processing_layout-metadata"] = s3RefTree.Processing.LayoutMetadata
-	}
-
-	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		if s3RefTree.Processing.HistoricalContext.Key != "" {
-			s3References["processing_historical-context"] = s3RefTree.Processing.HistoricalContext
-		}
-	}
-
-	// Build summary in the expected format
-	summary := buildSummary(totalDurationMs, invoke, req.VerificationContext.VerificationType, bedrockLatencyMs, dynamoOK)
-
-	// Convert ExecutionSummary to map[string]interface{}
-	summaryMap := map[string]interface{}{
-		"analysisStage":    summary.AnalysisStage,
-		"verificationType": summary.VerificationType,
-		"processingTimeMs": summary.ProcessingTimeMs,
-		"tokenUsage": map[string]interface{}{
-			"input":    summary.TokenUsage.Input,
-			"output":   summary.TokenUsage.Output,
-			"thinking": summary.TokenUsage.Thinking,
-			"total":    summary.TokenUsage.Total,
-		},
-		"bedrockLatencyMs":    summary.BedrockLatencyMs,
-		"bedrockRequestId":    summary.BedrockRequestId,
-		"dynamodbUpdated":     summary.DynamodbUpdated,
-		"conversationTracked": summary.ConversationTracked,
-		"s3StorageCompleted":  summary.S3StorageCompleted,
-	}
-
+	// This method is deprecated for Turn2 processing
+	// Use BuildTurn2StepFunctionResponse instead
 	return &models.StepFunctionResponse{
-		VerificationID: req.VerificationID,
-		S3References:   s3References,
-		Status:         schema.StatusTurn1Completed,
-		Summary:        summaryMap,
+		VerificationID: "legacy-method-not-supported",
+		S3References:   map[string]interface{}{},
+		Status:         "ERROR",
+		Summary: map[string]interface{}{
+			"error": "Legacy BuildStepFunctionResponse not supported for Turn2",
+		},
 	}
 }
 

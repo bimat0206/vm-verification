@@ -25,7 +25,7 @@ func (s *StatusTracker) UpdateStatusWithHistory(ctx context.Context, verificatio
 	statusEntry := schema.StatusHistoryEntry{
 		Status:           status,
 		Timestamp:        schema.FormatISO8601(),
-		FunctionName:     "ExecuteTurn1Combined",
+		FunctionName:     "ExecuteTurn2Combined",
 		ProcessingTimeMs: time.Since(s.startTime).Milliseconds(),
 		Stage:            stage,
 		Metrics:          metadata,

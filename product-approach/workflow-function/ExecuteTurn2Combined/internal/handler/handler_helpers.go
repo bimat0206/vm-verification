@@ -23,13 +23,13 @@ func (h *Turn2Handler) initializeProcessingMetrics() *schema.ProcessingMetrics {
 	}
 }
 
-// createContextLogger creates a logger with context fields
-func (h *Turn2Handler) createContextLogger(req *models.Turn1Request) logger.Logger {
+// createContextLogger creates a logger with context fields for Turn2
+func (h *Turn2Handler) createContextLogger(req *models.Turn2Request) logger.Logger {
 	return h.log.WithCorrelationId(req.VerificationID).WithFields(map[string]interface{}{
 		"verificationId": req.VerificationID,
-		"turnId":         1,
+		"turnId":         2,
 		"schemaVersion":  h.validator.GetSchemaVersion(),
-		"functionName":   "ExecuteTurn1Combined",
+		"functionName":   "ExecuteTurn2Combined",
 	})
 }
 
@@ -91,10 +91,27 @@ type PromptResult struct {
 	Error             error
 }
 
-// generatePrompt generates the Turn1 prompt
-func (h *Turn2Handler) generatePrompt(ctx context.Context, req *models.Turn1Request, systemPrompt string) *PromptResult {
+// generateTurn2Prompt generates the Turn2 prompt with Turn1 context
+func (h *Turn2Handler) generateTurn2Prompt(ctx context.Context, req *models.Turn2Request, systemPrompt string, turn1Response *schema.Turn1ProcessedResponse, turn1RawResponse []byte) *PromptResult {
 	startTime := time.Now()
-	prompt, templateProcessor, err := h.promptGenerator.GenerateTurn1PromptEnhanced(ctx, req.VerificationContext, systemPrompt)
+
+	// Create verification context for Turn2
+	vCtx := &schema.VerificationContext{
+		VerificationId:   req.VerificationID,
+		VerificationAt:   req.VerificationContext.VerificationAt,
+		VerificationType: req.VerificationContext.VerificationType,
+		VendingMachineId: req.VerificationContext.VendingMachineId,
+		LayoutId:         req.VerificationContext.LayoutId,
+		LayoutPrefix:     req.VerificationContext.LayoutPrefix,
+	}
+
+	prompt, templateProcessor, err := h.promptService.GenerateTurn2PromptWithMetrics(
+		ctx,
+		vCtx,
+		systemPrompt,
+		turn1Response,
+		turn1RawResponse,
+	)
 
 	return &PromptResult{
 		Prompt:            prompt,
@@ -136,7 +153,7 @@ func (h *Turn2Handler) handleBedrockError(ctx context.Context, verificationID st
 		"error_type": "bedrock_api_failure",
 	})
 
-	h.updateStatus(ctx, verificationID, schema.StatusTurn1Error, "bedrock_invocation_failed", map[string]interface{}{
+	h.updateStatus(ctx, verificationID, schema.StatusTurn2Error, "bedrock_invocation_failed", map[string]interface{}{
 		"error_details": result.Error.Error(),
 	})
 
@@ -166,21 +183,21 @@ func (h *Turn2Handler) recordStorageSuccess(result *StorageResult) {
 	h.processingTracker.RecordStage("response_processing", "completed", result.Duration, metadata)
 }
 
-// updateProcessingMetrics updates processing metrics with final values
+// updateProcessingMetrics updates processing metrics with final values for Turn2
 func (h *Turn2Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, totalDuration time.Duration, invokeResult *InvokeResult) {
 	metrics.WorkflowTotal.EndTime = schema.FormatISO8601()
 	metrics.WorkflowTotal.TotalTimeMs = totalDuration.Milliseconds()
 	metrics.WorkflowTotal.FunctionCount = h.processingTracker.GetStageCount()
 
-	metrics.Turn1.EndTime = schema.FormatISO8601()
-	metrics.Turn1.TotalTimeMs = totalDuration.Milliseconds()
-	metrics.Turn1.BedrockLatencyMs = invokeResult.Duration.Milliseconds()
-	metrics.Turn1.ProcessingTimeMs = totalDuration.Milliseconds() - invokeResult.Duration.Milliseconds()
-	metrics.Turn1.TokenUsage = &invokeResult.Response.TokenUsage
+	metrics.Turn2.EndTime = schema.FormatISO8601()
+	metrics.Turn2.TotalTimeMs = totalDuration.Milliseconds()
+	metrics.Turn2.BedrockLatencyMs = invokeResult.Duration.Milliseconds()
+	metrics.Turn2.ProcessingTimeMs = totalDuration.Milliseconds() - invokeResult.Duration.Milliseconds()
+	metrics.Turn2.TokenUsage = &invokeResult.Response.TokenUsage
 }
 
 // updateInitializationFile writes the final status back to the input initialization.json
-func (h *Turn2Handler) updateInitializationFile(ctx context.Context, req *models.Turn1Request, status string, contextLogger logger.Logger) {
+func (h *Turn2Handler) updateInitializationFile(ctx context.Context, req *models.Turn2Request, status string, contextLogger logger.Logger) {
 	ref := req.InputInitializationFileRef
 	if ref.Bucket == "" || ref.Key == "" {
 		contextLogger.Warn("initialization reference missing, skipping update", nil)
@@ -214,35 +231,41 @@ func (h *Turn2Handler) updateInitializationFile(ctx context.Context, req *models
 	})
 }
 
-// validateAndLogCompletion validates response and logs completion
-func (h *Turn2Handler) validateAndLogCompletion(response *schema.CombinedTurnResponse, totalDuration time.Duration, bedrockResp *models.BedrockResponse, contextLogger logger.Logger) {
-	// Create Turn1Response for validation
-	turn1Response := &models.Turn1Response{
-		S3Refs: models.Turn1ResponseS3Refs{
+// validateAndLogCompletion validates response and logs completion for Turn2
+func (h *Turn2Handler) validateAndLogCompletion(response *models.Turn2Response, totalDuration time.Duration, bedrockResp *schema.BedrockResponse, contextLogger logger.Logger) {
+	// Create Turn2Response for validation (response is already validated)
+	turn2Response := &models.Turn2Response{
+		S3Refs: models.Turn2ResponseS3Refs{
 			RawResponse:       models.S3Reference{}, // Already validated during storage
 			ProcessedResponse: models.S3Reference{}, // Already validated during storage
 		},
-		Status: models.StatusTurn1Completed,
+		Status: models.StatusTurn2Completed,
 		Summary: models.Summary{
-			AnalysisStage:    models.StageReferenceAnalysis,
+			AnalysisStage:    models.StageProcessing,
 			ProcessingTimeMs: totalDuration.Milliseconds(),
-			TokenUsage:       bedrockResp.TokenUsage,
-			BedrockRequestID: bedrockResp.RequestID,
+			TokenUsage: models.TokenUsage{
+				InputTokens:  bedrockResp.InputTokens,
+				OutputTokens: bedrockResp.OutputTokens,
+				TotalTokens:  bedrockResp.InputTokens + bedrockResp.OutputTokens,
+			},
+			BedrockRequestID: "", // RequestID not available in BedrockResponse
 		},
+		Discrepancies:       response.Discrepancies,
+		VerificationOutcome: response.VerificationOutcome,
 	}
 
-	if err := h.validator.ValidateResponse(turn1Response); err != nil {
-		contextLogger.Error("response validation failed", map[string]interface{}{
+	if err := h.validator.ValidateTurn2Response(turn2Response); err != nil {
+		contextLogger.Error("turn2 response validation failed", map[string]interface{}{
 			"validation_error": err.Error(),
 		})
 	}
 
 	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{
-		"duration_ms":       totalDuration.Milliseconds(),
-		"processing_stages": h.processingTracker.GetStageCount(),
-		"status_updates":    h.statusTracker.GetHistoryCount(),
-		"schema_version":    h.validator.GetSchemaVersion(),
-		"template_used":     response.TemplateUsed,
+		"duration_ms":         totalDuration.Milliseconds(),
+		"processing_stages":   h.processingTracker.GetStageCount(),
+		"status_updates":      h.statusTracker.GetHistoryCount(),
+		"discrepancy_count":   len(response.Discrepancies),
+		"verification_outcome": response.VerificationOutcome,
 	})
 }
 

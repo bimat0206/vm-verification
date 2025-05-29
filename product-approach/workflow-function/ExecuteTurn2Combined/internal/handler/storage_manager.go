@@ -40,8 +40,8 @@ type StorageResult struct {
 	Error        error
 }
 
-// StorePrompt stores the rendered prompt in structured schema format
-func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Request, turn int, result *PromptResult) (models.S3Reference, error) {
+// StorePrompt stores the rendered prompt in structured schema format for Turn2
+func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn2Request, turn int, result *PromptResult) (models.S3Reference, error) {
 	key := fmt.Sprintf("prompts/turn%d-prompt.json", turn)
 
 	contextLogger := m.log.WithCorrelationId(req.VerificationID)
@@ -59,16 +59,16 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 
 	// Build image reference with base64 location
 	imageRef := map[string]interface{}{
-		"imageType": "reference",
+		"imageType": "checking",
 		"base64StorageReference": map[string]interface{}{
-			"bucket": req.S3Refs.Images.ReferenceBase64.Bucket,
-			"key":    req.S3Refs.Images.ReferenceBase64.Key,
+			"bucket": req.S3Refs.Images.CheckingBase64.Bucket,
+			"key":    req.S3Refs.Images.CheckingBase64.Key,
 		},
 	}
-	if url, ok := req.VerificationContext.LayoutMetadata["referenceImageUrl"].(string); ok && url != "" {
+	if url, ok := req.VerificationContext.LayoutMetadata["checkingImageUrl"].(string); ok && url != "" {
 		imageRef["sourceUrl"] = url
 	} else {
-		imageRef["sourceUrl"] = req.S3Refs.Images.ReferenceBase64.Key
+		imageRef["sourceUrl"] = req.S3Refs.Images.CheckingBase64.Key
 	}
 
 	// Determine context sources
@@ -126,8 +126,8 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 	return ref, nil
 }
 
-// StoreResponses stores raw and processed responses to S3
-func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedMarkdown *bedrockparser.ParsedTurn1Markdown) *StorageResult {
+// StoreResponses stores raw and processed responses to S3 for Turn2
+func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn2Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedMarkdown *bedrockparser.ParsedTurn2Markdown) *StorageResult {
 	startTime := time.Now()
 	result := &StorageResult{}
 	verificationID := req.VerificationID
@@ -202,8 +202,8 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 	// Store processed analysis or parsed response
 	var procRef models.S3Reference
 	var procErr error
-	if parsedMarkdown != nil && parsedMarkdown.AnalysisMarkdown != "" {
-		procRef, procErr = s.s3.StoreProcessedTurn1Markdown(ctx, verificationID, parsedMarkdown.AnalysisMarkdown)
+	if parsedMarkdown != nil && parsedMarkdown.ComparisonMarkdown != "" {
+		procRef, procErr = s.s3.StoreTurn2Markdown(ctx, verificationID, parsedMarkdown.ComparisonMarkdown)
 		if procErr != nil {
 			s3Err := errors.WrapError(procErr, errors.ErrorTypeS3,
 				"store processed analysis failed", true).

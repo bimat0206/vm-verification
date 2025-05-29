@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/shared/schema"
 )
 
 // S3ReferenceTree represents a complete tree of S3 references for a verification
@@ -67,9 +68,9 @@ type TokenUsageDetailed struct {
 	Total    int `json:"total"`
 }
 
-// buildS3RefTree constructs a unified S3 reference tree from various sources
-func buildS3RefTree(
-	base models.Turn1RequestS3Refs,
+// buildTurn2S3RefTree constructs a unified S3 reference tree from various sources for Turn2
+func buildTurn2S3RefTree(
+	base models.Turn2RequestS3Refs,
 	promptRef, rawRef, procRef models.S3Reference,
 ) S3ReferenceTree {
 	// Extract verification ID from the key pattern
@@ -114,8 +115,8 @@ func buildS3RefTree(
 	tree := S3ReferenceTree{
 		Initialization: initRef,
 		Images: ImageReferences{
-			Metadata:  imagesMetadataRef,
-			Reference: base.Images.ReferenceBase64,
+			Metadata: imagesMetadataRef,
+			Checking: base.Images.CheckingBase64, // Turn2 uses checking image instead of reference
 		},
 		Processing: ProcessingReferences{
 			HistoricalContext: historicalContextRef,
@@ -125,14 +126,16 @@ func buildS3RefTree(
 			SystemPrompt: base.Prompts.System,
 		},
 		Responses: ResponseReferences{
-			Turn1Raw:       rawRef,
-			Turn1Processed: procRef,
+			Turn2Raw:       rawRef,
+			Turn2Processed: procRef,
+			Turn1Raw:       base.Turn1.RawResponse,       // Include Turn1 references
+			Turn1Processed: base.Turn1.ProcessedResponse, // Include Turn1 references
 		},
 	}
 
 	// Only include promptRef if the key is not empty
 	if promptRef.Key != "" {
-		tree.Prompts.Turn1Prompt = promptRef
+		tree.Prompts.Turn2Prompt = promptRef
 	}
 
 	return tree
@@ -180,20 +183,20 @@ func isAllDigits(s string) bool {
 	return true
 }
 
-// buildSummary creates a summary of the turn execution
-func buildSummary(
+// buildTurn2Summary creates a summary of the turn execution for Turn2
+func buildTurn2Summary(
 	totalDurationMs int64,
-	invoke *models.BedrockResponse,
+	invoke *schema.BedrockResponse,
 	verificationType string,
 	bedrockLatencyMs int64,
 	dynamoOK bool,
 ) ExecutionSummary {
 	// Convert TokenUsage to TokenUsageDetailed
 	tokenUsage := TokenUsageDetailed{
-		Input:    invoke.TokenUsage.InputTokens,
-		Output:   invoke.TokenUsage.OutputTokens,
-		Thinking: invoke.TokenUsage.ThinkingTokens,
-		Total:    invoke.TokenUsage.TotalTokens,
+		Input:    invoke.InputTokens,
+		Output:   invoke.OutputTokens,
+		Thinking: 0, // ThinkingTokens not available in schema.BedrockResponse
+		Total:    invoke.InputTokens + invoke.OutputTokens,
 	}
 
 	// Default to true for conversation tracked and S3 storage completed
@@ -205,14 +208,13 @@ func buildSummary(
 	dynamodbUpdated := dynamoOK
 
 	// Use the provided bedrock latency
-
 	return ExecutionSummary{
-		AnalysisStage:       "REFERENCE_ANALYSIS",
+		AnalysisStage:       "COMPARISON_ANALYSIS",
 		VerificationType:    verificationType,
 		ProcessingTimeMs:    totalDurationMs,
 		TokenUsage:          tokenUsage,
 		BedrockLatencyMs:    bedrockLatencyMs,
-		BedrockRequestId:    invoke.RequestID,
+		BedrockRequestId:    "", // RequestID not available in schema.BedrockResponse
 		DynamodbUpdated:     dynamodbUpdated,
 		ConversationTracked: conversationTracked,
 		S3StorageCompleted:  s3StorageCompleted,
@@ -245,10 +247,10 @@ func calculateHoursSince(timestamp string) float64 {
 	return duration.Hours()
 }
 
-// Helper function to extract image reference URL from request
-func (h *Turn2Handler) ImageRef(req *models.Turn1Request) string {
-	if req != nil && req.S3Refs.Images.ReferenceBase64.Key != "" {
-		return req.S3Refs.Images.ReferenceBase64.Key
+// Helper function to extract checking image URL from Turn2 request
+func (h *Turn2Handler) CheckingImageRef(req *models.Turn2Request) string {
+	if req != nil && req.S3Refs.Images.CheckingBase64.Key != "" {
+		return req.S3Refs.Images.CheckingBase64.Key
 	}
 	return ""
 }

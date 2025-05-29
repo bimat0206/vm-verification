@@ -15,8 +15,8 @@ func NewSchemaValidator() *SchemaValidator {
 	return &SchemaValidator{}
 }
 
-// ValidateRequest validates the Turn1Request using schema validation
-func (v *SchemaValidator) ValidateRequest(req *models.Turn1Request) error {
+// ValidateTurn2Request validates the Turn2Request using schema validation
+func (v *SchemaValidator) ValidateTurn2Request(req *models.Turn2Request) error {
 	if req == nil {
 		return fmt.Errorf("request cannot be nil")
 	}
@@ -27,27 +27,32 @@ func (v *SchemaValidator) ValidateRequest(req *models.Turn1Request) error {
 	}
 
 	// Convert local VerificationContext to schema format for validation
-	schemaContext := convertToSchemaVerificationContext(req.VerificationID, &req.VerificationContext)
+	schemaContext := convertToSchemaVerificationContextTurn2(req.VerificationID, &req.VerificationContext)
 	if errors := schema.ValidateVerificationContext(schemaContext); len(errors) > 0 {
 		return fmt.Errorf("verification context validation failed: %s", errors.Error())
 	}
 
-	// Validate S3 references
-	if err := v.validateS3Refs(&req.S3Refs); err != nil {
+	// Validate S3 references for Turn2
+	if err := v.validateTurn2S3Refs(&req.S3Refs); err != nil {
 		return fmt.Errorf("s3 references validation failed: %w", err)
 	}
 
 	return nil
 }
 
-// ValidateResponse validates the Turn1Response
-func (v *SchemaValidator) ValidateResponse(resp *models.Turn1Response) error {
+// Legacy ValidateRequest for compatibility (Turn1)
+func (v *SchemaValidator) ValidateRequest(req interface{}) error {
+	return fmt.Errorf("legacy Turn1 validation not supported in Turn2 validator")
+}
+
+// ValidateTurn2Response validates the Turn2Response
+func (v *SchemaValidator) ValidateTurn2Response(resp *models.Turn2Response) error {
 	if resp == nil {
 		return fmt.Errorf("response cannot be nil")
 	}
 
 	// Validate S3 references
-	if err := v.validateS3ResponseRefs(&resp.S3Refs); err != nil {
+	if err := v.validateTurn2S3ResponseRefs(&resp.S3Refs); err != nil {
 		return fmt.Errorf("response s3 references validation failed: %w", err)
 	}
 
@@ -61,7 +66,22 @@ func (v *SchemaValidator) ValidateResponse(resp *models.Turn1Response) error {
 		return fmt.Errorf("summary validation failed: %w", err)
 	}
 
+	// Validate discrepancies
+	if err := v.validateDiscrepancies(resp.Discrepancies); err != nil {
+		return fmt.Errorf("discrepancies validation failed: %w", err)
+	}
+
+	// Validate verification outcome
+	if resp.VerificationOutcome == "" {
+		return schema.ValidationError{Field: "verificationOutcome", Message: "required field missing"}
+	}
+
 	return nil
+}
+
+// Legacy ValidateResponse for compatibility (Turn1)
+func (v *SchemaValidator) ValidateResponse(resp interface{}) error {
+	return fmt.Errorf("legacy Turn1 validation not supported in Turn2 validator")
 }
 
 // ValidateWorkflowState validates a complete workflow state
@@ -88,9 +108,9 @@ func (v *SchemaValidator) ValidateImageData(images *schema.ImageData, requireBas
 	return nil
 }
 
-// Private helper methods
+// Private helper methods for Turn2
 
-func (v *SchemaValidator) validateS3Refs(refs *models.Turn1RequestS3Refs) error {
+func (v *SchemaValidator) validateTurn2S3Refs(refs *models.Turn2RequestS3Refs) error {
 	if refs == nil {
 		return fmt.Errorf("s3 references cannot be nil")
 	}
@@ -101,14 +121,22 @@ func (v *SchemaValidator) validateS3Refs(refs *models.Turn1RequestS3Refs) error 
 	}
 
 	// Validate images
-	if err := v.validateS3Reference(&refs.Images.ReferenceBase64, "images.referenceBase64"); err != nil {
+	if err := v.validateS3Reference(&refs.Images.CheckingBase64, "images.checkingBase64"); err != nil {
+		return err
+	}
+
+	// Validate Turn1 references
+	if err := v.validateS3Reference(&refs.Turn1.ProcessedResponse, "turn1.processedResponse"); err != nil {
+		return err
+	}
+	if err := v.validateS3Reference(&refs.Turn1.RawResponse, "turn1.rawResponse"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (v *SchemaValidator) validateS3ResponseRefs(refs *models.Turn1ResponseS3Refs) error {
+func (v *SchemaValidator) validateTurn2S3ResponseRefs(refs *models.Turn2ResponseS3Refs) error {
 	if refs == nil {
 		return fmt.Errorf("s3 response references cannot be nil")
 	}
@@ -121,6 +149,30 @@ func (v *SchemaValidator) validateS3ResponseRefs(refs *models.Turn1ResponseS3Ref
 		return err
 	}
 
+	return nil
+}
+
+func (v *SchemaValidator) validateDiscrepancies(discrepancies []models.Discrepancy) error {
+	for i, d := range discrepancies {
+		if d.Item == "" {
+			return schema.ValidationError{Field: fmt.Sprintf("discrepancies[%d].item", i), Message: "required field missing"}
+		}
+		if d.Type == "" {
+			return schema.ValidationError{Field: fmt.Sprintf("discrepancies[%d].type", i), Message: "required field missing"}
+		}
+		// Validate type is one of the expected values
+		validTypes := []string{"MISSING", "MISPLACED", "INCORRECT_PRODUCT"}
+		isValidType := false
+		for _, validType := range validTypes {
+			if d.Type == validType {
+				isValidType = true
+				break
+			}
+		}
+		if !isValidType {
+			return schema.ValidationError{Field: fmt.Sprintf("discrepancies[%d].type", i), Message: "invalid discrepancy type"}
+		}
+	}
 	return nil
 }
 
@@ -192,12 +244,12 @@ func (v *SchemaValidator) CreateErrorInfo(code, message string, details map[stri
 	}
 }
 
-// convertToSchemaVerificationContext converts local VerificationContext to schema format
-func convertToSchemaVerificationContext(verificationID string, localCtx *models.VerificationContext) *schema.VerificationContext {
+// convertToSchemaVerificationContextTurn2 converts local VerificationContext to schema format for Turn2
+func convertToSchemaVerificationContextTurn2(verificationID string, localCtx *models.VerificationContext) *schema.VerificationContext {
 	schemaCtx := &schema.VerificationContext{
 		VerificationId:    verificationID,
 		VerificationAt:    schema.FormatISO8601(),
-		Status:            schema.StatusTurn1PromptReady, // Default status
+		Status:            schema.StatusTurn2PromptReady, // Default status for Turn2
 		VerificationType:  localCtx.VerificationType,
 		VendingMachineId:  localCtx.VendingMachineId,
 		LayoutId:          localCtx.LayoutId,
@@ -216,4 +268,10 @@ func convertToSchemaVerificationContext(verificationID string, localCtx *models.
 	// They are not part of the VerificationContext in the schema
 
 	return schemaCtx
+}
+
+// Legacy convertToSchemaVerificationContext for compatibility (Turn1)
+func convertToSchemaVerificationContext(verificationID string, localCtx *models.VerificationContext) *schema.VerificationContext {
+	// This is kept for compatibility but should not be used for Turn2
+	return convertToSchemaVerificationContextTurn2(verificationID, localCtx)
 }

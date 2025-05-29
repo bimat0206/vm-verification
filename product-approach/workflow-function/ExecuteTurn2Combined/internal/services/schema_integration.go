@@ -4,7 +4,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/schema"
 )
 
@@ -175,34 +174,11 @@ func (s *SchemaIntegratedService) CreateWorkflowState(
 	return workflowState, nil
 }
 
-// ConvertLegacyToSchema demonstrates converting legacy types to schema types
-func (s *SchemaIntegratedService) ConvertLegacyToSchema(legacyRequest *models.Turn1Request) (*schema.VerificationContext, error) {
-	// Convert legacy verification context to schema format
-	schemaContext := &schema.VerificationContext{
-		VerificationId:    legacyRequest.VerificationID,
-		VerificationAt:    schema.FormatISO8601(),
-		Status:            schema.StatusTurn1PromptReady,
-		VerificationType:  legacyRequest.VerificationContext.VerificationType,
-		VendingMachineId:  legacyRequest.VerificationContext.VendingMachineId,
-		ReferenceImageUrl: legacyRequest.S3Refs.Images.ReferenceBase64.Key,
-		CheckingImageUrl:  "checking-image-url", // Would be extracted from context
-		RequestMetadata: &schema.RequestMetadata{
-			RequestId:         legacyRequest.VerificationID,
-			RequestTimestamp:  schema.FormatISO8601(),
-			ProcessingStarted: schema.FormatISO8601(),
-		},
-		NotificationEnabled: true,
-	}
-
-	// Note: LayoutMetadata and HistoricalContext are stored at WorkflowState level in schema
-	// These will be handled when creating the full WorkflowState
-
-	// Validate converted context
-	if errors := schema.ValidateVerificationContext(schemaContext); len(errors) > 0 {
-		return nil, fmt.Errorf("converted verification context validation failed: %s", errors.Error())
-	}
-
-	return schemaContext, nil
+// ConvertLegacyToSchema demonstrates converting legacy types to schema types (deprecated for Turn2)
+func (s *SchemaIntegratedService) ConvertLegacyToSchema(legacyRequest interface{}) (*schema.VerificationContext, error) {
+	// This method is deprecated for Turn2 processing
+	// Schema conversion is now handled directly in Turn2 handlers
+	return nil, fmt.Errorf("ConvertLegacyToSchema method is deprecated for Turn2 processing")
 }
 
 // CreateErrorInfoWithSchema demonstrates creating standardized error information

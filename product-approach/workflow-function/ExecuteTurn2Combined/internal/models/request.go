@@ -1,23 +1,9 @@
 // internal/models/request.go
 package models
 
-// Turn1Request is the input payload for ExecuteTurn1Combined.
-type Turn1Request struct {
-	VerificationID      string              `json:"verificationId"`
-	VerificationContext VerificationContext `json:"verificationContext"`
-	S3Refs              Turn1RequestS3Refs  `json:"s3Refs"`
-	// InputInitializationFileRef stores the S3 location of the initialization.json
-	// that was used to create this request. It is not part of the incoming
-	// JSON payload but is populated internally for status updates.
-	InputInitializationFileRef S3Reference `json:"-"`
-}
-
-// Turn1RequestS3Refs groups the S3 references needed for Turn-1.
-type Turn1RequestS3Refs struct {
-	Prompts    PromptRefs           `json:"prompts"`
-	Images     ImageRefs            `json:"images"`
-	Processing ProcessingReferences `json:"processing,omitempty"`
-}
+// Note: Turn1Request and Turn1RequestS3Refs are not defined here as ExecuteTurn2Combined
+// should not handle Turn1 requests directly. Turn1 artifacts are accessed via Turn1References
+// in Turn2RequestS3Refs.
 
 // Turn2Request is the input payload for ExecuteTurn2Combined.
 type Turn2Request struct {
@@ -65,11 +51,8 @@ type ProcessingReferences struct {
 	LayoutMetadata    S3Reference `json:"layoutMetadata,omitempty"`
 }
 
-// Turn1ResponseS3Refs groups the S3 references created by Turn-1.
-type Turn1ResponseS3Refs struct {
-	RawResponse       S3Reference `json:"rawResponse"`
-	ProcessedResponse S3Reference `json:"processedResponse"`
-}
+// Note: Turn1ResponseS3Refs is not defined here as it belongs to ExecuteTurn1Combined.
+// Turn1 artifacts are accessed via Turn1References in Turn2RequestS3Refs.
 
 // Turn2ResponseS3Refs groups the S3 references created by Turn-2.
 type Turn2ResponseS3Refs struct {
@@ -100,12 +83,8 @@ type Discrepancy struct {
 	Severity string `json:"severity,omitempty"` // Severity of the discrepancy (LOW, MEDIUM, HIGH)
 }
 
-// Turn1Response is the output payload from ExecuteTurn1Combined.
-type Turn1Response struct {
-	S3Refs  Turn1ResponseS3Refs `json:"s3Refs"`
-	Status  VerificationStatus  `json:"status"`
-	Summary Summary             `json:"summary"`
-}
+// Note: Turn1Response is not defined here as it belongs to ExecuteTurn1Combined.
+// Turn1 response data is accessed via the shared schema types.
 
 // Turn2Response is the output payload from ExecuteTurn2Combined.
 type Turn2Response struct {

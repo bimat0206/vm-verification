@@ -2,6 +2,192 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.0.1] - 2025-01-XX - Step Function Event Parsing Fix
+
+### 🔧 **Critical Bug Fix: Step Function Event Parsing**
+
+#### **Issue Resolved**
+- **FIXED**: Step Function event parsing for nested response structures
+- **FIXED**: Type conversion issues with `interface{}` to `models.S3Reference`
+- **FIXED**: Missing initialization.json file handling with fallback mechanism
+- **FIXED**: Turn1 response references extraction from nested JSON structure
+
+#### **Root Cause Analysis**
+The ExecuteTurn2Combined function was failing to load the initialization.json file because:
+1. **Type Mismatch**: `StepFunctionEvent.S3References` was typed as `map[string]models.S3Reference` but Step Functions provide nested structures as `map[string]interface{}`
+2. **Nested Structure**: Turn1 responses were nested under `"responses"` key with different field names (`"turn1Processed"`, `"turn1Raw"`) than expected
+3. **Missing Fallback**: No fallback mechanism when initialization.json file doesn't exist
+
+#### **Technical Fixes**
+
+##### **Event Transformer Updates**
+- **UPDATED**: `StepFunctionEvent.S3References` type from `map[string]models.S3Reference` to `map[string]interface{}`
+- **ADDED**: `convertToS3Reference()` helper function for safe type conversion from `interface{}` to `models.S3Reference`
+- **ADDED**: `getInterfaceMapKeys()` helper function for debugging interface{} maps
+- **ENHANCED**: Turn1 response extraction to handle nested structure under `"responses"` key
+
+##### **Nested Response Handling**
+- **IMPLEMENTED**: Proper parsing of nested response structure:
+  ```json
+  "responses": {
+    "turn1Processed": {...},
+    "turn1Raw": {...}
+  }
+  ```
+- **ADDED**: Fallback mechanism for backward compatibility with flat structure
+- **ENHANCED**: Error handling for invalid reference formats
+
+##### **Missing File Handling**
+- **ADDED**: `createMinimalInitializationData()` method for fallback when initialization.json is missing
+- **IMPLEMENTED**: Automatic construction of initialization reference from Turn1 raw response reference
+- **ENHANCED**: Error detection for "file not found" scenarios with graceful degradation
+
+#### **Type Safety Improvements**
+- **ADDED**: Comprehensive type assertions for all S3 reference conversions
+- **ENHANCED**: Error handling with proper validation error messages
+- **IMPROVED**: Logging with correct type information for debugging
+
+#### **Backward Compatibility**
+- **MAINTAINED**: Support for both nested and flat S3 reference structures
+- **PRESERVED**: Existing error handling patterns
+- **ENSURED**: Graceful fallback when expected files are missing
+
+### 📋 **Migration Notes**
+
+This fix ensures ExecuteTurn2Combined can properly handle Step Function events with:
+1. Nested response structures from ExecuteTurn1Combined
+2. Missing initialization.json files (with automatic fallback)
+3. Various S3 reference formats (JSON unmarshaled vs direct structures)
+
+### 🎯 **Verification**
+
+The fix addresses the specific error from the logs:
+- ✅ `initialization.json` loading with proper fallback
+- ✅ Nested `"responses"` structure parsing
+- ✅ Type-safe S3 reference conversion
+- ✅ Comprehensive error handling and logging
+
+## [2.0.0] - 2025-01-XX - Turn2 Adaptation Complete
+
+### 🔄 **Major Refactoring: Full Turn2 Adaptation**
+
+This release completes the adaptation of ExecuteTurn2Combined to be fully optimized for Turn 2 functionality, removing all legacy Turn 1 dependencies and implementing proper Turn 2 processing.
+
+### ✅ **Fixed Issues**
+
+#### **Turn1Request Dependencies Removed**
+- **FIXED**: Removed `Turn1Request` type definition from `internal/models/request.go`
+- **FIXED**: Updated all handler methods to use `Turn2Request` instead of `Turn1Request`
+- **FIXED**: Replaced legacy `LoadContext` method with `LoadContextTurn2` for proper Turn 2 context loading
+- **FIXED**: Updated storage manager to use `CheckingBase64` instead of `ReferenceBase64` for Turn 2 image processing
+
+#### **Status Constants Updated**
+- **ADDED**: Turn 2 status constants (`StatusTurn2Started`, `StatusTurn2PromptPrepared`, `StatusTurn2Completed`, `StatusTurn2Error`)
+- **UPDATED**: Status conversion functions to handle both Turn 1 and Turn 2 statuses
+- **UPDATED**: Enhanced status checking functions (`IsEnhancedStatus`, `IsVerificationComplete`, `IsErrorStatus`)
+
+#### **Handler Methods Adapted**
+- **UPDATED**: `generateTurn2Prompt` method to use proper Turn 2 prompt generation
+- **UPDATED**: `updateProcessingMetrics` to update Turn 2 metrics instead of Turn 1
+- **UPDATED**: `createContextLogger` to log Turn 2 context with correct turn ID
+- **UPDATED**: `updateInitializationFile` to work with `Turn2Request`
+
+#### **Response Building Fixed**
+- **UPDATED**: `BuildCombinedTurn2Response` to use Turn 2 templates and image references
+- **UPDATED**: Helper functions (`buildTurn2S3RefTree`, `buildTurn2Summary`) for Turn 2 processing
+- **DEPRECATED**: Legacy `BuildStepFunctionResponse` method for Turn 1 compatibility
+
+#### **Validation System Updated**
+- **ADDED**: `ValidateTurn2Request` and `ValidateTurn2Response` methods
+- **ADDED**: Turn 2 specific validation functions (`validateTurn2S3Refs`, `validateDiscrepancies`)
+- **UPDATED**: Schema validation to support Turn 2 verification context
+
+#### **Storage Manager Adapted**
+- **UPDATED**: `StorePrompt` method to work with `Turn2Request` and checking images
+- **UPDATED**: `StoreResponses` method to use `ParsedTurn2Markdown` and `StoreTurn2Markdown`
+- **FIXED**: Image reference handling to use checking images instead of reference images
+
+#### **Context Loading Enhanced**
+- **ADDED**: `LoadContextTurn2` method for comprehensive Turn 2 context loading
+- **ADDED**: Concurrent loading of system prompt, checking image, Turn 1 responses, and metadata
+- **DEPRECATED**: Legacy `LoadContext` method with proper error messaging
+
+### 🔧 **Technical Improvements**
+
+#### **Type Safety**
+- **IMPROVED**: Replaced `interface{}` parameters with specific types where possible
+- **ADDED**: Proper error handling for deprecated methods
+- **ENHANCED**: Type validation for Turn 2 specific structures
+
+#### **Error Handling**
+- **IMPROVED**: Enhanced error messages for deprecated methods
+- **ADDED**: Proper error context for Turn 2 processing failures
+- **UPDATED**: Error tracking to use Turn 2 status constants
+
+#### **Performance**
+- **OPTIMIZED**: Context loading with 5 concurrent operations for Turn 2
+- **IMPROVED**: Reduced redundant Turn 1 processing in Turn 2 workflows
+- **ENHANCED**: Efficient Turn 1 artifact loading for Turn 2 context
+
+### 📝 **Code Quality**
+
+#### **Documentation**
+- **ADDED**: Clear deprecation notices for Turn 1 methods
+- **UPDATED**: Method comments to reflect Turn 2 functionality
+- **ENHANCED**: Code documentation for Turn 2 specific features
+
+#### **Consistency**
+- **STANDARDIZED**: Function naming to use Turn2 prefix where appropriate
+- **ALIGNED**: Status tracking with Turn 2 workflow stages
+- **UNIFIED**: Error handling patterns across Turn 2 components
+
+### 🔄 **Backward Compatibility**
+
+#### **Legacy Support**
+- **MAINTAINED**: Turn 1 status constants for compatibility when processing Turn 1 artifacts
+- **PRESERVED**: Turn 1 reference handling in Turn 2 context (for accessing Turn 1 results)
+- **DEPRECATED**: Turn 1 methods with clear error messages instead of removal
+
+### 🎯 **Turn 2 Specific Features**
+
+#### **Image Processing**
+- **IMPLEMENTED**: Checking image loading and processing for Turn 2
+- **ADDED**: Image format detection from metadata
+- **ENHANCED**: Base64 image handling for Turn 2 workflows
+
+#### **Turn 1 Integration**
+- **ADDED**: Turn 1 processed response loading for Turn 2 context
+- **ADDED**: Turn 1 raw response loading for conversation history
+- **IMPLEMENTED**: Proper Turn 1 artifact referencing in Turn 2 processing
+
+#### **Response Processing**
+- **IMPLEMENTED**: Turn 2 response parsing with discrepancy detection
+- **ADDED**: Verification outcome interpretation for Turn 2
+- **ENHANCED**: Turn 2 response storage and metadata handling
+
+### 🚀 **Next Steps**
+
+This release completes the Turn 2 adaptation. Future releases should focus on:
+- Performance optimization for Turn 2 workflows
+- Enhanced error recovery mechanisms
+- Advanced Turn 2 analytics and monitoring
+- Integration testing with complete Turn 1 → Turn 2 workflows
+
+### 📋 **Migration Notes**
+
+For developers working with this codebase:
+1. All Turn 2 processing now uses `Turn2Request` and `Turn2Response` types
+2. Context loading should use `LoadContextTurn2` method
+3. Status tracking uses Turn 2 specific constants
+4. Legacy Turn 1 methods are deprecated but maintained for compatibility
+5. Turn 1 artifacts are properly integrated into Turn 2 processing context
+
+---
+
+**Breaking Changes**: This release removes direct Turn 1 request processing from ExecuteTurn2Combined. Use ExecuteTurn1Combined for Turn 1 processing.
+
+**Compatibility**: Maintains compatibility with Turn 1 artifacts and status constants for proper workflow integration.
+
 ## [Unreleased] – 2025-05-27
 ### Added
 - `DynamoManager.UpdateTurn2Completion`
