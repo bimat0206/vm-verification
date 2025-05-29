@@ -8,7 +8,6 @@ import (
 	"time"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/services"
-	sharedBedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"

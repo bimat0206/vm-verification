@@ -2,7 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
-## [2.0.4] - 2025-01-XX - Finalize Pure Turn2 Functionality
+## [2.0.5] - 2025-06-10 - Code Cleanup
+
+### Fixed
+- Removed unused import of `sharedBedrock` package in `context_loader.go`.
+
+## [2.0.4] - 2025-05-29 - Finalize Pure Turn2 Functionality
 
 ### Changed
 - Standardized helper logic to initialize `ProcessingMetrics.Turn2` only.
