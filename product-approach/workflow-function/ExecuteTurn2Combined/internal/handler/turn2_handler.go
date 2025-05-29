@@ -486,7 +486,37 @@ func (h *Turn2Handler) Handle(ctx context.Context, req *models.Turn2Request) (*s
 	return nil, fmt.Errorf("Handle not implemented")
 }
 
-// HandleForStepFunction is currently not implemented for Turn2Handler.
+// HandleForStepFunction processes a Turn2 request and formats the output for Step Functions
 func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Turn2Request) (*models.StepFunctionResponse, error) {
-	return nil, fmt.Errorf("HandleForStepFunction not implemented")
+	startTime := time.Now()
+	contextLogger := h.log.WithCorrelationId(req.VerificationID).WithFields(map[string]interface{}{
+		"verificationId": req.VerificationID,
+		"turnId":         2,
+		"schemaVersion":  h.validator.GetSchemaVersion(),
+	})
+
+	contextLogger.Info("Starting ExecuteTurn2Combined", map[string]interface{}{
+		"verification_type": req.VerificationContext.VerificationType,
+		"layout_id":         req.VerificationContext.LayoutId,
+	})
+
+	turn2Resp, err := h.ProcessTurn2Request(ctx, req)
+	if err != nil {
+		contextLogger.Error("turn2_processing_failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	builder := NewResponseBuilder(h.cfg)
+	stepFunctionResp := builder.BuildTurn2StepFunctionResponse(req, turn2Resp)
+
+	duration := time.Since(startTime)
+	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{
+		"duration_ms":     duration.Milliseconds(),
+		"status":          stepFunctionResp.Status,
+		"discrepancy_cnt": len(turn2Resp.Discrepancies),
+	})
+
+	return stepFunctionResp, nil
 }
