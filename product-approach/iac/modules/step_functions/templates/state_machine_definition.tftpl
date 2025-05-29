@@ -6,7 +6,7 @@
       "Type": "Task",
       "Resource": "${function_arns["initialize"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationContext.$": "$.verificationContext"
       },
       "ResultPath": "$",
@@ -50,7 +50,7 @@
       "Type": "Task",
       "Resource": "${function_arns["fetch_historical_verification"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "status.$": "$.status"
       },
@@ -78,8 +78,9 @@
       "Type": "Task",
       "Resource": "${function_arns["fetch_images"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
+        "s3References.$": "$.s3References",
         "status.$": "$.status"
       },
       "ResultPath": "$",
@@ -106,9 +107,10 @@
       "Type": "Task",
       "Resource": "${function_arns["prepare_system_prompt"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -127,44 +129,17 @@
           "Next": "HandlePromptError"
         }
       ],
-      "Next": "PrepareTurn1Prompt"
+      "Next": "ExecuteTurn1Combined"
     },
 
-    "PrepareTurn1Prompt": {
+    "ExecuteTurn1Combined": {
       "Type": "Task",
-      "Resource": "${function_arns["prepare_turn1_prompt"]}",
+      "Resource": "${function_arns["execute_turn1_combined"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
-      },
-      "ResultPath": "$",
-      "OutputPath": "$",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandlePromptError"
-        }
-      ],
-      "Next": "ExecuteTurn1"
-    },
-
-    "ExecuteTurn1": {
-      "Type": "Task",
-      "Resource": "${function_arns["execute_turn1"]}",
-      "Parameters": {
-        "schemaVersion": "2.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -183,72 +158,17 @@
           "Next": "HandleBedrockError"
         }
       ],
-      "Next": "ProcessTurn1Response"
+      "Next": "ExecuteTurn2Combined"
     },
 
-    "ProcessTurn1Response": {
+    "ExecuteTurn2Combined": {
       "Type": "Task",
-      "Resource": "${function_arns["process_turn1_response"]}",
+      "Resource": "${function_arns["execute_turn2_combined"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
-      },
-      "ResultPath": "$",
-      "OutputPath": "$",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandleProcessingError"
-        }
-      ],
-      "Next": "PrepareTurn2Prompt"
-    },
-
-    "PrepareTurn2Prompt": {
-      "Type": "Task",
-      "Resource": "${function_arns["prepare_turn2_prompt"]}",
-      "Parameters": {
-        "schemaVersion": "2.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
-      },
-      "ResultPath": "$",
-      "OutputPath": "$",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandlePromptError"
-        }
-      ],
-      "Next": "ExecuteTurn2"
-    },
-
-    "ExecuteTurn2": {
-      "Type": "Task",
-      "Resource": "${function_arns["execute_turn2"]}",
-      "Parameters": {
-        "schemaVersion": "2.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -265,34 +185,6 @@
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
           "Next": "HandleBedrockError"
-        }
-      ],
-      "Next": "ProcessTurn2Response"
-    },
-
-    "ProcessTurn2Response": {
-      "Type": "Task",
-      "Resource": "${function_arns["process_turn2_response"]}",
-      "Parameters": {
-        "schemaVersion": "2.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
-      },
-      "ResultPath": "$",
-      "OutputPath": "$",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandleProcessingError"
         }
       ],
       "Next": "FinalizeResults"
@@ -302,9 +194,10 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_results"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -330,9 +223,10 @@
       "Type": "Task",
       "Resource": "${function_arns["store_results"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -378,9 +272,10 @@
       "Type": "Task",
       "Resource": "${function_arns["notify"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$.notificationResult",
       "Retry": [
@@ -404,7 +299,7 @@
     "WorkflowComplete": {
       "Type": "Pass",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "verificationType.$": "$.verificationContext.verificationType",
         "status": "COMPLETED",
@@ -422,7 +317,7 @@
     "HandleInvalidVerificationType": {
       "Type": "Pass",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "status": "FAILED",
         "error": {
@@ -439,7 +334,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "INITIALIZATION"
@@ -452,7 +347,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "HISTORICAL_FETCH"
@@ -465,7 +360,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "IMAGE_FETCH"
@@ -478,7 +373,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "PROMPT_PREPARATION"
@@ -491,7 +386,7 @@
       "Type": "Task",
       "Resource": "${function_arns["handle_bedrock_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "BEDROCK_PROCESSING"
@@ -500,24 +395,11 @@
       "Next": "FinalizeWithError"
     },
 
-    "HandleProcessingError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "RESPONSE_PROCESSING"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
     "HandleFinalizationError": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "RESULT_FINALIZATION"
@@ -530,7 +412,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "RESULT_STORAGE"
@@ -543,7 +425,7 @@
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
-        "schemaVersion": "2.0",
+        "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "error.$": "$.error",
         "errorStage": "BEDROCK_PROCESSING"

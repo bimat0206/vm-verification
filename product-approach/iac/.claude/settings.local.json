@@ -3,7 +3,13 @@
     "allow": [
       "Bash(chmod:*)",
       "Bash(./update-lambda-image-uris.sh:*)",
-      "Bash(terraform --version)"
+      "Bash(terraform --version)",
+      "Bash(aws s3 ls:*)",
+      "Bash(aws stepfunctions describe-state-machine:*)",
+      "Bash(aws s3 cp:*)",
+      "Bash(cat:*)",
+      "Bash(./terraform-validator.sh)",
+      "Bash(terraform validate:*)"
     ],
     "deny": []
   }

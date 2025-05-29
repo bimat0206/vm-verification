@@ -75,9 +75,8 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    # Remove prepare_turn_prompt and add the two new ones
-    prepare_turn1_prompt = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn1-prompt", local.name_suffix])))
+    execute_turn1_combined = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn1-combined", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -86,51 +85,8 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    
-    prepare_turn2_prompt = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "prepare-turn2-prompt", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    # Remove invoke_bedrock and add the two new ones
-    execute_turn1 = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn1", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    
-    execute_turn2 = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn2", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    process_turn1_response = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "process-turn1-response", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    process_turn2_response = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "process-turn2-response", local.name_suffix])))
+    execute_turn2_combined = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "execute-turn2-combined", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -305,105 +261,51 @@ locals {
         STATE_BUCKET          = local.s3_buckets.state
 }
     },
-    # Replace consolidated prepare_turn_prompt with two separate functions
-    prepare_turn1_prompt = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn1", local.name_suffix]))),
-      description           = "Prepare turn 1 prompt for analyzing reference layout",
-      memory_size           = 256,
-      timeout               = 30,
+    execute_turn1_combined = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn1-combined", local.name_suffix]))),
+      description           = "Combined function: prepare turn1 prompt, execute Bedrock call, and process response",
+      memory_size           = 1024,
+      timeout               = 120,
       environment_variables = {
         ANTHROPIC_VERSION          = var.bedrock.anthropic_version
         BEDROCK_MODEL              = var.bedrock.model_id
         MAX_TOKENS                 = var.bedrock.max_tokens
+        BUDGET_TOKENS              = var.bedrock.budget_tokens
+        THINKING_TYPE              = "enable"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        REFERENCE_BUCKET           = local.s3_buckets.reference
+        CHECKING_BUCKET            = local.s3_buckets.checking
+        STATE_BUCKET               = local.s3_buckets.state
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "1"
-          REFERENCE_BUCKET                 = local.s3_buckets.reference
-          CHECKING_BUCKET                  = local.s3_buckets.checking
-              STATE_BUCKET          = local.s3_buckets.state
-    TEMPLATE_BASE_PATH="/opt/templates"
+        TEMPLATE_BASE_PATH         = "/opt/templates"
+        RETRY_MAX_ATTEMPTS         = "3"
+        RETRY_BASE_DELAY           = "2000"
       }
     },
-        prepare_turn2_prompt = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-turn2", local.name_suffix]))),
-      description           = "Prepare turn 2 prompt for comparing checking image to reference",
-      memory_size           = 256,
-      timeout               = 30,
+    execute_turn2_combined = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn2-combined", local.name_suffix]))),
+      description           = "Combined function: prepare turn2 prompt, execute Bedrock call, and process response",
+      memory_size           = 1536,
+      timeout               = 150,
       environment_variables = {
         ANTHROPIC_VERSION          = var.bedrock.anthropic_version
         BEDROCK_MODEL              = var.bedrock.model_id
         MAX_TOKENS                 = var.bedrock.max_tokens
+        BUDGET_TOKENS              = var.bedrock.budget_tokens
+        THINKING_TYPE              = "enable"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        REFERENCE_BUCKET           = local.s3_buckets.reference
+        CHECKING_BUCKET            = local.s3_buckets.checking
+        STATE_BUCKET               = local.s3_buckets.state
         LOG_LEVEL                  = "INFO"
         TURN_NUMBER                = "2"
-          REFERENCE_BUCKET                 = local.s3_buckets.reference
-          CHECKING_BUCKET                  = local.s3_buckets.checking
-              STATE_BUCKET          = local.s3_buckets.state
-        TEMPLATE_BASE_PATH="/opt/templates"
+        TEMPLATE_BASE_PATH         = "/opt/templates"
+        RETRY_MAX_ATTEMPTS         = "3"
+        RETRY_BASE_DELAY           = "2000"
       }
-    },
-    # Replace consolidated invoke_bedrock with two separate functions
-    execute_turn1 = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn1", local.name_suffix]))),
-      description           = "Execute turn 1 to analyze reference layout with Bedrock",
-      memory_size           = 1024,
-      timeout               = 90,
-      environment_variables = {
-        BEDROCK_MODEL              = var.bedrock.model_id
-        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-        MAX_TOKENS                 = var.bedrock.max_tokens
-        THINKING_TYPE              = "enable"
-        BUDGET_TOKENS              = var.bedrock.budget_tokens
-        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-        LOG_LEVEL                  = "INFO"
-        TURN_NUMBER                = "1"
-        RETRY_MAX_ATTEMPTS = "3"
-        RETRY_BASE_DELAY = "2000"
-            STATE_BUCKET          = local.s3_buckets.state
-
-      }
-    },
-    
-    execute_turn2 = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn2", local.name_suffix]))),
-      description           = "Execute turn 2 to analyze checking image with Bedrock",
-      memory_size           = 1024,
-      timeout               = 90,
-      environment_variables = {
-        BEDROCK_MODEL              = var.bedrock.model_id
-        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-        MAX_TOKENS                 = var.bedrock.max_tokens
-        THINKING_TYPE              = "enable"
-        BUDGET_TOKENS              = var.bedrock.budget_tokens
-        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-        LOG_LEVEL                  = "INFO"
-        TURN_NUMBER                = "2"
-            STATE_BUCKET          = local.s3_buckets.state
-
-
-      }
-    },
-    process_turn1_response = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "process-turn1", local.name_suffix]))),
-      description           = "Process turn 1 response from Bedrock",
-      memory_size           = 256,
-      timeout               = 30,
-      environment_variables = {
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-  STATE_BUCKET          = local.s3_buckets.state
-}
-    },
-    process_turn2_response = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "process-turn2", local.name_suffix]))),
-      description           = "Process turn 2 response from Bedrock",
-      memory_size           = 256,
-      timeout               = 30,
-      environment_variables = {
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-  STATE_BUCKET          = local.s3_buckets.state
-}
     },
     finalize_results = {
       name                  = lower(join("-", compact([local.name_prefix, "lambda", "finalize-results", local.name_suffix]))),
@@ -506,6 +408,19 @@ locals {
   LOG_LEVEL                  = "INFO"
 }
     },
+    render_layout = {
+      name                  = lower(join("-", compact([local.name_prefix, "lambda", "render-layout", local.name_suffix]))),
+      description           = "Render layout visualization",
+      memory_size           = 2048,
+      timeout               = 120,
+      environment_variables = {
+        REFERENCE_BUCKET           = local.s3_buckets.reference
+        CHECKING_BUCKET            = local.s3_buckets.checking
+        RESULTS_BUCKET             = local.s3_buckets.results
+        STATE_BUCKET               = local.s3_buckets.state
+        LOG_LEVEL                  = "INFO"
+      }
+    }
   }
 
   # Step function state machine name

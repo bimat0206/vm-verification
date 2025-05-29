@@ -88,53 +88,12 @@ ecr = {
       scan_on_push         = true
       image_tag_mutability = "mutable"
     },
-    prepare_turn_prompt = {
+    execute_turn1_combined = {
       force_delete         = false
       scan_on_push         = true
       image_tag_mutability = "mutable"
     },
-    invoke_bedrock = {
-      force_delete         = false
-      scan_on_push         = true
-      image_tag_mutability = "mutable"
-      lifecycle_policy     = <<EOF
-{
-  "rules": [
-    {
-      "rulePriority": 1,
-      "description": "Keep only tagged images and remove untagged after 7 days",
-      "selection": {
-        "tagStatus": "untagged",
-        "countType": "sinceImagePushed",
-        "countUnit": "days",
-        "countNumber": 7
-      },
-      "action": {
-        "type": "expire"
-      }
-    },
-    {
-      "rulePriority": 2,
-      "description": "Keep the last 10 images",
-      "selection": {
-        "tagStatus": "any",
-        "countType": "imageCountMoreThan",
-        "countNumber": 10
-      },
-      "action": {
-        "type": "expire"
-      }
-    }
-  ]
-}
-EOF
-    },
-    process_turn1_response = {
-      force_delete         = false
-      scan_on_push         = true
-      image_tag_mutability = "mutable"
-    },
-    process_turn2_response = {
+    execute_turn2_combined = {
       force_delete         = false
       scan_on_push         = true
       image_tag_mutability = "mutable"
@@ -184,12 +143,8 @@ lambda_functions = {
     fetch_historical_verification = 1024
     fetch_images                  = 1536
     prepare_system_prompt         = 1024
-    prepare_turn1_prompt          = 512
-    prepare_turn2_prompt          = 512
-    execute_turn1                 = 2048
-    execute_turn2                 = 2048
-    process_turn1_response        = 1024
-    process_turn2_response        = 1024
+    execute_turn1_combined        = 1024
+    execute_turn2_combined        = 1536
     finalize_results              = 1024
     store_results                 = 1024
     notify                        = 512
@@ -206,12 +161,8 @@ lambda_functions = {
     fetch_historical_verification = 30
     fetch_images                  = 60
     prepare_system_prompt         = 30
-    prepare_turn1_prompt          = 30
-    prepare_turn2_prompt          = 30
-    execute_turn1                 = 150
-    execute_turn2                 = 150
-    process_turn1_response        = 90
-    process_turn2_response        = 90
+    execute_turn1_combined        = 120
+    execute_turn2_combined        = 150
     finalize_results              = 90
     store_results                 = 60
     notify                        = 60

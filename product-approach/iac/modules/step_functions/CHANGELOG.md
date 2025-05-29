@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.0.1] - 2025-05-22
+
+### Fixed
+- Removed unreachable `HandleProcessingError` state from Step Functions state machine definition
+- Fixed "State 'HandleProcessingError' is not reachable" validation error
+
+## [2.0.0] - 2025-05-22
+
+### Changed
+- **BREAKING CHANGE**: Updated state machine workflow to use consolidated Lambda functions
+- Simplified state flow: `FetchImages → PrepareSystemPrompt → ExecuteTurn1Combined → ExecuteTurn2Combined → FinalizeResults`
+- Removed 6 intermediate states: `PrepareTurn1Prompt`, `ExecuteTurn1`, `ProcessTurn1Response`, `PrepareTurn2Prompt`, `ExecuteTurn2`, `ProcessTurn2Response`
+- Added 2 new states: `ExecuteTurn1Combined` and `ExecuteTurn2Combined`
+- Maintained `PrepareSystemPrompt` state as shared system prompt generator for both turns
+- Enhanced retry logic for combined Bedrock operations (3-5 retries with exponential backoff)
+- Streamlined error handling with atomic turn operations
+
+### Benefits
+- Reduced state machine complexity with fewer transitions
+- Improved workflow reliability with atomic operations
+- Enhanced performance with optimized state transitions
+- Maintained error resilience with proper retry mechanisms
+- Preserved backward compatibility for existing data structures
+
 ## [1.2.9] - 2025-05-14
 
 ### Fixed
