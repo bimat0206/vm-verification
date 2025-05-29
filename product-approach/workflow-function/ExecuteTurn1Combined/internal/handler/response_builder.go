@@ -108,6 +108,10 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 		},
 	}
 
+	if s3RefTree.Prompts.Turn1Prompt.Key != "" {
+		s3References["prompts_turn1"] = s3RefTree.Prompts.Turn1Prompt
+	}
+
 	if s3RefTree.Processing.LayoutMetadata.Key != "" {
 		s3References["processing_layout-metadata"] = s3RefTree.Processing.LayoutMetadata
 	}

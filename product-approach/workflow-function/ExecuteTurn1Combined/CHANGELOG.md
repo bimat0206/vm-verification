@@ -5,6 +5,10 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 ### Added
 - Execution status is now written back to the input `initialization.json` after processing. The handler updates `verificationContext.status` and `lastUpdatedAt` and stores the file back to the original S3 location.
 
+## [2.4.8] - 2025-06-04
+### Fixed
+- Step Function output now includes `prompts_turn1` referencing the stored Turn 1 prompt path.
+
 ## [2.4.6] - 2025-06-02
 ### Fixed
 - Corrected the S3 path for the processed Turn 1 Markdown response. The file is now stored under the `response/` directory instead of `processing/`.
