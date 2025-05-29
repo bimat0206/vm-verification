@@ -7,6 +7,22 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 ### Fixed
 - Removed unused import of `sharedBedrock` package in `context_loader.go`.
 
+## [2.0.6] - 2025-06-15 - Initialization Path Fix
+
+### Fixed
+- `EventTransformer` now validates and adjusts the `processing_initialization` S3
+  reference to ensure `initialization.json` is loaded from the
+  `.../processing/` directory. The loader fails fast when the reference is
+  missing.
+
+### Changed
+- Logging and status tracker helpers continue the Turn 2 naming convention.
+- Dynamo manager updates remain focused on Turn 2 completion metrics.
+
+### Removed
+- Legacy fallback logic for constructing the initialization path from Turn1
+  references.
+
 ## [2.0.4] - 2025-05-29 - Finalize Pure Turn2 Functionality
 
 ### Changed
