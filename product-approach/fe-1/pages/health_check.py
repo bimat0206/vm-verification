@@ -38,7 +38,7 @@ def app(api_client):
             st.info("Making direct request...")
             
             # Use the standard API v1 health endpoint with proper header case
-            url = f"{api_endpoint.rstrip('/')}/api/v1/health"
+            url = f"{api_endpoint.rstrip('/')}/api/health"
             headers = {
                 'X-Api-Key': api_key,  # Using capital X to match API Gateway expectations
                 'Accept': 'application/json',

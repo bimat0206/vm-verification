@@ -2,7 +2,7 @@
   "containerDefinitions": [
     {
       "name": "vm-fe-dev-streamlit-f6d3xl",
-      "image": "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:6c2e5c5",
+      "image": "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:01af043",
       "cpu": 0,
       "portMappings": [
         {

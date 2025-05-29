@@ -15,8 +15,8 @@ COPY pages/ /app/pages/
 COPY app.py /app/
 
 # Default values for API configuration
-ARG API_ENDPOINT='https://tgea33n7wb.execute-api.us-east-1.amazonaws.com'
-ARG API_KEY='dnXCwHqkGi97P3YzUg62A7qc1RNmmtouBr4smuE0'
+ARG API_ENDPOINT='https://hpux2uegnd.execute-api.us-east-1.amazonaws.com/v1'
+ARG API_KEY='WgGMX8xBxV9Ci3HtHJt6e7WF6VcIPojiahSXHUjH'
 
 # Set environment variables including API configuration
 ENV PYTHONUNBUFFERED=1 \
