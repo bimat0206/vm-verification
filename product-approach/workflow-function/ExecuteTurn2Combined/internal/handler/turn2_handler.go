@@ -30,11 +30,7 @@ type Turn2Handler struct {
 	validator         *Validator
 	statusTracker     *StatusTracker
 	processingTracker *ProcessingStagesTracker
-	promptGenerator   *PromptGenerator
 	bedrockInvoker    *BedrockInvoker
-	storageManager    *StorageManager
-	eventTransformer  *EventTransformer
-	startTime         time.Time
 }
 
 // NewTurn2Handler creates a new Turn2Handler instance
@@ -48,19 +44,16 @@ func NewTurn2Handler(
 	cfg config.Config,
 ) *Turn2Handler {
 	return &Turn2Handler{
-		contextLoader:    contextLoader,
-		promptService:    promptService,
-		bedrock:          bedrockService,
-		s3:               s3Service,
-		dynamo:           dynamoService,
-		dynamoManager:    NewDynamoManager(dynamoService, cfg, log),
-		log:              log,
-		cfg:              cfg,
-		validator:        NewValidator(),
-		promptGenerator:  NewPromptGenerator(nil, cfg),
-		eventTransformer: NewEventTransformer(s3Service, log),
-		bedrockInvoker:   NewBedrockInvoker(bedrockService, cfg, log),
-		storageManager:   NewStorageManager(s3Service, cfg, log),
+		contextLoader:  contextLoader,
+		promptService:  promptService,
+		bedrock:        bedrockService,
+		s3:             s3Service,
+		dynamo:         dynamoService,
+		dynamoManager:  NewDynamoManager(dynamoService, cfg, log),
+		log:            log,
+		cfg:            cfg,
+		validator:      NewValidator(),
+		bedrockInvoker: NewBedrockInvoker(bedrockService, cfg, log),
 	}
 }
 

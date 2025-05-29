@@ -177,12 +177,6 @@ func (h *Turn2Handler) recordBedrockSuccess(ctx context.Context, verificationID 
 	}
 }
 
-// recordStorageSuccess records successful storage operations
-func (h *Turn2Handler) recordStorageSuccess(result *StorageResult) {
-	metadata := h.storageManager.GetStorageMetadata(result)
-	h.processingTracker.RecordStage("response_processing", "completed", result.Duration, metadata)
-}
-
 // updateProcessingMetrics updates processing metrics with final values for Turn2
 func (h *Turn2Handler) updateProcessingMetrics(metrics *schema.ProcessingMetrics, totalDuration time.Duration, invokeResult *InvokeResult) {
 	metrics.WorkflowTotal.EndTime = schema.FormatISO8601()
@@ -261,10 +255,10 @@ func (h *Turn2Handler) validateAndLogCompletion(response *models.Turn2Response, 
 	}
 
 	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{
-		"duration_ms":         totalDuration.Milliseconds(),
-		"processing_stages":   h.processingTracker.GetStageCount(),
-		"status_updates":      h.statusTracker.GetHistoryCount(),
-		"discrepancy_count":   len(response.Discrepancies),
+		"duration_ms":          totalDuration.Milliseconds(),
+		"processing_stages":    h.processingTracker.GetStageCount(),
+		"status_updates":       h.statusTracker.GetHistoryCount(),
+		"discrepancy_count":    len(response.Discrepancies),
 		"verification_outcome": response.VerificationOutcome,
 	})
 }

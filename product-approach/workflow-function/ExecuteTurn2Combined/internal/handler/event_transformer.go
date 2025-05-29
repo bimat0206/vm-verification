@@ -134,12 +134,12 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 
 		// initialization.json is REQUIRED - fail fast if missing
 		transformLogger.Error("initialization_file_missing_critical_error", map[string]interface{}{
-			"verification_id":   event.VerificationID,
-			"missing_key":       initRef.Key,
-			"missing_bucket":    initRef.Bucket,
-			"error_message":     err.Error(),
-			"impact":            "ExecuteTurn2Combined cannot proceed without initialization.json",
-			"workflow_issue":    "UPSTREAM_FAILURE",
+			"verification_id": event.VerificationID,
+			"missing_key":     initRef.Key,
+			"missing_bucket":  initRef.Bucket,
+			"error_message":   err.Error(),
+			"impact":          "ExecuteTurn2Combined cannot proceed without initialization.json",
+			"workflow_issue":  "UPSTREAM_FAILURE",
 			"investigation_steps": []string{
 				"1. Check Initialize Lambda logs for verification ID: " + event.VerificationID,
 				"2. Verify S3 bucket contains: " + initRef.Key,
@@ -348,8 +348,8 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	}
 
 	transformLogger.Info("turn1_references_extracted", map[string]interface{}{
-		"processed_key": turn1ProcessedRef.Key,
-		"raw_key":       turn1RawRef.Key,
+		"processed_key":  turn1ProcessedRef.Key,
+		"raw_key":        turn1RawRef.Key,
 		"processed_size": turn1ProcessedRef.Size,
 		"raw_size":       turn1RawRef.Size,
 	})
@@ -368,6 +368,10 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 					Key:    metadata.CheckingImage.StorageMetadata.Key,
 					Size:   metadata.CheckingImage.StorageMetadata.StoredSize,
 				},
+				CheckingImageFormat: schema.Base64Helpers.DetectImageFormat(
+					metadata.CheckingImage.OriginalMetadata.ContentType,
+					metadata.CheckingImage.OriginalMetadata.SourceKey,
+				),
 			},
 			Processing: models.ProcessingReferences{},
 			Turn1: models.Turn1References{
@@ -409,6 +413,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		"system_prompt_key":      req.S3Refs.Prompts.System.Key,
 		"checking_image_key":     req.S3Refs.Images.CheckingBase64.Key,
 		"checking_image_size":    req.S3Refs.Images.CheckingBase64.Size,
+		"checking_image_format":  req.S3Refs.Images.CheckingImageFormat,
 		"has_layout_metadata":    req.VerificationContext.LayoutMetadata != nil,
 		"has_historical_context": req.VerificationContext.HistoricalContext != nil,
 		"transformation_stages":  6,
