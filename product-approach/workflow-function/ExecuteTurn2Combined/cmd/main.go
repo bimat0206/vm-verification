@@ -386,11 +386,28 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	contextLogger.LogReceivedEvent(event)
 
 	var req models.Turn2Request
-	if err := json.Unmarshal(event, &req); err != nil {
-		wrapped := errors.WrapError(err, errors.ErrorTypeValidation,
-			"failed to parse request", false)
-		contextLogger.Error("request_parse_failed", map[string]interface{}{"error": err.Error()})
-		return nil, wrapped
+	var stepEvent handler.StepFunctionEvent
+	if err := json.Unmarshal(event, &stepEvent); err == nil && stepEvent.SchemaVersion != "" {
+		contextLogger.Info("step_function_event_format_detected", map[string]interface{}{
+			"schema_version": stepEvent.SchemaVersion,
+		})
+
+		transformer := handler.NewEventTransformer(applicationContainer.s3Service, contextLogger)
+		transformed, err := transformer.TransformStepFunctionEvent(enrichedCtx, stepEvent)
+		if err != nil {
+			contextLogger.Error("step_function_event_transformation_failed", map[string]interface{}{"error": err.Error()})
+			return nil, err
+		}
+		req = *transformed
+	} else {
+		if err := json.Unmarshal(event, &req); err != nil {
+			wrapped := errors.WrapError(err, errors.ErrorTypeValidation,
+				"failed to parse request", false)
+			contextLogger.Error("request_parse_failed", map[string]interface{}{"error": err.Error()})
+			return nil, wrapped
+		}
+
+		contextLogger.Info("turn2_request_format_detected", nil)
 	}
 
 	// Execute handler with deterministic architecture

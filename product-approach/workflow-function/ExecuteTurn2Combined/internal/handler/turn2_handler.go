@@ -482,11 +482,11 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 }
 
 // Handle is currently not implemented for Turn2Handler.
-func (h *Turn2Handler) Handle(ctx context.Context, req *models.Turn1Request) (*schema.CombinedTurnResponse, error) {
+func (h *Turn2Handler) Handle(ctx context.Context, req *models.Turn2Request) (*schema.CombinedTurnResponse, error) {
 	return nil, fmt.Errorf("Handle not implemented")
 }
 
 // HandleForStepFunction is currently not implemented for Turn2Handler.
-func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Request) (*models.StepFunctionResponse, error) {
+func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Turn2Request) (*models.StepFunctionResponse, error) {
 	return nil, fmt.Errorf("HandleForStepFunction not implemented")
 }
