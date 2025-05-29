@@ -146,3 +146,52 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 		Summary:        summaryMap,
 	}
 }
+
+// BuildTurn2StepFunctionResponse builds a Step Function compatible response for Turn2
+func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
+	req *models.Turn2Request,
+	turn2Resp *models.Turn2Response,
+) *models.StepFunctionResponse {
+	s3References := map[string]interface{}{
+		"prompts_system":  req.S3Refs.Prompts.System,
+		"images_checking": req.S3Refs.Images.CheckingBase64,
+		"responses": map[string]interface{}{
+			"turn2Raw":       turn2Resp.S3Refs.RawResponse,
+			"turn2Processed": turn2Resp.S3Refs.ProcessedResponse,
+			"turn1Raw":       req.S3Refs.Turn1.RawResponse,
+			"turn1Processed": req.S3Refs.Turn1.ProcessedResponse,
+		},
+	}
+
+	if req.S3Refs.Processing.LayoutMetadata.Key != "" {
+		s3References["processing_layout-metadata"] = req.S3Refs.Processing.LayoutMetadata
+	}
+	if req.S3Refs.Processing.HistoricalContext.Key != "" {
+		s3References["processing_historical-context"] = req.S3Refs.Processing.HistoricalContext
+	}
+
+	summaryMap := map[string]interface{}{
+		"analysisStage":       turn2Resp.Summary.AnalysisStage,
+		"processingTimeMs":    turn2Resp.Summary.ProcessingTimeMs,
+		"verificationOutcome": turn2Resp.VerificationOutcome,
+		"tokenUsage": map[string]interface{}{
+			"input":  turn2Resp.Summary.TokenUsage.InputTokens,
+			"output": turn2Resp.Summary.TokenUsage.OutputTokens,
+			"total":  turn2Resp.Summary.TokenUsage.TotalTokens,
+		},
+		"bedrockRequestId": turn2Resp.Summary.BedrockRequestID,
+	}
+	if turn2Resp.Summary.DiscrepanciesFound != nil {
+		summaryMap["discrepanciesFound"] = *turn2Resp.Summary.DiscrepanciesFound
+	}
+	if turn2Resp.Summary.DynamodbUpdated != nil {
+		summaryMap["dynamodbUpdated"] = *turn2Resp.Summary.DynamodbUpdated
+	}
+
+	return &models.StepFunctionResponse{
+		VerificationID: req.VerificationID,
+		S3References:   s3References,
+		Status:         string(turn2Resp.Status),
+		Summary:        summaryMap,
+	}
+}

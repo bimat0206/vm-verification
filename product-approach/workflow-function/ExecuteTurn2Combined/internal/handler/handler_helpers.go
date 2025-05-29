@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/shared/errors"
@@ -238,7 +237,7 @@ func (h *Turn2Handler) validateAndLogCompletion(response *schema.CombinedTurnRes
 		})
 	}
 
-	contextLogger.Info("Completed ExecuteTurn1Combined", map[string]interface{}{
+	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{
 		"duration_ms":       totalDuration.Milliseconds(),
 		"processing_stages": h.processingTracker.GetStageCount(),
 		"status_updates":    h.statusTracker.GetHistoryCount(),
@@ -248,30 +247,22 @@ func (h *Turn2Handler) validateAndLogCompletion(response *schema.CombinedTurnRes
 }
 
 // handleStepFunctionEvent handles Step Functions event format
-func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctionEvent) (interface{}, error) {
+func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, req *models.Turn2Request) (interface{}, error) {
 	h.log.Info("processing_step_function_event", map[string]interface{}{
-		"schema_version":      event.SchemaVersion,
-		"verification_id":     event.VerificationID,
-		"status":              event.Status,
-		"s3_references_count": len(event.S3References),
+		"verification_id":    req.VerificationID,
+		"verification_type":  req.VerificationContext.VerificationType,
+		"checking_image_key": req.S3Refs.Images.CheckingBase64.Key,
 	})
 
-	h.log.LogReceivedEvent(event)
+	h.log.LogReceivedEvent(req)
 
-	req, err := h.eventTransformer.TransformStepFunctionEvent(ctx, event)
-	if err != nil {
-		h.log.Error("failed_to_transform_step_function_event", map[string]interface{}{
-			"error":           err.Error(),
-			"verification_id": event.VerificationID,
-		})
-		return nil, err
-	}
-
-	// Use the new HandleForStepFunction method that returns StepFunctionResponse
-	stepFunctionResponse, err := h.HandleForStepFunction(ctx, req)
+	turn2Resp, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+
+	builder := NewResponseBuilder(h.cfg)
+	stepFunctionResponse := builder.BuildTurn2StepFunctionResponse(req, turn2Resp)
 
 	h.log.LogOutputEvent(stepFunctionResponse)
 
@@ -279,27 +270,10 @@ func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, event StepFu
 }
 
 // handleDirectRequest handles direct request format
-func (h *Turn2Handler) handleDirectRequest(ctx context.Context, event json.RawMessage) (interface{}, error) {
-	var req models.Turn1Request
-	if err := json.Unmarshal(event, &req); err != nil {
-		validationErr := errors.NewValidationError(
-			"invalid input payload",
-			map[string]interface{}{
-				"payload_size": len(event),
-				"parse_error":  err.Error(),
-			})
-
-		h.log.Error("input validation failed", map[string]interface{}{
-			"payload_size_bytes": len(event),
-			"error_details":      err.Error(),
-		})
-
-		return nil, validationErr
-	}
-
+func (h *Turn2Handler) handleDirectRequest(ctx context.Context, req *models.Turn2Request) (interface{}, error) {
 	h.log.LogReceivedEvent(req)
 
-	response, err := h.Handle(ctx, &req)
+	response, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		return nil, err
 	}
