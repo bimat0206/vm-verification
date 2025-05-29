@@ -2,6 +2,65 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.0.2] - 2025-01-XX - Critical Fix: Initialization File Requirement
+
+### 🚨 **REVERTED: Fallback Mechanism Removed**
+
+#### **Issue Clarification**
+- **REQUIREMENT**: initialization.json file is **REQUIRED** and must not be bypassed
+- **REVERTED**: All fallback mechanisms that create minimal initialization data
+- **FOCUS**: Ensure proper initialization.json file creation and availability
+
+#### **Root Cause Analysis**
+The missing initialization.json file indicates an upstream issue in the workflow:
+1. **ExecuteTurn1Combined** should create and store initialization.json
+2. **Step Functions** should pass the correct S3 reference to ExecuteTurn2Combined
+3. **ExecuteTurn2Combined** should fail fast if initialization.json is missing
+
+#### **Corrective Actions Required**
+
+##### **Immediate Fix**
+- **REMOVED**: `createMinimalInitializationData()` fallback mechanism
+- **REMOVED**: Error pattern matching for file-not-found scenarios
+- **RESTORED**: Proper error handling that fails fast when initialization.json is missing
+
+##### **Upstream Investigation Required**
+The missing initialization.json indicates a **workflow orchestration issue**:
+
+1. **Initialize Lambda Function**:
+   - **VERIFY**: Initialize function successfully creates initialization.json
+   - **CHECK**: S3 storage operation completes successfully
+   - **CONFIRM**: Correct S3 reference is returned in Step Functions response
+
+2. **Step Functions Orchestration**:
+   - **VERIFY**: Initialize step completes successfully before ExecuteTurn1Combined
+   - **CHECK**: S3 references are correctly passed between steps
+   - **CONFIRM**: No race conditions between Initialize and ExecuteTurn1Combined
+
+3. **ExecuteTurn1Combined**:
+   - **VERIFY**: Loads initialization.json successfully (doesn't create it)
+   - **CHECK**: Updates initialization.json with status changes
+   - **CONFIRM**: Passes correct S3 reference to ExecuteTurn2Combined
+
+##### **Debugging Steps**
+1. **Check Initialize Lambda logs** for the verification ID: `verif-20250529043715-5bad`
+2. **Verify S3 bucket** `kootoro-dev-s3-state-f6d3xl` contains the file
+3. **Check Step Functions execution** for proper state transitions
+4. **Verify ExecuteTurn1Combined** completed successfully before ExecuteTurn2Combined
+
+#### **Technical Changes**
+
+##### **Removed Fallback Logic**
+- **REMOVED**: `createMinimalInitializationData()` method
+- **REMOVED**: `isFileNotFoundError()` helper function
+- **REMOVED**: Error pattern matching for missing files
+- **RESTORED**: Standard error propagation for missing initialization.json
+
+##### **Enhanced Error Reporting**
+- **IMPROVED**: Clear error messages indicating missing initialization.json
+- **ENHANCED**: Logging to help identify upstream workflow issues
+- **ADDED**: Specific guidance for troubleshooting missing files
+
 ## [2.0.1] - 2025-01-XX - Step Function Event Parsing Fix
 
 ### 🔧 **Critical Bug Fix: Step Function Event Parsing**

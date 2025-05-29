@@ -118,6 +118,12 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	})
 
 	// STRATEGIC RESOLUTION: Use schema-integrated initialization data loader with fallback handling
+	transformLogger.Debug("attempting_to_load_initialization_data", map[string]interface{}{
+		"bucket": initRef.Bucket,
+		"key":    initRef.Key,
+		"size":   initRef.Size,
+	})
+
 	initData, err := e.s3.LoadInitializationData(ctx, initRef)
 	if err != nil {
 		transformLogger.Error("initialization_data_load_failed", map[string]interface{}{
@@ -126,22 +132,32 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			"key":    initRef.Key,
 		})
 
-		// Check if this is a "file not found" error and try to create minimal initialization data
-		if strings.Contains(err.Error(), "object not found") || strings.Contains(err.Error(), "NoSuchKey") {
-			transformLogger.Warn("initialization_file_not_found_creating_minimal_data", map[string]interface{}{
-				"verification_id": event.VerificationID,
-				"missing_key":     initRef.Key,
-			})
+		// initialization.json is REQUIRED - fail fast if missing
+		transformLogger.Error("initialization_file_missing_critical_error", map[string]interface{}{
+			"verification_id":   event.VerificationID,
+			"missing_key":       initRef.Key,
+			"missing_bucket":    initRef.Bucket,
+			"error_message":     err.Error(),
+			"impact":            "ExecuteTurn2Combined cannot proceed without initialization.json",
+			"workflow_issue":    "UPSTREAM_FAILURE",
+			"investigation_steps": []string{
+				"1. Check Initialize Lambda logs for verification ID: " + event.VerificationID,
+				"2. Verify S3 bucket contains: " + initRef.Key,
+				"3. Check Step Functions execution state transitions",
+				"4. Verify ExecuteTurn1Combined completed successfully",
+			},
+			"expected_workflow": "Initialize → ExecuteTurn1Combined → ExecuteTurn2Combined",
+			"file_creator":      "Initialize Lambda Function",
+			"file_updater":      "ExecuteTurn1Combined",
+			"file_consumer":     "ExecuteTurn2Combined",
+		})
 
-			// Create minimal initialization data for Turn2 processing
-			initData = e.createMinimalInitializationData(event.VerificationID, event.Status)
-		} else {
-			return nil, errors.WrapError(err, errors.ErrorTypeS3,
-				"failed to load initialization data", true).
-				WithContext("s3_key", initRef.Key).
-				WithContext("verification_id", event.VerificationID).
-				WithContext("schema_integration", "failed")
-		}
+		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+			"CRITICAL: initialization.json file is required and missing", true).
+			WithContext("s3_key", initRef.Key).
+			WithContext("verification_id", event.VerificationID).
+			WithContext("upstream_issue", "ExecuteTurn1Combined should create initialization.json").
+			WithContext("schema_integration", "failed")
 	}
 
 	transformLogger.Info("initialization_data_loaded_successfully", map[string]interface{}{
@@ -536,24 +552,3 @@ func extractVerificationIDFromKey(key string) string {
 	}
 	return ""
 }
-
-// createMinimalInitializationData creates minimal initialization data when the file is missing
-func (e *EventTransformer) createMinimalInitializationData(verificationID, status string) *services.InitializationData {
-	return &services.InitializationData{
-		SchemaVersion: schema.SchemaVersion,
-		VerificationContext: schema.VerificationContext{
-			VerificationId:   verificationID,
-			VerificationAt:   schema.FormatISO8601(),
-			Status:           status,
-			VerificationType: schema.VerificationTypeLayoutVsChecking, // Default assumption
-		},
-		SystemPrompt: services.SystemPromptData{
-			PromptID:      "default",
-			PromptVersion: "1.0",
-			Content:       "Default system prompt for Turn2 processing",
-		},
-		LayoutMetadata: nil, // Will be loaded separately if available
-	}
-}
-
-
