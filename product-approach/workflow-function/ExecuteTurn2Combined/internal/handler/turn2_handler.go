@@ -420,6 +420,81 @@ func (h *Turn2Handler) interpretDiscrepancies(parsedData *bedrockparser.ParsedTu
 	return finalStatus, summary, nil
 }
 
+// dynamoRetryOperation implements retry logic for DynamoDB operations
+func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func() error, operationName string, verificationID string) error {
+	const maxRetries = 3
+	const baseDelay = 200 * time.Millisecond
+	const maxDelay = 2 * time.Second
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := operation()
+		if err == nil {
+			if attempt > 0 {
+				h.log.Info("dynamo_retry_successful", map[string]interface{}{
+					"operation": operationName,
+					"attempt": attempt + 1,
+					"verification_id": verificationID,
+				})
+			}
+			return nil
+		}
+
+		lastErr = err
+		
+		// Check if error is retryable
+		if wfErr, ok := err.(*errors.WorkflowError); ok && !wfErr.Retryable {
+			h.log.Debug("dynamo_non_retryable_error", map[string]interface{}{
+				"operation": operationName,
+				"error": err.Error(),
+				"attempt": attempt + 1,
+				"verification_id": verificationID,
+			})
+			break
+		}
+
+		// Don't retry on the last attempt
+		if attempt == maxRetries-1 {
+			break
+		}
+
+		// Calculate delay with exponential backoff
+		multiplier := 1
+		for i := 0; i < attempt; i++ {
+			multiplier *= 2
+		}
+		delay := time.Duration(int64(baseDelay) * int64(multiplier))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+		
+		h.log.Debug("retrying_dynamo_operation", map[string]interface{}{
+			"operation": operationName,
+			"attempt": attempt + 1,
+			"max_attempts": maxRetries,
+			"delay_ms": delay.Milliseconds(),
+			"error": err.Error(),
+			"verification_id": verificationID,
+		})
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+	}
+
+	h.log.Error("dynamo_all_retry_attempts_failed", map[string]interface{}{
+		"operation": operationName,
+		"max_attempts": maxRetries,
+		"final_error": lastErr.Error(),
+		"verification_id": verificationID,
+	})
+	
+	return lastErr
+}
+
 // persistErrorState attempts to record error information in DynamoDB before returning the error.
 func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2Request, wfErr *errors.WorkflowError, stage string, startTime time.Time) {
 	statusEntry := schema.StatusHistoryEntry{
@@ -444,20 +519,27 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 		LastErrorAt:  schema.FormatISO8601(),
 	}
 
-	if err := h.dynamo.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry); err != nil {
+	// Update verification status with retry logic
+	if err := h.dynamoRetryOperation(ctx, func() error {
+		return h.dynamo.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry)
+	}, "UpdateVerificationStatusEnhanced", req.VerificationID); err != nil {
 		h.log.Warn("dynamodb_status_error_update_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
 	}
 
-	if err := h.dynamo.UpdateErrorTracking(ctx, req.VerificationID, tracking); err != nil {
+	// Update error tracking with retry logic
+	if err := h.dynamoRetryOperation(ctx, func() error {
+		return h.dynamo.UpdateErrorTracking(ctx, req.VerificationID, tracking)
+	}, "UpdateErrorTracking", req.VerificationID); err != nil {
 		h.log.Warn("dynamodb_error_tracking_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
 	}
 
+	// Update conversation turn with retry logic
 	turnEntry := &schema.TurnResponse{
 		TurnId:    2,
 		Timestamp: schema.FormatISO8601(),
@@ -466,7 +548,9 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 			"error": wfErr.Message,
 		},
 	}
-	if err := h.dynamo.UpdateConversationTurn(ctx, req.VerificationID, turnEntry); err != nil {
+	if err := h.dynamoRetryOperation(ctx, func() error {
+		return h.dynamo.UpdateConversationTurn(ctx, req.VerificationID, turnEntry)
+	}, "UpdateConversationTurn", req.VerificationID); err != nil {
 		h.log.Warn("conversation_history_error_update_failed", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,

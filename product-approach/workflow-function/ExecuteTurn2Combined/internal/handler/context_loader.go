@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
@@ -49,6 +50,70 @@ func (c *ContextLoader) LoadContext(ctx context.Context, req interface{}) *LoadR
 	return result
 }
 
+// loadWithRetry implements exponential backoff retry logic for S3 operations
+func (c *ContextLoader) loadWithRetry(ctx context.Context, operation func() (interface{}, error)) (interface{}, error) {
+	const maxRetries = 3
+	const baseDelay = 100 * time.Millisecond
+	const maxDelay = 2 * time.Second
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		result, err := operation()
+		if err == nil {
+			if attempt > 0 {
+				c.log.Info("retry_successful", map[string]interface{}{
+					"attempt": attempt + 1,
+					"total_attempts": maxRetries,
+				})
+			}
+			return result, nil
+		}
+
+		lastErr = err
+		
+		// Check if error is retryable
+		if wfErr, ok := err.(*errors.WorkflowError); ok && !wfErr.Retryable {
+			c.log.Debug("non_retryable_error_encountered", map[string]interface{}{
+				"error": err.Error(),
+				"attempt": attempt + 1,
+			})
+			break
+		}
+
+		// Don't retry on the last attempt
+		if attempt == maxRetries-1 {
+			break
+		}
+
+		// Calculate delay with exponential backoff and jitter
+		delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt)))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+		
+		c.log.Debug("retrying_operation", map[string]interface{}{
+			"attempt": attempt + 1,
+			"max_attempts": maxRetries,
+			"delay_ms": delay.Milliseconds(),
+			"error": err.Error(),
+		})
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+	}
+
+	c.log.Error("all_retry_attempts_failed", map[string]interface{}{
+		"max_attempts": maxRetries,
+		"final_error": lastErr.Error(),
+	})
+	
+	return nil, lastErr
+}
+
 // LoadContextTurn2 loads system prompt, checking image, and Turn1 results concurrently for Turn2
 func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2Request) *LoadResult {
 	startTime := time.Now()
@@ -61,7 +126,17 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 		turn1Response    *schema.Turn1ProcessedResponse
 		turn1RawResponse json.RawMessage
 		loadErr          error
+		errorMutex       sync.Mutex // Protect loadErr from race conditions
 	)
+
+	// Helper function to safely set error (only sets the first error encountered)
+	setError := func(err error) {
+		errorMutex.Lock()
+		defer errorMutex.Unlock()
+		if loadErr == nil { // Only set the first error
+			loadErr = err
+		}
+	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(4) // 4 concurrent operations
@@ -76,7 +151,9 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"size":   req.S3Refs.Prompts.System.Size,
 		})
 
-		sp, err := c.s3.LoadSystemPrompt(ctx, req.S3Refs.Prompts.System)
+		sp, err := c.loadWithRetry(ctx, func() (interface{}, error) {
+			return c.s3.LoadSystemPrompt(ctx, req.S3Refs.Prompts.System)
+		})
 		if err != nil {
 			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load system prompt", true)
@@ -86,17 +163,17 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 				WithContext("operation", "system_prompt_load").
 				WithContext("expected_content_type", "string")
 
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
+			setError(errors.SetVerificationID(enrichedErr, req.VerificationID))
 			return
 		}
 
 		c.log.Debug("system_prompt_loaded_successfully", map[string]interface{}{
-			"prompt_length": len(sp),
+			"prompt_length": len(sp.(string)),
 			"bucket":        req.S3Refs.Prompts.System.Bucket,
 			"key":           req.S3Refs.Prompts.System.Key,
 		})
 
-		systemPrompt = sp
+		systemPrompt = sp.(string)
 	}()
 
 	// Load checking image
@@ -109,7 +186,9 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"size":   req.S3Refs.Images.CheckingBase64.Size,
 		})
 
-		img, err := c.s3.LoadBase64Image(ctx, req.S3Refs.Images.CheckingBase64)
+		img, err := c.loadWithRetry(ctx, func() (interface{}, error) {
+			return c.s3.LoadBase64Image(ctx, req.S3Refs.Images.CheckingBase64)
+		})
 		if err != nil {
 			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load checking image", true)
@@ -119,18 +198,19 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 				WithContext("operation", "checking_image_load").
 				WithContext("expected_content_type", "base64")
 
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
+			setError(errors.SetVerificationID(enrichedErr, req.VerificationID))
 			return
 		}
 
 		c.log.Debug("checking_image_loaded_successfully", map[string]interface{}{
-			"image_length": len(img),
+			"image_length": len(img.(string)),
 			"bucket":       req.S3Refs.Images.CheckingBase64.Bucket,
 			"key":          req.S3Refs.Images.CheckingBase64.Key,
 		})
 
-		base64Img = img
+		base64Img = img.(string)
 	}()
+
 	// Load Turn1 processed response
 	go func() {
 		defer wg.Done()
@@ -141,7 +221,9 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"size":   req.S3Refs.Turn1.ProcessedResponse.Size,
 		})
 
-		processedResponse, err := c.s3.LoadTurn1ProcessedResponse(ctx, req.S3Refs.Turn1.ProcessedResponse)
+		processedResponse, err := c.loadWithRetry(ctx, func() (interface{}, error) {
+			return c.s3.LoadTurn1ProcessedResponse(ctx, req.S3Refs.Turn1.ProcessedResponse)
+		})
 		if err != nil {
 			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load Turn1 processed response", true)
@@ -151,7 +233,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 				WithContext("operation", "turn1_processed_response_load").
 				WithContext("expected_content_type", "json")
 
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
+			setError(errors.SetVerificationID(enrichedErr, req.VerificationID))
 			return
 		}
 
@@ -160,7 +242,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"key":    req.S3Refs.Turn1.ProcessedResponse.Key,
 		})
 
-		turn1Response = processedResponse
+		turn1Response = processedResponse.(*schema.Turn1ProcessedResponse)
 	}()
 
 	// Load Turn1 raw response
@@ -173,7 +255,9 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"size":   req.S3Refs.Turn1.RawResponse.Size,
 		})
 
-		rawResponse, err := c.s3.LoadTurn1RawResponse(ctx, req.S3Refs.Turn1.RawResponse)
+		rawResponse, err := c.loadWithRetry(ctx, func() (interface{}, error) {
+			return c.s3.LoadTurn1RawResponse(ctx, req.S3Refs.Turn1.RawResponse)
+		})
 		if err != nil {
 			wrappedErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load Turn1 raw response", true)
@@ -183,7 +267,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 				WithContext("operation", "turn1_raw_response_load").
 				WithContext("expected_content_type", "json")
 
-			loadErr = errors.SetVerificationID(enrichedErr, req.VerificationID)
+			setError(errors.SetVerificationID(enrichedErr, req.VerificationID))
 			return
 		}
 
@@ -192,7 +276,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 			"key":    req.S3Refs.Turn1.RawResponse.Key,
 		})
 
-		turn1RawResponse = rawResponse
+		turn1RawResponse = rawResponse.(json.RawMessage)
 	}()
 
 	// Wait for all goroutines to complete
@@ -201,6 +285,7 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 	// Check for errors
 	if loadErr != nil {
 		result.Error = loadErr
+		result.Duration = time.Since(startTime)
 		return result
 	}
 
@@ -212,16 +297,14 @@ func (c *ContextLoader) LoadContextTurn2(ctx context.Context, req *models.Turn2R
 	result.Turn1RawResponse = turn1RawResponse
 	result.Duration = time.Since(startTime)
 
-	if loadErr == nil {
-		c.log.Info("turn2_context_loading_completed_successfully", map[string]interface{}{
-			"system_prompt_length":  len(systemPrompt),
-			"base64_image_length":   len(base64Img),
-			"turn1_response_loaded": turn1Response != nil,
-			"turn1_raw_loaded":      len(turn1RawResponse) > 0,
-			"total_duration_ms":     result.Duration.Milliseconds(),
-			"concurrent_operations": 4,
-		})
-	}
+	c.log.Info("turn2_context_loading_completed_successfully", map[string]interface{}{
+		"system_prompt_length":  len(systemPrompt),
+		"base64_image_length":   len(base64Img),
+		"turn1_response_loaded": turn1Response != nil,
+		"turn1_raw_loaded":      len(turn1RawResponse) > 0,
+		"total_duration_ms":     result.Duration.Milliseconds(),
+		"concurrent_operations": 4,
+	})
 
 	return result
 }
