@@ -32,7 +32,8 @@ type Turn1References struct {
 
 // Turn2ImageRefs holds S3 locations for image artifacts for Turn-2.
 type Turn2ImageRefs struct {
-	CheckingBase64 S3Reference `json:"checkingBase64"` // checking-base64.json
+	CheckingBase64      S3Reference `json:"checkingBase64"`                // checking-base64.base64
+	CheckingImageFormat string      `json:"checkingImageFormat,omitempty"` // image content type (e.g. image/png)
 }
 
 // PromptRefs holds S3 locations for prompt artifacts.

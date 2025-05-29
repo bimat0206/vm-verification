@@ -2,6 +2,22 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.0.3] - 2025-01-XX - Turn 2 Alignment Cleanup
+
+### Removed Legacy Turn 1 Components
+- **DELETED**: `prompt_generator.go` and `storage_manager.go` no longer used in Turn 2.
+- **UPDATED**: `Turn2Handler` struct and constructor to drop obsolete fields.
+
+### Input Parsing and Context Loading
+- **UPDATED**: `EventTransformer` now extracts the checking image format from `images/metadata.json` and populates `Turn2Request.S3Refs.Images.CheckingImageFormat`.
+- **UPDATED**: `ContextLoader` uses the supplied `CheckingImageFormat` and stops loading metadata separately.
+
+### Model Types
+- **ADDED**: `CheckingImageFormat` field to `Turn2ImageRefs` struct.
+
+### Logging
+- **UPDATED**: Transformation log includes the checking image format.
+
 ## [2.0.2] - 2025-01-XX - Critical Fix: Initialization File Requirement
 
 ### 🚨 **REVERTED: Fallback Mechanism Removed**
