@@ -2,6 +2,20 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.0] - 2025-06-30 - Simplified Turn2 Processing
+
+### Added
+- Simplified Turn2 prompt generation with a static instruction template.
+- Envelope-based storage of Turn2 raw and processed responses via `SaveToEnvelope`.
+- Nested `turn2Raw` and `turn2Processed` references under `responses` in output structures.
+- Unit tests for the new storage manager and response builder.
+
+### Changed
+- Turn1 data is loaded only for conversation history.
+- Output S3 reference schema standardized for Turn2.
+- Logging and status tracking aligned with Turn2 operations.
+- Fixed initialization.json path resolution in `EventTransformer`.
+
 ## [2.0.7] - 2025-05-29 - Critical Reliability Fixes
 
 ### 🚨 **Critical Bug Fixes: S3 and DynamoDB Retry Logic**

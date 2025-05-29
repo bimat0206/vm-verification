@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -154,15 +155,10 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		return nil, wfErr
 	}
 
-	// Store raw Bedrock response
-	rawResponseRef, err := h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, bedrockResponse)
-	if err != nil {
-		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
-			"error":           err.Error(),
-			"verification_id": req.VerificationID,
-		})
-		// Non-critical error, continue processing
-	}
+	rawBytes, _ := json.Marshal(bedrockResponse)
+
+	// Prepare to store raw response later using the envelope
+	var rawResponseRef models.S3Reference
 
 	// Parse Bedrock response
 	markdownResponse, err := bedrockparser.ParseTurn2BedrockResponseAsMarkdown(bedrockResponse.Content)
@@ -222,14 +218,13 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		refinedSummary = parsedData.ComparisonSummary
 	}
 
-	// Store processed Turn2 response
-	processedRef, err := h.s3.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
+	// Store raw and processed Turn2 outputs using envelope-based manager
+	rawResponseRef, processedRef, err = h.storageManager.SaveTurn2Outputs(ctx, envelope, rawBytes, parsedData)
 	if err != nil {
 		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
-		// Non-critical error, continue processing
 	}
 
 	// Create processing metrics
@@ -432,8 +427,8 @@ func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func(
 		if err == nil {
 			if attempt > 0 {
 				h.log.Info("dynamo_retry_successful", map[string]interface{}{
-					"operation": operationName,
-					"attempt": attempt + 1,
+					"operation":       operationName,
+					"attempt":         attempt + 1,
 					"verification_id": verificationID,
 				})
 			}
@@ -441,13 +436,13 @@ func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func(
 		}
 
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if wfErr, ok := err.(*errors.WorkflowError); ok && !wfErr.Retryable {
 			h.log.Debug("dynamo_non_retryable_error", map[string]interface{}{
-				"operation": operationName,
-				"error": err.Error(),
-				"attempt": attempt + 1,
+				"operation":       operationName,
+				"error":           err.Error(),
+				"attempt":         attempt + 1,
 				"verification_id": verificationID,
 			})
 			break
@@ -467,13 +462,13 @@ func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func(
 		if delay > maxDelay {
 			delay = maxDelay
 		}
-		
+
 		h.log.Debug("retrying_dynamo_operation", map[string]interface{}{
-			"operation": operationName,
-			"attempt": attempt + 1,
-			"max_attempts": maxRetries,
-			"delay_ms": delay.Milliseconds(),
-			"error": err.Error(),
+			"operation":       operationName,
+			"attempt":         attempt + 1,
+			"max_attempts":    maxRetries,
+			"delay_ms":        delay.Milliseconds(),
+			"error":           err.Error(),
 			"verification_id": verificationID,
 		})
 
@@ -486,12 +481,12 @@ func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func(
 	}
 
 	h.log.Error("dynamo_all_retry_attempts_failed", map[string]interface{}{
-		"operation": operationName,
-		"max_attempts": maxRetries,
-		"final_error": lastErr.Error(),
+		"operation":       operationName,
+		"max_attempts":    maxRetries,
+		"final_error":     lastErr.Error(),
 		"verification_id": verificationID,
 	})
-	
+
 	return lastErr
 }
 

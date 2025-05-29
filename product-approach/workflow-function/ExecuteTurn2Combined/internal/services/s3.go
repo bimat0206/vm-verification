@@ -159,6 +159,9 @@ type S3StateManager interface {
 	// STRATEGIC: Schema-based workflow state operations
 	StoreWorkflowState(ctx context.Context, verificationID string, state *schema.WorkflowState) (models.S3Reference, error)
 	LoadWorkflowState(ctx context.Context, verificationID string) (*schema.WorkflowState, error)
+
+	// Manager exposes the underlying s3state.Manager for advanced operations
+	Manager() s3state.Manager
 }
 
 // ===================================================================
@@ -992,6 +995,11 @@ func (m *s3Manager) fromStateReference(ref *s3state.Reference) models.S3Referenc
 		Key:    ref.Key,
 		Size:   ref.Size,
 	}
+}
+
+// Manager returns the underlying s3state.Manager for advanced operations
+func (m *s3Manager) Manager() s3state.Manager {
+	return m.stateManager
 }
 
 // truncateForLog provides safe string truncation for logging
