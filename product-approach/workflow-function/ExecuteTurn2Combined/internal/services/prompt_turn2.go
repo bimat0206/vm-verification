@@ -15,7 +15,7 @@ import (
 
 // PromptServiceTurn2 defines Turn2 prompt generation service
 type PromptServiceTurn2 interface {
-	GenerateTurn2PromptWithMetrics(ctx context.Context, vCtx *schema.VerificationContext, systemPrompt string, turn1Response *schema.Turn1ProcessedResponse, turn1RawResponse json.RawMessage) (string, *schema.TemplateProcessor, error)
+	GenerateTurn2PromptWithMetrics(ctx context.Context, vCtx *schema.VerificationContext, systemPrompt string, turn1Response *schema.TurnResponse, turn1RawResponse json.RawMessage) (string, *schema.TemplateProcessor, error)
 }
 
 // promptServiceTurn2 implements PromptServiceTurn2
@@ -45,7 +45,7 @@ func NewPromptServiceTurn2(loader templateloader.TemplateLoader, cfg *config.Con
 }
 
 // GenerateTurn2PromptWithMetrics renders the Turn2 prompt and returns metrics
-func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context, vCtx *schema.VerificationContext, systemPrompt string, turn1Response *schema.Turn1ProcessedResponse, turn1RawResponse json.RawMessage) (string, *schema.TemplateProcessor, error) {
+func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context, vCtx *schema.VerificationContext, systemPrompt string, turn1Response *schema.TurnResponse, turn1RawResponse json.RawMessage) (string, *schema.TemplateProcessor, error) {
 	start := time.Now()
 	if vCtx == nil {
 		return "", nil, errors.NewValidationError("verification context required", nil)

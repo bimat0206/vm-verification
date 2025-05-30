@@ -66,7 +66,7 @@ func NewClientTurn2(cfg config.Config, log logger.Logger) (*ClientTurn2, error) 
 
 // ProcessTurn2 handles the complete Turn2 processing
 // MODIFICATION START: added imageFormat parameter
-func (c *ClientTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+func (c *ClientTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.TurnResponse) (*schema.BedrockResponse, error) {
 	startTime := time.Now()
 
 	// Validate configuration

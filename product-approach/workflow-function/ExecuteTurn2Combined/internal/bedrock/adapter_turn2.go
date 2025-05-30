@@ -29,7 +29,7 @@ func NewAdapterTurn2(client *sharedBedrock.BedrockClient, cfg *config.Config, lo
 }
 
 // ConverseWithHistory handles Turn2 conversation with history from Turn1
-func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.TurnResponse) (*schema.BedrockResponse, error) {
 	startTime := time.Now()
 
 	// Validate inputs with detailed error context
@@ -88,21 +88,21 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 	// Normalize image format dynamically
 	format := sharedBedrock.NormalizeImageFormat(imageFormat)
 	a.log.Debug("image_format_normalized", map[string]interface{}{
-		"original_format": imageFormat,
+		"original_format":   imageFormat,
 		"normalized_format": format,
-		"operation": "bedrock_converse_with_history",
+		"operation":         "bedrock_converse_with_history",
 	})
 
 	// NOTE: As of version 2.1.2, Turn1 dependencies were removed from Turn2 processing
 	// Turn1 message is no longer used in Turn2 processing, but we handle it gracefully
 	turn1Message := ""
-	
+
 	// Handle nil Turn1Response gracefully - this is expected as of v2.1.2
 	if turn1Response != nil {
 		a.log.Debug("turn1_response_present", map[string]interface{}{
 			"operation": "bedrock_converse_with_history",
 		})
-		
+
 		if turn1Response.InitialConfirmation != "" {
 			turn1Message += turn1Response.InitialConfirmation + "\n\n"
 		}
@@ -117,7 +117,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 	} else {
 		a.log.Debug("turn1_response_nil", map[string]interface{}{
 			"operation": "bedrock_converse_with_history",
-			"message": "This is expected as of v2.1.2 which removed Turn1 dependencies",
+			"message":   "This is expected as of v2.1.2 which removed Turn1 dependencies",
 		})
 	}
 	// No default message when turn1Response is nil - Turn1 is not used in Turn2 processing
@@ -148,13 +148,13 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 			},
 		})
 		a.log.Debug("turn1_message_included", map[string]interface{}{
-			"operation": "bedrock_converse_with_history",
+			"operation":            "bedrock_converse_with_history",
 			"turn1_message_length": len(turn1Message),
 		})
 	} else {
 		a.log.Debug("turn1_message_skipped", map[string]interface{}{
 			"operation": "bedrock_converse_with_history",
-			"reason": "empty or whitespace-only content",
+			"reason":    "empty or whitespace-only content",
 		})
 	}
 
@@ -235,7 +235,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 	})
 
 	response, latencyMs, err := a.client.Converse(ctx, request)
-	
+
 	if err != nil {
 		// Enhanced error logging for debugging
 		a.log.Error("bedrock_converse_api_error", map[string]interface{}{
@@ -256,7 +256,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 				"context_error": ctx.Err().Error(),
 				"operation":     "bedrock_converse_with_history",
 			})
-			
+
 			return nil, errors.WrapError(ctx.Err(), errors.ErrorTypeBedrock,
 				"Bedrock API call context error: "+ctx.Err().Error(), true).
 				WithContext("model_id", a.cfg.AWS.BedrockModel).
@@ -274,11 +274,11 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 			WithContext("message_count", len(request.Messages)).
 			WithContext("max_tokens", a.cfg.Processing.MaxTokens)
 	}
-	
+
 	a.log.Info("bedrock_converse_api_call_success", map[string]interface{}{
-		"model_id":           a.cfg.AWS.BedrockModel,
-		"latency_ms":         latencyMs,
-		"operation":          "bedrock_converse_with_history",
+		"model_id":   a.cfg.AWS.BedrockModel,
+		"latency_ms": latencyMs,
+		"operation":  "bedrock_converse_with_history",
 	})
 
 	// Extract text content from response
@@ -312,7 +312,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 }
 
 // ProcessTurn2 handles the complete Turn2 processing
-func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
+func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.TurnResponse) (*schema.BedrockResponse, error) {
 	// Apply operational timeout using Processing config
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(a.cfg.Processing.BedrockCallTimeoutSec)*time.Second)
 	defer cancel()

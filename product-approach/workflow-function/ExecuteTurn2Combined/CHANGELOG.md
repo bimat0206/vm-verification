@@ -2,6 +2,22 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.7] - 2025-06-10 - Turn 1 Context Integration and Output Fixes
+
+### Added
+- `LoadTurn1SchemaResponse` to `S3StateManager` and implementation in `s3_turn2.go`.
+- `InputS3References` field on `Turn2Request` for carrying event references.
+- New `TurnConversationDataStore` struct for conversation storage.
+
+### Changed
+- `ConverseWithHistory` call chain now accepts `*schema.TurnResponse` to provide full Turn 1 context.
+- Conversation building uses `TurnConversationDataStore` and includes Turn 1 messages.
+- Step Function response builder preserves incoming S3 references and adds Turn 2 artifacts.
+
+### Fixed
+- Raw Turn 2 response now includes Bedrock `requestId` field.
+- Prompt generation and Bedrock invocation pass Turn 1 analysis correctly.
+
 ## [2.2.6] - 2025-05-30 - Critical Schema Compliance and Parser Enhancement
 
 ### 🚨 **Critical Bug Fixes: Output Schema Alignment**

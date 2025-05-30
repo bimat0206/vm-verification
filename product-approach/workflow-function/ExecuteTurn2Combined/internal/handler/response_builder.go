@@ -120,16 +120,21 @@ func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 ) *models.StepFunctionResponse {
 	tree := buildTurn2S3RefTree(req.S3Refs, promptRef, turn2Resp.S3Refs.RawResponse, turn2Resp.S3Refs.ProcessedResponse, convRef)
 
-	s3References := map[string]interface{}{
-		"processing_initialization": tree.Initialization,
-		"images_metadata":           tree.Images.Metadata,
-		"prompts_system":            tree.Prompts.SystemPrompt,
-		"responses": map[string]interface{}{
-			"turn2Raw":       tree.Responses.Turn2Raw,
-			"turn2Processed": tree.Responses.Turn2Processed,
-			"turn1Raw":       tree.Responses.Turn1Raw,
-			"turn1Processed": tree.Responses.Turn1Processed,
-		},
+	s3References := map[string]interface{}{}
+	// carry over all input references first
+	for k, v := range req.InputS3References {
+		s3References[k] = v
+	}
+
+	// overwrite / add updated turn2 references
+	s3References["prompts_system"] = tree.Prompts.SystemPrompt
+	s3References["processing_initialization"] = tree.Initialization
+	s3References["images_metadata"] = tree.Images.Metadata
+	s3References["responses"] = map[string]interface{}{
+		"turn2Raw":       tree.Responses.Turn2Raw,
+		"turn2Processed": tree.Responses.Turn2Processed,
+		"turn1Raw":       tree.Responses.Turn1Raw,
+		"turn1Processed": tree.Responses.Turn1Processed,
 	}
 
 	if tree.Prompts.Turn1Prompt.Key != "" {

@@ -362,6 +362,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			},
 		},
 		InputInitializationFileRef: initRef,
+		InputS3References:          event.S3References,
 	}
 
 	// Populate historical context S3 reference for PREVIOUS_VS_CURRENT
