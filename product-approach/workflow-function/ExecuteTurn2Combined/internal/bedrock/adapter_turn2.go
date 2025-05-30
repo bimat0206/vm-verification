@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
@@ -31,104 +32,182 @@ func NewAdapterTurn2(client *sharedBedrock.BedrockClient, cfg *config.Config, lo
 func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, turn2Prompt, base64Image, imageFormat string, turn1Response *schema.Turn1ProcessedResponse) (*schema.BedrockResponse, error) {
 	startTime := time.Now()
 
-	// Validate inputs
+	// Validate inputs with detailed error context
 	if systemPrompt == "" {
+		a.log.Error("bedrock_validation_error", map[string]interface{}{
+			"error":     "system prompt cannot be empty",
+			"operation": "bedrock_converse_with_history",
+		})
 		return nil, errors.NewValidationError(
 			"system prompt cannot be empty",
-			map[string]interface{}{"operation": "bedrock_converse_with_history"})
+			map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+				"component": "adapter_turn2",
+			})
 	}
 
 	if turn2Prompt == "" {
+		a.log.Error("bedrock_validation_error", map[string]interface{}{
+			"error":     "turn2 prompt cannot be empty",
+			"operation": "bedrock_converse_with_history",
+		})
 		return nil, errors.NewValidationError(
 			"turn2 prompt cannot be empty",
-			map[string]interface{}{"operation": "bedrock_converse_with_history"})
+			map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+				"component": "adapter_turn2",
+			})
 	}
 
 	if base64Image == "" {
+		a.log.Error("bedrock_validation_error", map[string]interface{}{
+			"error":     "base64 image cannot be empty",
+			"operation": "bedrock_converse_with_history",
+		})
 		return nil, errors.NewValidationError(
 			"base64 image cannot be empty",
-			map[string]interface{}{"operation": "bedrock_converse_with_history"})
+			map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+				"component": "adapter_turn2",
+			})
 	}
 
 	if imageFormat == "" {
+		a.log.Error("bedrock_validation_error", map[string]interface{}{
+			"error":     "image format cannot be empty",
+			"operation": "bedrock_converse_with_history",
+		})
 		return nil, errors.NewValidationError(
 			"image format cannot be empty",
-			map[string]interface{}{"operation": "bedrock_converse_with_history"})
+			map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+				"component": "adapter_turn2",
+			})
 	}
 
-	// MODIFICATION START: normalize image format dynamically
+	// Normalize image format dynamically
 	format := sharedBedrock.NormalizeImageFormat(imageFormat)
-	// MODIFICATION END
+	a.log.Debug("image_format_normalized", map[string]interface{}{
+		"original_format": imageFormat,
+		"normalized_format": format,
+		"operation": "bedrock_converse_with_history",
+	})
 
-	if turn1Response == nil {
-		return nil, errors.NewValidationError(
-			"turn1 response cannot be nil",
-			map[string]interface{}{"operation": "bedrock_converse_with_history"})
-	}
-
-	// Build Turn1 message from Turn1 response
+	// NOTE: As of version 2.1.2, Turn1 dependencies were removed from Turn2 processing
+	// Turn1 message is no longer used in Turn2 processing, but we handle it gracefully
 	turn1Message := ""
-	if turn1Response.InitialConfirmation != "" {
-		turn1Message += turn1Response.InitialConfirmation + "\n\n"
-	}
+	
+	// Handle nil Turn1Response gracefully - this is expected as of v2.1.2
+	if turn1Response != nil {
+		a.log.Debug("turn1_response_present", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+		})
+		
+		if turn1Response.InitialConfirmation != "" {
+			turn1Message += turn1Response.InitialConfirmation + "\n\n"
+		}
 
-	if turn1Response.MachineStructure != "" {
-		turn1Message += turn1Response.MachineStructure + "\n\n"
-	}
+		if turn1Response.MachineStructure != "" {
+			turn1Message += turn1Response.MachineStructure + "\n\n"
+		}
 
-	if turn1Response.ReferenceRowStatus != "" {
-		turn1Message += turn1Response.ReferenceRowStatus
+		if turn1Response.ReferenceRowStatus != "" {
+			turn1Message += turn1Response.ReferenceRowStatus
+		}
+	} else {
+		a.log.Debug("turn1_response_nil", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+			"message": "This is expected as of v2.1.2 which removed Turn1 dependencies",
+		})
 	}
+	// No default message when turn1Response is nil - Turn1 is not used in Turn2 processing
 
 	// Build request with conversation history using the correct types
-	request := &sharedBedrock.ConverseRequest{
-		ModelId: a.cfg.AWS.BedrockModel,
-		System:  systemPrompt,
-		Messages: []sharedBedrock.MessageWrapper{
-			{
-				Role: "user",
-				Content: []sharedBedrock.ContentBlock{
-					{
-						Type: "text",
-						Text: "[Turn 1] Please analyze this image.",
-					},
-				},
-			},
-			{
-				Role: "assistant",
-				Content: []sharedBedrock.ContentBlock{
-					{
-						Type: "text",
-						Text: turn1Message,
-					},
-				},
-			},
-			{
-				Role: "user",
-				Content: []sharedBedrock.ContentBlock{
-					{
-						Type: "text",
-						Text: "[Turn 2] " + turn2Prompt,
-					},
-					{
-						Type: "image",
-						// MODIFICATION START: use dynamic image format
-						Image: &sharedBedrock.ImageBlock{
-							Format: format,
-							Source: sharedBedrock.ImageSource{
-								Type:  "bytes",
-								Bytes: base64Image,
-							},
-						},
-						// MODIFICATION END
-					},
+	// Initialize messages array with first user message
+	messages := []sharedBedrock.MessageWrapper{
+		{
+			Role: "user",
+			Content: []sharedBedrock.ContentBlock{
+				{
+					Type: "text",
+					Text: "[Turn 1] Please analyze this image.",
 				},
 			},
 		},
+	}
+
+	// Only add assistant message if turn1Message has content to prevent empty text blocks
+	if strings.TrimSpace(turn1Message) != "" {
+		messages = append(messages, sharedBedrock.MessageWrapper{
+			Role: "assistant",
+			Content: []sharedBedrock.ContentBlock{
+				{
+					Type: "text",
+					Text: turn1Message,
+				},
+			},
+		})
+		a.log.Debug("turn1_message_included", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+			"turn1_message_length": len(turn1Message),
+		})
+	} else {
+		a.log.Debug("turn1_message_skipped", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+			"reason": "empty or whitespace-only content",
+		})
+	}
+
+	// Add final user message with Turn 2 prompt and image
+	messages = append(messages, sharedBedrock.MessageWrapper{
+		Role: "user",
+		Content: []sharedBedrock.ContentBlock{
+			{
+				Type: "text",
+				Text: "[Turn 2] " + turn2Prompt,
+			},
+			{
+				Type: "image",
+				// MODIFICATION START: use dynamic image format
+				Image: &sharedBedrock.ImageBlock{
+					Format: format,
+					Source: sharedBedrock.ImageSource{
+						Type:  "bytes",
+						Bytes: base64Image,
+					},
+				},
+				// MODIFICATION END
+			},
+		},
+	})
+
+	request := &sharedBedrock.ConverseRequest{
+		ModelId:  a.cfg.AWS.BedrockModel,
+		System:   systemPrompt,
+		Messages: messages,
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,
 			Temperature: &[]float64{0.7}[0], // Default temperature
 		},
+	}
+
+	// Validate request before sending to Bedrock
+	if err := sharedBedrock.ValidateConverseRequest(request); err != nil {
+		a.log.Error("bedrock_request_validation_failed", map[string]interface{}{
+			"error":              err.Error(),
+			"model_id":           a.cfg.AWS.BedrockModel,
+			"system_prompt_size": len(systemPrompt),
+			"turn2_prompt_size":  len(turn2Prompt),
+			"image_size":         len(base64Image),
+			"image_format":       format,
+			"message_count":      len(request.Messages),
+		})
+
+		return nil, errors.WrapError(err, errors.ErrorTypeValidation,
+			"Bedrock request validation failed", false).
+			WithContext("model_id", a.cfg.AWS.BedrockModel).
+			WithContext("operation", "bedrock_request_validation").
+			WithContext("image_format", format)
 	}
 
 	// Log request details
@@ -139,17 +218,68 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"turn2_prompt_size":  len(turn2Prompt),
 		"turn1_message_size": len(turn1Message),
 		"image_size":         len(base64Image),
+		"image_format":       format,
 		"message_count":      len(request.Messages),
 	})
 
 	// Invoke Bedrock (note: returns 3 values)
+	a.log.Info("bedrock_converse_api_call_start", map[string]interface{}{
+		"model_id":           a.cfg.AWS.BedrockModel,
+		"system_prompt_size": len(systemPrompt),
+		"turn2_prompt_size":  len(turn2Prompt),
+		"image_size":         len(base64Image),
+		"image_format":       format,
+		"message_count":      len(request.Messages),
+		"max_tokens":         a.cfg.Processing.MaxTokens,
+		"operation":          "bedrock_converse_with_history",
+	})
+
 	response, latencyMs, err := a.client.Converse(ctx, request)
+	
 	if err != nil {
+		// Enhanced error logging for debugging
+		a.log.Error("bedrock_converse_api_error", map[string]interface{}{
+			"error":              err.Error(),
+			"model_id":           a.cfg.AWS.BedrockModel,
+			"system_prompt_size": len(systemPrompt),
+			"turn2_prompt_size":  len(turn2Prompt),
+			"image_size":         len(base64Image),
+			"image_format":       format,
+			"message_count":      len(request.Messages),
+			"max_tokens":         a.cfg.Processing.MaxTokens,
+			"operation":          "bedrock_converse_with_history",
+		})
+
+		// Check for context cancellation or deadline exceeded
+		if ctx.Err() != nil {
+			a.log.Error("bedrock_context_error", map[string]interface{}{
+				"context_error": ctx.Err().Error(),
+				"operation":     "bedrock_converse_with_history",
+			})
+			
+			return nil, errors.WrapError(ctx.Err(), errors.ErrorTypeBedrock,
+				"Bedrock API call context error: "+ctx.Err().Error(), true).
+				WithContext("model_id", a.cfg.AWS.BedrockModel).
+				WithContext("operation", "bedrock_converse_with_history").
+				WithContext("image_format", format).
+				WithContext("message_count", len(request.Messages))
+		}
+
+		// Mark as retryable for most Bedrock errors
 		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
 			"failed to invoke Bedrock for Turn2", true).
 			WithContext("model_id", a.cfg.AWS.BedrockModel).
-			WithContext("operation", "bedrock_converse_with_history")
+			WithContext("operation", "bedrock_converse_with_history").
+			WithContext("image_format", format).
+			WithContext("message_count", len(request.Messages)).
+			WithContext("max_tokens", a.cfg.Processing.MaxTokens)
 	}
+	
+	a.log.Info("bedrock_converse_api_call_success", map[string]interface{}{
+		"model_id":           a.cfg.AWS.BedrockModel,
+		"latency_ms":         latencyMs,
+		"operation":          "bedrock_converse_with_history",
+	})
 
 	// Extract text content from response
 	textContent := sharedBedrock.ExtractTextFromResponse(response)

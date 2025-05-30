@@ -2,6 +2,163 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.5] - 2025-05-29 - Critical Bedrock Empty Text Content Fix
+
+### Fixed
+- **CRITICAL**: Fixed Bedrock API validation error "text content cannot be empty for text content block"
+- **FIXED**: Added conditional message inclusion to prevent empty assistant messages in conversation history
+- **ENHANCED**: Added thread-safe validation for Turn1 message content before adding to Bedrock request
+- **IMPROVED**: Added comprehensive logging for Turn1 message inclusion/exclusion decisions
+
+### Technical Details
+- **File**: `internal/bedrock/adapter_turn2.go`
+  - Added `strings` import for text validation
+  - Implemented conditional message building to skip empty Turn1 messages
+  - Added `strings.TrimSpace()` validation before including assistant messages
+  - Enhanced logging with `turn1_message_included` and `turn1_message_skipped` debug messages
+  - Restructured message array building to use dynamic append operations
+
+### Root Cause Analysis
+The issue was caused by creating empty text content blocks in the Bedrock API request:
+1. When `turn1Response` is nil (expected in v2.1.2), `turn1Message` remains empty
+2. The code was creating an assistant message with empty text content: `{Type: "text", Text: ""}`
+3. Bedrock API validation rejects requests with empty text content blocks
+4. This caused the error: "invalid message at index 1: invalid content block at index 0: text content cannot be empty"
+
+### Solution Implementation
+- **Conditional Message Building**: Only add assistant message if `turn1Message` has non-whitespace content
+- **Dynamic Array Construction**: Build messages array incrementally instead of static initialization
+- **Enhanced Validation**: Use `strings.TrimSpace()` to detect empty or whitespace-only content
+- **Comprehensive Logging**: Added debug logs to track message inclusion decisions
+
+### Compatibility
+- Maintains full backward compatibility with existing Turn2 processing flow
+- Properly handles both nil and non-nil Turn1Response scenarios
+- Aligns with v2.1.2 changes that removed Turn1 dependencies from Turn2
+- No breaking changes to external interfaces or message structure
+
+### Verification
+- ✅ Prevents "text content cannot be empty" Bedrock validation errors
+- ✅ Handles nil Turn1Response gracefully (expected in v2.1.2)
+- ✅ Maintains conversation history when Turn1 content is available
+- ✅ Provides clear logging for debugging message construction
+
+## [2.1.4] - 2025-05-30 - Critical Bedrock Interface Fix
+
+### Fixed
+- **CRITICAL**: Fixed interface mismatch between BedrockInvoker and BedrockServiceTurn2
+- **FIXED**: Updated BedrockInvoker to use ConverseWithHistory instead of Converse method
+- **FIXED**: Properly convert between schema.BedrockResponse and models.BedrockResponse
+- **ENHANCED**: Added comprehensive error handling and logging for Bedrock API calls
+- **IMPROVED**: Added context error detection for better timeout handling
+
+### Technical Details
+- **File**: `internal/handler/bedrock_invoker.go`
+  - Changed InvokeBedrock to use ConverseWithHistory method with imageFormat parameter
+  - Added proper conversion between schema.BedrockResponse and models.BedrockResponse
+  - Fixed error handling to include image format in error context
+  - Marked Bedrock errors as retryable for better resilience
+
+- **File**: `internal/bedrock/adapter_turn2.go`
+  - Enhanced error handling and logging for Bedrock API calls
+  - Added context error detection for better timeout handling
+  - Improved logging with operation context for better traceability
+  - Added nil Turn1Response handling to align with v2.1.2 changes
+
+### Root Cause Analysis
+The issue was caused by a mismatch between the interface used by BedrockInvoker and the actual implementation:
+1. BedrockInvoker was using the Converse method from BedrockService
+2. The actual implementation required ConverseWithHistory from BedrockServiceTurn2
+3. The response types between schema.BedrockResponse and models.BedrockResponse were incompatible
+4. The nil Turn1Response was not properly handled in the adapter
+
+### Compatibility
+- Maintains backward compatibility with existing Turn2 processing flow
+- Fully aligns with version 2.1.2 changes that removed Turn1 dependencies
+- No breaking changes to external interfaces
+
+## [2.1.3] - 2025-05-29 - Critical Bedrock Invocation Fix
+
+### Fixed
+- **CRITICAL**: Fixed Bedrock invocation failure caused by nil Turn1Response validation
+- **FIXED**: Updated BedrockInvoker to use BedrockServiceTurn2 interface instead of base BedrockService
+- **ENHANCED**: Improved error handling and logging in ConverseWithHistory method
+- **ADDED**: Request validation before Bedrock API calls to catch issues early
+- **UPDATED**: ConverseWithHistory to handle nil Turn1Response gracefully with default message
+
+### Technical Details
+- **File**: `internal/handler/bedrock_invoker.go`
+  - Changed BedrockInvoker to use BedrockServiceTurn2 interface
+  - Updated constructor to accept BedrockServiceTurn2 parameter
+  - This ensures compatibility with ConverseWithHistory method
+
+- **File**: `internal/bedrock/adapter_turn2.go`
+  - Removed strict validation requiring Turn1Response to be non-nil
+  - Removed Turn1 message usage entirely (aligns with v2.1.2 Turn1 dependency removal)
+  - Added comprehensive error logging for Bedrock API failures
+  - Added request validation before sending to Bedrock API
+  - Enhanced error context with image format and message count details
+
+### Root Cause Analysis
+The issue was caused by a mismatch between the service interface expectations:
+1. Turn2Handler was correctly using BedrockServiceTurn2.ConverseWithHistory()
+2. BedrockInvoker was using base BedrockService.Converse() interface
+3. ConverseWithHistory validation required non-nil Turn1Response
+4. Version 2.1.2 intentionally removed Turn1 loading, passing nil Turn1Response
+
+### Compatibility
+- Maintains backward compatibility with existing Turn2 processing flow
+- Fully aligns with version 2.1.2 changes that removed Turn1 dependencies
+- Turn1 messages are no longer used in Turn2 processing (as intended)
+- No breaking changes to external interfaces
+
+## [2.1.2] - 2025-05-29 - Removed Turn1 Loading Dependencies
+
+### Fixed
+- **CRITICAL**: Removed Turn1 loading dependencies from Turn2 processing path
+- **FIXED**: S3 bucket validation error by removing Turn1 data loading requirements
+- **REMOVED**: Turn1Response and Turn1RawResponse fields from LoadResult struct
+- **UPDATED**: LoadContextTurn2 to only load system prompt and checking image (2 concurrent operations)
+- **SIMPLIFIED**: Turn2 processing to use simple template instruction without Turn1 data
+- **ENHANCED**: Error handling to focus on checking image validation
+
+### Changed
+- **Context Loading**: Reduced from 4 to 2 concurrent operations (removed Turn1 processed and raw response loading)
+- **Template Generation**: Updated to pass nil for Turn1 data parameters
+- **Bedrock Invocation**: Updated to pass nil for Turn1Response parameter
+- **Log Messages**: Updated concurrent operations count from 4 to 2
+- **Function Comment**: Updated LoadContextTurn2 description to reflect simplified functionality
+
+### Technical Details
+- **File**: `internal/handler/context_loader.go`
+  - Removed Turn1Response and Turn1RawResponse from LoadResult struct
+  - Removed turn1Response and turn1RawResponse variables from LoadContextTurn2
+  - Removed two Turn1 loading goroutines
+  - Updated waitgroup from Add(4) to Add(2)
+  - Simplified final result assignment and logging
+
+- **File**: `internal/handler/turn2_handler.go`
+  - Updated GenerateTurn2PromptWithMetrics call to pass nil for Turn1 parameters
+  - Updated ConverseWithHistory call to pass nil for Turn1Response parameter
+  - Added comments explaining Turn1 data is no longer loaded
+
+### Root Cause
+The original error `ValidationException: S3 bucket required` was caused by the system attempting to load Turn1 data that wasn't available in the LAYOUT_VS_CHECKING verification type. Turn2 processing for this type should focus solely on comparing the checking image against the layout without requiring Turn1 analysis data.
+
+### Impact
+- ✅ Resolves S3 bucket validation errors in LAYOUT_VS_CHECKING flows
+- ✅ Simplifies Turn2 processing architecture
+- ✅ Reduces unnecessary S3 operations and improves performance
+- ✅ Maintains backward compatibility for existing Turn2 functionality
+
+## [2.1.1] - 2025-07-05 - Fixed S3 Storage in Turn2 Handler
+
+### Fixed
+- Fixed compilation errors in `turn2_handler.go` related to undefined variables
+- Replaced non-existent `h.storageManager.SaveTurn2Outputs()` call with direct S3 service calls
+- Removed references to undefined `envelope` variable
+- Added proper declaration of `processedRef` variable
+
 ## [2.1.0] - 2025-06-30 - Simplified Turn2 Processing
 
 ### Added

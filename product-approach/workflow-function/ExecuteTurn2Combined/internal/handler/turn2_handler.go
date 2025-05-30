@@ -101,8 +101,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		ctx,
 		vCtx,
 		loadResult.SystemPrompt,
-		loadResult.Turn1Response,
-		loadResult.Turn1RawResponse,
+		nil, // Turn1Response no longer loaded
+		nil, // Turn1RawResponse no longer loaded
 	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
@@ -137,7 +137,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		prompt,
 		loadResult.Base64Image,
 		loadResult.ImageFormat,
-		loadResult.Turn1Response,
+		nil, // Turn1Response no longer loaded
 	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
@@ -218,8 +218,17 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		refinedSummary = parsedData.ComparisonSummary
 	}
 
-	// Store raw and processed Turn2 outputs using envelope-based manager
-	rawResponseRef, processedRef, err = h.storageManager.SaveTurn2Outputs(ctx, envelope, rawBytes, parsedData)
+	// Store raw and processed Turn2 outputs
+	var processedRef models.S3Reference
+	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, rawBytes)
+	if err != nil {
+		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
+	}
+	
+	processedRef, err = h.s3.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
 	if err != nil {
 		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
 			"error":           err.Error(),
