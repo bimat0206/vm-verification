@@ -180,6 +180,14 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 		return nil, storageResult.Error
 	}
 	h.recordStorageSuccess(storageResult)
+	
+	// Store conversation with complete schema compliance
+	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
+	if convErr != nil {
+		h.log.Warn("failed to store conversation", map[string]interface{}{
+			"error": convErr.Error(),
+		})
+	}
 
 	// STAGE 6: Store prompt
 	promptStart := time.Now()
@@ -358,26 +366,8 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{"error": parseErr.Error()})
 	}
 
-	// Build conversation history messages
-	messages := []map[string]interface{}{
-		{
-			"role":    "system",
-			"content": []map[string]interface{}{{"type": "text", "text": loadResult.SystemPrompt}},
-		},
-		{
-			"role": "user",
-			"content": []map[string]interface{}{
-				{"type": "text", "text": promptResult.Prompt},
-				{"type": "image_base64", "text": loadResult.Base64Image},
-			},
-		},
-		{
-			"role":    "assistant",
-			"content": []map[string]interface{}{{"type": "text", "text": bedrockTextOutput}},
-		},
-	}
-
-	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, messages)
+	// Store conversation with complete schema compliance
+	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
 	if convErr != nil {
 		return nil, convErr
 	}
@@ -441,7 +431,15 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		turn1MetricsForDB = processingMetrics.Turn1
 	}
 
-	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef)
+	// Store conversation with complete schema compliance (second call for step function)
+	convRef, convErr = h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
+	if convErr != nil {
+		h.log.Warn("failed to store conversation", map[string]interface{}{
+			"error": convErr.Error(),
+		})
+	}
+	
+	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef, &convRef)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{

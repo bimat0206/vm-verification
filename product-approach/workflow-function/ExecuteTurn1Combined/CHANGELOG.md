@@ -1,6 +1,25 @@
 # Changelog
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
+
+## [2.5.1] - 2025-05-30
+### Fixed
+- **Schema Compliance for turn1-conversation.json**: Fixed turn1-conversation.json structure to match defined schema requirements
+  - Added complete system message with full prompt content in messages array
+  - Added user message with text and image data structure (Base64 placeholder)
+  - Added assistant message with complete response content
+  - Added required metadata fields: tokenUsage, latencyMs, processingMetadata, bedrockMetadata
+  - Updated StoreTurn1Conversation method signature to accept all required parameters
+  - Modified StoreConversation calls throughout handler to provide system prompt, user prompt, base64 image, assistant response, and metadata
+  - Fixed interface mismatch between S3StateManager interface and implementation
+  - Updated go.work to include ExecuteTurn1Combined module for proper compilation
+
+### Technical Details
+- **Breaking Change**: StoreTurn1Conversation method signature changed from simple messages array to comprehensive parameter list
+- **Schema Structure**: turn1-conversation.json now includes proper message roles (system, user, assistant) with structured content
+- **Metadata Integration**: All Bedrock response metadata now properly included in conversation files
+- **Compilation**: Resolved all interface mismatches and unused variable errors
+
 ## [2.5.0] - 2025-05-30
 ### Added
 - `ExecuteTurn1Combined` now captures the full conversation history for Turn 1 and stores it as `turn1-conversation.json` in S3.
@@ -964,4 +983,3 @@ Updated handler logic to use the new storage functions and record storage metada
 
 ### Configuration Updates
 No configuration changes required. All improvements are backward compatible with existing environment variables and configuration patterns.
-

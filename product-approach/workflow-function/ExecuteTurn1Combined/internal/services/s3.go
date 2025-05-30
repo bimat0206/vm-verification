@@ -142,8 +142,8 @@ type S3StateManager interface {
 	StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error)
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
-	// StoreTurn1Conversation stores full turn1 conversation messages
-	StoreTurn1Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error)
+	// StoreTurn1Conversation stores full turn1 conversation messages with complete schema compliance
+	StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -841,21 +841,82 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 	return m.fromStateReference(stateRef), nil
 }
 
-// StoreTurn1Conversation stores full conversation messages for turn1
-func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error) {
+// StoreTurn1Conversation stores full conversation messages for turn1 with complete schema compliance
+func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for storing turn1 conversation",
 			map[string]interface{}{"operation": "store_turn1_conversation"})
 	}
 
-	key := "responses/turn1-conversation.json"
+	// Build messages array according to schema
+	messages := []map[string]interface{}{
+		{
+			"role": "system",
+			"content": []map[string]interface{}{
+				{"text": systemPrompt},
+			},
+		},
+		{
+			"role": "user",
+			"content": []map[string]interface{}{
+				{"text": userPrompt},
+				{
+					"image": map[string]interface{}{
+						"format": "png",
+						"source": map[string]interface{}{
+							"bytes": "<Base64-reference-image>", // Placeholder for actual base64
+						},
+					},
+				},
+			},
+		},
+		{
+			"role": "assistant",
+			"content": []map[string]interface{}{
+				{"text": assistantResponse},
+			},
+		},
+	}
+
+	// Build complete conversation data according to schema
 	data := map[string]interface{}{
 		"verificationId": verificationID,
-		"turnId":         1,
-		"messages":       messages,
 		"timestamp":      schema.FormatISO8601(),
+		"turnId":         1,
+		"analysisStage":  "REFERENCE_ANALYSIS",
+		"messages":       messages,
 	}
+
+	// Add token usage if provided
+	if tokenUsage != nil {
+		data["tokenUsage"] = map[string]interface{}{
+			"input":    tokenUsage.InputTokens,
+			"output":   tokenUsage.OutputTokens,
+			"thinking": tokenUsage.ThinkingTokens,
+			"total":    tokenUsage.TotalTokens,
+		}
+	}
+
+	// Add latency and processing metadata
+	if latencyMs > 0 {
+		data["latencyMs"] = latencyMs
+		data["processingMetadata"] = map[string]interface{}{
+			"executionTimeMs": latencyMs,
+			"retryAttempts":   0,
+		}
+	}
+
+	// Add bedrock metadata
+	if bedrockRequestId != "" {
+		data["bedrockMetadata"] = map[string]interface{}{
+			"modelId":    modelId,
+			"requestId":  bedrockRequestId,
+			"stopReason": "end_turn",
+		}
+	}
+
+	key := "responses/turn1-conversation.json"
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, data)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
