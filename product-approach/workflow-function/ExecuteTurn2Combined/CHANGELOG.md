@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.5] - 2025-05-30 - Store Turn 2 Conversation
+### Added
+- Stored `turn2-conversation.json` capturing the full conversation after Turn 2.
+- DynamoDB and Step Function output now reference the Turn 2 conversation file.
+
 ## [2.2.4] - 2025-05-29 - Add Turn 2 Prompt Reference
 ### Added
 - Persisted Turn 2 prompt to S3 using `SaveToEnvelope` under `prompts/turn2-prompt.json`.

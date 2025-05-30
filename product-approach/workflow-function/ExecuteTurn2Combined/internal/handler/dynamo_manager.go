@@ -27,6 +27,7 @@ type Turn2Result struct {
 	VerificationStatus string
 	Discrepancies      []schema.Discrepancy
 	ComparisonSummary  string
+	ConversationRef    *models.S3Reference
 }
 
 // NewDynamoManager creates a DynamoManager instance.
@@ -94,7 +95,7 @@ func (d *DynamoManager) UpdateTurn2Completion(ctx context.Context, res Turn2Resu
 		dynamoOK = false
 	}
 
-	if err := d.dynamo.UpdateTurn2CompletionDetails(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry, res.Metrics, res.VerificationStatus, res.Discrepancies, res.ComparisonSummary); err != nil {
+	if err := d.dynamo.UpdateTurn2CompletionDetails(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry, res.Metrics, res.VerificationStatus, res.Discrepancies, res.ComparisonSummary, res.ConversationRef); err != nil {
 		d.log.Warn("dynamodb update turn2 completion details failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),

@@ -38,7 +38,7 @@ type DynamoDBService interface {
 	// Turn1 completion update storing metrics and processed markdown reference
 	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference, conversationRef *models.S3Reference) error
 	// Turn2 completion update storing metrics and comparison details
-	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string) error
+	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string, conversationRef *models.S3Reference) error
 
 	// Real-time status tracking methods
 	InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error
@@ -698,6 +698,7 @@ func (d *dynamoClient) UpdateTurn2CompletionDetails(
 	verificationStatus string,
 	discrepancies []schema.Discrepancy,
 	comparisonSummary string,
+	conversationRef *models.S3Reference,
 ) error {
 	if verificationID == "" || verificationAt == "" {
 		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
@@ -742,6 +743,15 @@ func (d *dynamoClient) UpdateTurn2CompletionDetails(
 				"failed to marshal comparison summary", false)
 		}
 		update = update.Set(expression.Name("verificationSummary"), expression.Value(avSummary))
+	}
+
+	if conversationRef != nil && conversationRef.Key != "" {
+		avConv, err := attributevalue.MarshalMap(conversationRef)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal conversation ref", true)
+		}
+		update = update.Set(expression.Name("turn2ConversationRef"), expression.Value(avConv))
 	}
 
 	builder := expression.NewBuilder().WithUpdate(update)

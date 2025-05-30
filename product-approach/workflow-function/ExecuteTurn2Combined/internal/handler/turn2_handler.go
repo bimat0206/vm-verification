@@ -59,7 +59,7 @@ func NewTurn2Handler(
 }
 
 // ProcessTurn2Request handles the complete Turn2 processing flow
-func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn2Request) (*models.Turn2Response, error) {
+func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn2Request) (*models.Turn2Response, models.S3Reference, error) {
 	startTime := time.Now()
 	h.log.Info("turn2_processing_started", map[string]interface{}{
 		"verification_id":    req.VerificationID,
@@ -67,6 +67,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		"checking_image_key": req.S3Refs.Images.CheckingBase64.Key,
 		"turn1_response_key": req.S3Refs.Turn1.ProcessedResponse.Key,
 	})
+
+	var convRef models.S3Reference
 
 	// Load context (system prompt, checking image, Turn1 results)
 	loadResult := h.contextLoader.LoadContextTurn2(ctx, req)
@@ -83,7 +85,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
-		return nil, wfErr
+		return nil, models.S3Reference{}, wfErr
 	}
 
 	// Create verification context
@@ -117,7 +119,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "prompt_generation", startTime)
-		return nil, wfErr
+		return nil, models.S3Reference{}, wfErr
 	}
 
 	// Store prompt processor metrics
@@ -152,7 +154,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "bedrock_invocation", startTime)
-		return nil, wfErr
+		return nil, models.S3Reference{}, wfErr
 	}
 
 	rawBytes, _ := json.Marshal(bedrockResponse)
@@ -175,7 +177,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
-		return nil, wfErr
+		return nil, models.S3Reference{}, wfErr
 	}
 
 	// Store markdown response
@@ -186,6 +188,34 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verification_id": req.VerificationID,
 		})
 		// Non-critical error, continue processing
+	}
+
+	// Build and store conversation history
+	bedrockTextOutput := markdownResponse.ComparisonMarkdown
+	messages := []map[string]interface{}{
+		{
+			"role":    "system",
+			"content": []map[string]interface{}{{"type": "text", "text": loadResult.SystemPrompt}},
+		},
+		{
+			"role": "user",
+			"content": []map[string]interface{}{
+				{"type": "text", "text": prompt},
+				{"type": "image_base64", "text": loadResult.Base64Image},
+			},
+		},
+		{
+			"role":    "assistant",
+			"content": []map[string]interface{}{{"type": "text", "text": bedrockTextOutput}},
+		},
+	}
+
+	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, messages)
+	if convErr != nil {
+		h.log.Warn("failed_to_store_conversation", map[string]interface{}{
+			"error":           convErr.Error(),
+			"verification_id": req.VerificationID,
+		})
 	}
 
 	// Parse structured data from response
@@ -203,7 +233,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
-		return nil, wfErr
+		return nil, models.S3Reference{}, wfErr
 	}
 
 	// Interpret discrepancies with business rules
@@ -227,7 +257,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verification_id": req.VerificationID,
 		})
 	}
-	
+
 	processedRef, err = h.s3.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
 	if err != nil {
 		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
@@ -361,6 +391,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		VerificationStatus: finalStatus,
 		Discrepancies:      discrepancies,
 		ComparisonSummary:  refinedSummary,
+		ConversationRef:    &convRef,
 	})
 	if !dynamoOK {
 		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
@@ -380,7 +411,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	response.Summary.ConversationCompleted = &conversationCompleted
 	response.Summary.DynamodbUpdated = &dynamoUpdated
 
-	return response, nil
+	return response, convRef, nil
 }
 
 // interpretDiscrepancies applies business rules to refine verification outcome
@@ -581,7 +612,7 @@ func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Tu
 		"layout_id":         req.VerificationContext.LayoutId,
 	})
 
-	turn2Resp, err := h.ProcessTurn2Request(ctx, req)
+	turn2Resp, convRef, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		contextLogger.Error("turn2_processing_failed", map[string]interface{}{
 			"error": err.Error(),
@@ -590,7 +621,7 @@ func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Tu
 	}
 
 	builder := NewResponseBuilder(h.cfg)
-	stepFunctionResp := builder.BuildTurn2StepFunctionResponse(req, turn2Resp)
+	stepFunctionResp := builder.BuildTurn2StepFunctionResponse(req, turn2Resp, convRef)
 
 	duration := time.Since(startTime)
 	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{

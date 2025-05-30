@@ -246,3 +246,27 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 
 	return m.fromStateReference(stateRef), nil
 }
+
+// StoreTurn2Conversation stores full conversation messages for turn2
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing turn2 conversation",
+			map[string]interface{}{"operation": "store_turn2_conversation"})
+	}
+
+	key := "responses/turn2-conversation.json"
+	data := map[string]interface{}{
+		"verificationId": verificationID,
+		"turnId":         2,
+		"messages":       messages,
+		"timestamp":      schema.FormatISO8601(),
+	}
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, data)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store turn2 conversation", true).
+			WithContext("verification_id", verificationID)
+	}
+	return m.fromStateReference(stateRef), nil
+}

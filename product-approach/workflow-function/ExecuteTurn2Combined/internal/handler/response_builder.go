@@ -22,7 +22,7 @@ func NewResponseBuilder(cfg config.Config) *ResponseBuilder {
 func (r *ResponseBuilder) BuildCombinedTurn2Response(
 	req *models.Turn2Request,
 	renderedPrompt string,
-	promptRef, rawRef, procRef models.S3Reference,
+	promptRef, rawRef, procRef, convRef models.S3Reference,
 	invoke *schema.BedrockResponse,
 	stages []schema.ProcessingStage,
 	totalDurationMs int64,
@@ -63,7 +63,7 @@ func (r *ResponseBuilder) BuildCombinedTurn2Response(
 	}
 
 	// Build S3 reference tree for Turn2
-	s3RefTree := buildTurn2S3RefTree(req.S3Refs, promptRef, rawRef, procRef)
+	s3RefTree := buildTurn2S3RefTree(req.S3Refs, promptRef, rawRef, procRef, convRef)
 
 	// Build context enrichment with schema version and other required fields
 	contextEnrichment := map[string]interface{}{
@@ -115,6 +115,7 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 	req *models.Turn2Request,
 	turn2Resp *models.Turn2Response,
+	convRef models.S3Reference,
 ) *models.StepFunctionResponse {
 	s3References := map[string]interface{}{
 		"prompts_system":  req.S3Refs.Prompts.System,
@@ -125,6 +126,10 @@ func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 			"turn1Raw":       req.S3Refs.Turn1.RawResponse,
 			"turn1Processed": req.S3Refs.Turn1.ProcessedResponse,
 		},
+	}
+
+	if convRef.Key != "" {
+		s3References["conversation"] = map[string]interface{}{"turn2": convRef}
 	}
 
 	if req.S3Refs.Processing.LayoutMetadata.Key != "" {
