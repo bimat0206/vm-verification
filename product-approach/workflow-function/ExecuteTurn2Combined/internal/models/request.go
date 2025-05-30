@@ -38,7 +38,8 @@ type Turn2ImageRefs struct {
 
 // PromptRefs holds S3 locations for prompt artifacts.
 type PromptRefs struct {
-	System S3Reference `json:"system"` // system-prompt.json
+	System      S3Reference `json:"system"` // system-prompt.json
+	Turn2Prompt S3Reference `json:"turn2Prompt"`
 }
 
 // ImageRefs holds S3 locations for image artifacts.
