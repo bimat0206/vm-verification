@@ -150,11 +150,18 @@ func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 		},
 		"bedrockRequestId": turn2Resp.Summary.BedrockRequestID,
 	}
-	if turn2Resp.Summary.DiscrepanciesFound != nil {
-		summaryMap["discrepanciesFound"] = *turn2Resp.Summary.DiscrepanciesFound
+	summaryMap["discrepanciesFound"] = turn2Resp.Summary.DiscrepanciesFound
+	summaryMap["dynamodbUpdated"] = turn2Resp.Summary.DynamodbUpdated
+	summaryMap["comparisonCompleted"] = turn2Resp.Summary.ComparisonCompleted
+	summaryMap["conversationCompleted"] = turn2Resp.Summary.ConversationCompleted
+	if turn2Resp.Summary.VerificationType != "" {
+		summaryMap["verificationType"] = turn2Resp.Summary.VerificationType
 	}
-	if turn2Resp.Summary.DynamodbUpdated != nil {
-		summaryMap["dynamodbUpdated"] = *turn2Resp.Summary.DynamodbUpdated
+	if turn2Resp.Summary.BedrockLatencyMs > 0 {
+		summaryMap["bedrockLatencyMs"] = turn2Resp.Summary.BedrockLatencyMs
+	}
+	if turn2Resp.Summary.S3StorageCompleted {
+		summaryMap["s3StorageCompleted"] = turn2Resp.Summary.S3StorageCompleted
 	}
 
 	return &models.StepFunctionResponse{

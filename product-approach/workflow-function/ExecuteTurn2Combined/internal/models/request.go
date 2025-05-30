@@ -9,7 +9,7 @@ package models
 type Turn2Request struct {
 	VerificationID      string              `json:"verificationId"`
 	VerificationContext VerificationContext `json:"verificationContext"`
-	S3Refs              Turn2RequestS3Refs  `json:"s3Refs"`
+	S3Refs              Turn2RequestS3Refs  `json:"s3References"`
 	// InputInitializationFileRef stores the S3 location of the initialization.json
 	// that was used to create this request. It is not part of the incoming
 	// JSON payload but is populated internally for status updates.
@@ -64,16 +64,17 @@ type Turn2ResponseS3Refs struct {
 
 // Summary contains metrics and identifiers for the execution.
 type Summary struct {
-	AnalysisStage    ExecutionStage `json:"analysisStage"`
-	ProcessingTimeMs int64          `json:"processingTimeMs"`
-	TokenUsage       TokenUsage     `json:"tokenUsage"`
-	BedrockRequestID string         `json:"bedrockRequestId"`
-	// Additional fields aligned with expected Turn2 output structure
-	DiscrepanciesFound    *int   `json:"discrepanciesFound,omitempty"`
-	VerificationOutcome   string `json:"verificationOutcome,omitempty"`
-	ComparisonCompleted   *bool  `json:"comparisonCompleted,omitempty"`
-	ConversationCompleted *bool  `json:"conversationCompleted,omitempty"`
-	DynamodbUpdated       *bool  `json:"dynamodbUpdated,omitempty"`
+	AnalysisStage         ExecutionStage `json:"analysisStage"`
+	VerificationType      string         `json:"verificationType,omitempty"`
+	ProcessingTimeMs      int64          `json:"processingTimeMs"`
+	TokenUsage            TokenUsage     `json:"tokenUsage"`
+	BedrockLatencyMs      int64          `json:"bedrockLatencyMs,omitempty"`
+	BedrockRequestID      string         `json:"bedrockRequestId"`
+	DiscrepanciesFound    int            `json:"discrepanciesFound"`
+	ComparisonCompleted   bool           `json:"comparisonCompleted"`
+	ConversationCompleted bool           `json:"conversationCompleted"`
+	DynamodbUpdated       bool           `json:"dynamodbUpdated"`
+	S3StorageCompleted    bool           `json:"s3StorageCompleted,omitempty"`
 }
 
 // Discrepancy represents a single discrepancy found during verification.
@@ -90,7 +91,7 @@ type Discrepancy struct {
 
 // Turn2Response is the output payload from ExecuteTurn2Combined.
 type Turn2Response struct {
-	S3Refs              Turn2ResponseS3Refs `json:"s3Refs"`
+	S3Refs              Turn2ResponseS3Refs `json:"s3References"`
 	Status              VerificationStatus  `json:"status"`
 	Summary             Summary             `json:"summary"`
 	Discrepancies       []Discrepancy       `json:"discrepancies"`

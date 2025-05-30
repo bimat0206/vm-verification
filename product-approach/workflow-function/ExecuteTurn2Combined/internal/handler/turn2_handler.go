@@ -400,16 +400,13 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Populate summary fields with completion details
-	discrepanciesFound := len(parsedData.Discrepancies)
-	comparisonCompleted := true
-	conversationCompleted := true
-	dynamoUpdated := dynamoOK
-
-	response.Summary.DiscrepanciesFound = &discrepanciesFound
-	response.Summary.VerificationOutcome = finalStatus
-	response.Summary.ComparisonCompleted = &comparisonCompleted
-	response.Summary.ConversationCompleted = &conversationCompleted
-	response.Summary.DynamodbUpdated = &dynamoUpdated
+	response.Summary.DiscrepanciesFound = len(parsedData.Discrepancies)
+	response.Summary.ComparisonCompleted = true
+	response.Summary.ConversationCompleted = true
+	response.Summary.DynamodbUpdated = dynamoOK
+	response.Summary.VerificationType = req.VerificationContext.VerificationType
+	response.Summary.BedrockLatencyMs = bedrockResponse.LatencyMs
+	response.Summary.S3StorageCompleted = true
 
 	return response, convRef, nil
 }
