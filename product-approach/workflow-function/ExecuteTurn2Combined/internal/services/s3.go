@@ -143,7 +143,7 @@ type S3StateManager interface {
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	// StoreTurn2Conversation stores full conversation messages for turn2
-	StoreTurn2Conversation(ctx context.Context, verificationID string, data *Turn2ConversationData) (models.S3Reference, error)
+	StoreTurn2Conversation(ctx context.Context, verificationID string, data *TurnConversationDataStore) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -151,6 +151,8 @@ type S3StateManager interface {
 	// Turn1 specific loaders used by ExecuteTurn2Combined
 	LoadTurn1ProcessedResponse(ctx context.Context, ref models.S3Reference) (*schema.Turn1ProcessedResponse, error)
 	LoadTurn1RawResponse(ctx context.Context, ref models.S3Reference) (json.RawMessage, error)
+	// LoadTurn1SchemaResponse loads the raw Turn1 response into schema.TurnResponse
+	LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference) (*schema.TurnResponse, error)
 
 	// Turn2 specific storage helpers
 	StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)

@@ -10,6 +10,9 @@ type Turn2Request struct {
 	VerificationID      string              `json:"verificationId"`
 	VerificationContext VerificationContext `json:"verificationContext"`
 	S3Refs              Turn2RequestS3Refs  `json:"s3References"`
+	// InputS3References preserves all incoming S3 references from the Step
+	// Function event so they can be carried over to the output state
+	InputS3References map[string]interface{} `json:"-"`
 	// InputInitializationFileRef stores the S3 location of the initialization.json
 	// that was used to create this request. It is not part of the incoming
 	// JSON payload but is populated internally for status updates.

@@ -12,8 +12,8 @@ import (
 	"workflow-function/shared/schema"
 )
 
-// Turn2ConversationData represents the stored conversation format for turn2
-type Turn2ConversationData struct {
+// TurnConversationDataStore represents the stored conversation format for a turn
+type TurnConversationDataStore struct {
 	VerificationId     string                  `json:"verificationId"`
 	Timestamp          string                  `json:"timestamp"`
 	TurnId             int                     `json:"turnId"`
@@ -169,6 +169,33 @@ func (m *s3Manager) LoadTurn1RawResponse(ctx context.Context, ref models.S3Refer
 	return raw, nil
 }
 
+// LoadTurn1SchemaResponse loads the raw Turn1 response and unmarshals it into schema.TurnResponse
+func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference) (*schema.TurnResponse, error) {
+	raw, err := m.LoadTurn1RawResponse(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp schema.TurnResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		m.logger.Error("turn1_schema_unmarshal_failed", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": ref.Bucket,
+			"key":    ref.Key,
+		})
+		return nil, &errors.WorkflowError{
+			Type:      errors.ErrorTypeValidation,
+			Code:      "BadTurn1SchemaResponse",
+			Message:   fmt.Sprintf("failed to parse Turn1 raw response: %v", err),
+			Retryable: false,
+			Severity:  errors.ErrorSeverityCritical,
+			APISource: errors.APISourceUnknown,
+			Timestamp: time.Now(),
+		}
+	}
+	return &resp, nil
+}
+
 // StoreTurn2Response stores the Turn2 response
 func (m *s3Manager) StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error) {
 	if verificationID == "" {
@@ -261,7 +288,7 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 }
 
 // StoreTurn2Conversation stores full conversation messages for turn2
-func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, data *Turn2ConversationData) (models.S3Reference, error) {
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, data *TurnConversationDataStore) (models.S3Reference, error) {
 	if verificationID == "" || data == nil {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID and conversation data required",

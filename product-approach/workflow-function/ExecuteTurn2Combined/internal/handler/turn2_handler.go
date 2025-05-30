@@ -90,6 +90,28 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
+	// Load Turn1 raw response for Bedrock history
+	var loadedTurn1Response *schema.TurnResponse
+	if req.S3Refs.Turn1.RawResponse.Key != "" {
+		var err error
+		loadedTurn1Response, err = h.s3.LoadTurn1SchemaResponse(ctx, req.S3Refs.Turn1.RawResponse)
+		if err != nil {
+			wfErr := errors.WrapError(err, errors.ErrorTypeS3,
+				"failed to load Turn1 raw response", true).
+				WithContext("verification_id", req.VerificationID).
+				WithContext("stage", "context_loading")
+			h.log.Error("turn1_raw_load_failed", map[string]interface{}{
+				"error_type": string(wfErr.Type),
+				"error_code": wfErr.Code,
+				"message":    wfErr.Message,
+				"retryable":  wfErr.Retryable,
+				"severity":   string(wfErr.Severity),
+			})
+			h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
+			return nil, models.S3Reference{}, models.S3Reference{}, wfErr
+		}
+	}
+
 	// Create verification context
 	vCtx := &schema.VerificationContext{
 		VerificationId:   req.VerificationID,
@@ -105,8 +127,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		ctx,
 		vCtx,
 		loadResult.SystemPrompt,
-		nil, // Turn1Response no longer loaded
-		nil, // Turn1RawResponse no longer loaded
+		loadedTurn1Response,
+		nil,
 	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
@@ -150,7 +172,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		prompt,
 		loadResult.Base64Image,
 		loadResult.ImageFormat,
-		nil, // Turn1Response no longer loaded
+		loadedTurn1Response,
 	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
@@ -178,7 +200,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			Content:    bedrockResponse.Content,
 			StopReason: bedrockResponse.CompletionReason,
 			ModelId:    bedrockResponse.ModelId,
-			// RequestId field removed as it's not available in BedrockResponse
+			RequestId:  bedrockResponse.RequestId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
@@ -191,7 +213,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verificationId":   req.VerificationID,
 			"verificationType": req.VerificationContext.VerificationType,
 			"bedrockMetadata": map[string]interface{}{
-				"modelId":    bedrockResponse.ModelId,
+				"modelId": bedrockResponse.ModelId,
 				// "requestId" field removed as it's not available in BedrockResponse
 				"stopReason": bedrockResponse.CompletionReason,
 			},
@@ -290,7 +312,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	messages = append(messages, turn1Messages...)
 	messages = append(messages, userMsg, assistantMsg)
 
-	convData := &services.Turn2ConversationData{
+	convData := &services.TurnConversationDataStore{
 		VerificationId: req.VerificationID,
 		Timestamp:      schema.FormatISO8601(),
 		TurnId:         2,
@@ -307,7 +329,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"retryAttempts":   0,
 		},
 		BedrockMetadata: map[string]interface{}{
-			"modelId":    bedrockResponse.ModelId,
+			"modelId": bedrockResponse.ModelId,
 			// "requestId" field removed as it's not available in BedrockResponse
 			"stopReason": bedrockResponse.CompletionReason,
 		},
@@ -475,7 +497,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		Response: schema.BedrockApiResponse{
 			Content:   bedrockResponse.Content,
 			ModelId:   bedrockResponse.ModelId,
-			RequestId: "",
+			RequestId: bedrockResponse.RequestId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{

@@ -92,7 +92,7 @@ type PromptResult struct {
 }
 
 // generateTurn2Prompt generates the Turn2 prompt with Turn1 context
-func (h *Turn2Handler) generateTurn2Prompt(ctx context.Context, req *models.Turn2Request, systemPrompt string, turn1Response *schema.Turn1ProcessedResponse, turn1RawResponse []byte) *PromptResult {
+func (h *Turn2Handler) generateTurn2Prompt(ctx context.Context, req *models.Turn2Request, systemPrompt string, turn1Response *schema.TurnResponse, turn1RawResponse []byte) *PromptResult {
 	startTime := time.Now()
 
 	// Create verification context for Turn2
