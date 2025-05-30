@@ -282,7 +282,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	}
 
 	// STRATEGIC STAGE 5: Extract Turn1 response references from nested structure
-	var turn1ProcessedRef, turn1RawRef models.S3Reference
+	var turn1ProcessedRef, turn1RawRef, turn1ConvRef models.S3Reference
 
 	// Check if responses are nested under "responses" key
 	if responsesMap, ok := event.S3References["responses"]; ok {
@@ -296,6 +296,17 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			if turn1Raw, exists := responsesData["turn1Raw"]; exists {
 				if rawRef, ok := turn1Raw.(models.S3Reference); ok {
 					turn1RawRef = rawRef
+				}
+			}
+		}
+	}
+
+	// Extract conversation.turn1 reference if provided
+	if convMap, ok := event.S3References["conversation"]; ok {
+		if convData, ok := convMap.(map[string]interface{}); ok {
+			if turn1Conv, exists := convData["turn1"]; exists {
+				if convRef, ok := convertToS3Reference(turn1Conv); ok {
+					turn1ConvRef = convRef
 				}
 			}
 		}
@@ -347,6 +358,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			Turn1: models.Turn1References{
 				ProcessedResponse: turn1ProcessedRef,
 				RawResponse:       turn1RawRef,
+				Conversation:      turn1ConvRef,
 			},
 		},
 		InputInitializationFileRef: initRef,

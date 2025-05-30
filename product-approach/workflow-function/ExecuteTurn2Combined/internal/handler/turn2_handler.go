@@ -11,6 +11,7 @@ import (
 	"workflow-function/ExecuteTurn2Combined/internal/config"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
 	"workflow-function/ExecuteTurn2Combined/internal/services"
+	bedrock "workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
@@ -59,7 +60,7 @@ func NewTurn2Handler(
 }
 
 // ProcessTurn2Request handles the complete Turn2 processing flow
-func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn2Request) (*models.Turn2Response, models.S3Reference, error) {
+func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn2Request) (*models.Turn2Response, models.S3Reference, models.S3Reference, error) {
 	startTime := time.Now()
 	h.log.Info("turn2_processing_started", map[string]interface{}{
 		"verification_id":    req.VerificationID,
@@ -69,6 +70,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	})
 
 	var convRef models.S3Reference
+	var promptRef models.S3Reference
 
 	// Load context (system prompt, checking image, Turn1 results)
 	loadResult := h.contextLoader.LoadContextTurn2(ctx, req)
@@ -85,7 +87,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
-		return nil, models.S3Reference{}, wfErr
+		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
 	// Create verification context
@@ -119,7 +121,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "prompt_generation", startTime)
-		return nil, models.S3Reference{}, wfErr
+		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
 	// Store prompt processor metrics
@@ -130,6 +132,15 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verification_id": req.VerificationID,
 		})
 		// Non-critical error, continue processing
+	}
+
+	// Persist the rendered Turn2 prompt
+	promptRef, err := h.s3.StorePrompt(ctx, req.VerificationID, 2, prompt)
+	if err != nil {
+		h.log.Warn("failed_to_store_turn2_prompt", map[string]interface{}{
+			"error":           err.Error(),
+			"verification_id": req.VerificationID,
+		})
 	}
 
 	// Invoke Bedrock with conversation history
@@ -154,10 +165,49 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "bedrock_invocation", startTime)
-		return nil, models.S3Reference{}, wfErr
+		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
-	rawBytes, _ := json.Marshal(bedrockResponse)
+	// Build TurnResponse for raw logging
+	turn2Raw := &schema.TurnResponse{
+		TurnId:    2,
+		Timestamp: schema.FormatISO8601(),
+		Prompt:    prompt,
+		ImageUrls: map[string]string{"checking": req.S3Refs.Images.CheckingBase64.Key},
+		Response: schema.BedrockApiResponse{
+			Content:    bedrockResponse.Content,
+			StopReason: bedrockResponse.CompletionReason,
+			ModelId:    bedrockResponse.ModelId,
+			RequestId:  bedrockResponse.RequestId,
+		},
+		LatencyMs: bedrockResponse.LatencyMs,
+		TokenUsage: &schema.TokenUsage{
+			InputTokens:  bedrockResponse.InputTokens,
+			OutputTokens: bedrockResponse.OutputTokens,
+			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+		},
+		Stage: bedrock.AnalysisStageTurn2,
+		Metadata: map[string]interface{}{
+			"verificationId":   req.VerificationID,
+			"verificationType": req.VerificationContext.VerificationType,
+			"bedrockMetadata": map[string]interface{}{
+				"modelId":    bedrockResponse.ModelId,
+				"requestId":  bedrockResponse.RequestId,
+				"stopReason": bedrockResponse.CompletionReason,
+			},
+			"processingMetadata": map[string]interface{}{
+				"executionTimeMs": bedrockResponse.ProcessingTimeMs,
+				"retryAttempts":   0,
+			},
+			"promptMetadata": map[string]interface{}{
+				"imageSize":           len(loadResult.Base64Image),
+				"imageType":           "checking",
+				"promptTokenEstimate": promptProcessor.InputTokens,
+			},
+		},
+	}
+
+	rawBytes, _ := json.Marshal(turn2Raw)
 
 	// Prepare to store raw response later using the envelope
 	var rawResponseRef models.S3Reference
@@ -177,7 +227,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
-		return nil, models.S3Reference{}, wfErr
+		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
 	// Store markdown response
@@ -192,25 +242,78 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Build and store conversation history
 	bedrockTextOutput := markdownResponse.ComparisonMarkdown
-	messages := []map[string]interface{}{
-		{
-			"role":    "system",
-			"content": []map[string]interface{}{{"type": "text", "text": loadResult.SystemPrompt}},
-		},
-		{
-			"role": "user",
-			"content": []map[string]interface{}{
-				{"type": "text", "text": prompt},
-				{"type": "image_base64", "text": loadResult.Base64Image},
+
+	// Load turn1 conversation history if available
+	var turn1Messages []schema.BedrockMessage
+	if req.S3Refs.Turn1.Conversation.Key != "" {
+		var convData struct {
+			Messages []schema.BedrockMessage `json:"messages"`
+		}
+		if err := h.s3.LoadJSON(ctx, req.S3Refs.Turn1.Conversation, &convData); err != nil {
+			h.log.Warn("failed_to_load_turn1_conversation", map[string]interface{}{
+				"error":           err.Error(),
+				"verification_id": req.VerificationID,
+			})
+		} else {
+			turn1Messages = convData.Messages
+		}
+	}
+
+	systemMsg := schema.BedrockMessage{
+		Role:    "system",
+		Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
+	}
+	userMsg := schema.BedrockMessage{
+		Role: "user",
+		Content: []schema.BedrockContent{
+			{Type: "text", Text: prompt},
+			{
+				Type: "image",
+				Image: &schema.BedrockImageData{
+					Format: loadResult.ImageFormat,
+					Source: schema.BedrockImageSource{
+						Type:       "base64",
+						Media_type: schema.Base64Helpers.GetContentTypeFromFormat(loadResult.ImageFormat),
+						Data:       loadResult.Base64Image,
+					},
+				},
 			},
 		},
-		{
-			"role":    "assistant",
-			"content": []map[string]interface{}{{"type": "text", "text": bedrockTextOutput}},
+	}
+	assistantMsg := schema.BedrockMessage{
+		Role:    "assistant",
+		Content: []schema.BedrockContent{{Type: "text", Text: bedrockTextOutput}},
+	}
+
+	var messages []schema.BedrockMessage
+	messages = append(messages, systemMsg)
+	messages = append(messages, turn1Messages...)
+	messages = append(messages, userMsg, assistantMsg)
+
+	convData := &services.Turn2ConversationData{
+		VerificationId: req.VerificationID,
+		Timestamp:      schema.FormatISO8601(),
+		TurnId:         2,
+		AnalysisStage:  bedrock.AnalysisStageTurn2,
+		Messages:       messages,
+		TokenUsage: &schema.TokenUsage{
+			InputTokens:  bedrockResponse.InputTokens,
+			OutputTokens: bedrockResponse.OutputTokens,
+			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+		},
+		LatencyMs: bedrockResponse.LatencyMs,
+		ProcessingMetadata: map[string]interface{}{
+			"executionTimeMs": bedrockResponse.ProcessingTimeMs,
+			"retryAttempts":   0,
+		},
+		BedrockMetadata: map[string]interface{}{
+			"modelId":    bedrockResponse.ModelId,
+			"requestId":  bedrockResponse.RequestId,
+			"stopReason": bedrockResponse.CompletionReason,
 		},
 	}
 
-	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, messages)
+	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, convData)
 	if convErr != nil {
 		h.log.Warn("failed_to_store_conversation", map[string]interface{}{
 			"error":           convErr.Error(),
@@ -233,7 +336,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"severity":   string(wfErr.Severity),
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
-		return nil, models.S3Reference{}, wfErr
+		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
 	}
 
 	// Interpret discrepancies with business rules
@@ -408,7 +511,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	response.Summary.BedrockLatencyMs = bedrockResponse.LatencyMs
 	response.Summary.S3StorageCompleted = true
 
-	return response, convRef, nil
+	return response, convRef, promptRef, nil
 }
 
 // interpretDiscrepancies applies business rules to refine verification outcome
@@ -609,7 +712,7 @@ func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Tu
 		"layout_id":         req.VerificationContext.LayoutId,
 	})
 
-	turn2Resp, convRef, err := h.ProcessTurn2Request(ctx, req)
+	turn2Resp, convRef, promptRef, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		contextLogger.Error("turn2_processing_failed", map[string]interface{}{
 			"error": err.Error(),
@@ -618,7 +721,7 @@ func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Tu
 	}
 
 	builder := NewResponseBuilder(h.cfg)
-	stepFunctionResp := builder.BuildTurn2StepFunctionResponse(req, turn2Resp, convRef)
+	stepFunctionResp := builder.BuildTurn2StepFunctionResponse(req, turn2Resp, promptRef, convRef)
 
 	duration := time.Since(startTime)
 	contextLogger.Info("Completed ExecuteTurn2Combined", map[string]interface{}{

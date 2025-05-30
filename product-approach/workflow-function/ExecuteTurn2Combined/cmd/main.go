@@ -411,7 +411,7 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	}
 
 	// Execute handler with deterministic architecture
-	response, _, err := applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &req)
+	response, _, _, err := applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &req)
 
 	executionContext.ExecutionMetrics.ProcessingDuration = time.Since(executionStartTime)
 

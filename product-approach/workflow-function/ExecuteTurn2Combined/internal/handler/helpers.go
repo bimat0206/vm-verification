@@ -133,6 +133,7 @@ func buildTurn2S3RefTree(
 			SystemPrompt: base.Prompts.System,
 		},
 		Conversation: ConversationReferences{
+			Turn1: base.Turn1.Conversation,
 			Turn2: convRef,
 		},
 		Responses: ResponseReferences{
