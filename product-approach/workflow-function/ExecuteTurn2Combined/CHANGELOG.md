@@ -2,6 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.4] - 2025-05-29 - Add Turn 2 Prompt Reference
+### Added
+- Persisted Turn 2 prompt to S3 using `SaveToEnvelope` under `prompts/turn2-prompt.json`.
+- Storage manager exposes `SaveTurn2Prompt` and unit test ensures reference creation.
+- `PromptRefs` model includes new `turn2Prompt` field.
+
 ## [2.1.0] - 2025-06-30 - Simplified Turn2 Processing
 
 ### Added

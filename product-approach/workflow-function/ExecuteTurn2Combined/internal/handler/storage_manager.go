@@ -49,6 +49,24 @@ func (s *StorageManager) SaveTurn2Outputs(ctx context.Context, envelope *s3state
 	return toModelRef(rawRef), toModelRef(procRef), nil
 }
 
+// SaveTurn2Prompt stores the rendered Turn2 prompt into the envelope and returns the reference.
+func (s *StorageManager) SaveTurn2Prompt(ctx context.Context, envelope *s3state.Envelope, prompt string) (models.S3Reference, error) {
+	if envelope == nil {
+		return models.S3Reference{}, nil
+	}
+
+	if err := s.manager.SaveToEnvelope(envelope, "prompts", "turn2-prompt.json", json.RawMessage([]byte(prompt))); err != nil {
+		return models.S3Reference{}, err
+	}
+
+	ref := envelope.GetReference("prompts_turn2-prompt")
+	if ref != nil {
+		envelope.AddReference("prompts_turn2", ref)
+		return toModelRef(ref), nil
+	}
+	return models.S3Reference{}, nil
+}
+
 func toModelRef(ref *s3state.Reference) models.S3Reference {
 	if ref == nil {
 		return models.S3Reference{}

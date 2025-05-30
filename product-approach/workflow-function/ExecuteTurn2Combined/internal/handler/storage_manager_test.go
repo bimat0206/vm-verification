@@ -48,3 +48,20 @@ func TestSaveTurn2Outputs(t *testing.T) {
 		t.Fatalf("empty refs")
 	}
 }
+
+func TestSaveTurn2Prompt(t *testing.T) {
+	env := s3state.NewEnvelope("verif-1")
+	mgr := &stubS3Manager{}
+	sm := NewStorageManager(mgr, logger.New("test", "test"))
+
+	ref, err := sm.SaveTurn2Prompt(context.Background(), env, "test prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if env.GetReference("prompts_turn2") == nil {
+		t.Fatalf("prompt reference not stored")
+	}
+	if ref.Key == "" {
+		t.Fatalf("empty ref")
+	}
+}
