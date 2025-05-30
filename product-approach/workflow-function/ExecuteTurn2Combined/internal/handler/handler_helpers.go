@@ -273,13 +273,13 @@ func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, req *models.
 
 	h.log.LogReceivedEvent(req)
 
-	turn2Resp, err := h.ProcessTurn2Request(ctx, req)
+	turn2Resp, convRef, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
 	builder := NewResponseBuilder(h.cfg)
-	stepFunctionResponse := builder.BuildTurn2StepFunctionResponse(req, turn2Resp)
+	stepFunctionResponse := builder.BuildTurn2StepFunctionResponse(req, turn2Resp, convRef)
 
 	h.log.LogOutputEvent(stepFunctionResponse)
 
@@ -290,7 +290,7 @@ func (h *Turn2Handler) handleStepFunctionEvent(ctx context.Context, req *models.
 func (h *Turn2Handler) handleDirectRequest(ctx context.Context, req *models.Turn2Request) (interface{}, error) {
 	h.log.LogReceivedEvent(req)
 
-	response, err := h.ProcessTurn2Request(ctx, req)
+	response, _, err := h.ProcessTurn2Request(ctx, req)
 	if err != nil {
 		return nil, err
 	}
