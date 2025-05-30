@@ -993,3 +993,9 @@ For developers working with this codebase:
 ## [0.1.0] - 2025-06-04
 ### Added
 - Initial skeleton implementation.
+
+## [0.1.1] - 2025-06-05
+### Changed
+- Turn2 raw response now stored as `schema.TurnResponse` with comprehensive metadata.
+- Conversation history includes Turn1 messages and correct image formatting.
+- Step Function output expanded to include all input references and new Turn2 artifacts.

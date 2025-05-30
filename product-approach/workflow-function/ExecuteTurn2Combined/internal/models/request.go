@@ -26,8 +26,9 @@ type Turn2RequestS3Refs struct {
 
 // Turn1References holds S3 locations for Turn-1 artifacts needed for Turn-2.
 type Turn1References struct {
-	ProcessedResponse S3Reference `json:"processedResponse"` // turn1-processed-response.json
-	RawResponse       S3Reference `json:"rawResponse"`       // turn1-raw-response.json
+	ProcessedResponse S3Reference `json:"processedResponse"`      // turn1-processed-response.json
+	RawResponse       S3Reference `json:"rawResponse"`            // turn1-raw-response.json
+	Conversation      S3Reference `json:"conversation,omitempty"` // turn1-conversation.json
 }
 
 // Turn2ImageRefs holds S3 locations for image artifacts for Turn-2.

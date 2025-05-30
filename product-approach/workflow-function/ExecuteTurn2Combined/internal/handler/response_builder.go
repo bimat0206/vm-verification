@@ -115,28 +115,46 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 	req *models.Turn2Request,
 	turn2Resp *models.Turn2Response,
+	promptRef models.S3Reference,
 	convRef models.S3Reference,
 ) *models.StepFunctionResponse {
+	tree := buildTurn2S3RefTree(req.S3Refs, promptRef, turn2Resp.S3Refs.RawResponse, turn2Resp.S3Refs.ProcessedResponse, convRef)
+
 	s3References := map[string]interface{}{
-		"prompts_system":  req.S3Refs.Prompts.System,
-		"images_checking": req.S3Refs.Images.CheckingBase64,
+		"processing_initialization": tree.Initialization,
+		"images_metadata":           tree.Images.Metadata,
+		"prompts_system":            tree.Prompts.SystemPrompt,
 		"responses": map[string]interface{}{
-			"turn2Raw":       turn2Resp.S3Refs.RawResponse,
-			"turn2Processed": turn2Resp.S3Refs.ProcessedResponse,
-			"turn1Raw":       req.S3Refs.Turn1.RawResponse,
-			"turn1Processed": req.S3Refs.Turn1.ProcessedResponse,
+			"turn2Raw":       tree.Responses.Turn2Raw,
+			"turn2Processed": tree.Responses.Turn2Processed,
+			"turn1Raw":       tree.Responses.Turn1Raw,
+			"turn1Processed": tree.Responses.Turn1Processed,
 		},
 	}
 
-	if convRef.Key != "" {
-		s3References["conversation"] = map[string]interface{}{"turn2": convRef}
+	if tree.Prompts.Turn1Prompt.Key != "" {
+		s3References["prompts_turn1"] = tree.Prompts.Turn1Prompt
+	}
+	if tree.Prompts.Turn2Prompt.Key != "" {
+		s3References["prompts_turn2"] = tree.Prompts.Turn2Prompt
 	}
 
-	if req.S3Refs.Processing.LayoutMetadata.Key != "" {
-		s3References["processing_layout-metadata"] = req.S3Refs.Processing.LayoutMetadata
+	convMap := map[string]interface{}{}
+	if tree.Conversation.Turn1.Key != "" {
+		convMap["turn1"] = tree.Conversation.Turn1
 	}
-	if req.S3Refs.Processing.HistoricalContext.Key != "" {
-		s3References["processing_historical-context"] = req.S3Refs.Processing.HistoricalContext
+	if tree.Conversation.Turn2.Key != "" {
+		convMap["turn2"] = tree.Conversation.Turn2
+	}
+	if len(convMap) > 0 {
+		s3References["conversation"] = convMap
+	}
+
+	if tree.Processing.LayoutMetadata.Key != "" {
+		s3References["processing_layout-metadata"] = tree.Processing.LayoutMetadata
+	}
+	if tree.Processing.HistoricalContext.Key != "" {
+		s3References["processing_historical-context"] = tree.Processing.HistoricalContext
 	}
 
 	summaryMap := map[string]interface{}{

@@ -12,6 +12,19 @@ import (
 	"workflow-function/shared/schema"
 )
 
+// Turn2ConversationData represents the stored conversation format for turn2
+type Turn2ConversationData struct {
+	VerificationId     string                  `json:"verificationId"`
+	Timestamp          string                  `json:"timestamp"`
+	TurnId             int                     `json:"turnId"`
+	AnalysisStage      string                  `json:"analysisStage"`
+	Messages           []schema.BedrockMessage `json:"messages"`
+	TokenUsage         *schema.TokenUsage      `json:"tokenUsage,omitempty"`
+	LatencyMs          int64                   `json:"latencyMs,omitempty"`
+	ProcessingMetadata map[string]interface{}  `json:"processingMetadata,omitempty"`
+	BedrockMetadata    map[string]interface{}  `json:"bedrockMetadata,omitempty"`
+}
+
 // LoadTurn1ProcessedResponse loads the processed Turn1 response from S3
 func (m *s3Manager) LoadTurn1ProcessedResponse(ctx context.Context, ref models.S3Reference) (*schema.Turn1ProcessedResponse, error) {
 	startTime := time.Now()
@@ -248,20 +261,14 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 }
 
 // StoreTurn2Conversation stores full conversation messages for turn2
-func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error) {
-	if verificationID == "" {
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, data *Turn2ConversationData) (models.S3Reference, error) {
+	if verificationID == "" || data == nil {
 		return models.S3Reference{}, errors.NewValidationError(
-			"verification ID required for storing turn2 conversation",
+			"verification ID and conversation data required",
 			map[string]interface{}{"operation": "store_turn2_conversation"})
 	}
 
 	key := "responses/turn2-conversation.json"
-	data := map[string]interface{}{
-		"verificationId": verificationID,
-		"turnId":         2,
-		"messages":       messages,
-		"timestamp":      schema.FormatISO8601(),
-	}
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, data)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
