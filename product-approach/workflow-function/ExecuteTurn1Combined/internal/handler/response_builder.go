@@ -22,7 +22,7 @@ func NewResponseBuilder(cfg config.Config) *ResponseBuilder {
 func (r *ResponseBuilder) BuildCombinedTurnResponse(
 	req *models.Turn1Request,
 	renderedPrompt string,
-	promptRef, rawRef, procRef models.S3Reference,
+	promptRef, rawRef, procRef, convRef models.S3Reference,
 	invoke *models.BedrockResponse,
 	stages []schema.ProcessingStage,
 	totalDurationMs int64,
@@ -59,7 +59,7 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 	}
 
 	// Build S3 reference tree
-	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef)
+	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef, convRef)
 
 	// Build context enrichment with schema version and other required fields
 	contextEnrichment := map[string]interface{}{
@@ -88,14 +88,14 @@ func (r *ResponseBuilder) BuildCombinedTurnResponse(
 // BuildStepFunctionResponse builds a response formatted for Step Functions
 func (r *ResponseBuilder) BuildStepFunctionResponse(
 	req *models.Turn1Request,
-	promptRef, rawRef, procRef models.S3Reference,
+	promptRef, rawRef, procRef, convRef models.S3Reference,
 	invoke *models.BedrockResponse,
 	totalDurationMs int64,
 	bedrockLatencyMs int64,
 	dynamoOK bool,
 ) *models.StepFunctionResponse {
 	// Build S3 reference tree in the expected format
-	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef)
+	s3RefTree := buildS3RefTree(req.S3Refs, promptRef, rawRef, procRef, convRef)
 
 	// Convert S3RefTree to map[string]interface{} for Step Functions
 	s3References := map[string]interface{}{
@@ -106,6 +106,10 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 			"turn1Raw":       rawRef,
 			"turn1Processed": procRef,
 		},
+	}
+
+	if convRef.Key != "" {
+		s3References["conversation"] = map[string]interface{}{"turn1": convRef}
 	}
 
 	if s3RefTree.Prompts.Turn1Prompt.Key != "" {

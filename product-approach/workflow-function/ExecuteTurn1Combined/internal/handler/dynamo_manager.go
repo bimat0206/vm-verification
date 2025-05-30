@@ -32,6 +32,7 @@ func (d *DynamoManager) UpdateTurn1Completion(
 	turnEntry *schema.TurnResponse,
 	turn1Metrics *schema.TurnMetrics,
 	processedMarkdownRef *models.S3Reference,
+	conversationRef *models.S3Reference,
 ) bool {
 	dynamoOK := true
 
@@ -51,7 +52,7 @@ func (d *DynamoManager) UpdateTurn1Completion(
 		dynamoOK = false
 	}
 
-	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef); err != nil {
+	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef, conversationRef); err != nil {
 		d.log.Warn("dynamodb update turn1 completion details failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),

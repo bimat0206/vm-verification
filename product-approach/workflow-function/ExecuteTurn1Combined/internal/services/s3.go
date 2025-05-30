@@ -142,6 +142,8 @@ type S3StateManager interface {
 	StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error)
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
+	// StoreTurn1Conversation stores full turn1 conversation messages
+	StoreTurn1Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -839,6 +841,30 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 	return m.fromStateReference(stateRef), nil
 }
 
+// StoreTurn1Conversation stores full conversation messages for turn1
+func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for storing turn1 conversation",
+			map[string]interface{}{"operation": "store_turn1_conversation"})
+	}
+
+	key := "responses/turn1-conversation.json"
+	data := map[string]interface{}{
+		"verificationId": verificationID,
+		"turnId":         1,
+		"messages":       messages,
+		"timestamp":      schema.FormatISO8601(),
+	}
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, data)
+	if err != nil {
+		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+			"failed to store turn1 conversation", true).
+			WithContext("verification_id", verificationID)
+	}
+	return m.fromStateReference(stateRef), nil
+}
+
 // StoreTemplateProcessor stores template processing results with validation
 func (m *s3Manager) StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error) {
 	if verificationID == "" || processor == nil {
@@ -927,6 +953,7 @@ func (m *s3Manager) LoadProcessingState(ctx context.Context, verificationID stri
 
 	return result, nil
 }
+
 // StoreJSONAtReference stores arbitrary JSON data at the given S3 reference
 func (m *s3Manager) StoreJSONAtReference(ctx context.Context, ref models.S3Reference, data interface{}) (models.S3Reference, error) {
 	if err := m.validateReference(ref, "store_json_at_reference"); err != nil {
@@ -943,6 +970,7 @@ func (m *s3Manager) StoreJSONAtReference(ctx context.Context, ref models.S3Refer
 
 	return m.fromStateReference(stateRef), nil
 }
+
 // ===================================================================
 // STRATEGIC UTILITY FUNCTIONS
 // ===================================================================

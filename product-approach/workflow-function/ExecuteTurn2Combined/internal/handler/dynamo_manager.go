@@ -63,7 +63,7 @@ func (d *DynamoManager) UpdateTurn1Completion(
 		dynamoOK = false
 	}
 
-	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef); err != nil {
+	if err := d.dynamo.UpdateTurn1CompletionDetails(ctx, verificationID, initialVerificationAt, statusEntry, turn1Metrics, processedMarkdownRef, nil); err != nil {
 		d.log.Warn("dynamodb update turn1 completion details failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),

@@ -11,11 +11,12 @@ import (
 
 // S3ReferenceTree represents a complete tree of S3 references for a verification
 type S3ReferenceTree struct {
-	Initialization models.S3Reference   `json:"initialization,omitempty"`
-	Images         ImageReferences      `json:"images,omitempty"`
-	Processing     ProcessingReferences `json:"processing,omitempty"`
-	Prompts        PromptReferences     `json:"prompts,omitempty"`
-	Responses      ResponseReferences   `json:"responses,omitempty"`
+	Initialization models.S3Reference     `json:"initialization,omitempty"`
+	Images         ImageReferences        `json:"images,omitempty"`
+	Processing     ProcessingReferences   `json:"processing,omitempty"`
+	Prompts        PromptReferences       `json:"prompts,omitempty"`
+	Conversation   ConversationReferences `json:"conversation,omitempty"`
+	Responses      ResponseReferences     `json:"responses,omitempty"`
 }
 
 // PromptReferences holds S3 references for prompt artifacts
@@ -36,6 +37,12 @@ type ImageReferences struct {
 type ProcessingReferences struct {
 	HistoricalContext models.S3Reference `json:"historicalContext,omitempty"`
 	LayoutMetadata    models.S3Reference `json:"layoutMetadata,omitempty"`
+}
+
+// ConversationReferences holds references for conversation history
+type ConversationReferences struct {
+	Turn1 models.S3Reference `json:"turn1,omitempty"`
+	Turn2 models.S3Reference `json:"turn2,omitempty"`
 }
 
 // ResponseReferences holds S3 references for response artifacts
@@ -70,7 +77,7 @@ type TokenUsageDetailed struct {
 // buildS3RefTree constructs a unified S3 reference tree from various sources
 func buildS3RefTree(
 	base models.Turn1RequestS3Refs,
-	promptRef, rawRef, procRef models.S3Reference,
+	promptRef, rawRef, procRef, convRef models.S3Reference,
 ) S3ReferenceTree {
 	// Extract verification ID from the key pattern
 	verificationID := extractVerificationID(rawRef.Key)
@@ -123,6 +130,9 @@ func buildS3RefTree(
 		},
 		Prompts: PromptReferences{
 			SystemPrompt: base.Prompts.System,
+		},
+		Conversation: ConversationReferences{
+			Turn1: convRef,
 		},
 		Responses: ResponseReferences{
 			Turn1Raw:       rawRef,
