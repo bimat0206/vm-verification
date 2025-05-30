@@ -126,6 +126,31 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 	return ref, nil
 }
 
+// StoreConversation stores turn1 conversation messages in S3
+func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, messages []map[string]interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
+		return models.S3Reference{}, errors.NewValidationError(
+			"verification ID required for conversation storage",
+			map[string]interface{}{"operation": "store_conversation"})
+	}
+
+	start := time.Now()
+	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, messages)
+	if err != nil {
+		m.log.Warn("s3 conversation-store warning", map[string]interface{}{
+			"error":  err.Error(),
+			"bucket": m.cfg.AWS.S3Bucket,
+		})
+		return models.S3Reference{}, err
+	}
+
+	m.log.Debug("stored conversation", map[string]interface{}{
+		"key":        ref.Key,
+		"durationMs": time.Since(start).Milliseconds(),
+	})
+	return ref, nil
+}
+
 // StoreResponses stores raw and processed responses to S3
 func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Request, invoke *InvokeResult, prompt *PromptResult, imageSize int, parsedMarkdown *bedrockparser.ParsedTurn1Markdown) *StorageResult {
 	startTime := time.Now()

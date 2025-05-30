@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
+## [2.5.0] - 2025-05-30
+### Added
+- `ExecuteTurn1Combined` now captures the full conversation history for Turn 1 and stores it as `turn1-conversation.json` in S3.
+- DynamoDB tables updated with a reference to the new conversation file.
+- Step Function output includes `conversation.turn1` S3 reference.
 ## [2.4.7] - 2025-06-03
 ### Added
 - Execution status is now written back to the input `initialization.json` after processing. The handler updates `verificationContext.status` and `lastUpdatedAt` and stores the file back to the original S3 location.

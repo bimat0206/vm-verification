@@ -99,8 +99,6 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 	}
 	h.processingTracker.RecordStage("validation", "completed", time.Since(h.startTime), nil)
 
-
-
 	// Update initial status
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Started, "initialization", map[string]interface{}{
 		"function_start_time": schema.FormatISO8601(),
@@ -233,7 +231,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 	}
 
 	// Perform DynamoDB updates synchronously
-	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef)
+	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef, &convRef)
 
 	// Final status update
 	h.updateStatus(ctx, req.VerificationID, schema.StatusTurn1Completed, "completion", map[string]interface{}{
@@ -245,7 +243,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 
 	// Build response with all required fields for schema v2.1.0
 	response := h.responseBuilder.BuildCombinedTurnResponse(
-		req, promptResult.Prompt, promptRef, storageResult.RawRef, storageResult.ProcessedRef,
+		req, promptResult.Prompt, promptRef, storageResult.RawRef, storageResult.ProcessedRef, convRef,
 		invokeResult.Response, h.processingTracker.GetStages(), totalDuration.Milliseconds(),
 		invokeResult.Duration.Milliseconds(), dynamoOK,
 	)
@@ -360,6 +358,30 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 		contextLogger.Warn("failed to parse bedrock response", map[string]interface{}{"error": parseErr.Error()})
 	}
 
+	// Build conversation history messages
+	messages := []map[string]interface{}{
+		{
+			"role":    "system",
+			"content": []map[string]interface{}{{"type": "text", "text": loadResult.SystemPrompt}},
+		},
+		{
+			"role": "user",
+			"content": []map[string]interface{}{
+				{"type": "text", "text": promptResult.Prompt},
+				{"type": "image_base64", "text": loadResult.Base64Image},
+			},
+		},
+		{
+			"role":    "assistant",
+			"content": []map[string]interface{}{{"type": "text", "text": bedrockTextOutput}},
+		},
+	}
+
+	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, messages)
+	if convErr != nil {
+		return nil, convErr
+	}
+
 	// STAGE 5: Store response and processed analysis
 	storageResult := h.storageManager.StoreResponses(ctx, req, invokeResult, promptResult, len(loadResult.Base64Image), parsedTurn1Data)
 	if storageResult.Error != nil {
@@ -431,7 +453,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 
 	// Build Step Function response
 	stepFunctionResponse := h.responseBuilder.BuildStepFunctionResponse(
-		req, promptRef, storageResult.RawRef, storageResult.ProcessedRef,
+		req, promptRef, storageResult.RawRef, storageResult.ProcessedRef, convRef,
 		invokeResult.Response, totalDuration.Milliseconds(), invokeResult.Duration.Milliseconds(), dynamoOK,
 	)
 

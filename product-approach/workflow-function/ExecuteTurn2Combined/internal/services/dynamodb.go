@@ -36,7 +36,7 @@ type DynamoDBService interface {
 	UpdateErrorTracking(ctx context.Context, verificationID string, errorTracking *schema.ErrorTracking) error
 
 	// Turn1 completion update storing metrics and processed markdown reference
-	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference) error
+	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference, conversationRef *models.S3Reference) error
 	// Turn2 completion update storing metrics and comparison details
 	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string) error
 
@@ -623,6 +623,7 @@ func (d *dynamoClient) UpdateTurn1CompletionDetails(
 	statusEntry schema.StatusHistoryEntry,
 	turn1Metrics *schema.TurnMetrics,
 	processedMarkdownRef *models.S3Reference,
+	conversationRef *models.S3Reference,
 ) error {
 	if verificationID == "" || verificationAt == "" {
 		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
@@ -654,6 +655,15 @@ func (d *dynamoClient) UpdateTurn1CompletionDetails(
 				"failed to marshal processed markdown ref", true)
 		}
 		update = update.Set(expression.Name("processedTurn1MarkdownRef"), expression.Value(avRef))
+	}
+
+	if conversationRef != nil && conversationRef.Key != "" {
+		avConv, err := attributevalue.MarshalMap(conversationRef)
+		if err != nil {
+			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
+				"failed to marshal conversation ref", true)
+		}
+		update = update.Set(expression.Name("turn1ConversationRef"), expression.Value(avConv))
 	}
 
 	builder := expression.NewBuilder().WithUpdate(update)
