@@ -22,7 +22,7 @@ ECS_SERVICE="vm-fe-dev-streamlit-f6d3xl"
 ###############################################################################
 # Derived / helper variables
 ###############################################################################
-IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)
+IMAGE_TAG=latest
 IMAGE_URI="${ECR_REPO}:${IMAGE_TAG}"
 
 echo "▶ Building & pushing ${IMAGE_URI}"

@@ -342,7 +342,7 @@ module "ecs_streamlit" {
       AWS_DEFAULT_REGION  = var.aws_region
       API_KEY_SECRET_NAME = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.secretsmanager[0].secret_name : ""
       # Remove direct reference to API Gateway endpoint to avoid dependency cycle
-      API_ENDPOINT = ""
+      #API_ENDPOINT = ""
     }
   )
 
@@ -354,7 +354,7 @@ module "ecs_streamlit" {
     module.secretsmanager
   ]
 }
-
+/*
 # Update ECS task definition with API Gateway endpoint after both resources are created
 # This breaks the dependency cycle while ensuring the ECS task has the correct API Gateway endpoint
 resource "null_resource" "update_ecs_task_with_api_endpoint" {
@@ -380,6 +380,6 @@ resource "null_resource" "update_ecs_task_with_api_endpoint" {
     module.ecs_streamlit
   ]
 }
-
+*/
 # This commented-out section is no longer needed as we're using ECS and ALB instead of App Runner
 # The environment variables are now set directly in the ECS task definition

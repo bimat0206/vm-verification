@@ -2,7 +2,7 @@
   "containerDefinitions": [
     {
       "name": "vm-fe-dev-streamlit-f6d3xl",
-      "image": "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:01af043",
+      "image": "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest",
       "cpu": 0,
       "portMappings": [
         {
@@ -43,7 +43,7 @@
         },
         {
           "name": "API_ENDPOINT",
-          "value": "https://hpux2uegnd.execute-api.us-east-1.amazonaws.com/v1"
+          "value": ""
         },
         {
           "name": "REGION",
