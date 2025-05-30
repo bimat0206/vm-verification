@@ -1,216 +1,218 @@
 //Use Case 1: LAYOUT_VS_CHECKING
 //input
 {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "LAYOUT_VS_CHECKING",
-      "status": "TURN1_COMPLETED"
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
     },
-    "turn1Response": {
-      "content": "I've analyzed the reference layout image showing the approved arrangement for VM-3245. The machine has 6 rows (A-F) and 10 columns per row. I can confirm the layout structure matches expectations with three product types distributed across the rows as specified in the reference.",
-      "thinking": "The reference layout shows:\n- Rows A-B: Pink Mì Hảo Hảo products\n- Rows C-D: Red/white Mi modern Lẩu thái\n- Rows E-F: Green Mi Cung Đình\nAll rows appear fully stocked.",
-      "analysisStage": "REFERENCE_ANALYSIS"
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "layoutMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/layout-metadata.json"
+      }
     }
-  }
+  },
+  "status": "TURN1_COMPLETED"
+}
 
 //output
 {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "LAYOUT_VS_CHECKING",
-      "status": "TURN1_PROCESSED"
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
     },
-    "referenceAnalysis": {
-      "status": "VALIDATION_COMPLETE",
-      "validationResults": {
-        "structureConfirmed": true,
-        "layoutMatches": true,
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "layoutMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/layout-metadata.json"
       },
-      "basicObservations": {
-        "rowConfirmation": "6 rows confirmed (A-F)",
-        "columnConfirmation": "10 columns confirmed",
-        "productDistribution": "Three product types as expected",
-        "overallState": "Reference layout validated"
-      },
-      "contextForTurn2": {
-        "referenceValidated": true,
-        "useSystemPromptReference": true,
-        "validationPassed": true,
-        "readyForTurn2": true
+      "turn1Analysis": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/turn1-analysis.json",
+        "etag": "\"abc123def456\"",
+        "size": 2134
       }
     }
-  }
+  },
+  "status": "TURN1_PROCESSED",
+  "summary": {
+    "analysisType": "LAYOUT_VALIDATION",
+    "processingPath": "UC1_VALIDATION_FLOW",
+    "readyForTurn2": true,
+    "processingTimeMs": 1250,
+  },
+  "basicObservations": {
+    "rowConfirmation": "6 rows confirmed (A-F)",
+    "columnConfirmation": "10 columns confirmed",
+    "productDistribution": "Three product types as expected",
+    "overallState": "Reference layout validated"
+  },
+}
 
 //use case 2: PREVIOUS_VS_CURRENT
 //input With Historical Context
 {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "PREVIOUS_VS_CURRENT",
-      "status": "TURN1_COMPLETED"
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
     },
-    "turn1Response": {
-      "content": "Based on the historical verification data, I can confirm the baseline state from 29.5 hours ago. The previous check showed Row F completely empty and Rows A-E partially filled with about 7 products each. Row E had incorrect product types (Mi modern Lẩu thái instead of Mi Cung Đình). This matches the visual analysis of the previous image.",
-      "thinking": "Historical context shows:\n- Previous verification status: INCORRECT\n- Major issues: Row F empty, Row E wrong products\n- Most rows had ~70% capacity\nThe image confirms this state.",
-      "analysisStage": "REFERENCE_ANALYSIS"
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
     },
-    "historicalContext": {  //if available
-      "previousVerificationId": "verif-2025042010000000",
-      "previousVerificationStatus": "INCORRECT",
-      "verificationSummary": {
-        "emptyPositions": 25,
-        "incorrectProducts": 7
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
       }
     }
-  }
+  },
+  "status": "TURN1_COMPLETED"
+}
 //Input  Fresh Analysis (No Historical Context)
 {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "PREVIOUS_VS_CURRENT",
-      "status": "TURN1_COMPLETED"
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
     },
-    "turn1Response": {
-      "content": "**INITIAL CONFIRMATION:**\n- Successfully identified 6 physical rows (A-F)\n- Successfully identified 10 slots per row (01-10)\n\n**ROW STATUS ANALYSIS:**\n- **A:** Partial - 7 pink 'Mì Hảo Hảo' visible (A01-A07), empty A08-A10\n- **B:** Partial - 7 pink 'Mì Hảo Hảo' visible (B01-B07), empty B08-B10\n- **C:** Partial - 7 red/white 'Mi modern Lẩu thái' visible (C01-C07), empty C08-C10\n- **D:** Partial - 7 red/white 'Mi modern Lẩu thái' visible (D01-D07), empty D08-D10\n- **E:** Partial - 7 red/white 'Mi modern Lẩu thái' visible (E01-E07), empty E08-E10\n- **F:** Empty - All positions empty, coils visible\n\n**EMPTY POSITIONS:** A08-A10, B08-B10, C08-C10, D08-D10, E08-E10, F01-F10 (Total: 25)",
-      "thinking": "This appears to be a comprehensive analysis of the previous state:\n- Most rows are 70% filled\n- Row F is completely empty\n- Row E might have wrong products\n- Significant number of empty positions",
-      "analysisStage": "REFERENCE_ANALYSIS"
-    },
-    "historicalContext": null
-  }
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    }
+  },
+  "status": "TURN1_COMPLETED"
+}
 
 
 //output With Historical Context
 {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "PREVIOUS_VS_CURRENT",
-      "status": "TURN1_PROCESSED"
+  "verificationId": "verif-2025042115302500",
+  "s3References": {
+    "initialization": {
+      "bucket": "kootoro-state-management-bucket",
+      "key": "verif-2025042115302500/initialization.json"
     },
-    "referenceAnalysis": {
-    "status": "EXTRACTION_COMPLETE",
-    "sourceType": "HISTORICAL_WITH_VISUAL_CONFIRMATION",
-      "historicalBaseline": {
-        "verificationId": "verif-2025042010000000",
-        "verificationAt": "2025-04-20T10:00:00Z",
-        "hoursSinceBaseline": 29.5,
-        "verificationSummary": {
-            "totalPositionsChecked": 42,
-            "correctPositions": 28,
-            "discrepantPositions": 14,
-            "missingProducts": 7,
-            "incorrectProductTypes": 7,
-            "unexpectedProducts": 0,
-            "emptyPositionsCount": 7,
-            "overallAccuracy": 66.7,
-            "overallConfidence": 97,
-            "verificationStatus": "INCORRECT",
-            "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
-          }
+    "responses": {
+      "turn1": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/responses/turn1-response.json"
+      }
+    },
+    "processing": {
+      "historicalContext": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/historical-context.json"
       },
-        "machineStructure": {
-          "rowCount": 6,
-          "columnsPerRow": 10
-        },
-        "rowStates": {
-          "A": {
-            "status": "Partial",
-            "product": ["Mì Hảo Hảo", "Mì Hảo Hảo"],
-            "quantity": 7,
-            "filledPositions": ["A01-A07"],
-            "emptyPositions": ["A08-A10"]
-          },
-          "F": {
-            "status": "Empty",
-            "product": null,
-            "quantity": 0,
-            "allPositionsEmpty": true
-          }
-        },
-        "knownIssues": {
-          "emptyRows": ["F"],
-          "partialRows": ["A", "B", "C", "D", "E"],
-          "incorrectProducts": ["E"],
-          "discrepantPositions": 14,
-          "totalEmptyPositions": 25,
-          "missingProducts": 7,
-          "emptyPositionsCount": 7,
-        }
-      },
-      "contextForTurn2": {
-        "baselineEstablished": true,
-        "useHistoricalAsReference": true,
-        "focusAreas": ["F", "E"],
-        "knownIssues": ["empty_row_F", "incorrect_products_E"]
+      "turn1Analysis": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/processing/turn1-analysis.json",
+        "etag": "\"def456ghi789\"",
+        "size": 3421
       }
     }
+  },
+  "status": "TURN1_PROCESSED",
+  "summary": {
+    "analysisType": "HISTORICAL",
+    "processingPath": "UC2_HISTORICAL",
+    "sourceType": "HISTORICAL_WITH_VISUAL_CONFIRMATION",
+    "baselineEstablished": true,
+    "historicalContextEnhanced": true,
+    "processingTimeMs": 980,
+  },
+  "verificationSummary": {
+    "totalPositionsChecked": 42,
+    "correctPositions": 28,
+    "discrepantPositions": 14,
+    "missingProducts": 7,
+    "incorrectProductTypes": 7,
+    "unexpectedProducts": 0,
+    "emptyPositionsCount": 7,
+    "overallAccuracy": 66.7,
+    "overallConfidence": 97,
+    "verificationStatus": "INCORRECT",
+    "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
   }
+}
 
   //output Fresh Analysis (No Historical Context)
   {
-    "verificationContext": {
-      "verificationId": "verif-2025042115302500",
-      "verificationType": "PREVIOUS_VS_CURRENT",
-      "status": "TURN1_PROCESSED"
-    },
-    "referenceAnalysis": {
-      "status": "EXTRACTION_COMPLETE",
-      "sourceType": "FRESH_VISUAL_ANALYSIS",
-      "extractedStructure": {
-        "rowCount": 6,
-        "columnsPerRow": 10,
-        "rowOrder": ["A", "B", "C", "D", "E", "F"],
-        "columnOrder": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+    "verificationId": "verif-2025042115302500",
+    "s3References": {
+      "initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/initialization.json"
       },
-      "extractedState": {
-        "rowStates": {
-          "A": {
-            "status": "PARTIAL",
-            "filledPositions": ["A01-A07"],
-            "emptyPositions": ["A08-A10"],
-            "productType": "Mì Hảo Hảo",
-            "productColor": "pink",
-            "quantity": 7
-          },
-          "B": {
-            "status": "PARTIAL", 
-            "filledPositions": ["B01-B07"],
-            "emptyPositions": ["B08-B10"],
-            "productType": "Mì Hảo Hảo",
-            "productColor": "pink",
-            "quantity": 7
-          },
-          "C": {
-            "status": "PARTIAL",
-            "filledPositions": ["C01-C07"], 
-            "emptyPositions": ["C08-C10"],
-            "productType": "Mi modern Lẩu thái",
-            "productColor": "red/white",
-            "quantity": 7
-          },
-          "D": {
-            "status": "PARTIAL",
-            "filledPositions": ["D01-D07"],
-            "emptyPositions": ["D08-D10"], 
-            "productType": "Mi modern Lẩu thái",
-            "productColor": "red/white",
-            "quantity": 7
-          },
-          "E": {
-            "status": "PARTIAL",
-            "filledPositions": ["E01-E07"],
-            "emptyPositions": ["E08-E10"],
-            "productType": "Mi modern Lẩu thái", 
-            "productColor": "red/white",
-            "quantity": 7
-          },
-          "F": {
-            "status": "EMPTY",
-            "filledPositions": [],
-            "emptyPositions": ["F01-F10"],
-            "productType": null,
-            "productColor": null,
-            "quantity": 0
-          }
+      "responses": {
+        "turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/responses/turn1-response.json"
+        }
+      },
+      "processing": {
+        "turn1Analysis": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "verif-2025042115302500/processing/turn1-analysis.json",
+          "etag": "\"ghi789jkl012\"",
+          "size": 4567
+        }
+      }
+    },
+    "status": "TURN1_PROCESSED",
+    "summary": {
+      "analysisType": "FRESH_EXTRACTION",
+      "processingPath": "UC2_FRESH_EXTRACTION",
+      "sourceType": "FRESH_VISUAL_ANALYSIS",
+      "baselineEstablished": true,
+      "processingTimeMs": 1480,
+    },
+    "extractedStructure": {
+      "rowCount": 6,
+      "columnsPerRow": 10,
+      "rowOrder": ["A", "B", "C", "D", "E", "F"],
+      "columnOrder": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+    },
+    "extractedState": {
+      "rowStates": {
+        "A": {
+          "status": "PARTIAL",
+          "filledPositions": ["A01-A07"],
+          "emptyPositions": ["A08-A10"],
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7
+        },
+        "B": {
+          "status": "PARTIAL", 
+          "filledPositions": ["B01-B07"],
+          "emptyPositions": ["B08-B10"],
+          "productType": "Mì Hảo Hảo",
+          "productColor": "pink",
+          "quantity": 7
         },
         "summary": {
           "totalPositions": 60,
@@ -218,12 +220,5 @@
           "emptyPositions": 25,
           "emptyPositionsList": ["A08-A10", "B08-B10", "C08-C10", "D08-D10", "E08-E10", "F01-F10"]
         }
-      },
-      "contextForTurn2": {
-        "baselineSource": "EXTRACTED_STATE",
-        "useHistoricalData": false,
-        "extractedDataAvailable": true,
-        "readyForTurn2": true
       }
-    }
   }
