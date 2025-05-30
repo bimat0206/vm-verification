@@ -135,7 +135,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Persist the rendered Turn2 prompt
-	promptRef, err := h.s3.StorePrompt(ctx, req.VerificationID, 2, prompt)
+	promptRef, err = h.s3.StorePrompt(ctx, req.VerificationID, 2, prompt)
 	if err != nil {
 		h.log.Warn("failed_to_store_turn2_prompt", map[string]interface{}{
 			"error":           err.Error(),
@@ -178,7 +178,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			Content:    bedrockResponse.Content,
 			StopReason: bedrockResponse.CompletionReason,
 			ModelId:    bedrockResponse.ModelId,
-			RequestId:  bedrockResponse.RequestId,
+			// RequestId field removed as it's not available in BedrockResponse
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
@@ -192,7 +192,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"verificationType": req.VerificationContext.VerificationType,
 			"bedrockMetadata": map[string]interface{}{
 				"modelId":    bedrockResponse.ModelId,
-				"requestId":  bedrockResponse.RequestId,
+				// "requestId" field removed as it's not available in BedrockResponse
 				"stopReason": bedrockResponse.CompletionReason,
 			},
 			"processingMetadata": map[string]interface{}{
@@ -308,7 +308,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 		BedrockMetadata: map[string]interface{}{
 			"modelId":    bedrockResponse.ModelId,
-			"requestId":  bedrockResponse.RequestId,
+			// "requestId" field removed as it's not available in BedrockResponse
 			"stopReason": bedrockResponse.CompletionReason,
 		},
 	}
