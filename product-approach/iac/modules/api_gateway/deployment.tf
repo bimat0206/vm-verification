@@ -163,8 +163,8 @@ resource "aws_api_gateway_stage" "stage" {
     verification_get_lambda          = var.lambda_function_names["get_verification"]
     verification_conversation_lambda = var.lambda_function_names["get_conversation"]
     health_lambda                    = var.lambda_function_names["health_check"]
-    image_view_lambda                = var.lambda_function_names["fetch_images"]
-    image_browser_lambda             = var.lambda_function_names["fetch_images"]
+    image_view_lambda                = var.lambda_function_names["api_images_view"]
+    image_browser_lambda             = var.lambda_function_names["api_images_browser"]
   }
 
   access_log_settings {

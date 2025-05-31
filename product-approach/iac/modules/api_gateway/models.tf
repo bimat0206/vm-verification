@@ -55,18 +55,6 @@ resource "aws_api_gateway_model" "verification_request" {
           checkingImageUrl = {
             type = "string"
           }
-          vendingMachineId = {
-            type = "string"
-          }
-          layoutId = {
-            type = "integer"
-          }
-          layoutPrefix = {
-            type = "string"
-          }
-          previousVerificationId = {
-            type = "string"
-          }
           notificationEnabled = {
             type = "boolean"
           }

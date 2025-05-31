@@ -158,6 +158,11 @@ resource "aws_dynamodb_table" "layout_metadata" {
     type = "S"
   }
 
+  attribute {
+    name = "referenceImageUrl"
+    type = "S"
+  }
+
   # LSI1: Sort by creation date for a specific layoutId
   local_secondary_index {
     name            = "CreatedAtIndex"
@@ -181,6 +186,18 @@ resource "aws_dynamodb_table" "layout_metadata" {
   global_secondary_index {
     name            = "VendingMachineIdIndex"
     hash_key        = "vendingMachineId"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+    
+    # Only set capacity if using PROVISIONED billing mode
+    read_capacity  = var.billing_mode == "PROVISIONED" ? var.read_capacity : null
+    write_capacity = var.billing_mode == "PROVISIONED" ? var.write_capacity : null
+  }
+
+  # GSI3: Query by reference image URL
+  global_secondary_index {
+    name            = "ReferenceImageIndex-gsi"
+    hash_key        = "referenceImageUrl"
     range_key       = "createdAt"
     projection_type = "ALL"
     

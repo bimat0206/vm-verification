@@ -154,6 +154,16 @@ locals {
       kms_key              = null
       lifecycle_policy     = null
       repository_policy    = null
+      api_images_browser = {
+        name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-images-browser", local.name_suffix])))
+        image_tag_mutability = "MUTABLE"
+        scan_on_push         = true
+        force_delete         = false
+        encryption_type      = "AES256"
+        kms_key              = null
+        lifecycle_policy     = null
+        repository_policy    = null
+      },
     }
     # Add new repositories for dedicated functions
     list_verifications = {
@@ -302,6 +312,9 @@ locals {
         TEMPLATE_BASE_PATH          = "/opt/templates"
         RETRY_MAX_ATTEMPTS          = "3"
         RETRY_BASE_DELAY            = "2000"
+        # Bedrock timeout configuration - increased to handle large payloads
+        BEDROCK_CONNECT_TIMEOUT_SEC = "30"
+        BEDROCK_CALL_TIMEOUT_SEC    = "120"
       }
     },
     execute_turn2_combined = {
@@ -325,6 +338,9 @@ locals {
         TEMPLATE_BASE_PATH          = "/opt/templates"
         RETRY_MAX_ATTEMPTS          = "3"
         RETRY_BASE_DELAY            = "2000"
+        # Bedrock timeout configuration - increased to handle large payloads
+        BEDROCK_CONNECT_TIMEOUT_SEC = "30"
+        BEDROCK_CALL_TIMEOUT_SEC    = "120"
       }
     },
     finalize_results = {
@@ -458,13 +474,22 @@ locals {
       description = "Generate presigned URLs for S3 image viewing via REST API",
       memory_size = 128,
       timeout     = 30,
-      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-browser-f6d3xl:latest"
-      //image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-view-f6d3xl:latest"
+      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-view-f6d3xl:latest"
       environment_variables = {
         REFERENCE_BUCKET = local.s3_buckets.reference
         CHECKING_BUCKET  = local.s3_buckets.checking
         LOG_LEVEL        = "INFO"
       }
+      api_images_browser = {
+        name        = lower(join("-", compact([local.name_prefix, "lambda", "api-images-browser", local.name_suffix]))),
+        description = "API endpoint for browsing images",
+        memory_size = 256,
+        timeout     = 30,
+        environment_variables = {
+          LOG_LEVEL = "INFO"
+          # Add additional environment variables as needed
+        }
+      },
     }
   }
 
