@@ -6,9 +6,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"workflow-function/FinalizeWithError/internal/config"
-	"workflow-function/FinalizeWithError/internal/handler"
-	"workflow-function/FinalizeWithError/internal/models"
+	"workflow-function/FinalizeWithErrorFunction/internal/config"
+	"workflow-function/FinalizeWithErrorFunction/internal/handler"
+	"workflow-function/FinalizeWithErrorFunction/internal/models"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 )
