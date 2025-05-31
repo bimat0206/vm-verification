@@ -2,7 +2,6 @@ package bedrock
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
@@ -93,61 +92,35 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"operation":         "bedrock_converse_with_history",
 	})
 
-	// NOTE: As of version 2.1.2, Turn1 dependencies were removed from Turn2 processing
-	// Turn1 message is no longer used in Turn2 processing, but we handle it gracefully
-	turn1Message := ""
+	// Build request with conversation history using the correct types
+	// Start with the system prompt as the first message
+	messages := []sharedBedrock.MessageWrapper{
+		{
+			Role:    "system",
+			Content: []sharedBedrock.ContentBlock{{Type: "text", Text: systemPrompt}},
+		},
+	}
 
-	// Handle nil Turn1Response gracefully - this is expected as of v2.1.2
+	// If Turn1 response is available, include the original user prompt and assistant answer
 	if turn1Response != nil {
 		a.log.Debug("turn1_response_present", map[string]interface{}{
 			"operation": "bedrock_converse_with_history",
 		})
 
-		// Extract content from the response directly
-		if turn1Response.Response.Content != "" {
-			turn1Message += turn1Response.Response.Content
+		turn1 := &sharedBedrock.Turn1Response{
+			TurnID:    turn1Response.TurnId,
+			Timestamp: turn1Response.Timestamp,
+			Prompt:    turn1Response.Prompt,
+			Response: sharedBedrock.TextResponse{
+				Content:    turn1Response.Response.Content,
+				StopReason: turn1Response.Response.StopReason,
+			},
 		}
+		messages = append(messages, sharedBedrock.CreateTurn2ConversationHistory(turn1)...)
 	} else {
 		a.log.Debug("turn1_response_nil", map[string]interface{}{
 			"operation": "bedrock_converse_with_history",
-			"message":   "This is expected as of v2.1.2 which removed Turn1 dependencies",
-		})
-	}
-	// No default message when turn1Response is nil - Turn1 is not used in Turn2 processing
-
-	// Build request with conversation history using the correct types
-	// Initialize messages array with first user message
-	messages := []sharedBedrock.MessageWrapper{
-		{
-			Role: "user",
-			Content: []sharedBedrock.ContentBlock{
-				{
-					Type: "text",
-					Text: "[Turn 1] Please analyze this image.",
-				},
-			},
-		},
-	}
-
-	// Only add assistant message if turn1Message has content to prevent empty text blocks
-	if strings.TrimSpace(turn1Message) != "" {
-		messages = append(messages, sharedBedrock.MessageWrapper{
-			Role: "assistant",
-			Content: []sharedBedrock.ContentBlock{
-				{
-					Type: "text",
-					Text: turn1Message,
-				},
-			},
-		})
-		a.log.Debug("turn1_message_included", map[string]interface{}{
-			"operation":            "bedrock_converse_with_history",
-			"turn1_message_length": len(turn1Message),
-		})
-	} else {
-		a.log.Debug("turn1_message_skipped", map[string]interface{}{
-			"operation": "bedrock_converse_with_history",
-			"reason":    "empty or whitespace-only content",
+			"message":   "missing turn1 context",
 		})
 	}
 
@@ -176,7 +149,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 
 	request := &sharedBedrock.ConverseRequest{
 		ModelId:  a.cfg.AWS.BedrockModel,
-		System:   systemPrompt,
+		System:   "",
 		Messages: messages,
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,
@@ -209,7 +182,6 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"max_tokens":         a.cfg.Processing.MaxTokens,
 		"system_prompt_size": len(systemPrompt),
 		"turn2_prompt_size":  len(turn2Prompt),
-		"turn1_message_size": len(turn1Message),
 		"image_size":         len(base64Image),
 		"image_format":       format,
 		"message_count":      len(request.Messages),

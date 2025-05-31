@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -228,8 +227,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 	}
 
-	rawBytes, _ := json.Marshal(turn2Raw)
-
 	// Prepare to store raw response later using the envelope
 	var rawResponseRef models.S3Reference
 
@@ -280,10 +277,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		}
 	}
 
-	systemMsg := schema.BedrockMessage{
-		Role:    "system",
-		Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
-	}
 	userMsg := schema.BedrockMessage{
 		Role: "user",
 		Content: []schema.BedrockContent{
@@ -307,7 +300,17 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	var messages []schema.BedrockMessage
-	messages = append(messages, systemMsg)
+
+	if len(turn1Messages) > 0 && turn1Messages[0].Role == "system" {
+		messages = append(messages, turn1Messages[0])
+		turn1Messages = turn1Messages[1:]
+	} else {
+		messages = append(messages, schema.BedrockMessage{
+			Role:    "system",
+			Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
+		})
+	}
+
 	messages = append(messages, turn1Messages...)
 	messages = append(messages, userMsg, assistantMsg)
 
@@ -374,7 +377,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Store raw and processed Turn2 outputs
 	var processedRef models.S3Reference
-	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, rawBytes)
+	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, turn2Raw)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -494,8 +497,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"checking": req.S3Refs.Images.CheckingBase64.Key,
 		},
 		Response: schema.BedrockApiResponse{
-			Content:   bedrockResponse.Content,
-			ModelId:   bedrockResponse.ModelId,
+			Content: bedrockResponse.Content,
+			ModelId: bedrockResponse.ModelId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
