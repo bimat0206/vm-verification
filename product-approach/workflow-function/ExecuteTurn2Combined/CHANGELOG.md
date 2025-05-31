@@ -2,6 +2,14 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.8] - 2025-06-12 - Bedrock Conversation Fixes
+
+### Fixed
+- `turn2-raw-response.json` now stores plain JSON instead of base64 encoded data.
+- Conversation history no longer duplicates the system prompt.
+- Bedrock request for Turn 2 reuses Turn 1 user prompt and assistant response for proper context.
+
+
 ## [2.2.7] - 2025-06-10 - Turn 1 Context Integration and Output Fixes
 
 ### Added
