@@ -11,12 +11,12 @@ RUN apk add --no-cache \
 WORKDIR /go/src/workflow-function/
 
 # First copy the shared packages to ensure they're available for the build
-COPY ../shared/schema/ ./shared/schema/
-COPY ../shared/logger/ ./shared/logger/
-COPY ../shared/s3state/ ./shared/s3state/
+COPY shared/schema/ ./shared/schema/
+COPY shared/logger/ ./shared/logger/
+COPY shared/s3state/ ./shared/s3state/
 
 # Now copy the function code
-COPY ./ ./Initialize/
+COPY Initialize/ ./Initialize/
 
 # Build from the function directory
 WORKDIR /go/src/workflow-function/Initialize

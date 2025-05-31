@@ -5,6 +5,24 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.5] - 2025-05-31
+
+### Fixed
+- Fixed RESOURCE_VALIDATION_FAILED error by implementing mandatory layout lookup for LAYOUT_VS_CHECKING verification type
+- Enhanced layout lookup logic to automatically retrieve layoutId and layoutPrefix from DynamoDB using referenceImageUrl when missing from request
+- Added comprehensive error handling for layout lookup failures with specific error codes:
+  - LAYOUT_LOOKUP_FAILED: When DynamoDB query fails
+  - LAYOUT_NOT_FOUND: When no layout found for referenceImageUrl
+  - INVALID_LAYOUT_METADATA: When retrieved layout has missing fields
+- Improved validation to ensure both layoutId and layoutPrefix are properly populated after successful lookup
+- Enhanced state management to properly save error information for all failure scenarios
+- Added detailed logging throughout layout lookup process for better observability
+
+### Changed
+- Modified Process method to enforce successful layout resolution when layoutId/layoutPrefix are missing
+- Updated error handling to fail initialization immediately on layout lookup failure instead of proceeding to downstream validation
+- Enhanced verification context validation to ensure complete layout metadata before resource verification
+
 ## [3.0.4] - 2025-05-19
 
 ### Changed
