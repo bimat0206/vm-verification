@@ -300,15 +300,17 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	var messages []schema.BedrockMessage
-
+	// Avoid duplicating the system prompt when Turn 1 conversation already
+	// includes it as the first message.
 	if len(turn1Messages) > 0 && turn1Messages[0].Role == "system" {
 		messages = append(messages, turn1Messages[0])
 		turn1Messages = turn1Messages[1:]
 	} else {
-		messages = append(messages, schema.BedrockMessage{
+		systemMsg := schema.BedrockMessage{
 			Role:    "system",
 			Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
-		})
+		}
+		messages = append(messages, systemMsg)
 	}
 
 	messages = append(messages, turn1Messages...)
@@ -377,6 +379,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Store raw and processed Turn2 outputs
 	var processedRef models.S3Reference
+	// Store the raw response as structured JSON without additional encoding
 	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, turn2Raw)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
