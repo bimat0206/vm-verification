@@ -34,7 +34,7 @@ func TestSaveTurn2Outputs(t *testing.T) {
 	mgr := &stubS3Manager{}
 	sm := NewStorageManager(mgr, logger.New("test", "test"))
 
-	raw := []byte("{}")
+	raw := map[string]string{"foo": "bar"}
 	proc := map[string]string{"a": "b"}
 
 	rawRef, procRef, err := sm.SaveTurn2Outputs(context.Background(), env, raw, proc)

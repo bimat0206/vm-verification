@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -228,8 +227,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 	}
 
-	rawBytes, _ := json.Marshal(turn2Raw)
-
 	// Prepare to store raw response later using the envelope
 	var rawResponseRef models.S3Reference
 
@@ -277,6 +274,9 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			})
 		} else {
 			turn1Messages = convData.Messages
+			if len(turn1Messages) > 0 && strings.EqualFold(turn1Messages[0].Role, "system") {
+				turn1Messages = turn1Messages[1:]
+			}
 		}
 	}
 
@@ -374,7 +374,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Store raw and processed Turn2 outputs
 	var processedRef models.S3Reference
-	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, rawBytes)
+	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, turn2Raw)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -494,8 +494,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			"checking": req.S3Refs.Images.CheckingBase64.Key,
 		},
 		Response: schema.BedrockApiResponse{
-			Content:   bedrockResponse.Content,
-			ModelId:   bedrockResponse.ModelId,
+			Content: bedrockResponse.Content,
+			ModelId: bedrockResponse.ModelId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
