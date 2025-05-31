@@ -2,6 +2,13 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.10] - 2025-08-20 - Step Function Response Fix
+
+### Fixed
+- `HandleRequest` now delegates Step Function invocations to `handler.HandleForStepFunction`.
+- Ensures returned `StepFunctionResponse` preserves incoming S3 references, adds new Turn 2 artifacts, and includes the `verificationId` at the root.
+- **File**: `ExecuteTurn2Combined/cmd/main.go`.
+
 ## [2.2.9] - 2025-08-15 - Bedrock Request and Logging Fixes
 
 ### Fixed
