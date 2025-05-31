@@ -1,37 +1,27 @@
 import streamlit as st
-import os
+
+# Set page configuration FIRST - before any other Streamlit commands
+st.set_page_config(page_title="Vending Machine Verification", layout="wide")
+
 import logging
 # from dotenv import load_dotenv # Removed for containerized deployment
-from pages import home, initiate_verification, verifications, verification_details
-from pages import image_browser, health_check, verification_lookup
+from pages import home, initiate_verification, verifications
+from pages import image_browser, health_check, verification_lookup, image_upload
 from clients.api_client import APIClient
 
 # Load environment variables from .env file - Removed as env vars will be set by Docker/ECS
 # load_dotenv() # Removed
 
-# Verify required environment variables
-if not os.getenv('API_ENDPOINT'):
-    # Updated error message for clarity in containerized environments
-    raise ValueError(
-        "API_ENDPOINT environment variable is required. "
-        "Ensure it's set in the Docker environment (via ARG/ENV) "
-        "or available in Streamlit secrets (secrets.toml)."
-    )
-
-if not (os.getenv('API_KEY') or os.getenv('API_KEY_SECRET_NAME')):
-    # Updated error message for clarity
-    raise ValueError(
-        "Either API_KEY or API_KEY_SECRET_NAME must be set as an environment variable "
-        "(via Docker ARG/ENV or ECS task definition) or available in Streamlit secrets (secrets.toml)."
-    )
+# Configuration validation will be handled by the APIClient and ConfigLoader
+# This allows for both CONFIG_SECRET and individual environment variable approaches
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Initialize API client
-# The APIClient will attempt to get API_ENDPOINT and API_KEY from os.environ first,
-# then fall back to st.secrets if available.
+# The APIClient will load configuration from AWS Secrets Manager (CONFIG_SECRET)
+# or fall back to individual environment variables for backward compatibility.
 try:
     api_client = APIClient()
 except ValueError as e:
@@ -42,10 +32,6 @@ except Exception as e:
     logger.error(f"Unexpected API Client initialization error: {e}", exc_info=True)
     st.stop()
 
-
-# Set page configuration
-st.set_page_config(page_title="Vending Machine Verification", layout="wide")
-
 # Hide the default Streamlit navigation elements
 hide_streamlit_style = """
 <style>
@@ -53,12 +39,12 @@ hide_streamlit_style = """
     div[data-testid="stSidebarNav"] {
         display: none !important;
     }
-    
+
     /* Hide the app name in sidebar */
     /* div.sidebar-content div:first-child {
         display: none !important;
     } */
-    
+
     /* Hide the hamburger menu */
     /* section[data-testid="stSidebarUserContent"] > div:first-child {
         display: none !important;
@@ -76,9 +62,9 @@ pages = {
     "Home": {"module": home, "icon": "🏠", "category": "Main"},
     "Initiate Verification": {"module": initiate_verification, "icon": "▶️", "category": "Verification"},
     "Verifications": {"module": verifications, "icon": "📋", "category": "Verification"},
-    "Verification Details": {"module": verification_details, "icon": "🔍", "category": "Verification"},
-    "Verification Lookup": {"module": verification_lookup, "icon": "🔎", "category": "Verification"},
-    "Image Browser": {"module": image_browser, "icon": "🖼️", "category": "Tools"},
+    "Verification Lookup": {"module": verification_lookup, "icon": "�", "category": "Verification"},
+    "Image Browser": {"module": image_browser, "icon": "�️", "category": "Tools"},
+    "Image Upload": {"module": image_upload, "icon": "�", "category": "Tools"},
     "Health Check": {"module": health_check, "icon": "❤️", "category": "Tools"},
 }
 
@@ -102,7 +88,7 @@ with st.sidebar:
     # Display navigation by category
     for category, category_pages in categories.items():
         st.subheader(category)
-        
+
         # Create columns for more compact layout
         # Using 1 column is effectively no column change, but keeps structure if you want to expand to 2 later
         cols = st.columns(1)
@@ -117,7 +103,7 @@ with st.sidebar:
                             type="primary" if page_name == current_page else "secondary"):
                     st.session_state['page'] = page_name
                     st.rerun()
-        
+
         st.markdown("---")
 
 # Get the current page from session state

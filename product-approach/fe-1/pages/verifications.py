@@ -138,10 +138,8 @@ def app(api_client):
                         st.write(f"Discrepant: {v.get('discrepantPositions', 0)}")
                     
                     with col3:
-                        if st.button("Details", key=verification_id):
-                            st.session_state['selected_verification'] = verification_id
-                            st.session_state['page'] = 'Verification Details'
-                            st.rerun()
+                        # Details functionality removed - verification details page no longer available
+                        st.write("Details view removed")
                 
                 st.divider()
                 

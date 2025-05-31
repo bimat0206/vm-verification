@@ -1,5 +1,5 @@
 {
-    "taskDefinitionArn": "arn:aws:ecs:us-east-1:879654127886:task-definition/vm-fe-dev-streamlit-f6d3xl:124",
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:879654127886:task-definition/vm-fe-dev-streamlit-f6d3xl:133",
     "containerDefinitions": [
         {
             "name": "vm-fe-dev-streamlit-f6d3xl",
@@ -15,8 +15,8 @@
             "essential": true,
             "environment": [
                 {
-                    "name": "S3_BUCKET",
-                    "value": "kootoro-dev-s3-reference-f6d3xl"
+                    "name": "STREAMLIT_THEME_TEXT_COLOR",
+                    "value": "#FAFAFA"
                 },
                 {
                     "name": "STREAMLIT_THEME_FONT",
@@ -27,38 +27,6 @@
                     "value": "#FF4B4B"
                 },
                 {
-                    "name": "STREAMLIT_THEME_BASE",
-                    "value": "dark"
-                },
-                {
-                    "name": "API_KEY_SECRET_NAME",
-                    "value": "kootoro-dev-secret-api-key-f6d3xl"
-                },
-                {
-                    "name": "AWS_DEFAULT_REGION",
-                    "value": "us-east-1"
-                },
-                {
-                    "name": "STREAMLIT_BROWSER_GATHER_USAGE_STATS",
-                    "value": "false"
-                },
-                {
-                    "name": "API_ENDPOINT",
-                    "value": ""
-                },
-                {
-                    "name": "REGION",
-                    "value": "us-east-1"
-                },
-                {
-                    "name": "STREAMLIT_THEME_TEXT_COLOR",
-                    "value": "#FAFAFA"
-                },
-                {
-                    "name": "DYNAMODB_TABLE",
-                    "value": "kootoro-dev-dynamodb-verification-results-f6d3xl"
-                },
-                {
                     "name": "STREAMLIT_SERVER_ADDRESS",
                     "value": "0.0.0.0"
                 },
@@ -67,12 +35,28 @@
                     "value": "#0E1117"
                 },
                 {
+                    "name": "STREAMLIT_THEME_BASE",
+                    "value": "dark"
+                },
+                {
+                    "name": "API_KEY_SECRET_NAME",
+                    "value": "kootoro-dev-secret-api-key-f6d3xl"
+                },
+                {
                     "name": "STREAMLIT_SERVER_HEADLESS",
                     "value": "true"
                 },
                 {
                     "name": "STREAMLIT_SERVER_PORT",
                     "value": "8501"
+                },
+                {
+                    "name": "CONFIG_SECRET",
+                    "value": "kootoro-dev-secret-ecs-streamlit-config-f6d3xl"
+                },
+                {
+                    "name": "STREAMLIT_BROWSER_GATHER_USAGE_STATS",
+                    "value": "false"
                 },
                 {
                     "name": "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
@@ -96,7 +80,7 @@
     "taskRoleArn": "arn:aws:iam::879654127886:role/vm-fe-dev-streamlit-f6d3xl-task-role",
     "executionRoleArn": "arn:aws:iam::879654127886:role/vm-fe-dev-streamlit-f6d3xl-execution-role",
     "networkMode": "awsvpc",
-    "revision": 124,
+    "revision": 133,
     "volumes": [],
     "status": "ACTIVE",
     "requiresAttributes": [
@@ -135,6 +119,6 @@
     ],
     "cpu": "1024",
     "memory": "2048",
-    "registeredAt": "2025-05-30T10:50:30.530000+07:00",
+    "registeredAt": "2025-05-30T17:10:49.622000+07:00",
     "registeredBy": "arn:aws:iam::879654127886:user/manh.hoang"
 }

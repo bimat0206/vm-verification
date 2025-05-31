@@ -1,47 +1,75 @@
 import requests
 import os
 import logging
-import streamlit as st
 from .aws_client import AWSClient
+from .config_loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
 class APIClient:
     def __init__(self):
-        self.base_url = os.environ.get('API_ENDPOINT', '')
-        if not self.base_url and hasattr(st, 'secrets'):
-            try:
-                self.base_url = st.secrets.get("API_ENDPOINT", "")
-            except Exception as e:
-                logger.error(f"Failed to get API_ENDPOINT from Streamlit secrets: {str(e)}")
-        
+        # Load configuration using the new config loader
+        self.config_loader = ConfigLoader()
+
+        self.base_url = self.config_loader.get('API_ENDPOINT', '')
         if not self.base_url:
-            raise ValueError("API_ENDPOINT not found in environment variables or Streamlit secrets")
-        
+            raise ValueError("API_ENDPOINT not found in configuration. For cloud deployment, ensure CONFIG_SECRET is properly set in ECS Task Definition. For local development, set API_ENDPOINT in environment variables or .streamlit/secrets.toml")
+
         self.api_key = self.get_api_key()
         logger.info(f"Initialized API client with base URL: {self.base_url}")
+        if self.config_loader.is_loaded_from_secret():
+            logger.info("Configuration loaded from AWS Secrets Manager")
+        elif self.config_loader.is_loaded_from_streamlit():
+            logger.info("Configuration loaded from Streamlit secrets (local development)")
+        else:
+            logger.info("Configuration loaded from environment variables")
 
     def get_api_key(self):
-        if 'API_KEY' in os.environ:
-            return os.environ['API_KEY']
-        elif 'API_KEY_SECRET_NAME' in os.environ:
+        # First, try direct API_KEY from environment (for local development)
+        direct_api_key = os.environ.get('API_KEY', '')
+        if direct_api_key:
+            logger.info("Using API_KEY from environment variable")
+            return direct_api_key
+
+        # Try Streamlit secrets for local development (only if Streamlit is available)
+        streamlit_api_key = self._get_streamlit_api_key()
+        if streamlit_api_key:
+            return streamlit_api_key
+
+        # Check for API_KEY_SECRET_NAME from config loader or environment (for cloud deployment)
+        api_key_secret_name = self.config_loader.get('API_KEY_SECRET_NAME', '') or os.environ.get('API_KEY_SECRET_NAME', '')
+
+        if not api_key_secret_name:
+            raise ValueError("API key not found. For local development, set API_KEY in environment variables or .streamlit/secrets.toml. For cloud deployment, ensure API_KEY_SECRET_NAME is set in ECS Task Definition.")
+
+        # Try to get API key from AWS Secrets Manager
+        try:
             aws_client = AWSClient()
-            secret_name = os.environ['API_KEY_SECRET_NAME']
-            try:
-                secret = aws_client.get_secret(secret_name)
-                return secret['SecretString']
-            except Exception as e:
-                logger.error(f"Failed to retrieve API key from Secrets Manager: {str(e)}")
-                raise
-        elif hasattr(st, 'secrets'):
-            try:
-                api_key = st.secrets.get("API_KEY", "")
-                if api_key:
-                    return api_key
-            except Exception as e:
-                logger.error(f"Failed to get API_KEY from Streamlit secrets: {str(e)}")
-        
-        raise ValueError("API key not found in environment variables or Streamlit secrets")
+            secret = aws_client.get_secret(api_key_secret_name)
+            # Parse the secret string as JSON and extract the api_key
+            import json
+            secret_data = json.loads(secret['SecretString'])
+            api_key = secret_data.get('api_key', '')
+            if not api_key:
+                raise ValueError("api_key not found in the secret data")
+            logger.info("Using API_KEY from AWS Secrets Manager")
+            return api_key
+        except Exception as e:
+            logger.error(f"Failed to retrieve API key from Secrets Manager: {str(e)}")
+            raise ValueError(f"Failed to retrieve API key from AWS Secrets Manager: {str(e)}. For local development, consider setting API_KEY directly in environment variables or .streamlit/secrets.toml")
+
+    def _get_streamlit_api_key(self):
+        """Safely try to get API key from Streamlit secrets without importing at module level"""
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and st.secrets:
+                streamlit_api_key = st.secrets.get('API_KEY', '')
+                if streamlit_api_key:
+                    logger.info("Using API_KEY from Streamlit secrets (local development)")
+                    return streamlit_api_key
+        except Exception as e:
+            logger.debug(f"Could not load API_KEY from Streamlit secrets: {str(e)}")
+        return None
 
     def make_request(self, method, endpoint, params=None, data=None, debug=False):
         headers = {
@@ -101,12 +129,13 @@ class APIClient:
         }
         if vending_machine_id:
             params["vendingMachineId"] = vending_machine_id
-        return self.make_request('GET', 'verifications/lookup', params=params)
+        return self.make_request('GET', 'api/verifications/lookup', params=params)
 
-    def initiate_verification(self, verification_type, reference_image_url, checking_image_url, 
+    def initiate_verification(self, verification_type, reference_image_url, checking_image_url,
                               vending_machine_id, layout_id=None, layout_prefix=None,
                               previous_verification_id=None):
-        data = {
+        # Build the verification context according to API specification
+        verification_context = {
             "verificationType": verification_type,
             "referenceImageUrl": reference_image_url,
             "checkingImageUrl": checking_image_url,
@@ -117,26 +146,38 @@ class APIClient:
         if verification_type == "LAYOUT_VS_CHECKING":
             if not layout_id or not layout_prefix:
                 raise ValueError("layout_id and layout_prefix are required for LAYOUT_VS_CHECKING verification")
-            data["layoutId"] = layout_id
-            data["layoutPrefix"] = layout_prefix
+            verification_context["layoutId"] = layout_id
+            verification_context["layoutPrefix"] = layout_prefix
         elif verification_type == "PREVIOUS_VS_CURRENT":
             if previous_verification_id:
-                data["previousVerificationId"] = previous_verification_id
+                verification_context["previousVerificationId"] = previous_verification_id
 
-        return self.make_request('POST', 'verifications', data=data)
+        # Wrap the verification context in the expected API structure
+        data = {
+            "verificationContext": verification_context
+        }
+
+        return self.make_request('POST', 'api/verifications', data=data)
 
     def list_verifications(self, params=None):
-        return self.make_request('GET', 'verifications', params=params)
+        return self.make_request('GET', 'api/verifications', params=params)
 
     def get_verification_details(self, verification_id):
-        return self.make_request('GET', f'verifications/{verification_id}')
+        return self.make_request('GET', f'api/verifications/{verification_id}')
 
     def get_verification_conversation(self, verification_id):
-        return self.make_request('GET', f'verifications/{verification_id}/conversation')
+        return self.make_request('GET', f'api/verifications/{verification_id}/conversation')
 
     def browse_images(self, path='', bucket_type='reference'):
         params = {"bucketType": bucket_type}
-        return self.make_request('GET', f'images/browser/{path}', params=params)
+        # Use different endpoints based on whether path is provided
+        if path and path.strip():
+            # Use the path endpoint for non-empty paths
+            endpoint = f'api/images/browser/{path.strip()}'
+        else:
+            # Use the base endpoint for empty/root paths
+            endpoint = 'api/images/browser'
+        return self.make_request('GET', endpoint, params=params)
 
     def get_image_url(self, key):
-        return self.make_request('GET', f'images/{key}/view')
+        return self.make_request('GET', f'api/images/{key}/view')

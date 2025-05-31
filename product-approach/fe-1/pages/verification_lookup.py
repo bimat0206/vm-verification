@@ -46,7 +46,7 @@ def app(api_client):
                 
             st.success(f"Found {len(results.get('results', []))} verification(s)")
             
-            for idx, verification in enumerate(results.get('results', [])):
+            for verification in results.get('results', []):
                 with st.container():
                     col1, col2, col3 = st.columns([3, 2, 1])
                     
@@ -69,10 +69,8 @@ def app(api_client):
                             st.metric("Accuracy", f"{accuracy}%")
                     
                     with col3:
-                        if st.button("View Details", key=f"view_{idx}"):
-                            st.session_state['selected_verification'] = verification_id
-                            st.session_state['page'] = 'Verification Details'
-                            st.rerun()
+                        # Details functionality removed - verification details page no longer available
+                        st.write("Details view removed")
                 
                 st.divider()
                 
