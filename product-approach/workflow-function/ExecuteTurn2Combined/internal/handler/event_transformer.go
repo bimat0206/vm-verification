@@ -289,12 +289,12 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		// Convert interface{} to map for nested access
 		if responsesData, ok := responsesMap.(map[string]interface{}); ok {
 			if turn1Proc, exists := responsesData["turn1Processed"]; exists {
-				if procRef, ok := turn1Proc.(models.S3Reference); ok {
+				if procRef, ok := convertToS3Reference(turn1Proc); ok {
 					turn1ProcessedRef = procRef
 				}
 			}
 			if turn1Raw, exists := responsesData["turn1Raw"]; exists {
-				if rawRef, ok := turn1Raw.(models.S3Reference); ok {
+				if rawRef, ok := convertToS3Reference(turn1Raw); ok {
 					turn1RawRef = rawRef
 				}
 			}
