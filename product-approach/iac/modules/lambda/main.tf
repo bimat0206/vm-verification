@@ -7,8 +7,8 @@ resource "aws_lambda_function" "this" {
 
   # Image configuration for container-based Lambda
   package_type = "Image"
-  # Use ECR repository if enabled, otherwise use default image_uri
-  image_uri = var.use_ecr_repository ? "${var.ecr_repository_url}/${each.key}:${var.image_tag}" : var.default_image_uri
+  # Priority: 1) Function-specific image_uri, 2) ECR repository if enabled, 3) default image_uri
+  image_uri = each.value.image_uri != null ? each.value.image_uri : (var.use_ecr_repository ? "${var.ecr_repository_url}/${each.key}:${var.image_tag}" : var.default_image_uri)
 
   # Configure resources
   memory_size   = each.value.memory_size

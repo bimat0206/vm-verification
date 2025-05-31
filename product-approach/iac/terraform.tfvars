@@ -41,7 +41,7 @@ s3_buckets = {
         abort_incomplete_multipart_upload_days = 7
       }
     ]
-        temp_base64 = [
+    temp_base64 = [
       {
         id                                     = "cleanup-temp-base64"
         enabled                                = true
@@ -231,7 +231,6 @@ streamlit_frontend = {
     STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR = "#262730"
     STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
     STREAMLIT_THEME_FONT                       = "sans serif"
-    API_ENDPOINT                               = "" # Will be populated from API Gateway endpoint
   }
 }
 
@@ -255,5 +254,5 @@ bedrock = {
 monitoring = {
   create_dashboard      = true
   log_retention_days    = 12
-  alarm_email_endpoints = ["manh.hoang@renovacloud.com" ]
+  alarm_email_endpoints = ["manh.hoang@renovacloud.com"]
 }

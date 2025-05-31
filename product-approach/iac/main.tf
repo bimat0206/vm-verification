@@ -6,7 +6,7 @@ module "s3_buckets" {
   reference_bucket_name = local.s3_buckets.reference
   checking_bucket_name  = local.s3_buckets.checking
   results_bucket_name   = local.s3_buckets.results
-  state_bucket_name = local.s3_buckets.state
+  state_bucket_name     = local.s3_buckets.state
 
   reference_lifecycle_rules = var.s3_buckets.lifecycle_rules.reference
   checking_lifecycle_rules  = var.s3_buckets.lifecycle_rules.checking
@@ -140,6 +140,8 @@ module "step_functions" {
     get_verification              = module.lambda_functions[0].function_arns["get_verification"]
     get_conversation              = module.lambda_functions[0].function_arns["get_conversation"]
     health_check                  = module.lambda_functions[0].function_arns["health_check"]
+    api_images_browser            = module.lambda_functions[0].function_arns["api_images_browser"]
+    api_images_view               = module.lambda_functions[0].function_arns["api_images_view"]
 
   }
 
@@ -188,7 +190,7 @@ module "api_gateway" {
   }
 
   # Add Step Functions integration parameters
-  step_functions_role_arn = var.step_functions.create_step_functions ? module.step_functions[0].api_gateway_role_arn : ""
+  step_functions_role_arn          = var.step_functions.create_step_functions ? module.step_functions[0].api_gateway_role_arn : ""
   step_functions_state_machine_arn = var.step_functions.create_step_functions ? module.step_functions[0].state_machine_arn : ""
 
   region = var.aws_region
@@ -197,7 +199,6 @@ module "api_gateway" {
 }
 
 # Secrets Manager for API Key
-# Secrets Manager for API Key
 module "secretsmanager" {
   source = "./modules/secretsmanager"
   count  = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? 1 : 0
@@ -205,11 +206,38 @@ module "secretsmanager" {
   project_name       = var.project_name
   environment        = var.environment
   name_suffix        = local.name_suffix
-  secret_base_name   = "api-key" # Replace "kootoro/api-key" with just "api-key"
+  secret_base_name   = "api-key"
   secret_description = "API key for Kootoro Vending Machine Verification API"
   secret_value       = module.api_gateway[0].api_key_value
 
   common_tags = local.common_tags
+}
+
+# Secrets Manager for ECS Streamlit Configuration
+module "ecs_config_secret" {
+  source = "./modules/secretsmanager"
+  count  = var.streamlit_frontend.create_streamlit ? 1 : 0
+
+  project_name       = var.project_name
+  environment        = var.environment
+  name_suffix        = local.name_suffix
+  secret_base_name   = "ecs-streamlit-config"
+  secret_description = "Configuration settings for ECS Streamlit application"
+  secret_value = jsonencode({
+    REGION                      = var.aws_region
+    DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+    DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+    API_ENDPOINT                = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_endpoint : ""
+    REFERENCE_BUCKET            = local.s3_buckets.reference
+    CHECKING_BUCKET             = local.s3_buckets.checking
+  })
+
+  common_tags = local.common_tags
+
+  depends_on = [
+    module.api_gateway,
+    module.secretsmanager
+  ]
 }
 
 # CloudWatch Monitoring Resources
@@ -336,13 +364,8 @@ module "ecs_streamlit" {
   environment_variables = merge(
     var.streamlit_frontend.environment_variables,
     {
-      REGION              = var.aws_region
-      DYNAMODB_TABLE      = local.dynamodb_tables.verification_results
-      S3_BUCKET           = local.s3_buckets.reference
-      AWS_DEFAULT_REGION  = var.aws_region
+      CONFIG_SECRET       = var.streamlit_frontend.create_streamlit ? module.ecs_config_secret[0].secret_name : ""
       API_KEY_SECRET_NAME = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.secretsmanager[0].secret_name : ""
-      # Remove direct reference to API Gateway endpoint to avoid dependency cycle
-      #API_ENDPOINT = ""
     }
   )
 
@@ -351,7 +374,8 @@ module "ecs_streamlit" {
   depends_on = [
     module.api_gateway,
     module.vpc,
-    module.secretsmanager
+    module.secretsmanager,
+    module.ecs_config_secret
   ]
 }
 /*

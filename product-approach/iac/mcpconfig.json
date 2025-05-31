@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/iac"
+      ]
+    }
+  }
+}

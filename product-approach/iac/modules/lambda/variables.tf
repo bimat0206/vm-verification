@@ -1,12 +1,13 @@
 variable "functions_config" {
   description = "Configuration for Lambda functions"
   type = map(object({
-    name                 = string
-    description          = string
-    memory_size          = number
-    timeout              = number
-    environment_variables = map(string)
+    name                           = string
+    description                    = string
+    memory_size                    = number
+    timeout                        = number
+    environment_variables          = map(string)
     reserved_concurrent_executions = optional(number, -1)
+    image_uri                      = optional(string, null) # Override image URI for specific functions
   }))
 }
 

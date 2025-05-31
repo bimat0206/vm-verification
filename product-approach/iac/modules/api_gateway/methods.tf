@@ -659,7 +659,7 @@ resource "aws_api_gateway_integration" "image_view_get" {
   http_method             = aws_api_gateway_method.image_view_get.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["fetch_images"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_images_view"]}/invocations"
 }
 
 resource "aws_api_gateway_method_response" "image_view_get" {
@@ -741,13 +741,99 @@ resource "aws_api_gateway_integration" "image_browser_get" {
   http_method             = aws_api_gateway_method.image_browser_get.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["fetch_images"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_images_browser"]}/invocations"
 }
 
 resource "aws_api_gateway_method_response" "image_browser_get" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   resource_id = aws_api_gateway_resource.image_browser.id
   http_method = aws_api_gateway_method.image_browser_get.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+# 9. Get Image Browser with Path - GET /api/images/browser/{path+}
+resource "aws_api_gateway_method" "image_browser_path_get" {
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.image_browser_path.id
+  http_method      = "GET"
+  authorization    = var.use_api_key ? "NONE" : "NONE"
+  api_key_required = var.use_api_key
+
+  request_parameters = {
+    "method.request.path.path" = true
+  }
+}
+
+# OPTIONS method for image_browser_path
+resource "aws_api_gateway_method" "image_browser_path_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.image_browser_path.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "image_browser_path_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_browser_path.id
+  http_method = aws_api_gateway_method.image_browser_path_options.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{ \"statusCode\": 200 }"
+  }
+}
+
+resource "aws_api_gateway_method_response" "image_browser_path_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_browser_path.id
+  http_method = aws_api_gateway_method.image_browser_path_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "image_browser_path_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_browser_path.id
+  http_method = aws_api_gateway_method.image_browser_path_options.http_method
+  status_code = aws_api_gateway_method_response.image_browser_path_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
+  }
+}
+
+resource "aws_api_gateway_integration" "image_browser_path_get" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.image_browser_path.id
+  http_method             = aws_api_gateway_method.image_browser_path_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_images_browser"]}/invocations"
+}
+
+resource "aws_api_gateway_method_response" "image_browser_path_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.image_browser_path.id
+  http_method = aws_api_gateway_method.image_browser_path_get.http_method
   status_code = "200"
 
   response_parameters = {

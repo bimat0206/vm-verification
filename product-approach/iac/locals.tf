@@ -19,7 +19,7 @@ locals {
     reference = lower(join("-", compact([local.name_prefix, "s3", "reference", local.name_suffix]))),
     checking  = lower(join("-", compact([local.name_prefix, "s3", "checking", local.name_suffix]))),
     results   = lower(join("-", compact([local.name_prefix, "s3", "results", local.name_suffix]))),
-    state = lower(join("-", compact([local.name_prefix, "s3", "state", local.name_suffix])))
+    state     = lower(join("-", compact([local.name_prefix, "s3", "state", local.name_suffix])))
   }
 
   # DynamoDB table names
@@ -196,229 +196,274 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
+    api_images_browser = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-images-browser", local.name_suffix])))
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
+    api_images_view = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-images-view", local.name_suffix])))
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = true
+      force_delete         = false
+      encryption_type      = "AES256"
+      kms_key              = null
+      lifecycle_policy     = null
+      repository_policy    = null
+    },
   }
 
   # Lambda Functions Configuration
   lambda_functions = {
-# Update to locals.tf to add Step Functions ARN to initialize Lambda
-  initialize = {
-  name                  = lower(join("-", compact([local.name_prefix, "lambda", "initialize", local.name_suffix]))),
-  description           = "Initialize verification workflow and trigger Step Functions execution",
-  memory_size           = 512,
-  timeout               = 30,
-  environment_variables = {
-    STEP_FUNCTIONS_STATE_MACHINE_ARN = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.step_function_name}"
-    DYNAMODB_VERIFICATION_TABLE       = local.dynamodb_tables.verification_results
-    DYNAMODB_CONVERSATION_TABLE       = local.dynamodb_tables.conversation_history
-    DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
-    REFERENCE_BUCKET                 = local.s3_buckets.reference
-    CHECKING_BUCKET                  = local.s3_buckets.checking
-    RESULTS_BUCKET                   = local.s3_buckets.results
-          STATE_BUCKET          = local.s3_buckets.state
-  }
-},
-    fetch_historical_verification = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "fetch-historical", local.name_suffix]))),
-      description           = "Fetch historical verification data",
-      memory_size           = 256,
-      timeout               = 30,
+    # Update to locals.tf to add Step Functions ARN to initialize Lambda
+    initialize = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "initialize", local.name_suffix]))),
+      description = "Initialize verification workflow and trigger Step Functions execution",
+      memory_size = 512,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-        STATE_BUCKET          = local.s3_buckets.state
-}
+        STEP_FUNCTIONS_STATE_MACHINE_ARN = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.step_function_name}"
+        DYNAMODB_VERIFICATION_TABLE      = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE      = local.dynamodb_tables.conversation_history
+        DYNAMODB_LAYOUT_TABLE            = local.dynamodb_tables.layout_metadata
+        REFERENCE_BUCKET                 = local.s3_buckets.reference
+        CHECKING_BUCKET                  = local.s3_buckets.checking
+        RESULTS_BUCKET                   = local.s3_buckets.results
+        STATE_BUCKET                     = local.s3_buckets.state
+      }
+    },
+    fetch_historical_verification = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "fetch-historical", local.name_suffix]))),
+      description = "Fetch historical verification data",
+      memory_size = 256,
+      timeout     = 30,
+      environment_variables = {
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
+        STATE_BUCKET                = local.s3_buckets.state
+      }
     },
     fetch_images = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "fetch-images", local.name_suffix]))),
-      description           = "Fetch images for verification",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "fetch-images", local.name_suffix]))),
+      description = "Fetch images for verification",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  REFERENCE_BUCKET    = local.s3_buckets.reference
-  CHECKING_BUCKET     = local.s3_buckets.checking
-  DYNAMODB_LAYOUT_TABLE = local.dynamodb_tables.layout_metadata
-  LOG_LEVEL           = "INFO"
-  STATE_BUCKET         = local.s3_buckets.state
-  MAX_INLINE_BASE64_SIZE     = "1048576"  # 2MB in bytes
-}
+        REFERENCE_BUCKET       = local.s3_buckets.reference
+        CHECKING_BUCKET        = local.s3_buckets.checking
+        DYNAMODB_LAYOUT_TABLE  = local.dynamodb_tables.layout_metadata
+        LOG_LEVEL              = "INFO"
+        STATE_BUCKET           = local.s3_buckets.state
+        MAX_INLINE_BASE64_SIZE = "1048576" # 2MB in bytes
+      }
     },
     prepare_system_prompt = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "prepare-system-prompt", local.name_suffix]))),
-      description           = "Prepare system prompt for Bedrock",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "prepare-system-prompt", local.name_suffix]))),
+      description = "Prepare system prompt for Bedrock",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-  BEDROCK_MODEL              = var.bedrock.model_id
-  MAX_TOKENS                 = var.bedrock.max_tokens
-  BUDGET_TOKENS              = var.bedrock.budget_tokens
-  THINKING_TYPE              = "enable"
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-  REFERENCE_BUCKET                 = local.s3_buckets.reference
-  CHECKING_BUCKET                  = local.s3_buckets.checking
-        STATE_BUCKET          = local.s3_buckets.state
-}
+        ANTHROPIC_VERSION           = var.bedrock.anthropic_version
+        BEDROCK_MODEL               = var.bedrock.model_id
+        MAX_TOKENS                  = var.bedrock.max_tokens
+        BUDGET_TOKENS               = var.bedrock.budget_tokens
+        THINKING_TYPE               = "enable"
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
+        REFERENCE_BUCKET            = local.s3_buckets.reference
+        CHECKING_BUCKET             = local.s3_buckets.checking
+        STATE_BUCKET                = local.s3_buckets.state
+      }
     },
     execute_turn1_combined = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn1-combined", local.name_suffix]))),
-      description           = "Combined function: prepare turn1 prompt, execute Bedrock call, and process response",
-      memory_size           = 1024,
-      timeout               = 120,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn1-combined", local.name_suffix]))),
+      description = "Combined function: prepare turn1 prompt, execute Bedrock call, and process response",
+      memory_size = 1024,
+      timeout     = 120,
       environment_variables = {
-        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-        BEDROCK_MODEL              = var.bedrock.model_id
-        MAX_TOKENS                 = var.bedrock.max_tokens
-        BUDGET_TOKENS              = var.bedrock.budget_tokens
-        THINKING_TYPE              = "enable"
+        ANTHROPIC_VERSION           = var.bedrock.anthropic_version
+        BEDROCK_MODEL               = var.bedrock.model_id
+        MAX_TOKENS                  = var.bedrock.max_tokens
+        BUDGET_TOKENS               = var.bedrock.budget_tokens
+        THINKING_TYPE               = "enable"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        REFERENCE_BUCKET           = local.s3_buckets.reference
-        CHECKING_BUCKET            = local.s3_buckets.checking
-        STATE_BUCKET               = local.s3_buckets.state
-        LOG_LEVEL                  = "INFO"
-        TURN_NUMBER                = "1"
-        TEMPLATE_BASE_PATH         = "/opt/templates"
-        RETRY_MAX_ATTEMPTS         = "3"
-        RETRY_BASE_DELAY           = "2000"
+        REFERENCE_BUCKET            = local.s3_buckets.reference
+        CHECKING_BUCKET             = local.s3_buckets.checking
+        STATE_BUCKET                = local.s3_buckets.state
+        LOG_LEVEL                   = "INFO"
+        TURN_NUMBER                 = "1"
+        TEMPLATE_BASE_PATH          = "/opt/templates"
+        RETRY_MAX_ATTEMPTS          = "3"
+        RETRY_BASE_DELAY            = "2000"
       }
     },
     execute_turn2_combined = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn2-combined", local.name_suffix]))),
-      description           = "Combined function: prepare turn2 prompt, execute Bedrock call, and process response",
-      memory_size           = 1536,
-      timeout               = 150,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "execute-turn2-combined", local.name_suffix]))),
+      description = "Combined function: prepare turn2 prompt, execute Bedrock call, and process response",
+      memory_size = 1536,
+      timeout     = 150,
       environment_variables = {
-        ANTHROPIC_VERSION          = var.bedrock.anthropic_version
-        BEDROCK_MODEL              = var.bedrock.model_id
-        MAX_TOKENS                 = var.bedrock.max_tokens
-        BUDGET_TOKENS              = var.bedrock.budget_tokens
-        THINKING_TYPE              = "enable"
+        ANTHROPIC_VERSION           = var.bedrock.anthropic_version
+        BEDROCK_MODEL               = var.bedrock.model_id
+        MAX_TOKENS                  = var.bedrock.max_tokens
+        BUDGET_TOKENS               = var.bedrock.budget_tokens
+        THINKING_TYPE               = "enable"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        REFERENCE_BUCKET           = local.s3_buckets.reference
-        CHECKING_BUCKET            = local.s3_buckets.checking
-        STATE_BUCKET               = local.s3_buckets.state
-        LOG_LEVEL                  = "INFO"
-        TURN_NUMBER                = "2"
-        TEMPLATE_BASE_PATH         = "/opt/templates"
-        RETRY_MAX_ATTEMPTS         = "3"
-        RETRY_BASE_DELAY           = "2000"
+        REFERENCE_BUCKET            = local.s3_buckets.reference
+        CHECKING_BUCKET             = local.s3_buckets.checking
+        STATE_BUCKET                = local.s3_buckets.state
+        LOG_LEVEL                   = "INFO"
+        TURN_NUMBER                 = "2"
+        TEMPLATE_BASE_PATH          = "/opt/templates"
+        RETRY_MAX_ATTEMPTS          = "3"
+        RETRY_BASE_DELAY            = "2000"
       }
     },
     finalize_results = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "finalize-results", local.name_suffix]))),
-      description           = "Finalize verification results",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "finalize-results", local.name_suffix]))),
+      description = "Finalize verification results",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-  STATE_BUCKET          = local.s3_buckets.state
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
+        STATE_BUCKET                = local.s3_buckets.state
+      }
     },
     store_results = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "store-results", local.name_suffix]))),
-      description           = "Store verification results",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "store-results", local.name_suffix]))),
+      description = "Store verification results",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  RESULTS_BUCKET             = local.s3_buckets.results
-  LOG_LEVEL                  = "INFO"
-  STATE_BUCKET          = local.s3_buckets.state
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        RESULTS_BUCKET              = local.s3_buckets.results
+        LOG_LEVEL                   = "INFO"
+        STATE_BUCKET                = local.s3_buckets.state
+      }
     },
     notify = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "notify", local.name_suffix]))),
-      description           = "Send notification about verification results",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "notify", local.name_suffix]))),
+      description = "Send notification about verification results",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  SNS_TOPIC_ARN          = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:KootoroVerificationTopic"
-  LOG_LEVEL             = "INFO"
-}
+        SNS_TOPIC_ARN = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:KootoroVerificationTopic"
+        LOG_LEVEL     = "INFO"
+      }
     },
     handle_bedrock_error = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "handle-bedrock-error", local.name_suffix]))),
-      description           = "Handle Bedrock errors",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "handle-bedrock-error", local.name_suffix]))),
+      description = "Handle Bedrock errors",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
+      }
     },
     finalize_with_error = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "finalize-with-error", local.name_suffix]))),
-      description           = "Finalize workflow with error",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "finalize-with-error", local.name_suffix]))),
+      description = "Finalize workflow with error",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        LOG_LEVEL                   = "INFO"
+      }
     },
-        # Add new Lambda functions
+    # Add new Lambda functions
     list_verifications = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "list-verifications", local.name_suffix]))),
-      description           = "List verification results",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "list-verifications", local.name_suffix]))),
+      description = "List verification results",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        LOG_LEVEL                   = "INFO"
+      }
     },
     get_verification = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-verification", local.name_suffix]))),
-      description           = "Get verification details",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "get-verification", local.name_suffix]))),
+      description = "Get verification details",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        LOG_LEVEL                   = "INFO"
+      }
     },
     get_conversation = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
-      description           = "Get verification conversation history",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
+      description = "Get verification conversation history",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
+      }
     },
     health_check = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "health-check", local.name_suffix]))),
-      description           = "System health check",
-      memory_size           = 256,
-      timeout               = 30,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "health-check", local.name_suffix]))),
+      description = "System health check",
+      memory_size = 256,
+      timeout     = 30,
       environment_variables = {
-  DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-  DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-  REFERENCE_BUCKET           = local.s3_buckets.reference
-  CHECKING_BUCKET            = local.s3_buckets.checking
-  RESULTS_BUCKET             = local.s3_buckets.results
-  BEDROCK_MODEL              = var.bedrock.model_id
-  LOG_LEVEL                  = "INFO"
-}
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        REFERENCE_BUCKET            = local.s3_buckets.reference
+        CHECKING_BUCKET             = local.s3_buckets.checking
+        RESULTS_BUCKET              = local.s3_buckets.results
+        BEDROCK_MODEL               = var.bedrock.model_id
+        LOG_LEVEL                   = "INFO"
+      }
     },
     render_layout = {
-      name                  = lower(join("-", compact([local.name_prefix, "lambda", "render-layout", local.name_suffix]))),
-      description           = "Render layout visualization",
-      memory_size           = 2048,
-      timeout               = 120,
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "render-layout", local.name_suffix]))),
+      description = "Render layout visualization",
+      memory_size = 2048,
+      timeout     = 120,
       environment_variables = {
-        REFERENCE_BUCKET           = local.s3_buckets.reference
-        CHECKING_BUCKET            = local.s3_buckets.checking
-        RESULTS_BUCKET             = local.s3_buckets.results
-        STATE_BUCKET               = local.s3_buckets.state
-        LOG_LEVEL                  = "INFO"
+        REFERENCE_BUCKET = local.s3_buckets.reference
+        CHECKING_BUCKET  = local.s3_buckets.checking
+        RESULTS_BUCKET   = local.s3_buckets.results
+        STATE_BUCKET     = local.s3_buckets.state
+        LOG_LEVEL        = "INFO"
+      }
+    },
+    api_images_browser = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "api-images-browser", local.name_suffix]))),
+      description = "Browse images in S3 buckets via REST API",
+      memory_size = 256,
+      timeout     = 30,
+      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-browser-f6d3xl:latest"
+      environment_variables = {
+        REFERENCE_BUCKET = local.s3_buckets.reference
+        CHECKING_BUCKET  = local.s3_buckets.checking
+        LOG_LEVEL        = "INFO"
+      }
+    },
+    api_images_view = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "api-images-view", local.name_suffix]))),
+      description = "Generate presigned URLs for S3 image viewing via REST API",
+      memory_size = 128,
+      timeout     = 30,
+      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-browser-f6d3xl:latest"
+      //image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-images-view-f6d3xl:latest"
+      environment_variables = {
+        REFERENCE_BUCKET = local.s3_buckets.reference
+        CHECKING_BUCKET  = local.s3_buckets.checking
+        LOG_LEVEL        = "INFO"
       }
     }
   }

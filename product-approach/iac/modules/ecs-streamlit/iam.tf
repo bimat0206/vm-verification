@@ -1,12 +1,17 @@
 # IAM roles and policies for ECS Streamlit
 
 locals {
-  # Define the Secrets Manager resource ARN based on the API_KEY_SECRET_NAME
-  secret_resource_arn = lookup(var.environment_variables, "API_KEY_SECRET_NAME", "") != "" ? (
-    "arn:aws:secretsmanager:${data.aws_region.current.name}:*:secret:${lookup(var.environment_variables, "API_KEY_SECRET_NAME", "")}*"
-    ) : (
-    "arn:aws:secretsmanager:*:*:secret:*"
-  )
+  # Check if secrets are configured (keys exist in environment_variables)
+  has_config_secret  = contains(keys(var.environment_variables), "CONFIG_SECRET")
+  has_api_key_secret = contains(keys(var.environment_variables), "API_KEY_SECRET_NAME")
+
+  # Build list of secret ARNs that the task needs access to
+  # Use a pattern that matches the naming convention from the secretsmanager module
+  # Pattern: {project}-{environment}-secret-{base_name}-{suffix}
+  secrets_resource_arns = compact([
+    local.has_config_secret ? "arn:aws:secretsmanager:${data.aws_region.current.name}:*:secret:*-secret-*-config-*" : "",
+    local.has_api_key_secret ? "arn:aws:secretsmanager:${data.aws_region.current.name}:*:secret:*-secret-api-key-*" : ""
+  ])
 }
 
 # ECS Task Execution Role - Used by the ECS service to pull images and publish logs
@@ -223,7 +228,7 @@ resource "aws_iam_role_policy_attachment" "ecs_dynamodb_attachment" {
 
 # Secrets Manager access policy
 resource "aws_iam_policy" "ecs_secretsmanager_policy" {
-  count = contains(keys(var.environment_variables), "API_KEY_SECRET_NAME") ? 1 : 0
+  count = (contains(keys(var.environment_variables), "CONFIG_SECRET") || contains(keys(var.environment_variables), "API_KEY_SECRET_NAME")) ? 1 : 0
 
   name        = "${local.service_name}-secretsmanager-policy"
   description = "Policy for Streamlit ECS tasks to access Secrets Manager"
@@ -237,7 +242,7 @@ resource "aws_iam_policy" "ecs_secretsmanager_policy" {
           "secretsmanager:DescribeSecret"
         ]
         Effect   = "Allow"
-        Resource = local.secret_resource_arn
+        Resource = local.secrets_resource_arns
       }
     ]
   })
@@ -247,7 +252,7 @@ resource "aws_iam_policy" "ecs_secretsmanager_policy" {
 
 # Attach Secrets Manager policy to task role if needed
 resource "aws_iam_role_policy_attachment" "ecs_secretsmanager_attachment" {
-  count      = contains(keys(var.environment_variables), "API_KEY_SECRET_NAME") ? 1 : 0
+  count      = (contains(keys(var.environment_variables), "CONFIG_SECRET") || contains(keys(var.environment_variables), "API_KEY_SECRET_NAME")) ? 1 : 0
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = aws_iam_policy.ecs_secretsmanager_policy[0].arn
 }
