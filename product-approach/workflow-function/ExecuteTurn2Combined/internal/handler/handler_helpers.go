@@ -111,6 +111,7 @@ func (h *Turn2Handler) generateTurn2Prompt(ctx context.Context, req *models.Turn
 		systemPrompt,
 		turn1Response,
 		turn1RawResponse,
+		nil, // TODO: Pass layout metadata when available
 	)
 
 	return &PromptResult{

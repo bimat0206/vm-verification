@@ -2,6 +2,41 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.12] - 2025-05-31 - Turn2 Prompt JSON Structure Fix
+
+### Fixed
+- **CRITICAL**: Fixed turn2-prompt.json structure mismatch with turn1-prompt.json format
+- **FIXED**: Turn2 prompts now stored with proper structured JSON format instead of raw text content
+- **ENHANCED**: StorePrompt function now handles JSON strings correctly to avoid double encoding
+- **RESOLVED**: Compilation errors due to duplicate type definitions
+
+### Technical Details
+- **Root Cause**: The `StorePrompt` function was double-encoding JSON strings from `GenerateTurn2PromptWithMetrics`
+- **Solution**: Added JSON string detection and proper storage using `StoreWithContentType` to avoid double marshaling
+- **Impact**: Turn2 prompts now have the same structured format as Turn1 with all metadata fields
+
+### Files Modified
+- `internal/services/s3.go`: Enhanced `StorePrompt` method with JSON string handling
+- `internal/services/s3.go`: Removed duplicate `TurnConversationDataStore` type definition
+
+### Structure Alignment
+Turn2 prompts now include proper JSON structure with:
+- `contextualInstructions`
+- `createdAt`
+- `generationMetadata`
+- `imageReference`
+- `messageStructure`
+- `promptType`
+- `templateVersion`
+- `verificationId`
+- `verificationType`
+
+### Verification
+- ✅ Code compiles successfully without errors
+- ✅ Turn2 prompts will be stored with proper JSON structure
+- ✅ Backward compatibility maintained for Turn1 prompts
+- ✅ No breaking changes to existing functionality
+
 ## [2.2.11] - 2025-08-21 - Template Driven Turn 2 Prompt
 
 ### Changed

@@ -111,6 +111,60 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		}
 	}
 
+	// Load layout metadata if available for LAYOUT_VS_CHECKING verification type
+	var layoutMetadata map[string]interface{}
+	if req.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking && 
+	   req.S3Refs.Processing.LayoutMetadata.Key != "" {
+		h.log.Info("loading_layout_metadata_for_turn2", map[string]interface{}{
+			"verification_id": req.VerificationID,
+			"layout_key":      req.S3Refs.Processing.LayoutMetadata.Key,
+		})
+		
+		layoutData, err := h.s3.LoadLayoutMetadata(ctx, req.S3Refs.Processing.LayoutMetadata)
+		if err != nil {
+			h.log.Warn("layout_metadata_load_failed_turn2", map[string]interface{}{
+				"error":           err.Error(),
+				"verification_id": req.VerificationID,
+				"layout_key":      req.S3Refs.Processing.LayoutMetadata.Key,
+				"impact":          "continuing_without_layout_metadata",
+			})
+		} else {
+			// Convert schema.LayoutMetadata to map[string]interface{} for template processing
+			layoutMetadata = map[string]interface{}{
+				"LayoutId":           layoutData.LayoutId,
+				"LayoutPrefix":       layoutData.LayoutPrefix,
+				"VendingMachineId":   layoutData.VendingMachineId,
+				"Location":           layoutData.Location,
+				"MachineStructure":   layoutData.MachineStructure,
+				"ProductPositionMap": layoutData.ProductPositionMap,
+			}
+			
+			// Extract RowCount and ColumnCount from MachineStructure if available
+			if layoutData.MachineStructure != nil {
+				if rowCount, ok := layoutData.MachineStructure["RowCount"]; ok {
+					layoutMetadata["RowCount"] = rowCount
+				}
+				if colCount, ok := layoutData.MachineStructure["ColumnCount"]; ok {
+					layoutMetadata["ColumnCount"] = colCount
+				}
+				if rowLabels, ok := layoutData.MachineStructure["RowLabels"]; ok {
+					layoutMetadata["RowLabels"] = rowLabels
+				}
+			}
+			
+			h.log.Info("layout_metadata_loaded_successfully_turn2", map[string]interface{}{
+				"verification_id":    req.VerificationID,
+				"layout_id":          layoutData.LayoutId,
+				"layout_prefix":      layoutData.LayoutPrefix,
+				"vending_machine_id": layoutData.VendingMachineId,
+				"location":           layoutData.Location,
+				"has_row_count":      layoutMetadata["RowCount"] != nil,
+				"has_column_count":   layoutMetadata["ColumnCount"] != nil,
+				"has_row_labels":     layoutMetadata["RowLabels"] != nil,
+			})
+		}
+	}
+
 	// Create verification context
 	vCtx := &schema.VerificationContext{
 		VerificationId:   req.VerificationID,
@@ -128,6 +182,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		loadResult.SystemPrompt,
 		loadedTurn1Response,
 		nil,
+		layoutMetadata,
 	)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,

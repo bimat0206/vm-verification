@@ -823,6 +823,24 @@ func (m *s3Manager) StorePrompt(ctx context.Context, verificationID string, turn
 	}
 
 	key := fmt.Sprintf("prompts/turn%d-prompt.json", turn)
+	
+	// Check if prompt is already a JSON string (for Turn2)
+	if promptStr, ok := prompt.(string); ok {
+		// Validate that it's valid JSON
+		var jsonTest interface{}
+		if err := json.Unmarshal([]byte(promptStr), &jsonTest); err == nil {
+			// It's valid JSON, store as raw bytes to avoid double encoding
+			stateRef, err := m.stateManager.StoreWithContentType(m.datePath(verificationID), key, []byte(promptStr), "application/json")
+			if err != nil {
+				return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
+					"failed to store prompt as JSON string", true).
+					WithContext("verification_id", verificationID)
+			}
+			return m.fromStateReference(stateRef), nil
+		}
+	}
+	
+	// For non-JSON strings or objects, use the original StoreJSON method
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, prompt)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
