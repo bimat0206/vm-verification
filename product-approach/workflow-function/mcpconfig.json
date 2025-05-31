@@ -1,0 +1,24 @@
+{
+    "mcpServers": {
+      "filesystem": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/ExecuteTurn2Combined",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/ExecuteTurn1Combined",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared/bedrock",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared/errors",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared/schema",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared/templateloader",
+          "/Users/mac/Library/CloudStorage/OneDrive-Personal/1.WORK/Git/programing/vending-machine-verification/product-approach/workflow-function/shared/logger"
+        ]
+      },
+      "json-mcp-server": {
+        "command": "npx",
+        "args": ["json-mcp-server@latest"]
+      }
+      }
+    }

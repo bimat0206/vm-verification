@@ -200,7 +200,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			Content:    bedrockResponse.Content,
 			StopReason: bedrockResponse.CompletionReason,
 			ModelId:    bedrockResponse.ModelId,
-			RequestId:  bedrockResponse.RequestId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
@@ -497,7 +496,6 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		Response: schema.BedrockApiResponse{
 			Content:   bedrockResponse.Content,
 			ModelId:   bedrockResponse.ModelId,
-			RequestId: bedrockResponse.RequestId,
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{

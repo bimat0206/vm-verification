@@ -103,16 +103,9 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 			"operation": "bedrock_converse_with_history",
 		})
 
-		if turn1Response.InitialConfirmation != "" {
-			turn1Message += turn1Response.InitialConfirmation + "\n\n"
-		}
-
-		if turn1Response.MachineStructure != "" {
-			turn1Message += turn1Response.MachineStructure + "\n\n"
-		}
-
-		if turn1Response.ReferenceRowStatus != "" {
-			turn1Message += turn1Response.ReferenceRowStatus
+		// Extract content from the response directly
+		if turn1Response.Response.Content != "" {
+			turn1Message += turn1Response.Response.Content
 		}
 	} else {
 		a.log.Debug("turn1_response_nil", map[string]interface{}{
