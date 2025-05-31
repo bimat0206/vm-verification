@@ -93,53 +93,90 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"operation":         "bedrock_converse_with_history",
 	})
 
-	turn1Size := 0
-	if turn1Response != nil {
-		turn1Size = len(turn1Response.Prompt) + len(turn1Response.Response.Content)
-	}
+	// NOTE: As of version 2.1.2, Turn1 dependencies were removed from Turn2 processing
+	// Turn1 message is no longer used in Turn2 processing, but we handle it gracefully
+	turn1Message := ""
 
-	// Build conversation beginning with a single system prompt
+	// Handle nil Turn1Response gracefully - this is expected as of v2.1.2
+	if turn1Response != nil {
+		a.log.Debug("turn1_response_present", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+		})
+
+		// Extract content from the response directly
+		if turn1Response.Response.Content != "" {
+			turn1Message += turn1Response.Response.Content
+		}
+	} else {
+		a.log.Debug("turn1_response_nil", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+			"message":   "This is expected as of v2.1.2 which removed Turn1 dependencies",
+		})
+	}
+	// No default message when turn1Response is nil - Turn1 is not used in Turn2 processing
+
+	// Build request with conversation history using the correct types
+	// Initialize messages array with first user message
 	messages := []sharedBedrock.MessageWrapper{
 		{
-			Role:    "system",
-			Content: []sharedBedrock.ContentBlock{{Type: "text", Text: systemPrompt}},
+			Role: "user",
+			Content: []sharedBedrock.ContentBlock{
+				{
+					Type: "text",
+					Text: "[Turn 1] Please analyze this image.",
+				},
+			},
 		},
 	}
 
-	// Include Turn 1 user and assistant messages when provided
-	if turn1Response != nil {
-		if strings.TrimSpace(turn1Response.Prompt) != "" {
-			messages = append(messages, sharedBedrock.MessageWrapper{
-				Role:    "user",
-				Content: []sharedBedrock.ContentBlock{{Type: "text", Text: turn1Response.Prompt}},
-			})
-		}
-		if strings.TrimSpace(turn1Response.Response.Content) != "" {
-			messages = append(messages, sharedBedrock.MessageWrapper{
-				Role:    "assistant",
-				Content: []sharedBedrock.ContentBlock{{Type: "text", Text: turn1Response.Response.Content}},
-			})
-		}
+	// Only add assistant message if turn1Message has content to prevent empty text blocks
+	if strings.TrimSpace(turn1Message) != "" {
+		messages = append(messages, sharedBedrock.MessageWrapper{
+			Role: "assistant",
+			Content: []sharedBedrock.ContentBlock{
+				{
+					Type: "text",
+					Text: turn1Message,
+				},
+			},
+		})
+		a.log.Debug("turn1_message_included", map[string]interface{}{
+			"operation":            "bedrock_converse_with_history",
+			"turn1_message_length": len(turn1Message),
+		})
+	} else {
+		a.log.Debug("turn1_message_skipped", map[string]interface{}{
+			"operation": "bedrock_converse_with_history",
+			"reason":    "empty or whitespace-only content",
+		})
 	}
 
 	// Add final user message with Turn 2 prompt and image
 	messages = append(messages, sharedBedrock.MessageWrapper{
 		Role: "user",
 		Content: []sharedBedrock.ContentBlock{
-			{Type: "text", Text: turn2Prompt},
+			{
+				Type: "text",
+				Text: "[Turn 2] " + turn2Prompt,
+			},
 			{
 				Type: "image",
+				// MODIFICATION START: use dynamic image format
 				Image: &sharedBedrock.ImageBlock{
 					Format: format,
-					Source: sharedBedrock.ImageSource{Type: "bytes", Bytes: base64Image},
+					Source: sharedBedrock.ImageSource{
+						Type:  "bytes",
+						Bytes: base64Image,
+					},
 				},
+				// MODIFICATION END
 			},
 		},
 	})
 
 	request := &sharedBedrock.ConverseRequest{
 		ModelId:  a.cfg.AWS.BedrockModel,
-		System:   "",
+		System:   systemPrompt,
 		Messages: messages,
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,
@@ -172,7 +209,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"max_tokens":         a.cfg.Processing.MaxTokens,
 		"system_prompt_size": len(systemPrompt),
 		"turn2_prompt_size":  len(turn2Prompt),
-		"turn1_message_size": turn1Size,
+		"turn1_message_size": len(turn1Message),
 		"image_size":         len(base64Image),
 		"image_format":       format,
 		"message_count":      len(request.Messages),

@@ -23,13 +23,13 @@ func NewStorageManager(manager s3state.Manager, log logger.Logger) *StorageManag
 // SaveTurn2Outputs stores the raw Bedrock response and the processed analysis
 // into the provided envelope. The references are also mapped to concise keys
 // (turn2Raw and turn2Processed) for downstream use.
-func (s *StorageManager) SaveTurn2Outputs(ctx context.Context, envelope *s3state.Envelope, raw interface{}, processed interface{}) (models.S3Reference, models.S3Reference, error) {
+func (s *StorageManager) SaveTurn2Outputs(ctx context.Context, envelope *s3state.Envelope, raw []byte, processed interface{}) (models.S3Reference, models.S3Reference, error) {
 	if envelope == nil {
 		return models.S3Reference{}, models.S3Reference{}, nil
 	}
 
-	// Save raw structure directly so JSON is preserved
-	if err := s.manager.SaveToEnvelope(envelope, "responses", "turn2-raw-response.json", raw); err != nil {
+	// Save raw bytes
+	if err := s.manager.SaveToEnvelope(envelope, "responses", "turn2-raw-response.json", json.RawMessage(raw)); err != nil {
 		return models.S3Reference{}, models.S3Reference{}, err
 	}
 	rawRef := envelope.GetReference("responses_turn2-raw-response")
