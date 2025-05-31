@@ -1,5 +1,5 @@
 {
-    "taskDefinitionArn": "arn:aws:ecs:us-east-1:879654127886:task-definition/vm-fe-dev-streamlit-f6d3xl:133",
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:879654127886:task-definition/vm-fe-dev-streamlit-f6d3xl:134",
     "containerDefinitions": [
         {
             "name": "vm-fe-dev-streamlit-f6d3xl",
@@ -80,7 +80,7 @@
     "taskRoleArn": "arn:aws:iam::879654127886:role/vm-fe-dev-streamlit-f6d3xl-task-role",
     "executionRoleArn": "arn:aws:iam::879654127886:role/vm-fe-dev-streamlit-f6d3xl-execution-role",
     "networkMode": "awsvpc",
-    "revision": 133,
+    "revision": 134,
     "volumes": [],
     "status": "ACTIVE",
     "requiresAttributes": [
@@ -119,6 +119,6 @@
     ],
     "cpu": "1024",
     "memory": "2048",
-    "registeredAt": "2025-05-30T17:10:49.622000+07:00",
+    "registeredAt": "2025-05-31T14:55:38.113000+07:00",
     "registeredBy": "arn:aws:iam::879654127886:user/manh.hoang"
 }

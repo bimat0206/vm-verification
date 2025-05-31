@@ -179,5 +179,9 @@ class APIClient:
             endpoint = 'api/images/browser'
         return self.make_request('GET', endpoint, params=params)
 
-    def get_image_url(self, key):
-        return self.make_request('GET', f'api/images/{key}/view')
+    def get_image_url(self, key, bucket_type='reference'):
+        import urllib.parse
+        # URL encode the key to handle special characters and path separators
+        encoded_key = urllib.parse.quote(key, safe='')
+        params = {"bucketType": bucket_type}
+        return self.make_request('GET', f'api/images/{encoded_key}/view', params=params)

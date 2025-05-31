@@ -33,8 +33,8 @@ class ConfigLoader:
         # Try individual environment variables first
         self._load_from_env_vars()
 
-        # If no API_ENDPOINT found, try Streamlit secrets for local development
-        if not self.config.get('API_ENDPOINT'):
+        # If no API_ENDPOINT found or it's empty, try Streamlit secrets for local development
+        if not self.config.get('API_ENDPOINT') or self.config.get('API_ENDPOINT').strip() == '':
             logger.info("No API_ENDPOINT found in environment variables, trying Streamlit secrets for local development")
             self._load_from_streamlit_secrets()
 
@@ -93,19 +93,13 @@ class ConfigLoader:
             import streamlit as st
             if hasattr(st, 'secrets') and st.secrets:
                 logger.info("Loading configuration from Streamlit secrets for local development")
-                self.config.update({
-                    'API_ENDPOINT': st.secrets.get('API_ENDPOINT', self.config.get('API_ENDPOINT', '')),
-                    'REGION': st.secrets.get('REGION', self.config.get('REGION', '')),
-                    'CHECKING_BUCKET': st.secrets.get('CHECKING_BUCKET', self.config.get('CHECKING_BUCKET', '')),
-                    'DYNAMODB_CONVERSATION_TABLE': st.secrets.get('DYNAMODB_CONVERSATION_TABLE', self.config.get('DYNAMODB_CONVERSATION_TABLE', '')),
-                    'DYNAMODB_VERIFICATION_TABLE': st.secrets.get('DYNAMODB_VERIFICATION_TABLE', self.config.get('DYNAMODB_VERIFICATION_TABLE', '')),
-                    'REFERENCE_BUCKET': st.secrets.get('REFERENCE_BUCKET', self.config.get('REFERENCE_BUCKET', '')),
-                    'AWS_DEFAULT_REGION': st.secrets.get('AWS_DEFAULT_REGION', self.config.get('AWS_DEFAULT_REGION', '')),
-                    'API_KEY_SECRET_NAME': st.secrets.get('API_KEY_SECRET_NAME', self.config.get('API_KEY_SECRET_NAME', '')),
-                    # Legacy support
-                    'DYNAMODB_TABLE': st.secrets.get('DYNAMODB_TABLE', self.config.get('DYNAMODB_TABLE', '')),
-                    'S3_BUCKET': st.secrets.get('S3_BUCKET', self.config.get('S3_BUCKET', ''))
-                })
+                # Update config with values from Streamlit secrets, only if they're not empty
+                for key in ['API_ENDPOINT', 'REGION', 'CHECKING_BUCKET', 'DYNAMODB_CONVERSATION_TABLE',
+                           'DYNAMODB_VERIFICATION_TABLE', 'REFERENCE_BUCKET', 'AWS_DEFAULT_REGION',
+                           'API_KEY_SECRET_NAME', 'DYNAMODB_TABLE', 'S3_BUCKET']:
+                    secret_value = st.secrets.get(key, '')
+                    if secret_value and secret_value.strip():
+                        self.config[key] = secret_value
                 # Mark that we loaded from Streamlit secrets
                 self._loaded_from_streamlit = True
                 logger.info("Successfully loaded configuration from Streamlit secrets")

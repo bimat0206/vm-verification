@@ -44,7 +44,7 @@ def app(api_client):
                         st.button(f"📁 {name}", key=f"folder_{idx}", on_click=lambda p=item.get('path', ''): st.session_state.update({'browser_path': p}))
                     elif item_type == 'image':
                         try:
-                            url_response = api_client.get_image_url(item.get('path', ''))
+                            url_response = api_client.get_image_url(item.get('path', ''), bucket_type)
                             image_url = url_response.get('presignedUrl', '')
                             if image_url:
                                 st.image(image_url, caption=name, width=150)

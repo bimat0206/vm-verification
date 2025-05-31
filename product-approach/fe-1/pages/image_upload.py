@@ -145,8 +145,13 @@ def render_s3_path_browser(api_client, bucket_type, session_key):
     # Update path if user typed in the input
     if current_path != st.session_state[f"{session_key}_path"]:
         st.session_state[f"{session_key}_path"] = current_path
+        # Clear items to force refresh when path changes
+        if f"{session_key}_items" in st.session_state:
+            del st.session_state[f"{session_key}_items"]
 
-    if browse_button or f"{session_key}_items" not in st.session_state:
+    # Load folder structure if browse button clicked or no items cached
+    should_load = browse_button or f"{session_key}_items" not in st.session_state
+    if should_load:
         try:
             with st.spinner("Loading folder structure..."):
                 browser_response = api_client.browse_images(current_path, bucket_type)
@@ -169,15 +174,18 @@ def render_s3_path_browser(api_client, bucket_type, session_key):
             # Go up button
             if st.session_state.get(f"{session_key}_parent_path") is not None:
                 if st.button("⬆️ Go Up", key=f"{session_key}_go_up"):
-                    st.session_state[f"{session_key}_path"] = st.session_state[f"{session_key}_parent_path"]
+                    new_path = st.session_state[f"{session_key}_parent_path"]
+                    st.session_state[f"{session_key}_path"] = new_path
+                    # Clear items to force refresh
+                    if f"{session_key}_items" in st.session_state:
+                        del st.session_state[f"{session_key}_items"]
                     st.rerun()
 
         with col_select:
             # Select current path button
             if st.button("📍 Select Current Path", key=f"{session_key}_select_current"):
                 st.session_state[f"{session_key}_selected_path"] = current_display_path
-                st.success(f"Selected path: {current_display_path if current_display_path else '(root)'}")
-                st.rerun()
+                # Don't rerun immediately, let the user see the selection
 
     # Display items (folders only for path selection)
     if f"{session_key}_items" in st.session_state:
@@ -198,6 +206,9 @@ def render_s3_path_browser(api_client, bucket_type, session_key):
 
                     if st.button(f"📁 {name}", key=f"{session_key}_folder_{idx}"):
                         st.session_state[f"{session_key}_path"] = item_path
+                        # Clear items to force refresh when navigating to new folder
+                        if f"{session_key}_items" in st.session_state:
+                            del st.session_state[f"{session_key}_items"]
                         st.rerun()
 
     # Display selected path
@@ -278,13 +289,25 @@ def render_upload_section(api_client, bucket_type, title):
                 if not final_filename.lower().endswith('.json'):
                     final_filename += '.json'
 
-                # Generate final path
-                if selected_path:
-                    final_path = f"{selected_path}/{final_filename}" if selected_path else final_filename
-                else:
-                    final_path = final_filename
+                # Generate final path - recalculate at upload time to ensure we have the latest selected path
+                # Store the filename in session state for upload
+                st.session_state[f"{bucket_type}_upload_filename"] = final_filename
 
-                st.write(f"**Final Upload Path:** `{final_path}`")
+                # Show preview of what the path will be
+                if selected_path:
+                    # Remove any trailing slashes and add proper separator
+                    clean_path = selected_path.rstrip('/')
+                    preview_path = f"{clean_path}/{final_filename}" if clean_path else final_filename
+                else:
+                    preview_path = final_filename
+
+                st.write(f"**Final Upload Path:** `{preview_path}`")
+
+                # Show path selection status
+                if selected_path:
+                    st.info(f"📁 **Selected folder:** `{selected_path}`")
+                else:
+                    st.info("📁 **Upload location:** Root directory (no folder selected)")
 
             else:
                 # Checking bucket: Use automatic path generation
@@ -314,7 +337,24 @@ def render_upload_section(api_client, bucket_type, title):
                 try:
                     # Get bucket name
                     bucket_name = get_bucket_name(api_client, bucket_type)
-                    
+
+                    # Recalculate final path at upload time for reference bucket
+                    if bucket_type == "reference":
+                        # Get the current selected path from session state
+                        current_selected_path = st.session_state.get(f"{bucket_type}_browser_selected_path", "")
+                        stored_filename = st.session_state.get(f"{bucket_type}_upload_filename", uploaded_file.name)
+
+                        logger.info(f"Upload - Selected path: '{current_selected_path}', Filename: '{stored_filename}'")
+
+                        if current_selected_path:
+                            clean_path = current_selected_path.rstrip('/')
+                            final_path = f"{clean_path}/{stored_filename}" if clean_path else stored_filename
+                        else:
+                            final_path = stored_filename
+
+                        st.write(f"**Uploading to path:** `{final_path}`")
+                        logger.info(f"Final upload path: '{final_path}'")
+
                     # Show upload progress
                     with st.spinner(f"Uploading to {bucket_name}..."):
                         success, result = upload_to_s3(uploaded_file, bucket_name, final_path)

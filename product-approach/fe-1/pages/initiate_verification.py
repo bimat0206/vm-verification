@@ -1,6 +1,6 @@
 import streamlit as st
 import logging
-import time
+from .improved_image_selector import render_improved_s3_image_selector
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +54,22 @@ def render_s3_image_selector(api_client, bucket_type, label, session_key):
     with col_browse:
         browse_button = st.button("Browse", key=f"{session_key}_browse")
 
-    if browse_button or f"{session_key}_items" not in st.session_state:
+    # Update path if user typed in the input
+    if current_path != st.session_state[f"{session_key}_path"]:
+        st.session_state[f"{session_key}_path"] = current_path
+        # Clear items to force refresh when path changes
+        if f"{session_key}_items" in st.session_state:
+            del st.session_state[f"{session_key}_items"]
+
+    # Load items if browse button clicked or no items cached
+    should_load = browse_button or f"{session_key}_items" not in st.session_state
+    if should_load:
         try:
-            browser_response = api_client.browse_images(current_path, bucket_type)
-            st.session_state[f"{session_key}_items"] = browser_response.get('items', [])
-            st.session_state[f"{session_key}_current_path"] = browser_response.get('currentPath', '')
-            st.session_state[f"{session_key}_parent_path"] = browser_response.get('parentPath', '')
+            with st.spinner("Loading images..."):
+                browser_response = api_client.browse_images(current_path, bucket_type)
+                st.session_state[f"{session_key}_items"] = browser_response.get('items', [])
+                st.session_state[f"{session_key}_current_path"] = browser_response.get('currentPath', '')
+                st.session_state[f"{session_key}_parent_path"] = browser_response.get('parentPath', '')
         except Exception as e:
             st.error(f"Failed to browse {bucket_type} bucket: {str(e)}")
             return None
@@ -70,9 +80,13 @@ def render_s3_image_selector(api_client, bucket_type, label, session_key):
         st.write(f"**Current Path:** {current_display_path if current_display_path else '(root)'}")
 
         # Go up button
-        if st.session_state.get(f"{session_key}_parent_path"):
+        if st.session_state.get(f"{session_key}_parent_path") is not None:
             if st.button("⬆️ Go Up", key=f"{session_key}_go_up"):
-                st.session_state[f"{session_key}_path"] = st.session_state[f"{session_key}_parent_path"]
+                new_path = st.session_state[f"{session_key}_parent_path"]
+                st.session_state[f"{session_key}_path"] = new_path
+                # Clear items to force refresh
+                if f"{session_key}_items" in st.session_state:
+                    del st.session_state[f"{session_key}_items"]
                 st.rerun()
 
     # Display items
@@ -94,40 +108,45 @@ def render_s3_image_selector(api_client, bucket_type, label, session_key):
                 if item_type == 'folder':
                     if st.button(f"📁 {name}", key=f"{session_key}_folder_{idx}"):
                         st.session_state[f"{session_key}_path"] = item_path
+                        # Clear items to force refresh when navigating to new folder
+                        if f"{session_key}_items" in st.session_state:
+                            del st.session_state[f"{session_key}_items"]
                         st.rerun()
                 elif item_type == 'image':
+                    # Try to show image thumbnail
                     try:
-                        # Show image thumbnail
-                        url_response = api_client.get_image_url(item_path)
+                        logger.info(f"Attempting to get image URL for path: '{item_path}' in bucket: {bucket_type}")
+                        url_response = api_client.get_image_url(item_path, bucket_type)
+                        logger.info(f"URL response: {url_response}")
+
                         image_url = url_response.get('presignedUrl', '')
                         if image_url:
                             st.image(image_url, caption=name, width=150)
-
-                            # Select button
-                            if st.button(f"Select {name}", key=f"{session_key}_select_{idx}"):
-                                try:
-                                    st.session_state[f"{session_key}_selected_image"] = name
-                                    # Generate proper S3 URL using the bucket configuration from CONFIG_SECRET
-                                    bucket_name = get_bucket_name(api_client, bucket_type)
-                                    st.session_state[f"{session_key}_selected_url"] = f"s3://{bucket_name}/{item_path}"
-                                    st.success(f"Selected: {name}")
-                                    st.rerun()
-                                except Exception as config_error:
-                                    st.error(f"Configuration error: {str(config_error)}")
-                                    return None
+                        else:
+                            logger.warning(f"No presignedUrl in response for {name}: {url_response}")
+                            st.write(f"📷 {name}")
+                            st.caption("Preview unavailable")
                     except Exception as e:
-                        st.write(f"📷 {name} (Failed to load)")
-                        if st.button(f"Select {name}", key=f"{session_key}_select_{idx}"):
-                            try:
-                                st.session_state[f"{session_key}_selected_image"] = name
-                                # Generate proper S3 URL using the bucket configuration from CONFIG_SECRET
-                                bucket_name = get_bucket_name(api_client, bucket_type)
-                                st.session_state[f"{session_key}_selected_url"] = f"s3://{bucket_name}/{item_path}"
-                                st.success(f"Selected: {name}")
-                                st.rerun()
-                            except Exception as config_error:
-                                st.error(f"Configuration error: {str(config_error)}")
-                                return None
+                        logger.warning(f"Failed to load image {name} (path: {item_path}): {str(e)}")
+                        st.write(f"📷 {name}")
+                        st.caption("Preview unavailable")
+                        # Show debug info in expander
+                        with st.expander(f"Debug info for {name}"):
+                            st.write(f"**Path:** `{item_path}`")
+                            st.write(f"**Type:** {item_type}")
+                            st.write(f"**Error:** {str(e)}")
+
+                    # Select button (always show, regardless of image load status)
+                    if st.button(f"Select {name}", key=f"{session_key}_select_{idx}"):
+                        try:
+                            st.session_state[f"{session_key}_selected_image"] = name
+                            # Generate proper S3 URL using the bucket configuration
+                            bucket_name = get_bucket_name(api_client, bucket_type)
+                            st.session_state[f"{session_key}_selected_url"] = f"s3://{bucket_name}/{item_path}"
+                            # Don't rerun immediately, let user see the selection
+                        except Exception as config_error:
+                            st.error(f"Configuration error: {str(config_error)}")
+                            return None
 
     # Display selected image
     if st.session_state[f"{session_key}_selected_image"]:
@@ -138,6 +157,23 @@ def render_s3_image_selector(api_client, bucket_type, label, session_key):
 
 def app(api_client):
     st.title("Initiate Verification")
+
+    # Debug section (collapsible)
+    with st.expander("🔧 Debug Tools"):
+        st.write("**Test Image URL Generation**")
+        col1, col2 = st.columns(2)
+        with col1:
+            test_path = st.text_input("Test image path:", placeholder="e.g., AACZ_3.png")
+        with col2:
+            test_bucket = st.selectbox("Bucket type:", ["reference", "checking"])
+
+        if st.button("Test Image URL") and test_path:
+            try:
+                url_response = api_client.get_image_url(test_path, test_bucket)
+                st.success("✅ API call successful!")
+                st.json(url_response)
+            except Exception as e:
+                st.error(f"❌ API call failed: {str(e)}")
 
     # Step 1: Select verification type
     verification_type = st.selectbox(
@@ -151,13 +187,13 @@ def app(api_client):
 
     with col1:
         # Reference Image S3 Selector
-        reference_image_url = render_s3_image_selector(
+        reference_image_url = render_improved_s3_image_selector(
             api_client, "reference", "Reference Image", "ref_img"
         )
 
     with col2:
         # Checking Image S3 Selector
-        checking_image_url = render_s3_image_selector(
+        checking_image_url = render_improved_s3_image_selector(
             api_client, "checking", "Checking Image", "check_img"
         )
 
@@ -217,13 +253,10 @@ def app(api_client):
             st.write(f"Status: {response.get('status', 'N/A')}")
             st.write(f"Initiated at: {response.get('verificationAt', 'N/A')}")
 
-            # Store the verification ID in session state and redirect to details page
+            # Store the verification ID in session state
             if verification_id != 'N/A':
                 st.session_state['selected_verification'] = verification_id
-                st.info("Redirecting to verification details page in 5 seconds...")
-                time.sleep(5)
-                st.session_state['page'] = 'Verification Details'
-                st.rerun()
+                st.info("✅ Verification initiated successfully! You can view the status in the Verifications page.")
 
         except Exception as e:
             logger.error(f"Initiate verification failed: {str(e)}")
