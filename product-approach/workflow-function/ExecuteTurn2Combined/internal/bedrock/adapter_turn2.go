@@ -92,14 +92,10 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"operation":         "bedrock_converse_with_history",
 	})
 
-	// Build request with conversation history using the correct types
-	// Start with the system prompt as the first message
-	messages := []sharedBedrock.MessageWrapper{
-		{
-			Role:    "system",
-			Content: []sharedBedrock.ContentBlock{{Type: "text", Text: systemPrompt}},
-		},
-	}
+	// Build request with conversation history using the correct types.
+	// The system prompt is provided via the ConverseRequest.System field,
+	// so the messages slice must only contain user and assistant roles.
+	messages := []sharedBedrock.MessageWrapper{}
 
 	// If Turn1 response is available, include the original user prompt and assistant answer
 	if turn1Response != nil {
@@ -149,7 +145,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 
 	request := &sharedBedrock.ConverseRequest{
 		ModelId:  a.cfg.AWS.BedrockModel,
-		System:   "",
+		System:   systemPrompt,
 		Messages: messages,
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,

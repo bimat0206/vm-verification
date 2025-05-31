@@ -2,6 +2,13 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.9] - 2025-08-15 - Bedrock Request and Logging Fixes
+
+### Fixed
+- Bedrock request construction now assigns the system prompt to the `ConverseRequest.System` field and excludes it from the messages slice. This resolves `ValidationException` errors.
+- `turn2-raw-response.json` is stored as plain JSON using `StoreTurn2RawResponse`, preventing base64 encoded artifacts.
+- Conversation history generation checks for an existing system prompt from Turn 1 to avoid duplication.
+
 ## [2.2.8] - 2025-06-12 - Bedrock Conversation Fixes
 
 ### Fixed
