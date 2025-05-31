@@ -385,7 +385,10 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 
 	contextLogger.LogReceivedEvent(event)
 
-	var req models.Turn2Request
+	var finalResponse interface{}
+	var finalErr error
+
+	var directReq models.Turn2Request
 	var stepEvent handler.StepFunctionEvent
 	if err := json.Unmarshal(event, &stepEvent); err == nil && stepEvent.SchemaVersion != "" {
 		contextLogger.Info("step_function_event_format_detected", map[string]interface{}{
@@ -393,37 +396,37 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 		})
 
 		transformer := handler.NewEventTransformer(applicationContainer.s3Service, contextLogger)
-		transformed, err := transformer.TransformStepFunctionEvent(enrichedCtx, stepEvent)
-		if err != nil {
-			contextLogger.Error("step_function_event_transformation_failed", map[string]interface{}{"error": err.Error()})
-			return nil, err
+		transformedReq, transformErr := transformer.TransformStepFunctionEvent(enrichedCtx, stepEvent)
+		if transformErr != nil {
+			contextLogger.Error("step_function_event_transformation_failed", map[string]interface{}{"error": transformErr.Error()})
+			finalErr = transformErr
+		} else {
+			finalResponse, finalErr = applicationContainer.handler.HandleForStepFunction(enrichedCtx, transformedReq)
 		}
-		req = *transformed
 	} else {
-		if err := json.Unmarshal(event, &req); err != nil {
+		if err := json.Unmarshal(event, &directReq); err != nil {
 			wrapped := errors.WrapError(err, errors.ErrorTypeValidation,
 				"failed to parse request", false)
 			contextLogger.Error("request_parse_failed", map[string]interface{}{"error": err.Error()})
-			return nil, wrapped
+			finalErr = wrapped
+		} else {
+			contextLogger.Info("turn2_request_format_detected", nil)
+			var turn2Resp *models.Turn2Response
+			turn2Resp, _, _, finalErr = applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &directReq)
+			finalResponse = turn2Resp
 		}
-
-		contextLogger.Info("turn2_request_format_detected", nil)
 	}
-
-	// Execute handler with deterministic architecture
-	response, _, _, err := applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &req)
 
 	executionContext.ExecutionMetrics.ProcessingDuration = time.Since(executionStartTime)
 
 	contextLogger.Info("execution_completed", map[string]interface{}{
 		"processing_duration_ms":  executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds(),
-		"success":                 err == nil,
+		"success":                 finalErr == nil,
 		"total_execution_time_ms": time.Since(executionStartTime).Milliseconds(),
 		"architecture":            "deterministic_control",
 	})
-
-	if err != nil {
-		if workflowErr, ok := err.(*errors.WorkflowError); ok {
+	if finalErr != nil {
+		if workflowErr, ok := finalErr.(*errors.WorkflowError); ok {
 			enrichedErr := workflowErr.
 				WithContext("execution_time_ms", executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds()).
 				WithContext("correlation_id", executionContext.CorrelationID).
@@ -439,22 +442,22 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 			})
 			return nil, enrichedErr
 		} else {
-			wrappedErr := errors.WrapError(err, errors.ErrorTypeInternal,
+			wrappedErr := errors.WrapError(finalErr, errors.ErrorTypeInternal,
 				"execution failed", false).
 				WithContext("correlation_id", executionContext.CorrelationID).
 				WithContext("architecture", "deterministic_control")
 
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error":        err.Error(),
+				"error":        finalErr.Error(),
 				"architecture": "deterministic_control",
 			})
 			return nil, wrappedErr
 		}
 	}
 
-	contextLogger.LogOutputEvent(response)
+	contextLogger.LogOutputEvent(finalResponse)
 
-	return response, nil
+	return finalResponse, nil
 }
 
 // Global counter for correlation ID uniqueness
