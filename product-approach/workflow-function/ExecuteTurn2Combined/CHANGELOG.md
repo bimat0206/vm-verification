@@ -2,6 +2,20 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.11] - 2025-08-21 - Template Driven Turn 2 Prompt
+
+### Changed
+- `prompt_turn2.go` now loads Turn 2 prompts from versioned template files using
+  `shared/templateloader`. The prompt content is no longer hardcoded.
+- Template type is selected based on `VerificationType` and rendered with the
+  configured Turn 2 template version and context data.
+- `TemplateProcessor` now records the actual template details and rendered
+  content.
+
+### Impact
+- Turn 2 prompts can be updated or versioned without code changes, enabling
+  easier maintenance and iteration.
+
 ## [2.2.10] - 2025-08-20 - Step Function Response Fix
 
 ### Fixed

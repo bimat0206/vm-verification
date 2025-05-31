@@ -44,6 +44,18 @@ func NewPromptServiceTurn2(loader templateloader.TemplateLoader, cfg *config.Con
 	}, nil
 }
 
+// getTurn2TemplateType selects the Turn 2 template type based on verification type
+func getTurn2TemplateType(verificationType string) string {
+	switch verificationType {
+	case schema.VerificationTypeLayoutVsChecking:
+		return "turn2-layout-vs-checking"
+	case schema.VerificationTypePreviousVsCurrent:
+		return "turn2-previous-vs-current"
+	default:
+		return "turn2-default"
+	}
+}
+
 // GenerateTurn2PromptWithMetrics renders the Turn2 prompt and returns metrics
 func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context, vCtx *schema.VerificationContext, systemPrompt string, turn1Response *schema.TurnResponse, turn1RawResponse json.RawMessage) (string, *schema.TemplateProcessor, error) {
 	start := time.Now()
@@ -54,7 +66,7 @@ func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context,
 		return "", nil, errors.NewValidationError("system prompt cannot be empty", map[string]interface{}{"verification_id": vCtx.VerificationId})
 	}
 
-	promptText := "Analyze the provided checking image against the reference context established in the previous turn. Follow all instructions in the System Prompt to identify discrepancies and generate the full verification report."
+	templateType := getTurn2TemplateType(vCtx.VerificationType)
 
 	templateData := map[string]interface{}{
 		"VerificationContext": vCtx,
@@ -62,15 +74,30 @@ func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context,
 		"Turn1Response":       turn1Response,
 	}
 
+	renderedPrompt, err := p.templateLoader.RenderTemplateWithVersion(
+		templateType,
+		p.cfg.Prompts.Turn2TemplateVersion,
+		templateData,
+	)
+	if err != nil {
+		p.log.Error("turn2_template_rendering_failed", map[string]interface{}{
+			"error":            err.Error(),
+			"template_type":    templateType,
+			"template_version": p.cfg.Prompts.Turn2TemplateVersion,
+			"verification_id":  vCtx.VerificationId,
+		})
+		return "", nil, errors.WrapError(err, errors.ErrorTypeTemplate, "failed to render Turn 2 prompt template", false)
+	}
+
 	processor := &schema.TemplateProcessor{
 		Template: &schema.PromptTemplate{
-			TemplateId:      "turn2-static",
+			TemplateId:      templateType,
 			TemplateVersion: p.cfg.Prompts.Turn2TemplateVersion,
-			TemplateType:    "turn2-static",
-			Content:         promptText,
+			TemplateType:    templateType,
+			Content:         renderedPrompt,
 		},
 		ContextData:     templateData,
-		ProcessedPrompt: promptText,
+		ProcessedPrompt: renderedPrompt,
 		ProcessingTime:  time.Since(start).Milliseconds(),
 		InputTokens:     0,
 		OutputTokens:    0,
@@ -78,10 +105,10 @@ func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context,
 
 	p.log.Info("turn2_prompt_generated", map[string]interface{}{
 		"verification_id":  vCtx.VerificationId,
-		"template_type":    "turn2-static",
+		"template_type":    templateType,
 		"template_version": p.cfg.Prompts.Turn2TemplateVersion,
-		"prompt_length":    len(promptText),
+		"prompt_length":    len(renderedPrompt),
 	})
 
-	return promptText, processor, nil
+	return renderedPrompt, processor, nil
 }
