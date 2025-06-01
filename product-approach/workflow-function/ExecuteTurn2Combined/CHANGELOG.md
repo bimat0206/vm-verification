@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.15] - 2025-06-03 - Temperature Validation Fix
+### Fixed
+- Case-insensitive `THINKING_TYPE` comparison prevents misconfiguration.
+- Configuration validation rejects `TEMPERATURE=1` unless thinking is enabled.
+
 ## [2.2.14] - 2025-06-02 - BedrockResponse Struct Update
 ### Fixed
 - Added missing fields to `BedrockResponse` in shared schema to resolve compilation errors.

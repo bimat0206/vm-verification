@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"workflow-function/shared/errors"
@@ -137,5 +138,5 @@ func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
 // Thinking is enabled only when THINKING_TYPE is explicitly set to "enable"
 // Thinking is disabled when THINKING_TYPE is "disable" or unset (empty string)
 func (c *Config) IsThinkingEnabled() bool {
-	return c.Processing.ThinkingType == "enable"
+	return strings.EqualFold(c.Processing.ThinkingType, "enable")
 }
