@@ -127,7 +127,7 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 }
 
 // StoreConversation stores turn1 conversation messages in S3 with complete schema compliance
-func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
+func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for conversation storage",
@@ -135,7 +135,7 @@ func (m *StorageManager) StoreConversation(ctx context.Context, verificationID s
 	}
 
 	start := time.Now()
-	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, assistantResponse, thinkingContent, tokenUsage, latencyMs, bedrockRequestId, modelId)
+	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, assistantResponse, thinkingContent, tokenUsage, latencyMs, bedrockRequestId, modelId, bedrockResponseMetadata)
 	if err != nil {
 		m.log.Warn("s3 conversation-store warning", map[string]interface{}{
 			"error":  err.Error(),
@@ -175,7 +175,7 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 	responseContent := []map[string]interface{}{
 		{"type": "text", "text": resp.Processed.(map[string]interface{})["content"]},
 	}
-	
+
 	// Add thinking content if available in metadata
 	var thinkingContent string
 	var hasThinking bool
@@ -192,13 +192,13 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 
 	// Build enhanced bedrock metadata with thinking support
 	bedrockMetadata := map[string]interface{}{
-		"modelId":        s.cfg.AWS.BedrockModel,
-		"requestId":      resp.RequestID,
-		"stopReason":     stopReason,
-		"hasThinking":    hasThinking,
+		"modelId":         s.cfg.AWS.BedrockModel,
+		"requestId":       resp.RequestID,
+		"stopReason":      stopReason,
+		"hasThinking":     hasThinking,
 		"thinkingEnabled": s.cfg.Processing.ThinkingType == "enable",
 	}
-	
+
 	// Add thinking-specific metadata if available
 	if hasThinking {
 		bedrockMetadata["thinkingLength"] = len(thinkingContent)
@@ -241,7 +241,7 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 			"retryAttempts":   0,
 		},
 	}
-	
+
 	// Add thinking blocks if available
 	if len(thinkingBlocks) > 0 {
 		rawData["thinkingBlocks"] = thinkingBlocks
