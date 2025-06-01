@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 // Custom error types
@@ -91,6 +92,14 @@ func (r *VerificationRepository) StoreMinimalRecord(
 		VerificationType  string `json:"verificationType,omitempty" dynamodbav:"verificationType,omitempty"`
 		VendingMachineId  string `json:"vendingMachineId,omitempty" dynamodbav:"vendingMachineId,omitempty"`
 		
+		// Image URLs for verification
+		ReferenceImageUrl string `json:"referenceImageUrl,omitempty" dynamodbav:"referenceImageUrl,omitempty"`
+		CheckingImageUrl  string `json:"checkingImageUrl,omitempty" dynamodbav:"checkingImageUrl,omitempty"`
+		
+		// Layout information for LAYOUT_VS_CHECKING verification type
+		LayoutId          int    `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
+		LayoutPrefix      string `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
+		
 		// S3 reference
 		S3StateBucket     string `json:"s3StateBucket,omitempty" dynamodbav:"s3StateBucket,omitempty"`
 		S3StateKey        string `json:"s3StateKey,omitempty" dynamodbav:"s3StateKey,omitempty"`
@@ -107,6 +116,10 @@ func (r *VerificationRepository) StoreMinimalRecord(
 		Status:              verification.Status,
 		VerificationType:    verification.VerificationType,
 		VendingMachineId:    verification.VendingMachineId,
+		ReferenceImageUrl:   verification.ReferenceImageUrl,
+		CheckingImageUrl:    verification.CheckingImageUrl,
+		LayoutId:            verification.LayoutId,
+		LayoutPrefix:        verification.LayoutPrefix,
 		TTL:                 ttl,
 	}
 	
@@ -132,11 +145,15 @@ func (r *VerificationRepository) StoreMinimalRecord(
 	conditionExpression := aws.String("attribute_not_exists(verificationId)")
 	
 	r.logger.Info("Storing minimal verification record", map[string]interface{}{
-		"verificationId":   verification.VerificationId,
-		"verificationType": verification.VerificationType,
-		"table":            r.config.VerificationTable,
-		"s3StateBucket":    record.S3StateBucket,
-		"s3StateKey":       record.S3StateKey,
+		"verificationId":     verification.VerificationId,
+		"verificationType":   verification.VerificationType,
+		"table":              r.config.VerificationTable,
+		"referenceImageUrl":  record.ReferenceImageUrl,
+		"checkingImageUrl":   record.CheckingImageUrl,
+		"layoutId":           record.LayoutId,
+		"layoutPrefix":       record.LayoutPrefix,
+		"s3StateBucket":      record.S3StateBucket,
+		"s3StateKey":         record.S3StateKey,
 	})
 	
 	_, err = r.dbClient.PutItem(

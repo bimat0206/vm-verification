@@ -5,6 +5,26 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.6] - 2025-12-19
+
+### Enhanced
+- Enhanced `StoreMinimalRecord` method to include essential verification fields in DynamoDB storage
+- Added `referenceImageUrl` and `checkingImageUrl` fields to MinimalVerificationRecord struct
+- Added `layoutId` and `layoutPrefix` fields to MinimalVerificationRecord struct for LAYOUT_VS_CHECKING verification type support
+- Updated record initialization to populate all essential verification parameters from VerificationContext
+- Enhanced logging to include image URLs and layout information for better debugging and monitoring
+
+### Changed
+- Modified MinimalVerificationRecord struct to store comprehensive verification metadata while maintaining lightweight approach
+- Updated DynamoDB storage to include all key verification parameters for improved query capability and workflow continuity
+- Improved field mapping to ensure proper JSON and DynamoDB attribute value serialization
+
+### Benefits
+- Complete verification context now stored in DynamoDB for efficient querying and filtering
+- Subsequent workflow steps can access all necessary verification information directly from DynamoDB
+- Enhanced debugging capabilities with comprehensive logging of stored fields
+- Maintained backward compatibility while expanding stored data scope
+
 ## [3.0.5] - 2025-05-31
 
 ### Fixed
