@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.1] - 2025-06-01 - Extended Thinking Integration
+### Added
+- Unified reasoning configuration across service, adapter, and shared Bedrock client.
+- Captures thinking tokens from responses and stores them with conversation history.
+- Conversation files now include structured thinking blocks when available.
 ## [2.8.0] - 2025-06-01
 ### Fixed - Critical Thinking Blocks Implementation
 - **Root Cause**: Shared Bedrock client was not actually setting reasoning configuration in API requests
