@@ -239,9 +239,10 @@ func (h *Turn2Handler) validateAndLogCompletion(response *models.Turn2Response, 
 			AnalysisStage:    models.StageProcessing,
 			ProcessingTimeMs: totalDuration.Milliseconds(),
 			TokenUsage: models.TokenUsage{
-				InputTokens:  bedrockResp.InputTokens,
-				OutputTokens: bedrockResp.OutputTokens,
-				TotalTokens:  bedrockResp.InputTokens + bedrockResp.OutputTokens,
+				InputTokens:    bedrockResp.InputTokens,
+				OutputTokens:   bedrockResp.OutputTokens,
+				ThinkingTokens: bedrockResp.ThinkingTokens,
+				TotalTokens:    bedrockResp.InputTokens + bedrockResp.OutputTokens + bedrockResp.ThinkingTokens,
 			},
 			BedrockRequestID: "", // RequestID not available in BedrockResponse
 		},

@@ -44,9 +44,10 @@ func (r *ResponseBuilder) BuildCombinedTurn2Response(
 		},
 		LatencyMs: totalDurationMs,
 		TokenUsage: &schema.TokenUsage{
-			InputTokens:  invoke.InputTokens,
-			OutputTokens: invoke.OutputTokens,
-			TotalTokens:  invoke.InputTokens + invoke.OutputTokens,
+			InputTokens:    invoke.InputTokens,
+			OutputTokens:   invoke.OutputTokens,
+			ThinkingTokens: invoke.ThinkingTokens,
+			TotalTokens:    invoke.TotalTokens,
 		},
 		Stage: "COMPARISON_ANALYSIS",
 		Metadata: map[string]interface{}{
@@ -167,9 +168,10 @@ func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 		"processingTimeMs":    turn2Resp.Summary.ProcessingTimeMs,
 		"verificationOutcome": turn2Resp.VerificationOutcome,
 		"tokenUsage": map[string]interface{}{
-			"input":  turn2Resp.Summary.TokenUsage.InputTokens,
-			"output": turn2Resp.Summary.TokenUsage.OutputTokens,
-			"total":  turn2Resp.Summary.TokenUsage.TotalTokens,
+			"input":    turn2Resp.Summary.TokenUsage.InputTokens,
+			"output":   turn2Resp.Summary.TokenUsage.OutputTokens,
+			"thinking": turn2Resp.Summary.TokenUsage.ThinkingTokens,
+			"total":    turn2Resp.Summary.TokenUsage.TotalTokens,
 		},
 		"bedrockRequestId": turn2Resp.Summary.BedrockRequestID,
 	}
