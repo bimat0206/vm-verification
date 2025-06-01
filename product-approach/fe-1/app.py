@@ -5,8 +5,8 @@ st.set_page_config(page_title="Vending Machine Verification", layout="wide")
 
 import logging
 # from dotenv import load_dotenv # Removed for containerized deployment
-from pages import home, initiate_verification, verifications
-from pages import image_browser, health_check, verification_lookup, image_upload
+from pages import home, verifications
+from pages import health_check, verification_lookup, image_upload
 from clients.api_client import APIClient
 
 # Load environment variables from .env file - Removed as env vars will be set by Docker/ECS
@@ -60,11 +60,9 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Define pages with categories and icons
 pages = {
     "Home": {"module": home, "icon": "🏠", "category": "Main"},
-    "Initiate Verification": {"module": initiate_verification, "icon": "▶️", "category": "Verification"},
-    "Verifications": {"module": verifications, "icon": "📋", "category": "Verification"},
-    "Verification Lookup": {"module": verification_lookup, "icon": "�", "category": "Verification"},
-    "Image Browser": {"module": image_browser, "icon": "�️", "category": "Tools"},
-    "Image Upload": {"module": image_upload, "icon": "�", "category": "Tools"},
+    "Verification Results": {"module": verifications, "icon": "📋", "category": "Verification"},
+    "Verification Lookup": {"module": verification_lookup, "icon": "🔍", "category": "Verification"},
+    "Image Upload": {"module": image_upload, "icon": "📤", "category": "Tools"},
     "Health Check": {"module": health_check, "icon": "❤️", "category": "Tools"},
 }
 
@@ -111,21 +109,36 @@ selection = st.session_state.get('page', 'Home')
 
 # Load selected page
 try:
+    logger.info(f"🔄 Loading page: {selection}")
+
     if selection not in pages:
+        logger.warning(f"Page '{selection}' not found in pages dict")
         st.error(f"Page '{selection}' not found. Defaulting to Home.")
         st.session_state['page'] = 'Home'
         selection = 'Home'
 
     page_module = pages[selection]["module"]
+    logger.info(f"📦 Page module loaded: {page_module.__name__}")
+
     # Ensure api_client was successfully initialized before passing it
     if 'api_client' in locals() and api_client is not None:
+        logger.info(f"🔗 Calling {selection} page with API client")
         page_module.app(api_client)
+        logger.info(f"✅ {selection} page loaded successfully")
     else:
         # This case should ideally be caught by the st.stop() earlier
+        logger.error("API Client is not available")
         st.error("API Client is not available. Cannot load page.")
 except Exception as e:
     logger.error(f"Error loading page {selection}: {str(e)}", exc_info=True)
     st.error(f"An error occurred while loading the page '{selection}'. Please try again or contact support.")
+
+    # Show additional debug information
+    with st.expander("🔧 Debug Information", expanded=False):
+        st.error(f"**Error Type**: {type(e).__name__}")
+        st.error(f"**Error Message**: {str(e)}")
+        st.code(f"Page: {selection}\nModule: {pages.get(selection, {}).get('module', 'Unknown')}", language="text")
+
     # Optionally, redirect to a safe page like Home on error
     # st.session_state['page'] = 'Home'
     # st.rerun()

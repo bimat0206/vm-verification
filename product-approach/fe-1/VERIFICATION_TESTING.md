@@ -34,7 +34,7 @@ python3 test-verification.py
    python3 -m streamlit run app.py
    ```
 
-2. **Navigate to "Initiate Verification" page**
+2. **Navigate to "Home" page (which now contains the verification initiation interface)**
 
 3. **Fill in the form with valid data:**
 
