@@ -26,18 +26,23 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 	if responseText == "" {
 		return nil, fmt.Errorf("no text content in response")
 	}
+	
+	// Extract thinking content from response
+	thinkingText := ExtractThinkingFromResponse(response)
 
 	// Create token usage
 	tokenUsage := TokenUsage{
-		InputTokens:  0,
-		OutputTokens: 0,
-		TotalTokens:  0,
+		InputTokens:    0,
+		OutputTokens:   0,
+		ThinkingTokens: 0,
+		TotalTokens:    0,
 	}
 
 	// Copy token usage if available
 	if response.Usage != nil {
 		tokenUsage.InputTokens = response.Usage.InputTokens
 		tokenUsage.OutputTokens = response.Usage.OutputTokens
+		tokenUsage.ThinkingTokens = response.Usage.ThinkingTokens
 		tokenUsage.TotalTokens = response.Usage.TotalTokens
 	}
 
@@ -50,6 +55,7 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 			Content: responseText,
 			StopReason: response.StopReason,
 		},
+		Thinking:      thinkingText,
 		LatencyMs:     latencyMs,
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn1,
@@ -77,18 +83,23 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 	if responseText == "" {
 		return nil, fmt.Errorf("no text content in response")
 	}
+	
+	// Extract thinking content from response
+	thinkingText := ExtractThinkingFromResponse(response)
 
 	// Create token usage
 	tokenUsage := TokenUsage{
-		InputTokens:  0,
-		OutputTokens: 0,
-		TotalTokens:  0,
+		InputTokens:    0,
+		OutputTokens:   0,
+		ThinkingTokens: 0,
+		TotalTokens:    0,
 	}
 
 	// Copy token usage if available
 	if response.Usage != nil {
 		tokenUsage.InputTokens = response.Usage.InputTokens
 		tokenUsage.OutputTokens = response.Usage.OutputTokens
+		tokenUsage.ThinkingTokens = response.Usage.ThinkingTokens
 		tokenUsage.TotalTokens = response.Usage.TotalTokens
 	}
 
@@ -101,6 +112,7 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 			Content: responseText,
 			StopReason: response.StopReason,
 		},
+		Thinking:      thinkingText,
 		LatencyMs:     latencyMs,
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn2,
@@ -301,49 +313,7 @@ func CreateConverseRequestForTurn2WithImages(
 	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
 }
 
-// ExtractThinkingContent extracts the thinking content from a response if present
-func ExtractThinkingContent(responseText string) (string, string) {
-	// Check if the response contains thinking content (Claude models often use a specific format)
-	// Common format: <thinking>...</thinking> or similar markers
-	
-	// Define potential thinking markers
-	thinkingStartMarkers := []string{"<thinking>", "THINKING:", "Let me think:"}
-	thinkingEndMarkers := []string{"</thinking>", "END THINKING", "\n\n"}
-	
-	// Initialize
-	thinkingContent := ""
-	cleanContent := responseText
-	
-	// Try to find thinking content
-	for _, startMarker := range thinkingStartMarkers {
-		startIdx := strings.Index(responseText, startMarker)
-		if startIdx >= 0 {
-			// Found a start marker
-			startPos := startIdx + len(startMarker)
-			
-			// Look for end marker
-			endPos := len(responseText)
-			for _, endMarker := range thinkingEndMarkers {
-				endIdx := strings.Index(responseText[startPos:], endMarker)
-				if endIdx >= 0 {
-					possibleEndPos := startPos + endIdx
-					if possibleEndPos < endPos {
-						endPos = possibleEndPos
-					}
-				}
-			}
-			
-			// Extract thinking content
-			thinkingContent = strings.TrimSpace(responseText[startPos:endPos])
-			
-			// Create clean content without thinking
-			cleanContent = strings.TrimSpace(responseText[:startIdx] + responseText[endPos:])
-			break
-		}
-	}
-	
-	return cleanContent, thinkingContent
-}
+// Note: ExtractThinkingContent function removed - now using proper thinking blocks from Bedrock API
 
 // TokenizationFormats returns a list of available tokenization formats
 func TokenizationFormats() []string {

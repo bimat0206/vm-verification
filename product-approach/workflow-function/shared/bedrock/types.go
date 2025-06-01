@@ -28,6 +28,7 @@ type ConverseRequest struct {
 	System          string                `json:"system,omitempty"`
 	InferenceConfig InferenceConfig       `json:"inferenceConfig,omitempty"`
 	GuardrailConfig *GuardrailConfig      `json:"guardrailConfig,omitempty"`
+	Reasoning       string                `json:"reasoning,omitempty"` // Added for Claude 3.5 Sonnet thinking support
 }
 
 // MessageWrapper represents a message in the Converse API
@@ -62,6 +63,7 @@ type InferenceConfig struct {
 	Temperature   *float64  `json:"temperature,omitempty"`
 	TopP          *float64  `json:"topP,omitempty"`
 	StopSequences []string  `json:"stopSequences,omitempty"`
+	Reasoning     string    `json:"reasoning,omitempty"` // Added for Claude 3.5 Sonnet thinking support
 }
 
 // GuardrailConfig represents configuration for guardrails in Bedrock
@@ -82,9 +84,10 @@ type ConverseResponse struct {
 
 // TokenUsage represents token usage metrics from Bedrock
 type TokenUsage struct {
-	InputTokens  int `json:"inputTokens"`
-	OutputTokens int `json:"outputTokens"`
-	TotalTokens  int `json:"totalTokens"`
+	InputTokens    int `json:"inputTokens"`
+	OutputTokens   int `json:"outputTokens"`
+	ThinkingTokens int `json:"thinkingTokens,omitempty"` // Added for Claude reasoning support
+	TotalTokens    int `json:"totalTokens"`
 }
 
 // ResponseMetrics represents metrics about the response from Bedrock
@@ -113,6 +116,7 @@ type Turn1Response struct {
 	Timestamp       string           `json:"timestamp"`
 	Prompt          string           `json:"prompt"`
 	Response        TextResponse     `json:"response"`
+	Thinking        string           `json:"thinking,omitempty"`        // Thinking content if available
 	LatencyMs       int64            `json:"latencyMs"`
 	TokenUsage      TokenUsage       `json:"tokenUsage"`
 	AnalysisStage   string           `json:"analysisStage"`
@@ -126,6 +130,7 @@ type Turn2Response struct {
 	Timestamp       string           `json:"timestamp"`
 	Prompt          string           `json:"prompt"`
 	Response        TextResponse     `json:"response"`
+	Thinking        string           `json:"thinking,omitempty"`        // Thinking content if available
 	LatencyMs       int64            `json:"latencyMs"`
 	TokenUsage      TokenUsage       `json:"tokenUsage"`
 	AnalysisStage   string           `json:"analysisStage"`
@@ -212,4 +217,110 @@ func ExtractTextFromResponse(response *ConverseResponse) string {
 	}
 
 	return strings.Join(textParts, "")
+}
+
+// ExtractThinkingFromResponse extracts thinking content from a Converse response
+// Uses multiple extraction strategies ported from old/ExecuteTurn1
+func ExtractThinkingFromResponse(response *ConverseResponse) string {
+	if response == nil || len(response.Content) == 0 {
+		return ""
+	}
+
+	// First, check for thinking content blocks (AWS SDK format)
+	var thinkingParts []string
+	for _, content := range response.Content {
+		if content.Type == "thinking" {
+			thinkingParts = append(thinkingParts, content.Text)
+		}
+	}
+
+	if len(thinkingParts) > 0 {
+		return strings.Join(thinkingParts, "")
+	}
+
+	// If no thinking content blocks found, extract from text content
+	// This handles cases where thinking is embedded in text responses
+	var allText []string
+	for _, content := range response.Content {
+		if content.Type == "text" {
+			allText = append(allText, content.Text)
+		}
+	}
+
+	if len(allText) == 0 {
+		return ""
+	}
+
+	// Apply multiple extraction strategies to the combined text
+	combinedText := strings.Join(allText, "")
+	return extractThinkingFromText(combinedText)
+}
+
+// extractThinkingFromText applies multiple thinking extraction strategies
+// Ported from old/ExecuteTurn1 proven implementation
+func extractThinkingFromText(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	// Strategy 1: Claude 3.7 Bedrock standard reasoning format
+	if reasoning := extractContentBetweenTags(text, "<reasoning>", "</reasoning>"); reasoning != "" {
+		return strings.TrimSpace(reasoning)
+	}
+
+	// Strategy 2: Traditional thinking format
+	if thinking := extractContentBetweenTags(text, "<thinking>", "</thinking>"); thinking != "" {
+		return strings.TrimSpace(thinking)
+	}
+
+	// Strategy 3: Markdown code block format
+	if thinking := extractContentBetweenTags(text, "```thinking", "```"); thinking != "" {
+		return strings.TrimSpace(thinking)
+	}
+
+	// Strategy 4: Section header formats
+	headerFormats := []string{
+		"# Thinking\n",
+		"## Thinking\n",
+		"Thinking:\n",
+	}
+
+	for _, header := range headerFormats {
+		startIdx := strings.Index(text, header)
+		if startIdx >= 0 {
+			contentStart := startIdx + len(header)
+			// Try to find the end (next section or end of text)
+			endIdx := strings.Index(text[contentStart:], "\n#")
+
+			var thinking string
+			if endIdx >= 0 {
+				thinking = strings.TrimSpace(text[contentStart : contentStart+endIdx])
+			} else {
+				thinking = strings.TrimSpace(text[contentStart:])
+			}
+
+			if thinking != "" {
+				return thinking
+			}
+		}
+	}
+
+	// No thinking content found
+	return ""
+}
+
+// extractContentBetweenTags extracts content between start and end tags
+func extractContentBetweenTags(text, startTag, endTag string) string {
+	startIdx := strings.Index(text, startTag)
+	if startIdx == -1 {
+		return ""
+	}
+
+	contentStart := startIdx + len(startTag)
+	endIdx := strings.Index(text[contentStart:], endTag)
+	if endIdx == -1 {
+		return ""
+	}
+
+	return text[contentStart : contentStart+endIdx]
 }

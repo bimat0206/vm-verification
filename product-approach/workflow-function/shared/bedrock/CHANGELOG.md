@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.3.0] - 2025-01-03
+
+### Added
+- **Thinking Content Infrastructure**: Comprehensive support for Claude thinking content
+  - Added `ThinkingTokens` field to `TokenUsage` structure for thinking token tracking
+  - Enhanced `Turn1Response` and `Turn2Response` with `Thinking` field for thinking content
+  - Implemented `ExtractThinkingFromResponse` utility function for thinking content extraction
+  - Added thinking content processing in `ProcessTurn1Response` and `ProcessTurn2Response`
+  - Enhanced token usage calculation to include thinking tokens when available
+
+### Enhanced
+- **Future-Proof AWS SDK Integration**: Prepared for AWS SDK thinking support
+  - Added placeholder configuration for Claude reasoning/thinking mode in client
+  - Implemented conditional thinking content block processing (awaiting AWS SDK support)
+  - Added proper logging for thinking-related features and token usage
+  - Structured code to easily enable full functionality when AWS SDK adds thinking support
+
+### Technical Details
+- **Response Processing**: Enhanced response processors to extract and include thinking content
+- **Token Usage**: Extended token usage tracking to include thinking tokens in total calculations
+- **Content Extraction**: Added robust thinking content extraction with proper error handling
+- **Backward Compatibility**: All thinking fields are optional with graceful fallback behavior
+- **Infrastructure**: Complete thinking content support infrastructure ready for AWS SDK updates
+
+### Infrastructure Changes
+- **Types**: Enhanced response types with thinking content fields
+- **Utils**: Added thinking content extraction utilities
+- **Client**: Prepared client for thinking/reasoning configuration
+- **Response Processing**: Complete thinking content integration in response processing pipeline
+
 ## [1.2.0] - 2025-05-17
 
 ### Added

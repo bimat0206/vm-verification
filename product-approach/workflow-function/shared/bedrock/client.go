@@ -6,11 +6,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 )
 
@@ -152,6 +154,41 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 		InferenceConfig: inferenceConfig,
 	}
 	
+	// Add reasoning configuration if specified
+	if request.InferenceConfig.Reasoning != "" || request.Reasoning != "" {
+		reasoning := request.InferenceConfig.Reasoning
+		if reasoning == "" {
+			reasoning = request.Reasoning
+		}
+		
+		if reasoning == "enable" || reasoning == "enabled" {
+			log.Printf("THINKING_MODE_ENABLED: Configuring reasoning support (budget tokens: %d)", bc.config.BudgetTokens)
+			
+			// Configure reasoning using AdditionalModelRequestFields
+			// This is the correct way to enable Claude 3.7 reasoning with Converse API
+			reasoningConfig := map[string]interface{}{
+				"thinking": map[string]interface{}{
+					"type": "enabled",
+				},
+			}
+			
+			// Add budget tokens if specified
+			if bc.config.BudgetTokens > 0 {
+				reasoningConfig["thinking"].(map[string]interface{})["budget_tokens"] = bc.config.BudgetTokens
+				log.Printf("THINKING_BUDGET_SET: %d tokens", bc.config.BudgetTokens)
+			}
+			
+			// Create the document using the correct AWS SDK method
+			log.Printf("THINKING_CONFIG_ATTEMPT: Trying to set reasoning configuration")
+			
+			// Use document.NewLazyDocument with the map directly
+			doc := document.NewLazyDocument(reasoningConfig)
+			converseInput.AdditionalModelRequestFields = doc
+			log.Printf("THINKING_CONFIG_APPLIED: Successfully set reasoning configuration for model: %s", bc.modelID)
+			log.Printf("THINKING_CONFIG_DETAILS: %+v", reasoningConfig)
+		}
+	}
+	
 	// Add system prompt if provided
 	if request.System != "" {
 		converseInput.System = []types.SystemContentBlock{
@@ -215,9 +252,25 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 						Type: "text",
 						Text: cb.Value,
 					})
-				// Note: Image output is not supported by Bedrock currently
 				default:
-					log.Printf("Unknown content block type in response: %T", cb)
+					// Check if this might be a thinking content block
+					typeName := fmt.Sprintf("%T", cb)
+					log.Printf("Processing content block type: %s", typeName)
+					
+					// Try to extract thinking content if it's a thinking block
+					if strings.Contains(strings.ToLower(typeName), "thinking") {
+						// Try to extract the value using reflection
+						thinkingValue := extractValueFromUnknownType(cb)
+						if thinkingValue != "" {
+							content = append(content, ContentBlock{
+								Type: "thinking",
+								Text: thinkingValue,
+							})
+							log.Printf("Extracted thinking content: %d chars", len(thinkingValue))
+						}
+					} else {
+						log.Printf("Unknown content block type: %s", typeName)
+					}
 				}
 			}
 		default:
@@ -225,6 +278,41 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		}
 	}
 	
+	// Extract thinking content from response and apply budget
+	var processedThinking string
+	
+	// Find any thinking content blocks
+	var thinkingBlocks []ContentBlock
+	for _, block := range content {
+		if block.Type == "thinking" {
+			thinkingBlocks = append(thinkingBlocks, block)
+		}
+	}
+	
+	// Process thinking content if found
+	if len(thinkingBlocks) > 0 {
+		// Combine all thinking blocks
+		var thinkingParts []string
+		for _, block := range thinkingBlocks {
+			thinkingParts = append(thinkingParts, block.Text)
+		}
+		
+		rawThinking := strings.Join(thinkingParts, "\n")
+		processedThinking = bc.applyThinkingBudget(rawThinking)
+		log.Printf("Processed thinking content: %d chars", len(processedThinking))
+	} else if bc.config.ThinkingType == "enable" {
+		// Fallback: Try to extract thinking from text content
+		tempResponse := &ConverseResponse{
+			Content: content,
+		}
+		
+		rawThinking := ExtractThinkingFromResponse(tempResponse)
+		if rawThinking != "" {
+			processedThinking = bc.applyThinkingBudget(rawThinking)
+			log.Printf("Extracted thinking from text: %d chars", len(processedThinking))
+		}
+	}
+
 	// Extract usage information
 	var usage *TokenUsage
 	if result.Usage != nil {
@@ -233,12 +321,28 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			OutputTokens: int(*result.Usage.OutputTokens),
 			TotalTokens:  int(*result.Usage.InputTokens + *result.Usage.OutputTokens),
 		}
+		
+		// Add thinking tokens if available
+		if processedThinking != "" {
+			// Estimate thinking tokens from content length
+			estimatedThinkingTokens := bc.estimateThinkingTokens(processedThinking)
+			usage.ThinkingTokens = estimatedThinkingTokens
+			usage.TotalTokens = usage.InputTokens + usage.OutputTokens + usage.ThinkingTokens
+			log.Printf("Estimated thinking tokens: %d", estimatedThinkingTokens)
+		}
 	} else {
 		// Provide default usage if not available
 		usage = &TokenUsage{
-			InputTokens:  0,
-			OutputTokens: 0,
-			TotalTokens:  0,
+			InputTokens:    0,
+			OutputTokens:   0,
+			ThinkingTokens: 0,
+			TotalTokens:    0,
+		}
+		
+		// Still estimate thinking tokens if we have thinking content
+		if processedThinking != "" {
+			usage.ThinkingTokens = bc.estimateThinkingTokens(processedThinking)
+			usage.TotalTokens = usage.ThinkingTokens
 		}
 	}
 	
@@ -267,6 +371,23 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		Usage:      usage,
 		Metrics:    metrics,
 	}, nil
+}
+
+// extractValueFromUnknownType attempts to extract a string value from an unknown type
+// This is used for handling thinking content blocks with unknown SDK types
+func extractValueFromUnknownType(obj interface{}) string {
+	// Try to access common field names for thinking content
+	typeName := fmt.Sprintf("%T", obj)
+	log.Printf("Attempting to extract value from %s", typeName)
+	
+	// Use type assertion to access Value field if available
+	if valuer, ok := obj.(interface{ GetValue() string }); ok {
+		return valuer.GetValue()
+	}
+	
+	// For debugging purposes
+	log.Printf("Could not extract value from %s", typeName)
+	return ""
 }
 
 // handleBedrockError converts AWS SDK errors to our error types
@@ -352,4 +473,43 @@ func CreateClientConfig(region, anthropicVersion string, maxTokens int, thinking
 // GetTextFromResponse is a convenience method to extract text from a response
 func (bc *BedrockClient) GetTextFromResponse(response *ConverseResponse) string {
 	return ExtractTextFromResponse(response)
+}
+
+// checkForThinkingTokens checks if the usage response contains thinking tokens
+// This is a defensive implementation that can be updated when AWS SDK supports thinking tokens
+func (bc *BedrockClient) checkForThinkingTokens(usage *types.TokenUsage) bool {
+	if usage == nil {
+		return false
+	}
+	
+	// Log the usage structure for debugging
+	log.Printf("Usage structure: InputTokens=%d, OutputTokens=%d", 
+		*usage.InputTokens, *usage.OutputTokens)
+	
+	// For now, return false until we know the exact AWS SDK structure
+	// This function can be updated when AWS SDK adds thinking token support
+	return false
+}
+
+// applyThinkingBudget truncates thinking content if it exceeds the budget
+func (bc *BedrockClient) applyThinkingBudget(thinking string) string {
+	if bc.config.BudgetTokens <= 0 || len(thinking) <= bc.config.BudgetTokens*4 {
+		return thinking
+	}
+	
+	log.Printf("Truncating thinking content: original=%d chars, budget=%d tokens", 
+		len(thinking), bc.config.BudgetTokens)
+	
+	// Approximate 4 chars per token
+	maxChars := bc.config.BudgetTokens * 4
+	return thinking[:maxChars] + "... [truncated]"
+}
+
+// estimateThinkingTokens estimates thinking token count from character length
+func (bc *BedrockClient) estimateThinkingTokens(thinking string) int {
+	if thinking == "" {
+		return 0
+	}
+	// Rough estimation: 1 token per 4 characters for English text
+	return len(thinking) / 4
 }
