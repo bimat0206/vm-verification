@@ -68,7 +68,7 @@ func LoadConfiguration() (*Config, error) {
 
 	cfg.Processing.MaxTokens = getInt("MAX_TOKENS", 24000)
 	cfg.Processing.BudgetTokens = getInt("BUDGET_TOKENS", 16000)
-	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "enable")
+	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "")
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 3)
 	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
 	cfg.Processing.BedrockCallTimeoutSec = getInt("BEDROCK_CALL_TIMEOUT_SEC", 30)
@@ -127,4 +127,11 @@ func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
 	}
 	t = t.In(loc)
 	return fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day()), nil
+}
+
+// IsThinkingEnabled returns true if thinking/reasoning mode is enabled
+// Thinking is enabled only when THINKING_TYPE is explicitly set to "enable"
+// Thinking is disabled when THINKING_TYPE is "disable" or unset (empty string)
+func (c *Config) IsThinkingEnabled() bool {
+	return c.Processing.ThinkingType == "enable"
 }

@@ -143,7 +143,7 @@ type S3StateManager interface {
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	// StoreTurn1Conversation stores full turn1 conversation messages with complete schema compliance
-	StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error)
+	StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -841,8 +841,29 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 	return m.fromStateReference(stateRef), nil
 }
 
+// buildAssistantContent creates assistant content with thinking if available
+// Enhanced to properly structure thinking content according to schema
+func buildAssistantContent(assistantResponse string, thinkingContent string) []map[string]interface{} {
+	content := []map[string]interface{}{
+		{
+			"type": "text",
+			"text": assistantResponse,
+		},
+	}
+	
+	// Add thinking content if available
+	if thinkingContent != "" {
+		content = append(content, map[string]interface{}{
+			"type": "thinking",
+			"text": thinkingContent,
+		})
+	}
+	
+	return content
+}
+
 // StoreTurn1Conversation stores full conversation messages for turn1 with complete schema compliance
-func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
+func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for storing turn1 conversation",
@@ -873,9 +894,7 @@ func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID s
 		},
 		{
 			"role": "assistant",
-			"content": []map[string]interface{}{
-				{"text": assistantResponse},
-			},
+			"content": buildAssistantContent(assistantResponse, thinkingContent),
 		},
 	}
 

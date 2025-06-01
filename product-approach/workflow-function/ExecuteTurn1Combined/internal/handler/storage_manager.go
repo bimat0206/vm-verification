@@ -127,7 +127,7 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 }
 
 // StoreConversation stores turn1 conversation messages in S3 with complete schema compliance
-func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
+func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for conversation storage",
@@ -135,7 +135,7 @@ func (m *StorageManager) StoreConversation(ctx context.Context, verificationID s
 	}
 
 	start := time.Now()
-	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, assistantResponse, tokenUsage, latencyMs, bedrockRequestId, modelId)
+	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, assistantResponse, thinkingContent, tokenUsage, latencyMs, bedrockRequestId, modelId)
 	if err != nil {
 		m.log.Warn("s3 conversation-store warning", map[string]interface{}{
 			"error":  err.Error(),
@@ -170,13 +170,56 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 		}
 	}
 
+	// Build response content with thinking if available
+	// Enhanced to properly structure thinking content from adapter metadata
+	responseContent := []map[string]interface{}{
+		{"type": "text", "text": resp.Processed.(map[string]interface{})["content"]},
+	}
+	
+	// Add thinking content if available in metadata
+	var thinkingContent string
+	var hasThinking bool
+	if resp.Metadata != nil {
+		if thinking, ok := resp.Metadata["thinking"].(string); ok && thinking != "" {
+			thinkingContent = thinking
+			hasThinking = true
+			responseContent = append(responseContent, map[string]interface{}{
+				"type": "thinking",
+				"text": thinking,
+			})
+		}
+	}
+
+	// Build enhanced bedrock metadata with thinking support
+	bedrockMetadata := map[string]interface{}{
+		"modelId":        s.cfg.AWS.BedrockModel,
+		"requestId":      resp.RequestID,
+		"stopReason":     stopReason,
+		"hasThinking":    hasThinking,
+		"thinkingEnabled": s.cfg.Processing.ThinkingType == "enable",
+	}
+	
+	// Add thinking-specific metadata if available
+	if hasThinking {
+		bedrockMetadata["thinkingLength"] = len(thinkingContent)
+		bedrockMetadata["thinkingTokens"] = resp.TokenUsage.ThinkingTokens
+	}
+
+	// Extract thinking blocks from metadata if available
+	var thinkingBlocks []interface{}
+	if resp.Metadata != nil {
+		if blocks, ok := resp.Metadata["thinking_blocks"]; ok {
+			thinkingBlocks = blocks.([]interface{})
+		}
+	}
+
 	rawData := map[string]interface{}{
 		"verificationId":   verificationID,
 		"turnId":           1,
 		"analysisStage":    "REFERENCE_ANALYSIS",
 		"verificationType": req.VerificationContext.VerificationType,
 		"response": map[string]interface{}{
-			"content": []map[string]interface{}{{"type": "text", "text": resp.Processed.(map[string]interface{})["content"]}},
+			"content": responseContent,
 		},
 		"tokenUsage": map[string]interface{}{
 			"input":    resp.TokenUsage.InputTokens,
@@ -184,12 +227,8 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 			"thinking": resp.TokenUsage.ThinkingTokens,
 			"total":    resp.TokenUsage.TotalTokens,
 		},
-		"latencyMs": invoke.Duration.Milliseconds(),
-		"bedrockMetadata": map[string]interface{}{
-			"modelId":    s.cfg.AWS.BedrockModel,
-			"requestId":  resp.RequestID,
-			"stopReason": stopReason,
-		},
+		"latencyMs":       invoke.Duration.Milliseconds(),
+		"bedrockMetadata": bedrockMetadata,
 		"promptMetadata": map[string]interface{}{
 			"imageType":           "reference",
 			"promptTokenEstimate": prompt.TemplateProcessor.InputTokens,
@@ -201,6 +240,11 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 			"executionTimeMs": invoke.Duration.Milliseconds(),
 			"retryAttempts":   0,
 		},
+	}
+	
+	// Add thinking blocks if available
+	if len(thinkingBlocks) > 0 {
+		rawData["thinkingBlocks"] = thinkingBlocks
 	}
 
 	rawJSON, _ := json.Marshal(rawData)

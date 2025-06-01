@@ -30,11 +30,25 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 	log := logger.New("ExecuteTurn1Combined", "BedrockService")
 
 	// Create shared bedrock client first
+	thinkingType := "disable"
+	if cfg.IsThinkingEnabled() {
+		thinkingType = "enable"
+		log.Info("THINKING_SERVICE_ENABLED", map[string]interface{}{
+			"thinking_type":   thinkingType,
+			"budget_tokens":   cfg.Processing.BudgetTokens,
+			"env_thinking_type": cfg.Processing.ThinkingType,
+		})
+	} else {
+		log.Info("THINKING_SERVICE_DISABLED", map[string]interface{}{
+			"thinking_type":   thinkingType,
+			"env_thinking_type": cfg.Processing.ThinkingType,
+		})
+	}
 	clientConfig := sharedBedrock.CreateClientConfig(
 		cfg.AWS.Region,
 		cfg.AWS.AnthropicVersion,
 		cfg.Processing.MaxTokens,
-		cfg.Processing.ThinkingType,
+		thinkingType,
 		cfg.Processing.BudgetTokens,
 	)
 
@@ -108,6 +122,7 @@ func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt,
 		Processed:  map[string]interface{}{"content": response.Content},
 		TokenUsage: response.TokenUsage,
 		RequestID:  response.RequestID,
+		Metadata:   response.Metadata, // Metadata already includes thinking content from adapter
 	}
 
 	totalDuration := time.Since(operationStart)
@@ -121,4 +136,3 @@ func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt,
 
 	return bedrockResponse, nil
 }
-
