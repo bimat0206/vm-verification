@@ -113,13 +113,13 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Load layout metadata if available for LAYOUT_VS_CHECKING verification type
 	var layoutMetadata map[string]interface{}
-	if req.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking && 
-	   req.S3Refs.Processing.LayoutMetadata.Key != "" {
+	if req.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking &&
+		req.S3Refs.Processing.LayoutMetadata.Key != "" {
 		h.log.Info("loading_layout_metadata_for_turn2", map[string]interface{}{
 			"verification_id": req.VerificationID,
 			"layout_key":      req.S3Refs.Processing.LayoutMetadata.Key,
 		})
-		
+
 		layoutData, err := h.s3.LoadLayoutMetadata(ctx, req.S3Refs.Processing.LayoutMetadata)
 		if err != nil {
 			h.log.Warn("layout_metadata_load_failed_turn2", map[string]interface{}{
@@ -138,7 +138,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 				"MachineStructure":   layoutData.MachineStructure,
 				"ProductPositionMap": layoutData.ProductPositionMap,
 			}
-			
+
 			// Extract RowCount and ColumnCount from MachineStructure if available
 			if layoutData.MachineStructure != nil {
 				if rowCount, ok := layoutData.MachineStructure["RowCount"]; ok {
@@ -151,7 +151,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 					layoutMetadata["RowLabels"] = rowLabels
 				}
 			}
-			
+
 			h.log.Info("layout_metadata_loaded_successfully_turn2", map[string]interface{}{
 				"verification_id":    req.VerificationID,
 				"layout_id":          layoutData.LayoutId,
@@ -332,69 +332,14 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		}
 	}
 
-	userMsg := schema.BedrockMessage{
-		Role: "user",
-		Content: []schema.BedrockContent{
-			{Type: "text", Text: prompt},
-			{
-				Type: "image",
-				Image: &schema.BedrockImageData{
-					Format: loadResult.ImageFormat,
-					Source: schema.BedrockImageSource{
-						Type:       "base64",
-						Media_type: schema.Base64Helpers.GetContentTypeFromFormat(loadResult.ImageFormat),
-						Data:       loadResult.Base64Image,
-					},
-				},
-			},
-		},
-	}
-	assistantMsg := schema.BedrockMessage{
-		Role:    "assistant",
-		Content: []schema.BedrockContent{{Type: "text", Text: bedrockTextOutput}},
-	}
-
-	var messages []schema.BedrockMessage
-	// Avoid duplicating the system prompt when Turn 1 conversation already
-	// includes it as the first message.
-	if len(turn1Messages) > 0 && turn1Messages[0].Role == "system" {
-		messages = append(messages, turn1Messages[0])
-		turn1Messages = turn1Messages[1:]
-	} else {
-		systemMsg := schema.BedrockMessage{
-			Role:    "system",
-			Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
-		}
-		messages = append(messages, systemMsg)
-	}
-
-	messages = append(messages, turn1Messages...)
-	messages = append(messages, userMsg, assistantMsg)
-
-	convData := &services.TurnConversationDataStore{
-		VerificationId: req.VerificationID,
-		Timestamp:      schema.FormatISO8601(),
-		TurnId:         2,
-		AnalysisStage:  bedrock.AnalysisStageTurn2,
-		Messages:       messages,
-		TokenUsage: &schema.TokenUsage{
-			InputTokens:  bedrockResponse.InputTokens,
-			OutputTokens: bedrockResponse.OutputTokens,
-			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
-		},
-		LatencyMs: bedrockResponse.LatencyMs,
-		ProcessingMetadata: map[string]interface{}{
-			"executionTimeMs": bedrockResponse.ProcessingTimeMs,
-			"retryAttempts":   0,
-		},
-		BedrockMetadata: map[string]interface{}{
-			"modelId": bedrockResponse.ModelId,
-			// "requestId" field removed as it's not available in BedrockResponse
-			"stopReason": bedrockResponse.CompletionReason,
-		},
-	}
-
-	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, convData)
+	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, turn1Messages, loadResult.SystemPrompt, prompt, loadResult.Base64Image, bedrockTextOutput, "", nil, &schema.TokenUsage{
+		InputTokens:    bedrockResponse.InputTokens,
+		OutputTokens:   bedrockResponse.OutputTokens,
+		ThinkingTokens: 0,
+		TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+	}, bedrockResponse.LatencyMs, "", bedrockResponse.ModelId, map[string]interface{}{
+		"stopReason": bedrockResponse.CompletionReason,
+	})
 	if convErr != nil {
 		h.log.Warn("failed_to_store_conversation", map[string]interface{}{
 			"error":           convErr.Error(),

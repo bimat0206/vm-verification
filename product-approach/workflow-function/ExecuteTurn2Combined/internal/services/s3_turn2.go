@@ -8,6 +8,7 @@ import (
 
 	"workflow-function/ExecuteTurn2Combined/internal/bedrockparser"
 	"workflow-function/ExecuteTurn2Combined/internal/models"
+	"workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
 )
@@ -19,10 +20,39 @@ type TurnConversationDataStore struct {
 	TurnId             int                     `json:"turnId"`
 	AnalysisStage      string                  `json:"analysisStage"`
 	Messages           []schema.BedrockMessage `json:"messages"`
+	ThinkingBlocks     []interface{}           `json:"thinkingBlocks,omitempty"`
 	TokenUsage         *schema.TokenUsage      `json:"tokenUsage,omitempty"`
 	LatencyMs          int64                   `json:"latencyMs,omitempty"`
 	ProcessingMetadata map[string]interface{}  `json:"processingMetadata,omitempty"`
 	BedrockMetadata    map[string]interface{}  `json:"bedrockMetadata,omitempty"`
+}
+
+// buildAssistantContent creates assistant content with optional thinking blocks
+// When includeThinkingContentInMessage is false, thinking content is omitted
+// from the assistant message and expected to be represented separately.
+func buildAssistantContent(assistantResponse string, thinkingContent string, includeThinkingContentInMessage bool) []map[string]interface{} {
+	content := []map[string]interface{}{
+		{
+			"type": "text",
+			"text": assistantResponse,
+		},
+	}
+
+	if thinkingContent != "" && includeThinkingContentInMessage {
+		content = append(content, map[string]interface{}{
+			"type": "thinking",
+			"text": thinkingContent,
+		})
+	}
+
+	return content
+}
+
+func bedrockMessageToMap(msg schema.BedrockMessage) map[string]interface{} {
+	b, _ := json.Marshal(msg)
+	var result map[string]interface{}
+	json.Unmarshal(b, &result)
+	return result
 }
 
 // LoadTurn1ProcessedResponse loads the processed Turn1 response from S3
@@ -288,11 +318,93 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 }
 
 // StoreTurn2Conversation stores full conversation messages for turn2
-func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, data *TurnConversationDataStore) (models.S3Reference, error) {
-	if verificationID == "" || data == nil {
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
+	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
-			"verification ID and conversation data required",
+			"verification ID required for storing Turn2 conversation",
 			map[string]interface{}{"operation": "store_turn2_conversation"})
+	}
+
+	addedStructuredThinkingBlocks := len(thinkingBlocks) > 0
+
+	// Build messages array
+	messages := []map[string]interface{}{}
+
+	if len(turn1Messages) > 0 && turn1Messages[0].Role == "system" {
+		messages = append(messages, bedrockMessageToMap(turn1Messages[0]))
+		turn1Messages = turn1Messages[1:]
+	} else {
+		messages = append(messages, map[string]interface{}{
+			"role":    "system",
+			"content": []map[string]interface{}{{"text": systemPrompt}},
+		})
+	}
+
+	for _, msg := range turn1Messages {
+		messages = append(messages, bedrockMessageToMap(msg))
+	}
+
+	userMessage := map[string]interface{}{
+		"role": "user",
+		"content": []map[string]interface{}{
+			{"text": userPrompt},
+			{
+				"image": map[string]interface{}{
+					"format": "png",
+					"source": map[string]interface{}{
+						"bytes": "<Base64-reference-image>",
+					},
+				},
+			},
+		},
+	}
+	messages = append(messages, userMessage)
+
+	assistantMessage := map[string]interface{}{
+		"role":    "assistant",
+		"content": buildAssistantContent(assistantResponse, thinkingContent, !addedStructuredThinkingBlocks),
+	}
+	messages = append(messages, assistantMessage)
+
+	data := map[string]interface{}{
+		"verificationId": verificationID,
+		"timestamp":      schema.FormatISO8601(),
+		"turnId":         2,
+		"analysisStage":  bedrock.AnalysisStageTurn2,
+		"messages":       messages,
+	}
+
+	if addedStructuredThinkingBlocks {
+		data["thinkingBlocks"] = thinkingBlocks
+	}
+
+	if tokenUsage != nil {
+		data["tokenUsage"] = map[string]interface{}{
+			"input":    tokenUsage.InputTokens,
+			"output":   tokenUsage.OutputTokens,
+			"thinking": tokenUsage.ThinkingTokens,
+			"total":    tokenUsage.TotalTokens,
+		}
+	}
+
+	if latencyMs > 0 {
+		data["latencyMs"] = latencyMs
+		data["processingMetadata"] = map[string]interface{}{
+			"executionTimeMs": latencyMs,
+			"retryAttempts":   0,
+		}
+	}
+
+	if bedrockRequestId != "" {
+		meta := map[string]interface{}{
+			"modelId":    modelId,
+			"requestId":  bedrockRequestId,
+			"stopReason": "end_turn",
+		}
+		for k, v := range bedrockResponseMetadata {
+			meta[k] = v
+		}
+		data["bedrockMetadata"] = meta
 	}
 
 	key := "responses/turn2-conversation.json"
