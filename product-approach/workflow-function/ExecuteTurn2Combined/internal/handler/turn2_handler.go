@@ -333,69 +333,14 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		}
 	}
 
-	userMsg := schema.BedrockMessage{
-		Role: "user",
-		Content: []schema.BedrockContent{
-			{Type: "text", Text: prompt},
-			{
-				Type: "image",
-				Image: &schema.BedrockImageData{
-					Format: loadResult.ImageFormat,
-					Source: schema.BedrockImageSource{
-						Type:       "base64",
-						Media_type: schema.Base64Helpers.GetContentTypeFromFormat(loadResult.ImageFormat),
-						Data:       loadResult.Base64Image,
-					},
-				},
-			},
-		},
-	}
-	assistantMsg := schema.BedrockMessage{
-		Role:    "assistant",
-		Content: []schema.BedrockContent{{Type: "text", Text: bedrockTextOutput}},
-	}
-
-	var messages []schema.BedrockMessage
-	// Avoid duplicating the system prompt when Turn 1 conversation already
-	// includes it as the first message.
-	if len(turn1Messages) > 0 && turn1Messages[0].Role == "system" {
-		messages = append(messages, turn1Messages[0])
-		turn1Messages = turn1Messages[1:]
-	} else {
-		systemMsg := schema.BedrockMessage{
-			Role:    "system",
-			Content: []schema.BedrockContent{{Type: "text", Text: loadResult.SystemPrompt}},
-		}
-		messages = append(messages, systemMsg)
-	}
-
-	messages = append(messages, turn1Messages...)
-	messages = append(messages, userMsg, assistantMsg)
-
-	convData := &services.TurnConversationDataStore{
-		VerificationId: req.VerificationID,
-		Timestamp:      schema.FormatISO8601(),
-		TurnId:         2,
-		AnalysisStage:  bedrock.AnalysisStageTurn2,
-		Messages:       messages,
-		TokenUsage: &schema.TokenUsage{
-			InputTokens:  bedrockResponse.InputTokens,
-			OutputTokens: bedrockResponse.OutputTokens,
-			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
-		},
-		LatencyMs: bedrockResponse.LatencyMs,
-		ProcessingMetadata: map[string]interface{}{
-			"executionTimeMs": bedrockResponse.ProcessingTimeMs,
-			"retryAttempts":   0,
-		},
-		BedrockMetadata: map[string]interface{}{
-			"modelId": bedrockResponse.ModelId,
-			// "requestId" field removed as it's not available in BedrockResponse
-			"stopReason": bedrockResponse.CompletionReason,
-		},
-	}
-
-	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, convData)
+	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, turn1Messages, loadResult.SystemPrompt, prompt, loadResult.Base64Image, bedrockTextOutput, "", nil, &schema.TokenUsage{
+		InputTokens:    bedrockResponse.InputTokens,
+		OutputTokens:   bedrockResponse.OutputTokens,
+		ThinkingTokens: 0,
+		TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+	}, bedrockResponse.LatencyMs, "", bedrockResponse.ModelId, map[string]interface{}{
+		"stopReason": bedrockResponse.CompletionReason,
+	})
 	if convErr != nil {
 		h.log.Warn("failed_to_store_conversation", map[string]interface{}{
 			"error":           convErr.Error(),
