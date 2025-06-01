@@ -132,3 +132,10 @@ func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
 	t = t.In(loc)
 	return fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day()), nil
 }
+
+// IsThinkingEnabled returns true if thinking/reasoning mode is enabled
+// Thinking is enabled only when THINKING_TYPE is explicitly set to "enable"
+// Thinking is disabled when THINKING_TYPE is "disable" or unset (empty string)
+func (c *Config) IsThinkingEnabled() bool {
+	return c.Processing.ThinkingType == "enable"
+}

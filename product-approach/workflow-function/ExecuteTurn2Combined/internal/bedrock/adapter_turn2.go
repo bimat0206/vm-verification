@@ -154,6 +154,38 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		},
 	}
 
+	// Add thinking/reasoning configuration if enabled
+	if a.cfg.IsThinkingEnabled() {
+		request.Reasoning = "enable"
+		request.InferenceConfig.Reasoning = "enable"
+		request.Thinking = map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": a.cfg.Processing.BudgetTokens,
+		}
+		a.log.Info("THINKING_ADAPTER_ENABLED", map[string]interface{}{
+			"thinking_type":       a.cfg.Processing.ThinkingType,
+			"budget_tokens":       a.cfg.Processing.BudgetTokens,
+			"request_reasoning":   request.Reasoning,
+			"inference_reasoning": request.InferenceConfig.Reasoning,
+			"request_thinking":    request.Thinking,
+		})
+	} else {
+		a.log.Info("THINKING_ADAPTER_DISABLED", map[string]interface{}{
+			"thinking_type":       a.cfg.Processing.ThinkingType,
+			"request_reasoning":   request.Reasoning,
+			"inference_reasoning": request.InferenceConfig.Reasoning,
+		})
+	}
+
+	// Log the complete request structure for debugging
+	a.log.Info("THINKING_REQUEST_STRUCTURE", map[string]interface{}{
+		"model_id":            request.ModelId,
+		"reasoning_field":     request.Reasoning,
+		"inference_reasoning": request.InferenceConfig.Reasoning,
+		"thinking_field":      request.Thinking,
+		"max_tokens":          request.InferenceConfig.MaxTokens,
+	})
+
 	// Validate request before sending to Bedrock
 	if err := sharedBedrock.ValidateConverseRequest(request); err != nil {
 		a.log.Error("bedrock_request_validation_failed", map[string]interface{}{
