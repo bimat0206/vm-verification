@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.13] - 2025-06-01 - Extended Thinking Support
+### Added
+- Reasoning configuration applied to Bedrock requests when `THINKING_TYPE=enable`.
+- Captures thinking tokens from Bedrock responses and tracks them in token usage.
+- Conversation history stored with extracted thinking content and blocks.
 ## [2.2.12] - 2025-05-31 - Turn2 Prompt JSON Structure Fix
 
 ### Fixed
