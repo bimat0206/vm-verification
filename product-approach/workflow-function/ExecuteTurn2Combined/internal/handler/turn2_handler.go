@@ -113,13 +113,13 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	// Load layout metadata if available for LAYOUT_VS_CHECKING verification type
 	var layoutMetadata map[string]interface{}
-	if req.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking && 
-	   req.S3Refs.Processing.LayoutMetadata.Key != "" {
+	if req.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking &&
+		req.S3Refs.Processing.LayoutMetadata.Key != "" {
 		h.log.Info("loading_layout_metadata_for_turn2", map[string]interface{}{
 			"verification_id": req.VerificationID,
 			"layout_key":      req.S3Refs.Processing.LayoutMetadata.Key,
 		})
-		
+
 		layoutData, err := h.s3.LoadLayoutMetadata(ctx, req.S3Refs.Processing.LayoutMetadata)
 		if err != nil {
 			h.log.Warn("layout_metadata_load_failed_turn2", map[string]interface{}{
@@ -138,7 +138,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 				"MachineStructure":   layoutData.MachineStructure,
 				"ProductPositionMap": layoutData.ProductPositionMap,
 			}
-			
+
 			// Extract RowCount and ColumnCount from MachineStructure if available
 			if layoutData.MachineStructure != nil {
 				if rowCount, ok := layoutData.MachineStructure["RowCount"]; ok {
@@ -151,7 +151,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 					layoutMetadata["RowLabels"] = rowLabels
 				}
 			}
-			
+
 			h.log.Info("layout_metadata_loaded_successfully_turn2", map[string]interface{}{
 				"verification_id":    req.VerificationID,
 				"layout_id":          layoutData.LayoutId,
@@ -257,9 +257,10 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 		LatencyMs: bedrockResponse.LatencyMs,
 		TokenUsage: &schema.TokenUsage{
-			InputTokens:  bedrockResponse.InputTokens,
-			OutputTokens: bedrockResponse.OutputTokens,
-			TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+			InputTokens:    bedrockResponse.InputTokens,
+			OutputTokens:   bedrockResponse.OutputTokens,
+			ThinkingTokens: bedrockResponse.ThinkingTokens,
+			TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens + bedrockResponse.ThinkingTokens,
 		},
 		Stage: bedrock.AnalysisStageTurn2,
 		Metadata: map[string]interface{}{
@@ -461,9 +462,10 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			ProcessingTimeMs: time.Since(startTime).Milliseconds() - bedrockResponse.LatencyMs,
 			RetryAttempts:    0,
 			TokenUsage: &schema.TokenUsage{
-				InputTokens:  bedrockResponse.InputTokens,
-				OutputTokens: bedrockResponse.OutputTokens,
-				TotalTokens:  bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+				InputTokens:    bedrockResponse.InputTokens,
+				OutputTokens:   bedrockResponse.OutputTokens,
+				ThinkingTokens: bedrockResponse.ThinkingTokens,
+				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens + bedrockResponse.ThinkingTokens,
 			},
 		},
 	}
@@ -491,8 +493,8 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			TokenUsage: models.TokenUsage{
 				InputTokens:    bedrockResponse.InputTokens,
 				OutputTokens:   bedrockResponse.OutputTokens,
-				ThinkingTokens: 0,
-				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens,
+				ThinkingTokens: bedrockResponse.ThinkingTokens,
+				TotalTokens:    bedrockResponse.InputTokens + bedrockResponse.OutputTokens + bedrockResponse.ThinkingTokens,
 			},
 			BedrockRequestID: "", // RequestID not available in BedrockResponse
 		},
@@ -508,6 +510,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		"total_processing_time": processingMetrics.Turn2.TotalTimeMs,
 		"input_tokens":          processingMetrics.Turn2.TokenUsage.InputTokens,
 		"output_tokens":         processingMetrics.Turn2.TokenUsage.OutputTokens,
+		"thinking_tokens":       processingMetrics.Turn2.TokenUsage.ThinkingTokens,
 		"total_tokens":          processingMetrics.Turn2.TokenUsage.TotalTokens,
 	})
 

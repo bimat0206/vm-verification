@@ -206,8 +206,8 @@ func buildTurn2Summary(
 	tokenUsage := TokenUsageDetailed{
 		Input:    invoke.InputTokens,
 		Output:   invoke.OutputTokens,
-		Thinking: 0, // ThinkingTokens not available in schema.BedrockResponse
-		Total:    invoke.InputTokens + invoke.OutputTokens,
+		Thinking: invoke.ThinkingTokens,
+		Total:    invoke.TotalTokens,
 	}
 
 	// Default to true for conversation tracked and S3 storage completed
