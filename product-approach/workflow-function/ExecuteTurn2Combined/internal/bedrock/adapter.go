@@ -99,6 +99,50 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		nil, // TopP - defer to model defaults
 	)
 
+	// Add thinking/reasoning configuration if enabled
+	if config.ThinkingType == "enable" {
+		request.Reasoning = "enable"
+		request.InferenceConfig.Reasoning = "enable"
+		request.Thinking = map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": config.ThinkingBudget,
+		}
+		a.logger.Info("THINKING_ADAPTER_ENABLED", map[string]interface{}{
+			"thinking_type":         config.ThinkingType,
+			"budget_tokens":         config.ThinkingBudget,
+			"request_reasoning":     request.Reasoning,
+			"inference_reasoning":   request.InferenceConfig.Reasoning,
+			"request_thinking":      request.Thinking,
+		})
+	} else {
+		a.logger.Info("THINKING_ADAPTER_DISABLED", map[string]interface{}{
+			"thinking_type":       config.ThinkingType,
+			"request_reasoning":   request.Reasoning,
+			"inference_reasoning": request.InferenceConfig.Reasoning,
+		})
+	}
+
+	// Log the complete request structure for debugging
+	a.logger.Info("THINKING_REQUEST_STRUCTURE", map[string]interface{}{
+		"model_id":            request.ModelId,
+		"reasoning_field":     request.Reasoning,
+		"inference_reasoning": request.InferenceConfig.Reasoning,
+		"thinking_field":      request.Thinking,
+		"max_tokens":          request.InferenceConfig.MaxTokens,
+	})
+
+	// Log the final JSON payload for verification
+	if payload, err := json.Marshal(request); err == nil {
+		a.logger.Info("BEDROCK_REQUEST_PAYLOAD", map[string]interface{}{
+			"payload_json": string(payload),
+			"payload_size": len(payload),
+		})
+	} else {
+		a.logger.Warn("FAILED_TO_MARSHAL_REQUEST", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
 	return request, nil
 }
 
