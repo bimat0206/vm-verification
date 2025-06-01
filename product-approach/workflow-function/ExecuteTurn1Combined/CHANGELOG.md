@@ -96,6 +96,13 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 - **Storage Layer**: S3 conversation files enhanced with thinking content structure
 - **Response Processing**: Complete thinking content extraction and metadata handling
 
+## [2.5.2] - 2025-06-04
+### Changed
+- `turn1-conversation.json` now includes a top-level `thinkingBlocks` array when available.
+- The raw thinking content string is omitted from the assistant message when `thinkingBlocks` are stored.
+- Updated storage logic in `StoreTurn1Conversation` and `buildAssistantContent` to support this behavior.
+- Calls to `StoreConversation` now pass Bedrock response metadata for thinking block extraction.
+
 ## [2.5.1] - 2025-05-30
 ### Fixed
 - **Schema Compliance for turn1-conversation.json**: Fixed turn1-conversation.json structure to match defined schema requirements

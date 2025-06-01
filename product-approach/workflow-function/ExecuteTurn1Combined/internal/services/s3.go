@@ -143,7 +143,7 @@ type S3StateManager interface {
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
 	// StoreTurn1Conversation stores full turn1 conversation messages with complete schema compliance
-	StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error)
+	StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -841,34 +841,46 @@ func (m *s3Manager) StoreConversationTurn(ctx context.Context, verificationID st
 	return m.fromStateReference(stateRef), nil
 }
 
-// buildAssistantContent creates assistant content with thinking if available
-// Enhanced to properly structure thinking content according to schema
-func buildAssistantContent(assistantResponse string, thinkingContent string) []map[string]interface{} {
+// buildAssistantContent creates assistant content with optional thinking blocks
+// When includeThinkingContentInMessage is false, the thinking content is omitted
+// from the assistant message and expected to be represented separately.
+func buildAssistantContent(assistantResponse string, thinkingContent string, includeThinkingContentInMessage bool) []map[string]interface{} {
 	content := []map[string]interface{}{
 		{
 			"type": "text",
 			"text": assistantResponse,
 		},
 	}
-	
-	// Add thinking content if available
-	if thinkingContent != "" {
+
+	// Add thinking content if available and requested
+	if thinkingContent != "" && includeThinkingContentInMessage {
 		content = append(content, map[string]interface{}{
 			"type": "thinking",
 			"text": thinkingContent,
 		})
 	}
-	
+
 	return content
 }
 
 // StoreTurn1Conversation stores full conversation messages for turn1 with complete schema compliance
-func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string) (models.S3Reference, error) {
+func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for storing turn1 conversation",
 			map[string]interface{}{"operation": "store_turn1_conversation"})
 	}
+
+	// Extract thinking blocks from Bedrock metadata if provided
+	var extractedThinkingBlocks []interface{}
+	if bedrockResponseMetadata != nil {
+		if blocks, ok := bedrockResponseMetadata["thinking_blocks"]; ok {
+			if arr, ok := blocks.([]interface{}); ok {
+				extractedThinkingBlocks = arr
+			}
+		}
+	}
+	addedStructuredThinkingBlocks := len(extractedThinkingBlocks) > 0
 
 	// Build messages array according to schema
 	messages := []map[string]interface{}{
@@ -894,7 +906,8 @@ func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID s
 		},
 		{
 			"role": "assistant",
-			"content": buildAssistantContent(assistantResponse, thinkingContent),
+			// Thinking content will be conditionally included based on structured blocks
+			"content": buildAssistantContent(assistantResponse, thinkingContent, !addedStructuredThinkingBlocks),
 		},
 	}
 
@@ -905,6 +918,11 @@ func (m *s3Manager) StoreTurn1Conversation(ctx context.Context, verificationID s
 		"turnId":         1,
 		"analysisStage":  "REFERENCE_ANALYSIS",
 		"messages":       messages,
+	}
+
+	// Add structured thinking blocks if available
+	if addedStructuredThinkingBlocks {
+		data["thinkingBlocks"] = extractedThinkingBlocks
 	}
 
 	// Add token usage if provided

@@ -180,7 +180,7 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 		return nil, storageResult.Error
 	}
 	h.recordStorageSuccess(storageResult)
-	
+
 	// Extract thinking content if available
 	var thinkingContent string
 	if invokeResult.Response.Metadata != nil {
@@ -188,9 +188,9 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 			thinkingContent = thinking
 		}
 	}
-	
+
 	// Store conversation with complete schema compliance
-	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
+	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel, invokeResult.Response.Metadata)
 	if convErr != nil {
 		h.log.Warn("failed to store conversation", map[string]interface{}{
 			"error": convErr.Error(),
@@ -383,7 +383,7 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	}
 
 	// Store conversation with complete schema compliance
-	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
+	convRef, convErr := h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel, invokeResult.Response.Metadata)
 	if convErr != nil {
 		return nil, convErr
 	}
@@ -448,13 +448,13 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	}
 
 	// Store conversation with complete schema compliance (second call for step function)
-	convRef, convErr = h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel)
+	convRef, convErr = h.storageManager.StoreConversation(ctx, req.VerificationID, loadResult.SystemPrompt, promptResult.Prompt, loadResult.Base64Image, bedrockTextOutput, thinkingContent, &invokeResult.Response.TokenUsage, invokeResult.Duration.Milliseconds(), invokeResult.Response.RequestID, h.cfg.AWS.BedrockModel, invokeResult.Response.Metadata)
 	if convErr != nil {
 		h.log.Warn("failed to store conversation", map[string]interface{}{
 			"error": convErr.Error(),
 		})
 	}
-	
+
 	dynamoOK := h.dynamoManager.UpdateTurn1Completion(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry, turnEntry, turn1MetricsForDB, &storageResult.ProcessedRef, &convRef)
 
 	// Final status update
