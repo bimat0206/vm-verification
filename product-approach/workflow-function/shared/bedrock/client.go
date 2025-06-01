@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -154,8 +155,19 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 		InferenceConfig: inferenceConfig,
 	}
 
-	// Add reasoning configuration if specified
-	if request.InferenceConfig.Reasoning != "" || request.Reasoning != "" {
+	// Add reasoning/thinking configuration if specified
+	// Check for new structured thinking field first, then fall back to legacy reasoning fields
+	var thinkingConfig map[string]interface{}
+
+	if request.Thinking != nil && len(request.Thinking) > 0 {
+		// Use the new structured thinking field directly
+		log.Printf("THINKING_MODE_ENABLED: Using structured thinking field from request")
+		thinkingConfig = map[string]interface{}{
+			"thinking": request.Thinking,
+		}
+		log.Printf("THINKING_STRUCTURED_CONFIG: %+v", request.Thinking)
+	} else if request.InferenceConfig.Reasoning != "" || request.Reasoning != "" {
+		// Fall back to legacy reasoning fields for backward compatibility
 		reasoning := request.InferenceConfig.Reasoning
 		if reasoning == "" {
 			reasoning = request.Reasoning
@@ -166,7 +178,7 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 			// Configure reasoning using AdditionalModelRequestFields
 			// This is the correct way to enable Claude 3.7 reasoning with Converse API
-			reasoningConfig := map[string]interface{}{
+			thinkingConfig = map[string]interface{}{
 				"thinking": map[string]interface{}{
 					"type": "enabled",
 				},
@@ -174,19 +186,22 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 			// Add budget tokens if specified
 			if bc.config.BudgetTokens > 0 {
-				reasoningConfig["thinking"].(map[string]interface{})["budget_tokens"] = bc.config.BudgetTokens
+				thinkingConfig["thinking"].(map[string]interface{})["budget_tokens"] = bc.config.BudgetTokens
 				log.Printf("THINKING_BUDGET_SET: %d tokens", bc.config.BudgetTokens)
 			}
-
-			// Create the document using the correct AWS SDK method
-			log.Printf("THINKING_CONFIG_ATTEMPT: Trying to set reasoning configuration")
-
-			// Use document.NewLazyDocument with the map directly
-			doc := document.NewLazyDocument(reasoningConfig)
-			converseInput.AdditionalModelRequestFields = doc
-			log.Printf("THINKING_CONFIG_APPLIED: Successfully set reasoning configuration for model: %s", bc.modelID)
-			log.Printf("THINKING_CONFIG_DETAILS: %+v", reasoningConfig)
+			log.Printf("THINKING_LEGACY_CONFIG: %+v", thinkingConfig)
 		}
+	}
+
+	// Apply thinking configuration if any was determined
+	if thinkingConfig != nil {
+		log.Printf("THINKING_CONFIG_ATTEMPT: Applying thinking configuration to AdditionalModelRequestFields")
+
+		// Create the document using the correct AWS SDK method
+		doc := document.NewLazyDocument(thinkingConfig)
+		converseInput.AdditionalModelRequestFields = doc
+		log.Printf("THINKING_CONFIG_APPLIED: Successfully set thinking configuration for model: %s", bc.modelID)
+		log.Printf("THINKING_CONFIG_DETAILS: %+v", thinkingConfig)
 	}
 
 	// Add system prompt if provided

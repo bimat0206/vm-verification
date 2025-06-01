@@ -29,6 +29,7 @@ type ConverseRequest struct {
 	InferenceConfig InferenceConfig       `json:"inferenceConfig,omitempty"`
 	GuardrailConfig *GuardrailConfig      `json:"guardrailConfig,omitempty"`
 	Reasoning       string                `json:"reasoning,omitempty"` // Added for Claude 3.5 Sonnet thinking support
+	Thinking        map[string]interface{} `json:"thinking,omitempty"`   // Added for AWS Bedrock extended thinking API
 }
 
 // MessageWrapper represents a message in the Converse API
