@@ -84,12 +84,12 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					if content.Image.Format != "jpeg" && content.Image.Format != "png" {
 						return nil, 0, fmt.Errorf("unsupported image format: %s (only jpeg and png are supported)", content.Image.Format)
 					}
-					
+
 					// Create the image block with the appropriate source type
 					imageBlock := types.ImageBlock{
 						Format: types.ImageFormat(content.Image.Format),
 					}
-					
+
 					// Determine the source type based on what's provided
 					if content.Image.Source.Bytes != "" {
 						// Decode base64 string to bytes
@@ -97,17 +97,17 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 						if err != nil {
 							return nil, 0, fmt.Errorf("failed to decode base64 image data: %w", err)
 						}
-						
+
 						// Use bytes source
 						imageBlock.Source = &types.ImageSourceMemberBytes{
 							Value: decodedBytes,
 						}
-						log.Printf("Added image content block for format: %s, with bytes source (size: %d bytes)", 
+						log.Printf("Added image content block for format: %s, with bytes source (size: %d bytes)",
 							content.Image.Format, len(decodedBytes))
 					} else {
 						return nil, 0, fmt.Errorf("image source must be provided as bytes")
 					}
-					
+
 					contentBlocks[j] = &types.ContentBlockMemberImage{
 						Value: imageBlock,
 					}
@@ -118,52 +118,52 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 				return nil, 0, fmt.Errorf("unsupported content type: %s", content.Type)
 			}
 		}
-		
+
 		// Check for empty content
 		if len(contentBlocks) == 0 {
 			return nil, 0, fmt.Errorf("message must contain at least one content block")
 		}
-		
+
 		messages[i] = types.Message{
 			Role:    types.ConversationRole(msg.Role),
 			Content: contentBlocks,
 		}
 	}
-	
+
 	// Create inference config
 	inferenceConfig := &types.InferenceConfiguration{
 		MaxTokens: aws.Int32(int32(request.InferenceConfig.MaxTokens)),
 	}
-	
+
 	if request.InferenceConfig.Temperature != nil {
 		inferenceConfig.Temperature = aws.Float32(float32(*request.InferenceConfig.Temperature))
 	}
-	
+
 	if request.InferenceConfig.TopP != nil {
 		inferenceConfig.TopP = aws.Float32(float32(*request.InferenceConfig.TopP))
 	}
-	
+
 	if len(request.InferenceConfig.StopSequences) > 0 {
 		inferenceConfig.StopSequences = request.InferenceConfig.StopSequences
 	}
-	
+
 	// Create Converse input
 	converseInput := &bedrockruntime.ConverseInput{
 		ModelId:         aws.String(bc.modelID),
 		Messages:        messages,
 		InferenceConfig: inferenceConfig,
 	}
-	
+
 	// Add reasoning configuration if specified
 	if request.InferenceConfig.Reasoning != "" || request.Reasoning != "" {
 		reasoning := request.InferenceConfig.Reasoning
 		if reasoning == "" {
 			reasoning = request.Reasoning
 		}
-		
+
 		if reasoning == "enable" || reasoning == "enabled" {
 			log.Printf("THINKING_MODE_ENABLED: Configuring reasoning support (budget tokens: %d)", bc.config.BudgetTokens)
-			
+
 			// Configure reasoning using AdditionalModelRequestFields
 			// This is the correct way to enable Claude 3.7 reasoning with Converse API
 			reasoningConfig := map[string]interface{}{
@@ -171,16 +171,16 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 					"type": "enabled",
 				},
 			}
-			
+
 			// Add budget tokens if specified
 			if bc.config.BudgetTokens > 0 {
 				reasoningConfig["thinking"].(map[string]interface{})["budget_tokens"] = bc.config.BudgetTokens
 				log.Printf("THINKING_BUDGET_SET: %d tokens", bc.config.BudgetTokens)
 			}
-			
+
 			// Create the document using the correct AWS SDK method
 			log.Printf("THINKING_CONFIG_ATTEMPT: Trying to set reasoning configuration")
-			
+
 			// Use document.NewLazyDocument with the map directly
 			doc := document.NewLazyDocument(reasoningConfig)
 			converseInput.AdditionalModelRequestFields = doc
@@ -188,7 +188,7 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 			log.Printf("THINKING_CONFIG_DETAILS: %+v", reasoningConfig)
 		}
 	}
-	
+
 	// Add system prompt if provided
 	if request.System != "" {
 		converseInput.System = []types.SystemContentBlock{
@@ -198,49 +198,49 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 		}
 		log.Printf("Added system prompt: %d chars", len(request.System))
 	}
-	
+
 	// Add guardrail config if provided
 	if request.GuardrailConfig != nil {
 		guardrailConfig := &types.GuardrailConfiguration{
 			GuardrailIdentifier: aws.String(request.GuardrailConfig.GuardrailIdentifier),
 		}
-		
+
 		if request.GuardrailConfig.GuardrailVersion != "" {
 			guardrailConfig.GuardrailVersion = aws.String(request.GuardrailConfig.GuardrailVersion)
 		}
-		
+
 		converseInput.GuardrailConfig = guardrailConfig
 		log.Printf("Added guardrail config with identifier: %s", request.GuardrailConfig.GuardrailIdentifier)
 	}
-	
+
 	// Log request details
 	log.Printf("Sending Converse API request to model %s with %d messages", bc.modelID, len(messages))
-	
+
 	// Call Bedrock Converse API
 	result, err := bc.client.Converse(ctx, converseInput)
 	if err != nil {
 		return nil, 0, bc.handleBedrockError(err)
 	}
-	
+
 	// Calculate latency
 	latency := time.Since(startTime)
-	
+
 	// Convert response to our format
 	response, err := bc.convertFromBedrockResponse(result, bc.modelID)
 	if err != nil {
 		return nil, latency.Milliseconds(), fmt.Errorf("failed to convert response: %w", err)
 	}
-	
-	log.Printf("Bedrock API call completed in %v with %d tokens total", 
+
+	log.Printf("Bedrock API call completed in %v with %d tokens total",
 		latency, response.Usage.TotalTokens)
-	
+
 	return response, latency.Milliseconds(), nil
 }
 
 // convertFromBedrockResponse converts Bedrock SDK response to our format
 func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.ConverseOutput, modelID string) (*ConverseResponse, error) {
 	var content []ContentBlock
-	
+
 	// Extract content from the response
 	if result.Output != nil {
 		switch v := result.Output.(type) {
@@ -256,7 +256,7 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 					// Check if this might be a thinking content block
 					typeName := fmt.Sprintf("%T", cb)
 					log.Printf("Processing content block type: %s", typeName)
-					
+
 					// Try to extract thinking content if it's a thinking block
 					if strings.Contains(strings.ToLower(typeName), "thinking") {
 						// Try to extract the value using reflection
@@ -277,10 +277,10 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			log.Printf("Unknown output type in response: %T", v)
 		}
 	}
-	
+
 	// Extract thinking content from response and apply budget
 	var processedThinking string
-	
+
 	// Find any thinking content blocks
 	var thinkingBlocks []ContentBlock
 	for _, block := range content {
@@ -288,7 +288,7 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			thinkingBlocks = append(thinkingBlocks, block)
 		}
 	}
-	
+
 	// Process thinking content if found
 	if len(thinkingBlocks) > 0 {
 		// Combine all thinking blocks
@@ -296,7 +296,7 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		for _, block := range thinkingBlocks {
 			thinkingParts = append(thinkingParts, block.Text)
 		}
-		
+
 		rawThinking := strings.Join(thinkingParts, "\n")
 		processedThinking = bc.applyThinkingBudget(rawThinking)
 		log.Printf("Processed thinking content: %d chars", len(processedThinking))
@@ -305,7 +305,7 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 		tempResponse := &ConverseResponse{
 			Content: content,
 		}
-		
+
 		rawThinking := ExtractThinkingFromResponse(tempResponse)
 		if rawThinking != "" {
 			processedThinking = bc.applyThinkingBudget(rawThinking)
@@ -321,14 +321,23 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			OutputTokens: int(*result.Usage.OutputTokens),
 			TotalTokens:  int(*result.Usage.InputTokens + *result.Usage.OutputTokens),
 		}
-		
-		// Add thinking tokens if available
-		if processedThinking != "" {
-			// Estimate thinking tokens from content length
-			estimatedThinkingTokens := bc.estimateThinkingTokens(processedThinking)
-			usage.ThinkingTokens = estimatedThinkingTokens
-			usage.TotalTokens = usage.InputTokens + usage.OutputTokens + usage.ThinkingTokens
-			log.Printf("Estimated thinking tokens: %d", estimatedThinkingTokens)
+
+		// Attempt to read thinking tokens from API response
+		if bc.checkForThinkingTokens(result.Usage) {
+			v := reflect.ValueOf(result.Usage).Elem()
+			field := v.FieldByName("ThinkingTokens")
+			if !field.IsValid() {
+				field = v.FieldByName("ReasoningTokens")
+			}
+			if field.IsValid() && !field.IsNil() {
+				usage.ThinkingTokens = int(field.Elem().Int())
+				usage.TotalTokens = usage.InputTokens + usage.OutputTokens + usage.ThinkingTokens
+				log.Printf("Retrieved thinking tokens from API: %d", usage.ThinkingTokens)
+			} else {
+				log.Printf("API usage object did not include thinking tokens value")
+			}
+		} else {
+			log.Printf("No thinking tokens reported in API usage")
 		}
 	} else {
 		// Provide default usage if not available
@@ -338,20 +347,14 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			ThinkingTokens: 0,
 			TotalTokens:    0,
 		}
-		
-		// Still estimate thinking tokens if we have thinking content
-		if processedThinking != "" {
-			usage.ThinkingTokens = bc.estimateThinkingTokens(processedThinking)
-			usage.TotalTokens = usage.ThinkingTokens
-		}
 	}
-	
+
 	// Extract stop reason
 	var stopReason string
 	if result.StopReason != "" {
 		stopReason = string(result.StopReason)
 	}
-	
+
 	// Extract metrics
 	var metrics *ResponseMetrics
 	if result.Metrics != nil && result.Metrics.LatencyMs != nil {
@@ -359,10 +362,10 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 			LatencyMs: int64(*result.Metrics.LatencyMs),
 		}
 	}
-	
+
 	// Generate request ID if not available
 	requestID := "req-" + time.Now().Format("20060102-150405")
-	
+
 	return &ConverseResponse{
 		RequestID:  requestID,
 		ModelID:    modelID,
@@ -379,12 +382,12 @@ func extractValueFromUnknownType(obj interface{}) string {
 	// Try to access common field names for thinking content
 	typeName := fmt.Sprintf("%T", obj)
 	log.Printf("Attempting to extract value from %s", typeName)
-	
+
 	// Use type assertion to access Value field if available
 	if valuer, ok := obj.(interface{ GetValue() string }); ok {
 		return valuer.GetValue()
 	}
-	
+
 	// For debugging purposes
 	log.Printf("Could not extract value from %s", typeName)
 	return ""
@@ -393,7 +396,7 @@ func extractValueFromUnknownType(obj interface{}) string {
 // handleBedrockError converts AWS SDK errors to our error types
 func (bc *BedrockClient) handleBedrockError(err error) error {
 	log.Printf("Bedrock API error: %v", err)
-	
+
 	// Extract useful information from the error
 	return fmt.Errorf("bedrock API error: %w", err)
 }
@@ -401,7 +404,7 @@ func (bc *BedrockClient) handleBedrockError(err error) error {
 // ValidateModel validates that the specified model is available
 func (bc *BedrockClient) ValidateModel(ctx context.Context) error {
 	log.Printf("Validating model %s with Bedrock API", bc.modelID)
-	
+
 	// Create a minimal validation using the proper Converse API
 	converseInput := &bedrockruntime.ConverseInput{
 		ModelId: aws.String(bc.modelID),
@@ -419,17 +422,17 @@ func (bc *BedrockClient) ValidateModel(ctx context.Context) error {
 			MaxTokens: aws.Int32(10),
 		},
 	}
-	
+
 	// Create a timeout context for the validation
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	
+
 	// Call Converse API
 	_, err := bc.client.Converse(ctx, converseInput)
 	if err != nil {
 		return fmt.Errorf("model validation failed: %w", err)
 	}
-	
+
 	log.Printf("Model %s validated successfully with Bedrock API", bc.modelID)
 	return nil
 }
@@ -481,13 +484,14 @@ func (bc *BedrockClient) checkForThinkingTokens(usage *types.TokenUsage) bool {
 	if usage == nil {
 		return false
 	}
-	
-	// Log the usage structure for debugging
-	log.Printf("Usage structure: InputTokens=%d, OutputTokens=%d", 
-		*usage.InputTokens, *usage.OutputTokens)
-	
-	// For now, return false until we know the exact AWS SDK structure
-	// This function can be updated when AWS SDK adds thinking token support
+
+	val := reflect.ValueOf(usage).Elem()
+	for _, name := range []string{"ThinkingTokens", "ReasoningTokens"} {
+		field := val.FieldByName(name)
+		if field.IsValid() && !field.IsNil() {
+			return true
+		}
+	}
 	return false
 }
 
@@ -496,20 +500,11 @@ func (bc *BedrockClient) applyThinkingBudget(thinking string) string {
 	if bc.config.BudgetTokens <= 0 || len(thinking) <= bc.config.BudgetTokens*4 {
 		return thinking
 	}
-	
-	log.Printf("Truncating thinking content: original=%d chars, budget=%d tokens", 
+
+	log.Printf("Truncating thinking content: original=%d chars, budget=%d tokens",
 		len(thinking), bc.config.BudgetTokens)
-	
+
 	// Approximate 4 chars per token
 	maxChars := bc.config.BudgetTokens * 4
 	return thinking[:maxChars] + "... [truncated]"
-}
-
-// estimateThinkingTokens estimates thinking token count from character length
-func (bc *BedrockClient) estimateThinkingTokens(thinking string) int {
-	if thinking == "" {
-		return 0
-	}
-	// Rough estimation: 1 token per 4 characters for English text
-	return len(thinking) / 4
 }

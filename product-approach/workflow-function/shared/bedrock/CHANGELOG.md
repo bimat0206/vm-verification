@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.1] - 2025-06-01
+
+### Changed
+- Removed estimation logic for thinking tokens in `client.go`.
+- `convertFromBedrockResponse` now retrieves `ThinkingTokens` directly from the
+  Bedrock API usage object when available.
+- `checkForThinkingTokens` uses reflection to detect thinking token fields such
+  as `ThinkingTokens` or `ReasoningTokens` in the AWS SDK response.
+- If the API does not provide thinking tokens, the value defaults to `0` and is
+  excluded from totals.
+- Improved logging to indicate whether thinking tokens were returned by the API.
+
 ## [1.3.0] - 2025-01-03
 
 ### Added
