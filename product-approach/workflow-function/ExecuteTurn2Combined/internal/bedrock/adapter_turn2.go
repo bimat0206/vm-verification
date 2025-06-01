@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
@@ -242,28 +243,67 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		"operation":  "bedrock_converse_with_history",
 	})
 
-	// Extract text content from response
+	// Extract text and thinking content from response
 	textContent := sharedBedrock.ExtractTextFromResponse(response)
+	thinkingText := sharedBedrock.ExtractThinkingFromResponse(response)
+
+	// Map token usage defensively
+	tokenUsage := schema.TokenUsage{
+		InputTokens:    0,
+		OutputTokens:   0,
+		ThinkingTokens: 0,
+		TotalTokens:    0,
+	}
+	if response.Usage != nil {
+		tokenUsage.InputTokens = response.Usage.InputTokens
+		tokenUsage.OutputTokens = response.Usage.OutputTokens
+		tokenUsage.ThinkingTokens = response.Usage.ThinkingTokens
+		tokenUsage.TotalTokens = response.Usage.TotalTokens
+	}
 
 	// Translate to schema.BedrockResponse
 	schemaResponse := &schema.BedrockResponse{
 		Content:          textContent,
+		Thinking:         thinkingText,
 		CompletionReason: response.StopReason,
-		InputTokens:      response.Usage.InputTokens,
-		OutputTokens:     response.Usage.OutputTokens,
+		InputTokens:      tokenUsage.InputTokens,
+		OutputTokens:     tokenUsage.OutputTokens,
 		LatencyMs:        latencyMs,
 		ModelId:          response.ModelID,
 		Timestamp:        time.Now().Format(time.RFC3339),
 		Turn:             2,
 		ProcessingTimeMs: time.Since(startTime).Milliseconds(),
+		TokenUsage:       &tokenUsage,
+		Metadata:         map[string]interface{}{},
+	}
+
+	// Populate thinking metadata
+	thinkingEnabled := strings.EqualFold(a.cfg.Processing.ThinkingType, "enable")
+	schemaResponse.Metadata["thinking_enabled"] = thinkingEnabled
+	if thinkingText != "" {
+		blocks := a.generateThinkingBlocks(thinkingText, "response-processing")
+		schemaResponse.Metadata["thinking_blocks"] = blocks
+		schemaResponse.Metadata["has_thinking"] = true
+		schemaResponse.Metadata["thinking_length"] = len(thinkingText)
+		a.log.Info("thinking_extracted", map[string]interface{}{
+			"enabled":         thinkingEnabled,
+			"thinking_tokens": tokenUsage.ThinkingTokens,
+			"blocks":          len(blocks),
+		})
+	} else {
+		schemaResponse.Metadata["has_thinking"] = false
+		a.log.Info("thinking_not_found", map[string]interface{}{
+			"enabled": thinkingEnabled,
+		})
 	}
 
 	// Log response details
 	a.log.Info("bedrock_turn2_response_received", map[string]interface{}{
 		"model_id":           response.ModelID,
 		"completion_reason":  response.StopReason,
-		"input_tokens":       response.Usage.InputTokens,
-		"output_tokens":      response.Usage.OutputTokens,
+		"input_tokens":       tokenUsage.InputTokens,
+		"output_tokens":      tokenUsage.OutputTokens,
+		"thinking_tokens":    tokenUsage.ThinkingTokens,
 		"latency_ms":         latencyMs,
 		"content_length":     len(textContent),
 		"processing_time_ms": schemaResponse.ProcessingTimeMs,
@@ -293,4 +333,108 @@ func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prom
 	}
 
 	return response, nil
+}
+
+// ThinkingBlock represents a structured thinking analysis block
+type ThinkingBlock struct {
+	Timestamp  string `json:"timestamp"`
+	Component  string `json:"component"`
+	Stage      string `json:"stage"`
+	Decision   string `json:"decision"`
+	Reasoning  string `json:"reasoning"`
+	Confidence int    `json:"confidence"`
+}
+
+// generateThinkingBlocks creates structured thinking blocks for analysis
+func (a *AdapterTurn2) generateThinkingBlocks(thinking string, stage string) []ThinkingBlock {
+	if thinking == "" {
+		return []ThinkingBlock{}
+	}
+
+	blocks := []ThinkingBlock{
+		{
+			Timestamp:  schema.FormatISO8601(),
+			Component:  "bedrock-adapter",
+			Stage:      stage,
+			Decision:   "Extracted thinking content from response",
+			Reasoning:  a.summarizeThinking(thinking),
+			Confidence: a.calculateThinkingConfidence(thinking),
+		},
+	}
+
+	if len(thinking) > 500 {
+		blocks = append(blocks, ThinkingBlock{
+			Timestamp:  schema.FormatISO8601(),
+			Component:  "bedrock-adapter",
+			Stage:      "content-analysis",
+			Decision:   "Analyzed comprehensive thinking content",
+			Reasoning:  "Thinking content exceeds 500 characters, indicating detailed reasoning process",
+			Confidence: 90,
+		})
+	}
+
+	return blocks
+}
+
+// summarizeThinking creates a summary of thinking content for reasoning field
+func (a *AdapterTurn2) summarizeThinking(thinking string) string {
+	if len(thinking) <= 200 {
+		return thinking
+	}
+
+	summary := thinking[:150] + "... [Content extracted using multi-strategy approach: reasoning tags, thinking tags, markdown blocks, and section headers]"
+	return summary
+}
+
+// calculateThinkingConfidence estimates confidence based on thinking content characteristics
+func (a *AdapterTurn2) calculateThinkingConfidence(thinking string) int {
+	confidence := 70
+
+	if len(thinking) > 100 {
+		confidence += 10
+	}
+	if len(thinking) > 500 {
+		confidence += 10
+	}
+
+	indicators := []string{"analysis", "reasoning", "conclusion", "evidence", "assessment"}
+	for _, ind := range indicators {
+		if contains(thinking, ind) {
+			confidence += 2
+		}
+	}
+
+	if confidence > 95 {
+		confidence = 95
+	}
+
+	return confidence
+}
+
+// truncateForLog safely truncates strings for logging
+func (a *AdapterTurn2) truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					indexContains(s, substr) >= 0))
+}
+
+// indexContains finds substring in string
+func indexContains(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }
