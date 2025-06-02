@@ -428,7 +428,8 @@ func getIntValue(m map[string]interface{}, key string) int {
 	case float64:
 		return int(v)
 	case string:
-		if i, err := fmt.Sscanf(v, "%d", new(int)); err == nil && i > 0 {
+		var i int
+		if _, err := fmt.Sscanf(v, "%d", &i); err == nil {
 			return i
 		}
 	}
