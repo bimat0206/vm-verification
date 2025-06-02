@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.3.1] - 2025-06-04
+
+### Changed
+- Output s3References no longer includes `images_reference_base64` and `images_checking_base64`.
+- Base64 files are still uploaded and referenced in `metadata.json`.
+
 ## [4.3.0] - 2025-06-03
 
 ### Added
