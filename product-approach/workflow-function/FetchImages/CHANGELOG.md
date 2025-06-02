@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.3.0] - 2025-06-03
+
+### Added
+- Image download with Base64 generation and accurate dimension extraction.
+- New S3 references `images_reference_base64` and `images_checking_base64`.
+
 ## [4.2.1] - 2025-06-02
 
 ### Fixed
