@@ -157,12 +157,6 @@ func (s *S3StateManager) StoreBase64Image(envelope *s3state.Envelope, imageType,
 		return nil, fmt.Errorf("failed to store Base64 image: %w", err)
 	}
 
-	if envelope.References == nil {
-		envelope.References = make(map[string]*s3state.Reference)
-	}
-	refKey := fmt.Sprintf("images_%s_base64", imageType)
-	envelope.References[refKey] = ref
-
 	return ref, nil
 }
 

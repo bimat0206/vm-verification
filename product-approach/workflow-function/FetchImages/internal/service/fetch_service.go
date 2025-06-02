@@ -149,6 +149,11 @@ func (s *FetchService) ProcessRequest(
 		s.stateManager.AddSummary(envelope, "previousVerificationId", verificationContext.PreviousVerificationId)
 	}
 
+	if envelope != nil && envelope.References != nil {
+		delete(envelope.References, "images_reference_base64")
+		delete(envelope.References, "images_checking_base64")
+	}
+
 	// Create and return response
 	return &models.FetchImagesResponse{
 		VerificationId: verificationContext.VerificationId,
