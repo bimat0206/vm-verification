@@ -36,15 +36,40 @@ aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --
 # Create a temporary build context with shared modules
 echo -e "${YELLOW}Creating temporary build context with shared modules...${NC}"
 BUILD_CONTEXT=$(mktemp -d)
-cp -r ./* "$BUILD_CONTEXT/"
-mkdir -p "$BUILD_CONTEXT/shared"
-cp -r ../shared/logger "$BUILD_CONTEXT/shared/"
-cp -r ../shared/schema "$BUILD_CONTEXT/shared/"
-cp -r ../shared/s3state "$BUILD_CONTEXT/shared/"
 
-# Create a modified go.mod file for Docker build
+# Copy the FetchImages directory contents
+echo -e "${YELLOW}Copying FetchImages directory...${NC}"
+cp -r ./* "$BUILD_CONTEXT/"
+
+# Create shared directory and copy shared modules
+echo -e "${YELLOW}Copying shared modules...${NC}"
+mkdir -p "$BUILD_CONTEXT/shared"
+
+# Check if shared modules exist and copy them
+if [ -d "../shared/logger" ]; then
+    cp -r ../shared/logger "$BUILD_CONTEXT/shared/"
+    echo "✓ Copied shared/logger"
+else
+    echo -e "${RED}Warning: ../shared/logger not found${NC}"
+fi
+
+if [ -d "../shared/schema" ]; then
+    cp -r ../shared/schema "$BUILD_CONTEXT/shared/"
+    echo "✓ Copied shared/schema"
+else
+    echo -e "${RED}Warning: ../shared/schema not found${NC}"
+fi
+
+if [ -d "../shared/s3state" ]; then
+    cp -r ../shared/s3state "$BUILD_CONTEXT/shared/"
+    echo "✓ Copied shared/s3state"
+else
+    echo -e "${RED}Warning: ../shared/s3state not found${NC}"
+fi
+
+# Create a modified go.mod file for Docker build with updated replace paths
 echo -e "${YELLOW}Creating modified go.mod for Docker build...${NC}"
-cat > "$BUILD_CONTEXT/go.mod" << EOF
+cat > "$BUILD_CONTEXT/go.mod" << 'EOF'
 module workflow-function/FetchImages
 
 go 1.24
@@ -56,9 +81,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
+	github.com/aws/smithy-go v1.22.3
 	workflow-function/shared/logger v0.0.0
-	workflow-function/shared/schema v0.0.0
 	workflow-function/shared/s3state v0.0.0
+	workflow-function/shared/schema v0.0.0
 )
 
 require (
@@ -78,13 +104,23 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
-	github.com/aws/smithy-go v1.22.2 // indirect
 )
 
 replace workflow-function/shared/schema => ./shared/schema
 replace workflow-function/shared/logger => ./shared/logger
 replace workflow-function/shared/s3state => ./shared/s3state
 EOF
+
+# Copy the go.sum file to ensure all dependencies are properly resolved
+echo -e "${YELLOW}Copying go.sum file...${NC}"
+cp go.sum "$BUILD_CONTEXT/go.sum"
+
+# Verify the build context structure
+echo -e "${YELLOW}Verifying build context structure...${NC}"
+echo "Build context contents:"
+ls -la "$BUILD_CONTEXT"
+echo "Shared modules in build context:"
+ls -la "$BUILD_CONTEXT/shared/" || echo "No shared directory found"
 
 # Build the image from the temporary build context
 echo -e "${YELLOW}Building Docker image...${NC}"

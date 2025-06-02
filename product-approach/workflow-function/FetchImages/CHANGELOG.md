@@ -1,5 +1,45 @@
 # Changelog
 
+## [4.1.0] - 2025-01-02
+
+### Fixed
+- **CRITICAL**: Fixed root cause of "failed to parse event: failed to parse event detail: unexpected end of JSON input" error
+- Enhanced Initialize function with comprehensive JSON validation and error handling
+- Improved error isolation between workflow steps to prevent error propagation
+- Added error categorization to distinguish between inherited errors and current processing errors
+- Enhanced S3 state manager to detect and catalog inherited errors from previous workflow steps
+
+### Added
+- **Enhanced JSON Validation**: Added pre-parsing validation checks for JSON size, structure, and completeness
+- **Error Source Tracking**: Implemented error categorization system to identify JSON parsing, inherited, and processing errors
+- **Inherited Error Detection**: Added automatic detection of errors from previous workflow steps
+- **Improved Error Responses**: Enhanced error response structure with detailed error categorization and source information
+- **Enhanced Logging**: Added comprehensive logging for error diagnosis and debugging
+- **Error Recovery**: Implemented graceful error handling that preserves workflow state while isolating current step errors
+- **S3 JSON Validation**: Enhanced S3 RetrieveJSON method with comprehensive validation and error reporting
+- **Request Context Prioritization**: Modified verification context loading to prioritize request data over S3 fallback
+- **Detailed Request Logging**: Added comprehensive logging of parsed requests and verification context details
+
+### Changed
+- **Error Handling Strategy**: Modified FetchImages to return errors in response structure rather than as Go errors
+- **State Management**: Enhanced S3 state manager to track error inheritance and provide better error context
+- **Logging Enhancement**: Improved logging throughout the error handling pipeline for better debugging
+- **Input Validation**: Strengthened input validation in Initialize function to prevent truncated JSON issues
+
+### Technical Details
+- **Root Cause**: The error was originating from the Initialize function's JSON parsing logic, not FetchImages
+- **Error Propagation**: AWS Step Functions was wrapping Initialize errors and passing them through the workflow
+- **Solution**: Implemented three-phase fix:
+  1. **Phase 1**: Enhanced Initialize function with robust JSON validation and error handling
+  2. **Phase 2**: Improved error isolation in FetchImages to separate inherited vs. current errors
+  3. **Phase 3**: Added workflow-level error categorization and enhanced monitoring
+
+### Impact
+- Eliminates "unexpected end of JSON input" errors in FetchImages function
+- Provides clear error source identification for debugging
+- Maintains workflow continuity even when inheriting errors from previous steps
+- Improves overall system reliability and error transparency
+
 ## [4.0.1] - 2025-05-20
 
 ### Fixed

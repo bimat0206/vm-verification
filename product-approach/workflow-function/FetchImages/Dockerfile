@@ -10,15 +10,23 @@ RUN apk add --no-cache \
 # Set up working directory
 WORKDIR /build
 
-# Copy the FetchImages directory and shared modules
+# Copy the entire build context (includes FetchImages and shared modules)
 COPY . .
 
-# Verify the structure (for debugging - can be removed in production)
+# Verify the structure (for debugging)
 RUN echo "Build context contents:" && ls -la
-RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not accessible in this context"
+RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not found"
 
-# Download dependencies and build
+# Set Go environment variables for proper module resolution
+ENV GO111MODULE=on
+ENV GOPROXY=direct
+ENV GOSUMDB=off
+
+# Download dependencies first (this will use the modified go.mod with correct paths)
 RUN go mod download
+
+# Verify go.mod content
+RUN echo "Current go.mod content:" && cat go.mod
 
 # Build the application for AWS Lambda ARM64 (Graviton)
 RUN --mount=type=cache,target=/root/.cache \
