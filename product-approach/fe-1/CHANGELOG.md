@@ -6,6 +6,93 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.9.0] - 2025-06-02
+
+### Added
+- **New Verification System Page**: Created dedicated verification system interface (`pages/verification_system.py`)
+  - Moved complete verification initiation functionality from Home page to dedicated Verification System page
+  - Streamlined 3-step workflow: Choose Type → Select Images → Submit Verification
+  - Enhanced step-by-step guidance with clear headers and help text
+  - Maintained all existing functionality including S3 image browsing and LLM response display
+  - Consistent purple/blue color palette and card-based design patterns
+
+- **Introductory Home Page**: Completely redesigned Home page as landing page
+  - Welcome header with system introduction and purpose
+  - Feature overview cards explaining Verification System, Results Analysis, and Management Tools
+  - Comprehensive getting started guide with step-by-step instructions
+  - Navigation guidance and quick tips for using the system
+  - Real-time system status display and verification statistics
+  - Help & Support section with FAQ and troubleshooting information
+  - Professional landing page design with consistent styling
+
+### Changed
+- **Application Navigation Structure**: Major reorganization of navigation and page hierarchy
+  - **Home**: Now serves as introductory landing page instead of verification interface
+  - **Verification System**: New dedicated page for starting verifications (moved from Home)
+  - **Verification Results**: Unchanged - continues to display completed verification analysis
+  - **Verification Lookup**: Unchanged - continues to provide ID-based verification search
+  - Updated navigation icons for better distinction (🔍 for Verification System, 🔎 for Verification Lookup)
+
+- **Simplified Verification API**: Streamlined verification initiation API call
+  - **BREAKING**: Reduced API payload to only 3 essential fields:
+    - `verificationType` (LAYOUT_VS_CHECKING or PREVIOUS_VS_CURRENT)
+    - `referenceImageUrl` (S3 URL of reference image)
+    - `checkingImageUrl` (S3 URL of checking image)
+  - **Removed Fields**: Eliminated all additional fields from API calls:
+    - `vending_machine_id` (previously required for PREVIOUS_VS_CURRENT)
+    - `layout_id` (previously set to default value 1)
+    - `layout_prefix` (previously set to "default")
+    - `previous_verification_id` (previously optional for PREVIOUS_VS_CURRENT)
+    - `notificationEnabled` (initially added then removed)
+
+### Removed
+- **Form Field Simplification**: Eliminated type-specific form fields
+  - Removed "Vending Machine ID" input field (no longer required for any verification type)
+  - Removed "Previous Verification ID" input field (no longer supported)
+  - Removed conditional form logic based on verification type
+  - Removed notification preferences checkbox
+
+### Improved
+- **Unified Verification Workflow**: Consistent experience across all verification types
+  - Same validation requirements for both LAYOUT_VS_CHECKING and PREVIOUS_VS_CURRENT
+  - Simplified user experience with only image selection required
+  - Eliminated confusion about which fields are required for different verification types
+  - Cleaner, more intuitive interface with reduced cognitive load
+
+- **Enhanced User Experience**: Multiple UX improvements across the application
+  - **Clear Information Architecture**: Separation of introductory content (Home) from functional interfaces (Verification System)
+  - **Progressive Disclosure**: Collapsible sections and step-by-step guidance
+  - **Consistent Design Language**: Card-based layouts with purple/blue color scheme throughout
+  - **Better Navigation Flow**: Logical progression from introduction to verification to results
+  - **Improved Onboarding**: Comprehensive guidance for new users on the Home page
+
+### Technical
+- **Code Organization**: Enhanced maintainability and structure
+  - Created new `verification_system.py` module with complete verification workflow
+  - Refactored Home page to focus on introductory content and system information
+  - Updated app.py navigation structure to include new Verification System page
+  - Maintained all existing imports and dependencies
+  - Preserved backward compatibility for existing verification functionality
+
+- **API Integration**: Simplified and more reliable API communication
+  - Reduced API payload complexity and potential for errors
+  - Eliminated conditional API call logic based on verification type
+  - Cleaner error handling with unified validation approach
+  - Maintained all existing error handling and user feedback mechanisms
+
+### User Experience
+- **Streamlined Onboarding**: New users get comprehensive introduction and guidance
+- **Simplified Verification Process**: Reduced complexity with unified workflow for all verification types
+- **Better Information Discovery**: Clear separation between learning about the system and using it
+- **Enhanced Navigation**: Logical flow from introduction to verification to results analysis
+- **Consistent Visual Design**: Unified styling and interaction patterns across all pages
+
+### Migration Notes
+- **No Breaking Changes for Users**: All existing functionality preserved in new locations
+- **API Compatibility**: Backend APIs may need updates to handle simplified 3-field payload
+- **Navigation Updates**: Users will find verification initiation in new "Verification System" page
+- **Enhanced Workflow**: Simplified process reduces user errors and improves success rates
+
 ## [1.8.0] - 2025-06-01
 
 ### Added

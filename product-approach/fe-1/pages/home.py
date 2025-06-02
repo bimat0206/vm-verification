@@ -1,232 +1,248 @@
 import streamlit as st
-import logging
-from .improved_image_selector import render_improved_s3_image_selector
 
-logger = logging.getLogger(__name__)
+def apply_home_css():
+    """Apply custom CSS for Home page styling"""
+    st.markdown("""
+    <style>
+    .home-card {
+        background-color: #262730;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.2s ease-in-out;
+    }
+    .home-card:hover {
+        border-color: #6366F1;
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+    }
 
-def render_s3_image_selector(api_client, bucket_type, label, session_key):
-    """Render S3 image selector with browse functionality"""
-    st.subheader(label)
+    .feature-card {
+        background-color: #31333F;
+        border: 1px solid #4A4C5A;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
 
-    # Initialize session state for this selector
-    if f"{session_key}_path" not in st.session_state:
-        st.session_state[f"{session_key}_path"] = ""
-    if f"{session_key}_selected_image" not in st.session_state:
-        st.session_state[f"{session_key}_selected_image"] = None
-    if f"{session_key}_selected_url" not in st.session_state:
-        st.session_state[f"{session_key}_selected_url"] = ""
+    .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
 
-    # Path input and browse button
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        current_path = st.text_input(
-            f"Path in {bucket_type} bucket:",
-            value=st.session_state[f"{session_key}_path"],
-            key=f"{session_key}_path_input",
-            placeholder="Leave empty for root, or enter folder path"
-        )
-        st.session_state[f"{session_key}_path"] = current_path
+    .feature-title {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #FAFAFA !important;
+        margin-bottom: 0.5rem !important;
+    }
 
-    with col2:
-        browse_button = st.button(f"Browse {bucket_type.title()}", key=f"{session_key}_browse")
+    .feature-description {
+        font-size: 0.9rem !important;
+        color: #A0A0A0 !important;
+        line-height: 1.4;
+    }
 
-    # Load items if browse button clicked or no items cached
-    should_load = browse_button or f"{session_key}_items" not in st.session_state
-    if should_load:
-        try:
-            with st.spinner("Loading images..."):
-                browser_response = api_client.browse_images(current_path, bucket_type)
-                st.session_state[f"{session_key}_items"] = browser_response.get('items', [])
-                st.session_state[f"{session_key}_current_path"] = browser_response.get('currentPath', '')
-                st.session_state[f"{session_key}_parent_path"] = browser_response.get('parentPath', '')
-        except Exception as e:
-            st.error(f"Failed to browse {bucket_type} bucket: {str(e)}")
-            return None
+    .navigation-hint {
+        background-color: #1E3A8A;
+        border: 1px solid #3B82F6;
+        border-radius: 6px;
+        padding: 1rem;
+        margin: 1rem 0;
+        color: #93C5FD;
+    }
 
-    # Display items if available
-    if f"{session_key}_items" in st.session_state:
-        items = st.session_state[f"{session_key}_items"]
-        current_path_display = st.session_state.get(f"{session_key}_current_path", "")
-        parent_path = st.session_state.get(f"{session_key}_parent_path", "")
+    .welcome-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
 
-        if current_path_display:
-            st.info(f"📁 Current path: `{current_path_display}`")
+    .welcome-title {
+        font-size: 2.5rem !important;
+        font-weight: 700 !important;
+        color: #FAFAFA !important;
+        margin-bottom: 0.5rem !important;
+    }
 
-        # Parent directory navigation
-        if parent_path is not None and current_path_display:
-            if st.button("⬆️ Go to Parent Directory", key=f"{session_key}_parent"):
-                st.session_state[f"{session_key}_path"] = parent_path
-                st.rerun()
-
-        if items:
-            # Separate folders and files
-            folders = [item for item in items if item.get('type') == 'folder']
-            files = [item for item in items if item.get('type') == 'file']
-
-            # Display folders first
-            if folders:
-                st.write("📁 **Folders:**")
-                for folder in folders:
-                    folder_name = folder.get('name', '')
-                    folder_path = folder.get('path', '')
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.write(f"📁 {folder_name}")
-                    with col2:
-                        if st.button("Open", key=f"{session_key}_folder_{folder_name}"):
-                            st.session_state[f"{session_key}_path"] = folder_path
-                            st.rerun()
-
-            # Display files
-            if files:
-                st.write("🖼️ **Images:**")
-                for idx, file in enumerate(files):
-                    file_name = file.get('name', '')
-                    file_path = file.get('path', '')
-
-                    col1, col2, col3 = st.columns([2, 1, 1])
-                    with col1:
-                        st.write(f"🖼️ {file_name}")
-                    with col2:
-                        # Preview button
-                        if st.button("👁️ Preview", key=f"{session_key}_preview_{idx}"):
-                            try:
-                                url_response = api_client.get_image_url(file_path, bucket_type)
-                                if 'url' in url_response:
-                                    st.image(url_response['url'], caption=file_name, width=200)
-                            except Exception as e:
-                                st.error(f"Failed to load preview: {str(e)}")
-                    with col3:
-                        # Select button
-                        if st.button("✅ Select", key=f"{session_key}_select_{idx}"):
-                            try:
-                                # Get bucket name from config
-                                if bucket_type == "reference":
-                                    bucket_name = api_client.config_loader.get('REFERENCE_BUCKET', '')
-                                elif bucket_type == "checking":
-                                    bucket_name = api_client.config_loader.get('CHECKING_BUCKET', '')
-                                else:
-                                    bucket_name = f"{bucket_type}-bucket"
-
-                                st.session_state[f"{session_key}_selected_image"] = file_name
-                                st.session_state[f"{session_key}_selected_url"] = f"s3://{bucket_name}/{file_path}"
-                                st.success(f"Selected: {file_name}")
-                            except Exception as e:
-                                st.error(f"Error selecting image: {str(e)}")
-        else:
-            st.info("No items found in this location.")
-
-    # Display selected image
-    if st.session_state[f"{session_key}_selected_image"]:
-        st.success(f"✅ Selected: {st.session_state[f'{session_key}_selected_image']}")
-        st.code(st.session_state[f'{session_key}_selected_url'])
-
-    return st.session_state[f"{session_key}_selected_url"]
+    .welcome-subtitle {
+        font-size: 1.2rem !important;
+        color: #A0A0A0 !important;
+        margin-bottom: 1rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 def app(api_client):
-    st.title("Vending Machine Verification System")
-    st.write("Welcome! Start a new verification by selecting images and configuring the verification type below.")
+    # Apply CSS styling
+    apply_home_css()
 
-    # Debug section (collapsible)
-    with st.expander("🔧 Debug Tools"):
-        st.write("**Test Image URL Generation**")
-        col1, col2 = st.columns(2)
-        with col1:
-            test_path = st.text_input("Test image path:", placeholder="e.g., AACZ_3.png")
-        with col2:
-            test_bucket = st.selectbox("Bucket type:", ["reference", "checking"])
+    # Welcome header
+    st.markdown("""
+    <div class="welcome-header">
+        <div class="welcome-title">🏠 Welcome to the Vending Machine Verification System</div>
+        <div class="welcome-subtitle">Your comprehensive solution for automated vending machine verification and analysis</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if st.button("Test Image URL") and test_path:
-            try:
-                url_response = api_client.get_image_url(test_path, test_bucket)
-                st.success("✅ API call successful!")
-                st.json(url_response)
-            except Exception as e:
-                st.error(f"❌ API call failed: {str(e)}")
+    # Introduction section
+    st.markdown('<div class="home-card">', unsafe_allow_html=True)
+    st.markdown("## 🎯 About This System")
+    st.markdown("""
+    The Vending Machine Verification System is an advanced AI-powered platform designed to automate
+    the verification and analysis of vending machine layouts and inventory. Using cutting-edge computer
+    vision and machine learning technologies, our system provides accurate, reliable verification results
+    to help maintain optimal vending machine operations.
 
-    # Step 1: Select verification type
-    verification_type = st.selectbox(
-        "Verification Type",
-        ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
-        format_func=lambda x: "Layout vs Checking" if x == "LAYOUT_VS_CHECKING" else "Previous vs Current"
-    )
+    **Key Benefits:**
+    - **Automated Analysis**: Reduce manual inspection time and human error
+    - **Real-time Results**: Get instant verification feedback with detailed analysis
+    - **Comprehensive Reporting**: Access detailed metrics and performance data
+    - **Easy Integration**: Simple interface for seamless workflow integration
+    """)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Step 2: Select images (outside of form to allow interactive browsing)
+    # Features overview
+    st.markdown("## ✨ System Features")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <div class="feature-title">Verification System</div>
+            <div class="feature-description">
+                Start new verifications by comparing reference and checking images.
+                Support for multiple verification types including layout comparison
+                and temporal analysis.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Results Analysis</div>
+            <div class="feature-description">
+                Browse and analyze verification results with advanced filtering,
+                detailed metrics, and comprehensive reporting capabilities.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🔧</div>
+            <div class="feature-title">Management Tools</div>
+            <div class="feature-description">
+                Access image upload tools, health monitoring, and system
+                diagnostics to maintain optimal performance.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Getting started guide
+    st.markdown('<div class="home-card">', unsafe_allow_html=True)
+    st.markdown("## 🚀 Getting Started")
+    st.markdown("""
+    ### Step 1: Start a Verification
+    Navigate to the **Verification System** to begin a new verification process:
+    1. Select your verification type (Layout vs Checking or Previous vs Current)
+    2. Choose reference and checking images from S3 buckets
+    3. Configure verification parameters
+    4. Submit for analysis
+
+    ### Step 2: Monitor Progress
+    Track your verification progress in real-time:
+    - View processing status and estimated completion time
+    - Access preliminary results as they become available
+    - Receive notifications when analysis is complete
+
+    ### Step 3: Review Results
+    Analyze detailed verification results in the **Verification Results** section:
+    - Browse all completed verifications with advanced filtering
+    - View detailed accuracy metrics and confidence scores
+    - Access comprehensive LLM analysis and recommendations
+    - Export results for reporting and documentation
+    """)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Navigation guidance
+    st.markdown("""
+    <div class="navigation-hint">
+        <strong>💡 Quick Navigation Tips:</strong><br>
+        • Use the sidebar menu to navigate between different sections<br>
+        • Start with <strong>Verification System</strong> to run new verifications<br>
+        • Check <strong>Verification Results</strong> to review completed analyses<br>
+        • Access <strong>Tools</strong> for image management and system diagnostics
+    </div>
+    """, unsafe_allow_html=True)
+
+    # System status and information
+    st.markdown('<div class="home-card">', unsafe_allow_html=True)
+    st.markdown("## 📋 System Information")
+
     col1, col2 = st.columns(2)
 
     with col1:
-        # Reference Image S3 Selector
-        reference_image_url = render_improved_s3_image_selector(
-            api_client, "reference", "Reference Image", "ref_img"
-        )
+        st.markdown("### 🔗 System Status")
+        if api_client:
+            try:
+                # Test API connection
+                test_response = api_client.list_verifications({'limit': 1})
+                total_verifications = test_response.get('pagination', {}).get('total', 0)
+                st.success(f"✅ System Online - {total_verifications} total verifications")
+            except Exception as e:
+                st.error(f"❌ System Error: {str(e)}")
+        else:
+            st.warning("⚠️ API client not available")
 
     with col2:
-        # Checking Image S3 Selector
-        checking_image_url = render_improved_s3_image_selector(
-            api_client, "checking", "Checking Image", "check_img"
-        )
-
-    # Step 3: Additional metadata in form
-    with st.form(key='init_verification_form'):
-        # Only show Vending Machine ID for PREVIOUS_VS_CURRENT
-        vending_machine_id = None
-        if verification_type == "PREVIOUS_VS_CURRENT":
-            vending_machine_id = st.text_input("Vending Machine ID", help="Required - ID of the vending machine")
-
-            # Type-specific fields for PREVIOUS_VS_CURRENT only
-            previous_verification_id = st.text_input("Previous Verification ID", help="Optional - ID of previous verification")
+        st.markdown("### 📈 Quick Stats")
+        if api_client:
+            try:
+                # Get recent verification stats
+                recent_response = api_client.list_verifications({'limit': 10})
+                recent_count = len(recent_response.get('results', []))
+                st.info(f"📊 {recent_count} recent verifications available")
+            except Exception:
+                st.info("📊 Statistics temporarily unavailable")
         else:
-            previous_verification_id = None
+            st.info("📊 Connect to view statistics")
 
-        submit_button = st.form_submit_button(label='Start Verification')
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if submit_button:
-        # Validation based on verification type
-        if verification_type == "LAYOUT_VS_CHECKING":
-            # For Layout vs Checking, only images are required
-            required_fields = [reference_image_url, checking_image_url]
-            if not all(required_fields):
-                st.error("Both Reference Image and Checking Image must be selected.")
-                return
-        else:  # PREVIOUS_VS_CURRENT
-            # For Previous vs Current, vending machine ID and images are required
-            required_fields = [vending_machine_id, reference_image_url, checking_image_url]
-            if not all(required_fields):
-                st.error("Vending Machine ID, Reference Image, and Checking Image are all required.")
-                return
+    # Help and support
+    with st.expander("❓ Help & Support", expanded=False):
+        st.markdown("""
+        ### Frequently Asked Questions
 
-        try:
-            # Different parameters based on verification type
-            if verification_type == "LAYOUT_VS_CHECKING":
-                # For Layout vs Checking, we don't need layout_id, layout_prefix, or vending_machine_id
-                response = api_client.initiate_verification(
-                    verification_type=verification_type,
-                    reference_image_url=reference_image_url,
-                    checking_image_url=checking_image_url,
-                    vending_machine_id="default",  # Use a default value since API might require it
-                    layout_id=1,  # Use default values since these are removed from UI
-                    layout_prefix="default"
-                )
-            else:  # PREVIOUS_VS_CURRENT
-                response = api_client.initiate_verification(
-                    verification_type=verification_type,
-                    reference_image_url=reference_image_url,
-                    checking_image_url=checking_image_url,
-                    vending_machine_id=vending_machine_id,
-                    previous_verification_id=previous_verification_id if previous_verification_id else None
-                )
+        **Q: What image formats are supported?**
+        A: The system supports common image formats including PNG, JPG, and JPEG files stored in S3 buckets.
 
-            st.success("Verification initiated successfully!")
-            verification_id = response.get('verificationId', 'N/A')
-            st.write(f"Verification ID: {verification_id}")
-            st.write(f"Status: {response.get('status', 'N/A')}")
-            st.write(f"Initiated at: {response.get('verificationAt', 'N/A')}")
+        **Q: How long does verification take?**
+        A: Processing time varies based on image complexity, typically ranging from 30 seconds to 5 minutes.
 
-            # Store the verification ID in session state
-            if verification_id != 'N/A':
-                st.session_state['selected_verification'] = verification_id
-                st.info("✅ Verification initiated successfully! You can view the status in the Verification Results page.")
+        **Q: Can I verify multiple machines at once?**
+        A: Currently, the system processes one verification at a time. You can queue multiple verifications sequentially.
 
-        except Exception as e:
-            logger.error(f"Initiate verification failed: {str(e)}")
-            st.error(str(e))
+        **Q: How accurate are the results?**
+        A: Our AI models achieve high accuracy rates, with detailed confidence scores provided for each verification.
+
+        ### Troubleshooting
+        - Ensure images are properly uploaded to the correct S3 buckets
+        - Check that verification parameters are correctly configured
+        - Monitor system status for any service interruptions
+        - Contact support if issues persist
+        """)
+
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #A0A0A0; font-size: 0.9rem;">
+        <strong>Vending Machine Verification System</strong> | Powered by Advanced AI Technology
+    </div>
+    """, unsafe_allow_html=True)

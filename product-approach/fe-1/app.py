@@ -5,7 +5,7 @@ st.set_page_config(page_title="Vending Machine Verification", layout="wide")
 
 import logging
 # from dotenv import load_dotenv # Removed for containerized deployment
-from pages import home, verifications
+from pages import home, verifications, verification_system
 from pages import health_check, verification_lookup, image_upload
 from clients.api_client import APIClient
 
@@ -60,8 +60,9 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Define pages with categories and icons
 pages = {
     "Home": {"module": home, "icon": "🏠", "category": "Main"},
+    "Verification System": {"module": verification_system, "icon": "🔍", "category": "Verification"},
     "Verification Results": {"module": verifications, "icon": "📋", "category": "Verification"},
-    "Verification Lookup": {"module": verification_lookup, "icon": "🔍", "category": "Verification"},
+    "Verification Lookup": {"module": verification_lookup, "icon": "🔎", "category": "Verification"},
     "Image Upload": {"module": image_upload, "icon": "📤", "category": "Tools"},
     "Health Check": {"module": health_check, "icon": "❤️", "category": "Tools"},
 }

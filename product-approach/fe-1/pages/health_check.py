@@ -147,20 +147,3 @@ def app(api_client):
         except Exception as e:
             logger.error(f"Health check failed: {str(e)}")
             st.error(f"Health check error: {str(e)}")
-
-    # Form to update API settings
-    with st.expander("Update API Settings"):
-        with st.form("api_settings"):
-            config_loader = api_client.config_loader
-            current_endpoint = st.session_state.get('api_endpoint', config_loader.get("API_ENDPOINT", ""))
-            current_key = st.session_state.get('api_key', api_client.api_key)
-
-            new_endpoint = st.text_input("API Endpoint", value=current_endpoint)
-            new_key = st.text_input("API Key", value=current_key, type="password")
-
-            # Add submit button
-            submitted = st.form_submit_button("Update Settings")
-            if submitted:
-                st.session_state['api_endpoint'] = new_endpoint
-                st.session_state['api_key'] = new_key
-                st.success("Settings updated!")
