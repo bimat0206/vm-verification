@@ -1,5 +1,61 @@
 # Changelog
 
+## [4.3.2] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Fixed metadata.json structure format to match expected nested structure
+- Fixed flat structure issue where metadata was stored as `{"reference": {...}, "checking": {...}}` instead of expected nested format
+- Added missing fields: `verificationId`, `verificationType`, `processingMetadata`, `version`
+- Transformed field names from `reference`/`checking` to `referenceImage`/`checkingImage`
+- Added comprehensive nested structure with `originalMetadata`, `base64Metadata`, `storageMetadata`, `imageType`, `validation`
+
+### Added
+- **Enhanced Metadata Models**: Created new `EnhancedImageMetadata` structure matching expected API format
+- **Metadata Conversion**: Added `ConvertToEnhancedMetadata` function to transform flat structure to nested format
+- **Processing Metadata**: Added detailed processing information including timing, steps, and parallel processing indicators
+- **Validation Information**: Added Bedrock compatibility and size limit validation results
+- **Image Dimensions**: Added aspect ratio calculation and comprehensive dimension metadata
+- **Compression Analysis**: Added compression ratio calculation for Base64 encoding efficiency
+
+### Changed
+- **Metadata Structure**: Completely restructured metadata.json output to match expected nested format:
+  ```json
+  {
+    "verificationId": "verif-xxx",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "referenceImage": {
+      "originalMetadata": {...},
+      "base64Metadata": {...},
+      "storageMetadata": {...},
+      "imageType": "layout_reference",
+      "validation": {...}
+    },
+    "checkingImage": {
+      "originalMetadata": {...},
+      "base64Metadata": {...},
+      "storageMetadata": {...},
+      "imageType": "current_checking",
+      "validation": {...}
+    },
+    "processingMetadata": {...},
+    "version": "1.0"
+  }
+  ```
+- **Processing Logic**: Updated fetch service to generate enhanced metadata structure before storage
+- **Backward Compatibility**: Maintained internal flat structure for processing while outputting enhanced format
+
+### Technical Details
+- **Root Cause**: The `StoreImageMetadata` function was storing the flat `ImageMetadata` structure instead of the expected nested format
+- **Solution**: Created conversion layer that transforms flat structure to enhanced nested structure before storage
+- **Architecture**: Added new metadata models while maintaining backward compatibility with existing processing logic
+- **Performance**: Conversion happens after parallel processing completes, minimal performance impact
+
+### Impact
+- Metadata.json now matches expected format for downstream processing
+- All required fields are now present in the output
+- Enhanced metadata provides comprehensive information for AI/ML workflows
+- Maintains high performance through efficient conversion process
+
 ## [4.3.1] - 2025-06-04
 
 ### Changed

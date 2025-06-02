@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
@@ -42,6 +43,7 @@ func (s *FetchService) ProcessRequest(
 	ctx context.Context,
 	request *models.FetchImagesRequest,
 ) (*models.FetchImagesResponse, error) {
+	processingStartTime := time.Now()
 	s.logger.Info("Processing FetchImages request", map[string]interface{}{
 		"verificationId": request.VerificationId,
 	})
@@ -117,12 +119,22 @@ func (s *FetchService) ProcessRequest(
 	// Update envelope status
 	s.stateManager.UpdateEnvelopeStatus(envelope, schema.StatusImagesFetched)
 
-	// Store image metadata
+	// Create flat metadata structure for backward compatibility
 	imgMetadata := &models.ImageMetadata{
 		Reference: results.ReferenceMeta,
 		Checking:  results.CheckingMeta,
 	}
-	if err := s.stateManager.StoreImageMetadata(envelope, imgMetadata); err != nil {
+
+	// Convert to enhanced metadata structure
+	enhancedMetadata := models.ConvertToEnhancedMetadata(
+		verificationContext.VerificationId,
+		verificationContext.VerificationType,
+		imgMetadata,
+		processingStartTime,
+	)
+
+	// Store the enhanced metadata instead of the flat structure
+	if err := s.stateManager.StoreImageMetadata(envelope, enhancedMetadata); err != nil {
 		return nil, models.NewProcessingError("failed to store image metadata", err)
 	}
 
