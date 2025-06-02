@@ -5,21 +5,21 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	
+
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
-	
+
 	"workflow-function/FetchImages/internal/models"
 	"workflow-function/FetchImages/internal/repository"
 )
 
 // FetchService handles the business logic for fetching images and related data
 type FetchService struct {
-	s3Repo         *repository.S3Repository
-	dynamoDBRepo   *repository.DynamoDBRepository
-	stateManager   *S3StateManager
-	logger         logger.Logger
+	s3Repo       *repository.S3Repository
+	dynamoDBRepo *repository.DynamoDBRepository
+	stateManager *S3StateManager
+	logger       logger.Logger
 }
 
 // NewFetchService creates a new FetchService instance
@@ -39,7 +39,7 @@ func NewFetchService(
 
 // ProcessRequest orchestrates the fetching of image metadata and related data
 func (s *FetchService) ProcessRequest(
-	ctx context.Context, 
+	ctx context.Context,
 	request *models.FetchImagesRequest,
 ) (*models.FetchImagesResponse, error) {
 	s.logger.Info("Processing FetchImages request", map[string]interface{}{
@@ -79,7 +79,7 @@ func (s *FetchService) ProcessRequest(
 		}
 	default:
 		return nil, models.NewProcessingError(
-			"unsupported verification context type", 
+			"unsupported verification context type",
 			fmt.Errorf("got type %T, expected schema.VerificationContext", context),
 		)
 	}
@@ -103,6 +103,7 @@ func (s *FetchService) ProcessRequest(
 	// Execute parallel operations to fetch everything we need
 	results, err := s.fetchAllDataInParallel(
 		ctx,
+		envelope,
 		verificationContext.ReferenceImageUrl,
 		verificationContext.CheckingImageUrl,
 		verificationContext.LayoutId,
@@ -159,7 +160,7 @@ func (s *FetchService) ProcessRequest(
 
 // loadVerificationContext loads the verification context from either the envelope or the request
 func (s *FetchService) loadVerificationContext(
-	ctx context.Context, 
+	ctx context.Context,
 	envelope *s3state.Envelope,
 	request *models.FetchImagesRequest,
 ) (interface{}, error) {
@@ -201,6 +202,7 @@ type ParallelFetchResults struct {
 // fetchAllDataInParallel fetches all required data concurrently
 func (s *FetchService) fetchAllDataInParallel(
 	ctx context.Context,
+	envelope *s3state.Envelope,
 	referenceUrl string,
 	checkingUrl string,
 	layoutId int,
@@ -215,11 +217,19 @@ func (s *FetchService) fetchAllDataInParallel(
 	}
 	var mu sync.Mutex
 
-	// Fetch reference image metadata
+	// Fetch reference image and Base64
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		meta, err := s.s3Repo.FetchImageMetadata(ctx, referenceUrl)
+		b64, meta, err := s.s3Repo.DownloadAndConvertToBase64(ctx, referenceUrl)
+		var ref *s3state.Reference
+		if err == nil {
+			ref, err = s.stateManager.StoreBase64Image(envelope, "reference", b64)
+			if err == nil {
+				meta.Base64S3Bucket = ref.Bucket
+				meta.SetBase64S3Key(ref.Key, "reference")
+			}
+		}
 		mu.Lock()
 		defer mu.Unlock()
 		if err != nil {
@@ -230,18 +240,26 @@ func (s *FetchService) fetchAllDataInParallel(
 			})
 		} else {
 			results.ReferenceMeta = meta
-			s.logger.Info("Successfully fetched reference image metadata", map[string]interface{}{
+			s.logger.Info("Successfully processed reference image", map[string]interface{}{
 				"url":  referenceUrl,
 				"size": meta.Size,
 			})
 		}
 	}()
 
-	// Fetch checking image metadata
+	// Fetch checking image and Base64
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		meta, err := s.s3Repo.FetchImageMetadata(ctx, checkingUrl)
+		b64, meta, err := s.s3Repo.DownloadAndConvertToBase64(ctx, checkingUrl)
+		var ref *s3state.Reference
+		if err == nil {
+			ref, err = s.stateManager.StoreBase64Image(envelope, "checking", b64)
+			if err == nil {
+				meta.Base64S3Bucket = ref.Bucket
+				meta.SetBase64S3Key(ref.Key, "checking")
+			}
+		}
 		mu.Lock()
 		defer mu.Unlock()
 		if err != nil {
@@ -252,7 +270,7 @@ func (s *FetchService) fetchAllDataInParallel(
 			})
 		} else {
 			results.CheckingMeta = meta
-			s.logger.Info("Successfully fetched checking image metadata", map[string]interface{}{
+			s.logger.Info("Successfully processed checking image", map[string]interface{}{
 				"url":  checkingUrl,
 				"size": meta.Size,
 			})
@@ -314,7 +332,7 @@ func (s *FetchService) fetchAllDataInParallel(
 				layoutMap["sourceJsonUrl"] = layout.SourceJsonUrl
 				layoutMap["machineStructure"] = layout.MachineStructure
 				layoutMap["productPositionMap"] = layout.ProductPositionMap
-				
+
 				results.LayoutMeta = layoutMap
 				s.logger.Info("Successfully fetched layout metadata", map[string]interface{}{
 					"layoutId":     layoutId,

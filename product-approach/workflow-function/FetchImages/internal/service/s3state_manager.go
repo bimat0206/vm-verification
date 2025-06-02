@@ -5,22 +5,22 @@ import (
 	"context"
 	"fmt"
 	"time"
-	
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
-	
+
 	"workflow-function/FetchImages/internal/config"
 	"workflow-function/FetchImages/internal/models"
 )
 
 // S3StateManager wraps the s3state.Manager to provide additional functionality
 type S3StateManager struct {
-	manager    s3state.Manager
-	logger     logger.Logger
-	config     config.Config
-	s3Client   *s3.Client
+	manager  s3state.Manager
+	logger   logger.Logger
+	config   config.Config
+	s3Client *s3.Client
 }
 
 // NewS3StateManager creates a new S3 state manager
@@ -34,15 +34,15 @@ func NewS3StateManager(ctx context.Context, awsConfig aws.Config, cfg config.Con
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 state manager: %w", err)
 	}
-	
+
 	// Create S3 client for additional operations
 	s3Client := s3.NewFromConfig(awsConfig)
 
 	return &S3StateManager{
-		manager:    manager,
-		logger:     log.WithFields(map[string]interface{}{"component": "S3StateManager"}),
-		config:     cfg,
-		s3Client:   s3Client,
+		manager:  manager,
+		logger:   log.WithFields(map[string]interface{}{"component": "S3StateManager"}),
+		config:   cfg,
+		s3Client: s3Client,
 	}, nil
 }
 
@@ -51,22 +51,22 @@ func (s *S3StateManager) LoadVerificationContext(envelope *s3state.Envelope) (in
 	if envelope == nil {
 		return nil, fmt.Errorf("envelope is nil")
 	}
-	
+
 	// Find the initialization reference in the envelope
 	initRef := envelope.GetReference("processing_initialization")
 	if initRef == nil {
 		return nil, fmt.Errorf("initialization reference not found in envelope")
 	}
-	
+
 	// Create a map to hold the loaded context
 	var context interface{}
-	
+
 	// Load the context from S3
 	err := s.manager.RetrieveJSON(initRef, &context)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load verification context: %w", err)
 	}
-	
+
 	return context, nil
 }
 
@@ -75,7 +75,7 @@ func (s *S3StateManager) StoreImageMetadata(envelope *s3state.Envelope, metadata
 	if envelope == nil {
 		return fmt.Errorf("envelope is nil")
 	}
-	
+
 	// Store metadata in images category
 	err := s.manager.SaveToEnvelope(
 		envelope,
@@ -83,11 +83,11 @@ func (s *S3StateManager) StoreImageMetadata(envelope *s3state.Envelope, metadata
 		s3state.ImageMetadataFile,
 		metadata,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to store image metadata: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (s *S3StateManager) StoreLayoutMetadata(envelope *s3state.Envelope, layoutM
 	if envelope == nil {
 		return fmt.Errorf("envelope is nil")
 	}
-	
+
 	// Store layout metadata in processing category
 	err := s.manager.SaveToEnvelope(
 		envelope,
@@ -104,11 +104,11 @@ func (s *S3StateManager) StoreLayoutMetadata(envelope *s3state.Envelope, layoutM
 		s3state.LayoutMetadataFile,
 		layoutMetadata,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to store layout metadata: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -117,7 +117,7 @@ func (s *S3StateManager) StoreHistoricalContext(envelope *s3state.Envelope, hist
 	if envelope == nil {
 		return fmt.Errorf("envelope is nil")
 	}
-	
+
 	// Store historical context in processing category
 	err := s.manager.SaveToEnvelope(
 		envelope,
@@ -125,12 +125,45 @@ func (s *S3StateManager) StoreHistoricalContext(envelope *s3state.Envelope, hist
 		s3state.HistoricalContextFile,
 		historicalContext,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to store historical context: %w", err)
 	}
-	
+
 	return nil
+}
+
+// StoreBase64Image uploads Base64 image data and attaches the reference to the envelope
+func (s *S3StateManager) StoreBase64Image(envelope *s3state.Envelope, imageType, data string) (*s3state.Reference, error) {
+	if envelope == nil {
+		return nil, fmt.Errorf("envelope is nil")
+	}
+
+	var filename string
+	switch imageType {
+	case "reference":
+		filename = s3state.ReferenceBase64File
+	case "checking":
+		filename = s3state.CheckingBase64File
+	default:
+		return nil, fmt.Errorf("unknown image type: %s", imageType)
+	}
+
+	now := time.Now().UTC()
+	categoryPath := fmt.Sprintf("%s/%s/%s/%s/images", now.Format("2006"), now.Format("01"), now.Format("02"), envelope.VerificationID)
+
+	ref, err := s.manager.StoreWithContentType(categoryPath, filename, []byte(data), "text/plain")
+	if err != nil {
+		return nil, fmt.Errorf("failed to store Base64 image: %w", err)
+	}
+
+	if envelope.References == nil {
+		envelope.References = make(map[string]*s3state.Reference)
+	}
+	refKey := fmt.Sprintf("images_%s_base64", imageType)
+	envelope.References[refKey] = ref
+
+	return ref, nil
 }
 
 // UpdateEnvelopeStatus updates the status in the envelope
@@ -141,9 +174,9 @@ func (s *S3StateManager) UpdateEnvelopeStatus(envelope *s3state.Envelope, status
 		})
 		return
 	}
-	
+
 	envelope.SetStatus(status)
-	
+
 	s.logger.Info("Updated envelope status", map[string]interface{}{
 		"verificationId": envelope.VerificationID,
 		"status":         status,
@@ -159,7 +192,7 @@ func (s *S3StateManager) AddSummary(envelope *s3state.Envelope, key string, valu
 		})
 		return
 	}
-	
+
 	envelope.AddSummary(key, value)
 }
 
@@ -173,34 +206,34 @@ func (s *S3StateManager) LoadEnvelope(input interface{}) (*s3state.Envelope, err
 			Status:         req.Status,
 			Summary:        make(map[string]interface{}),
 		}
-		
+
 		// If the conversion succeeded, return the envelope
 		if envelope.VerificationID != "" {
 			s.logger.Info("Created envelope from FetchImagesRequest", map[string]interface{}{
 				"verificationId": envelope.VerificationID,
-				"status":        envelope.Status,
+				"status":         envelope.Status,
 				"referenceCount": len(envelope.References),
 			})
 			return envelope, nil
 		}
 	}
-	
+
 	// For other input types, use the standard method
 	envelope, err := s3state.LoadEnvelope(input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load envelope: %w", err)
 	}
-	
+
 	if envelope.VerificationID == "" {
 		return nil, fmt.Errorf("envelope is missing verification ID")
 	}
-	
+
 	s.logger.Info("Loaded envelope", map[string]interface{}{
 		"verificationId": envelope.VerificationID,
 		"status":         envelope.Status,
 		"referenceCount": len(envelope.References),
 	})
-	
+
 	return envelope, nil
 }
 
