@@ -49,7 +49,6 @@ type ProcessRequest struct {
 	ConversationConfig    ConversationConfig
 	RequestId             string
 	RequestTimestamp      string
-	NotificationEnabled   bool
 }
 
 // HistoricalContext represents data from previous verifications

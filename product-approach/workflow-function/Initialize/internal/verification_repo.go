@@ -240,8 +240,7 @@ func (r *VerificationRepository) StoreVerificationRecord(ctx context.Context, ve
 		LayoutId          int    `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
 		LayoutPrefix      string `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
 		PreviousVerificationId string `json:"previousVerificationId,omitempty" dynamodbav:"previousVerificationId,omitempty"`
-		NotificationEnabled bool   `json:"notificationEnabled,omitempty" dynamodbav:"notificationEnabled,omitempty"`
-		
+
 		// Embedded fields
 		ResourceValidation *schema.ResourceValidation `json:"resourceValidation,omitempty" dynamodbav:"resourceValidation,omitempty"`
 		ConversationType    string                   `json:"conversationType,omitempty" dynamodbav:"conversationType,omitempty"`
@@ -266,7 +265,6 @@ func (r *VerificationRepository) StoreVerificationRecord(ctx context.Context, ve
 		LayoutId:            verification.LayoutId,
 		LayoutPrefix:        verification.LayoutPrefix,
 		PreviousVerificationId: verification.PreviousVerificationId,
-		NotificationEnabled: verification.NotificationEnabled,
 		ResourceValidation:  verification.ResourceValidation,
 		ConversationType:    verification.ConversationType,
 		TurnConfig:          verification.TurnConfig,

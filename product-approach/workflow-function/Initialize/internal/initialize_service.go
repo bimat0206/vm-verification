@@ -497,7 +497,6 @@ func (s *InitializeService) createVerificationContext(request ProcessRequest) (*
 		VendingMachineId:    request.VendingMachineId,
 		ReferenceImageUrl:   request.ReferenceImageUrl,
 		CheckingImageUrl:    request.CheckingImageUrl,
-		NotificationEnabled: request.NotificationEnabled,
 	}
 
 	if request.VerificationType == schema.VerificationTypeLayoutVsChecking {

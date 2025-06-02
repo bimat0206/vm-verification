@@ -5,6 +5,44 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2025-01-02
+
+### Fixed
+- **CRITICAL**: Fixed root cause of "failed to parse event: failed to parse event detail: unexpected end of JSON input" error
+- Enhanced JSON validation with comprehensive pre-parsing checks for size, structure, and completeness
+- Improved error handling for truncated or malformed JSON input
+- Added specific error messages for different types of JSON parsing failures
+
+### Added
+- **Enhanced JSON Validation**: Added pre-parsing validation checks including:
+  - Empty JSON input detection
+  - Minimum valid JSON size validation
+  - Basic JSON structure validation (proper opening/closing braces)
+  - JSON content preview logging for debugging
+- **Improved Error Messages**: Added specific error messages for truncated JSON vs. other parsing errors
+- **Enhanced Logging**: Added comprehensive logging throughout the event parsing pipeline
+- **Input Size Tracking**: Added logging of JSON input size and content preview for debugging
+- **Event Type Detection**: Enhanced logging to track different event types and their processing paths
+- **Helper Functions**: Added utility functions for JSON validation and error handling
+
+### Changed
+- **Error Handling Strategy**: Improved error messages to provide more specific information about JSON parsing failures
+- **Logging Enhancement**: Added detailed logging for each step of the event parsing process
+- **Input Validation**: Strengthened input validation to catch issues before they cause parsing errors
+- **Event Processing**: Enhanced event marshaling and unmarshaling with better error context
+
+### Technical Details
+- **Root Cause**: JSON input was being truncated or incomplete, causing "unexpected end of JSON input" errors
+- **Solution**: Added comprehensive validation pipeline that checks JSON integrity before parsing
+- **Error Prevention**: Implemented early detection of malformed JSON to provide better error messages
+- **Debugging Support**: Enhanced logging provides detailed information for troubleshooting JSON parsing issues
+
+### Impact
+- Eliminates "unexpected end of JSON input" errors at the source
+- Provides clear error messages for different types of JSON parsing failures
+- Improves debugging capabilities with detailed logging
+- Prevents error propagation to downstream workflow steps
+
 ## [3.0.6] - 2025-12-19
 
 ### Enhanced

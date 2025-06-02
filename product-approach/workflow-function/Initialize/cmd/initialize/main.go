@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
+
+	"workflow-function/Initialize/internal"
+	"workflow-function/shared/schema"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"workflow-function/Initialize/internal"
-	"workflow-function/shared/schema"
-	 
 )
 
 // WrappedRequest represents the structure API Gateway sends to Lambda
@@ -31,7 +32,7 @@ type InitRequest struct {
 	// Either coming from a wrapper or direct fields
 	SchemaVersion         string                  `json:"schemaVersion,omitempty"`
 	VerificationContext   *schema.VerificationContext `json:"verificationContext,omitempty"`
-	
+
 	// Direct fields (legacy format)
 	VerificationType      string              `json:"verificationType"`
 	ReferenceImageUrl     string              `json:"referenceImageUrl"`
@@ -43,7 +44,6 @@ type InitRequest struct {
 	ConversationConfig    *ConversationConfig `json:"conversationConfig,omitempty"`
 	RequestId             string              `json:"requestId,omitempty"`
 	RequestTimestamp      string              `json:"requestTimestamp,omitempty"`
-	NotificationEnabled   bool                `json:"notificationEnabled"`
 }
 
 // ConversationConfig defines configuration for the conversation
@@ -84,44 +84,70 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 
-	// 3) Marshal the incoming event to JSON bytes
-	var jsonBytes []byte
+	// 3) Parse the incoming event directly without unnecessary marshaling
+	var raw map[string]interface{}
+	var parseErr error
+	
 	switch e := event.(type) {
 	case WrappedRequest:
 		// API Gateway
 		if len(e.Body) > 0 {
-			jsonBytes = e.Body
+			parseErr = json.Unmarshal(e.Body, &raw)
+			logger.Info("Processing API Gateway request", map[string]interface{}{
+				"bodySize": len(e.Body),
+			})
 		} else {
-			jsonBytes = []byte("{}")
+			raw = make(map[string]interface{})
+			logger.Info("Processing empty API Gateway request", nil)
 		}
 	case map[string]interface{}:
-		// Step Functions / direct map
-		jsonBytes, err = json.Marshal(e)
-		if err != nil {
-			logger.Error("Failed to marshal raw event", map[string]interface{}{
-				"error": err.Error(),
-			})
-			return nil, fmt.Errorf("failed to process raw event: %w", err)
-		}
+		// Step Functions / direct map - use directly without marshaling
+		raw = e
+		logger.Info("Processing Step Functions request", map[string]interface{}{
+			"eventKeys": getMapKeys(e),
+		})
 	default:
-		// Fallback: try to marshal entire event
-		jsonBytes, err = json.Marshal(e)
+		// Fallback: try to marshal and unmarshal
+		jsonBytes, err := json.Marshal(e)
 		if err != nil {
 			logger.Error("Failed to marshal unknown event type", map[string]interface{}{
 				"error": err.Error(),
+				"eventType": fmt.Sprintf("%T", e),
 			})
 			return nil, fmt.Errorf("unknown event format: %w", err)
 		}
+		parseErr = json.Unmarshal(jsonBytes, &raw)
+		logger.Info("Processing unknown event type", map[string]interface{}{
+			"eventType": fmt.Sprintf("%T", e),
+			"jsonSize": len(jsonBytes),
+		})
 	}
 
-	// 4) Parse the incoming event
-	var raw map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &raw); err != nil {
-		logger.Error("Failed to unmarshal event to map", map[string]interface{}{
-			"error": err.Error(),
+	// Handle parsing errors
+	if parseErr != nil {
+		logger.Error("Failed to parse event", map[string]interface{}{
+			"error": parseErr.Error(),
+			"eventType": fmt.Sprintf("%T", event),
+			"isEOF": strings.Contains(parseErr.Error(), "unexpected end of JSON input"),
 		})
-		return nil, fmt.Errorf("failed to parse event: %w", err)
+
+		// Provide more specific error messages
+		if strings.Contains(parseErr.Error(), "unexpected end of JSON input") {
+			return nil, fmt.Errorf("failed to parse event detail: JSON input appears to be truncated or incomplete")
+		}
+
+		return nil, fmt.Errorf("failed to parse event detail: %w", parseErr)
 	}
+
+	// Validate we have some data
+	if raw == nil {
+		logger.Error("Parsed event is nil", nil)
+		return nil, fmt.Errorf("failed to parse event: no data received")
+	}
+
+	logger.Info("Event parsed successfully", map[string]interface{}{
+		"eventKeys": getMapKeys(raw),
+	})
 
 	var request InitRequest
 	
@@ -204,10 +230,17 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 			})
 		} else if isStepFunctions {
 			// Direct parameters from Step Functions (no wrapper)
-			if err := json.Unmarshal(jsonBytes, &request); err != nil {
+			rawBytes, err := json.Marshal(raw)
+			if err != nil {
+				logger.Error("Failed to marshal raw data for Step Functions parsing", map[string]interface{}{
+					"error": err.Error(),
+				})
+				return nil, fmt.Errorf("failed to process Step Functions input: %w", err)
+			}
+			if err := json.Unmarshal(rawBytes, &request); err != nil {
 				logger.Error("Failed to unmarshal direct Step Functions input", map[string]interface{}{
 					"error": err.Error(),
-					"eventJson": string(jsonBytes),
+					"eventJson": string(rawBytes),
 				})
 				return nil, fmt.Errorf("failed to parse Step Functions input: %w", err)
 			}
@@ -216,10 +249,17 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 			})
 		} else {
 			// API Gateway or direct Lambda invocation without wrapper
-			if err := json.Unmarshal(jsonBytes, &request); err != nil {
+			rawBytes, err := json.Marshal(raw)
+			if err != nil {
+				logger.Error("Failed to marshal raw data for direct parsing", map[string]interface{}{
+					"error": err.Error(),
+				})
+				return nil, fmt.Errorf("failed to process direct input: %w", err)
+			}
+			if err := json.Unmarshal(rawBytes, &request); err != nil {
 				logger.Error("Failed to unmarshal direct JSON input", map[string]interface{}{
 					"error": err.Error(),
-					"eventJson": string(jsonBytes),
+					"eventJson": string(rawBytes),
 				})
 				return nil, fmt.Errorf("failed to parse event detail: %w", err)
 			}
@@ -242,8 +282,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		logDetails["referenceImageUrl"] = request.VerificationContext.ReferenceImageUrl
 		logDetails["checkingImageUrl"] = request.VerificationContext.CheckingImageUrl
 		logDetails["vendingMachineId"] = request.VerificationContext.VendingMachineId
-		logDetails["notificationEnabled"] = request.VerificationContext.NotificationEnabled
-		
+
 		if request.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
 			logDetails["layoutId"] = request.VerificationContext.LayoutId
 			logDetails["layoutPrefix"] = request.VerificationContext.LayoutPrefix
@@ -256,8 +295,7 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		logDetails["referenceImageUrl"] = request.ReferenceImageUrl
 		logDetails["checkingImageUrl"] = request.CheckingImageUrl
 		logDetails["vendingMachineId"] = request.VendingMachineId
-		logDetails["notificationEnabled"] = request.NotificationEnabled
-		
+
 		if request.VerificationType == schema.VerificationTypeLayoutVsChecking {
 			logDetails["layoutId"] = request.LayoutId
 			logDetails["layoutPrefix"] = request.LayoutPrefix
@@ -305,7 +343,6 @@ func Handler(ctx context.Context, event interface{}) (interface{}, error) {
 		PreviousVerificationId: request.PreviousVerificationId,
 		RequestId:             request.RequestId,
 		RequestTimestamp:      request.RequestTimestamp,
-		NotificationEnabled:   request.NotificationEnabled,
 		ConversationConfig:    convConfig,
 	}
 	
@@ -343,6 +380,33 @@ func getEnvWithDefault(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// Helper functions for enhanced error handling
+
+// getMapKeys extracts keys from a map for logging
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the maximum of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func main() {
