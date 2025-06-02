@@ -2,11 +2,19 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	_ "golang.org/x/image/webp"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"strings"
 	"time"
-	
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"workflow-function/shared/logger"
@@ -34,10 +42,10 @@ func (r *S3Repository) FetchImageMetadata(ctx context.Context, s3url string) (*s
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse S3 URL: %w", err)
 	}
-	
+
 	r.logger.Info("Fetching S3 image metadata", map[string]interface{}{
 		"url":    s3url,
-		"bucket": parsed.Bucket, 
+		"bucket": parsed.Bucket,
 		"key":    parsed.Key,
 	})
 
@@ -56,16 +64,16 @@ func (r *S3Repository) FetchImageMetadata(ctx context.Context, s3url string) (*s
 		S3Bucket: parsed.Bucket,
 		S3Key:    parsed.Key,
 	}
-	
+
 	// Set size (ContentLength is a pointer, so we need to check if it's nil)
 	if headOutput.ContentLength != nil {
 		imgInfo.Size = *headOutput.ContentLength
 	}
-	
+
 	// Set content type
 	if headOutput.ContentType != nil {
 		imgInfo.ContentType = *headOutput.ContentType
-		
+
 		// Set image format based on content type
 		switch *headOutput.ContentType {
 		case "image/png":
@@ -78,12 +86,12 @@ func (r *S3Repository) FetchImageMetadata(ctx context.Context, s3url string) (*s
 			imgInfo.Format = "unknown"
 		}
 	}
-	
+
 	// Set last modified
 	if headOutput.LastModified != nil {
 		imgInfo.LastModified = headOutput.LastModified.Format(time.RFC3339)
 	}
-	
+
 	// Set ETag (remove quotes if present)
 	if headOutput.ETag != nil {
 		etag := *headOutput.ETag
@@ -124,19 +132,106 @@ func ParseS3URL(s3url string) (S3URL, error) {
 	// s3://bucket-name/path/to/object
 	// https://bucket-name.s3.region.amazonaws.com/path/to/object
 	// https://s3.region.amazonaws.com/bucket-name/path/to/object
-	
+
 	// For demonstration, we're just handling the s3:// format
 	if !strings.HasPrefix(s3url, "s3://") {
 		return S3URL{}, fmt.Errorf("unsupported S3 URL format: %s", s3url)
 	}
-	
+
 	parts := strings.SplitN(s3url[5:], "/", 2)
 	if len(parts) != 2 {
 		return S3URL{}, fmt.Errorf("invalid S3 URL format: %s", s3url)
 	}
-	
+
 	return S3URL{
 		Bucket: parts[0],
 		Key:    parts[1],
 	}, nil
+}
+
+// DownloadAndConvertToBase64 downloads an image from S3 and returns its Base64 representation and metadata
+func (r *S3Repository) DownloadAndConvertToBase64(ctx context.Context, s3url string) (string, *schema.ImageInfo, error) {
+	parsed, err := ParseS3URL(s3url)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse S3 URL: %w", err)
+	}
+
+	r.logger.Info("Downloading image from S3", map[string]interface{}{
+		"bucket": parsed.Bucket,
+		"key":    parsed.Key,
+	})
+
+	obj, err := r.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(parsed.Bucket),
+		Key:    aws.String(parsed.Key),
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to download object: %w", err)
+	}
+	defer obj.Body.Close()
+
+	data, err := io.ReadAll(obj.Body)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	base64Str := base64.StdEncoding.EncodeToString(data)
+
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		// image.DecodeConfig may fail for unsupported formats; log but continue
+		r.logger.Error("Failed to decode image config", map[string]interface{}{"error": err.Error()})
+	}
+
+	info := &schema.ImageInfo{
+		URL:               s3url,
+		S3Bucket:          parsed.Bucket,
+		S3Key:             parsed.Key,
+		Size:              int64(len(data)),
+		Base64Size:        int64(len(base64Str)),
+		Width:             cfg.Width,
+		Height:            cfg.Height,
+		Format:            format,
+		StorageMethod:     schema.StorageMethodS3Temporary,
+		Base64Generated:   true,
+		StorageDecisionAt: schema.FormatISO8601(),
+	}
+
+	if obj.ContentType != nil {
+		info.ContentType = *obj.ContentType
+	}
+	if obj.LastModified != nil {
+		info.LastModified = obj.LastModified.Format(time.RFC3339)
+	}
+	if obj.ETag != nil {
+		etag := *obj.ETag
+		if len(etag) >= 2 && etag[0] == '"' && etag[len(etag)-1] == '"' {
+			etag = etag[1 : len(etag)-1]
+		}
+		info.ETag = etag
+	}
+
+	// If format from DecodeConfig failed, try to derive from content type
+	if info.Format == "" || info.Format == "unknown" {
+		switch info.ContentType {
+		case "image/png":
+			info.Format = "png"
+		case "image/jpeg", "image/jpg":
+			info.Format = "jpeg"
+		case "image/gif":
+			info.Format = "gif"
+		case "image/webp":
+			info.Format = "webp"
+		default:
+			info.Format = format
+		}
+	}
+
+	r.logger.Info("Successfully downloaded and encoded image", map[string]interface{}{
+		"key":    parsed.Key,
+		"size":   info.Size,
+		"format": info.Format,
+	})
+
+	return base64Str, info, nil
 }
