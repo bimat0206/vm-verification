@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	
+
 	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
 	"workflow-function/shared/s3state"
-	
+	"workflow-function/shared/schema"
+
 	"workflow-function/PrepareSystemPrompt/internal/adapters"
 	"workflow-function/PrepareSystemPrompt/internal/config"
 	"workflow-function/PrepareSystemPrompt/internal/models"
@@ -222,13 +222,13 @@ func (h *Handler) processS3ReferenceInput(ctx context.Context, input *models.Inp
 		return nil, fmt.Errorf("failed to generate system prompt: %w", err)
 	}
 	
-	// Create system prompt object
-	systemPrompt := h.bedrockAdapter.CreateSystemPrompt(
-		prompt, version, verificationContext.VerificationId)
+	// Create complete system prompt object with full structure
+	completeSystemPrompt := h.bedrockAdapter.CreateCompleteSystemPrompt(
+		prompt, version, verificationContext)
 	
 	// Store system prompt in S3
-	promptRef, err := h.s3Adapter.StoreSystemPrompt(
-		datePartition, verificationContext.VerificationId, systemPrompt)
+	promptRef, err := h.s3Adapter.StoreCompleteSystemPrompt(
+		datePartition, verificationContext.VerificationId, completeSystemPrompt)
 	if err != nil {
 		h.logger.Error("Failed to store system prompt", map[string]interface{}{
 			"error": err.Error(),
@@ -241,7 +241,16 @@ func (h *Handler) processS3ReferenceInput(ctx context.Context, input *models.Inp
 	verificationContext.Status = schema.StatusPromptPrepared
 	
 	// Update state
-	state.SystemPrompt = systemPrompt
+	state.SystemPrompt = &schema.SystemPrompt{
+		Content:       completeSystemPrompt.PromptContent.SystemMessage,
+		PromptId:      completeSystemPrompt.VerificationId + "-prompt",
+		PromptVersion: completeSystemPrompt.PromptContent.TemplateVersion,
+		BedrockConfig: &schema.BedrockConfig{
+			AnthropicVersion: completeSystemPrompt.BedrockConfiguration.AnthropicVersion,
+			MaxTokens:        completeSystemPrompt.BedrockConfiguration.MaxTokens,
+			Thinking:         completeSystemPrompt.BedrockConfiguration.Thinking,
+		},
+	}
 	state.VerificationContext = verificationContext
 	
 	// Update state in S3
@@ -277,7 +286,7 @@ func (h *Handler) processS3ReferenceInput(ctx context.Context, input *models.Inp
 	processingTimeMs := time.Since(start).Milliseconds()
 	
 	// Add summary
-	envelope.Summary = models.CreateSummary(systemPrompt, verificationContext.VerificationType, processingTimeMs)
+	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs)
 	
 	// Create response
 	response := models.BuildResponseWithContext(envelope, verificationContext, datePartition)
@@ -329,9 +338,9 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 		return nil, fmt.Errorf("failed to generate system prompt: %w", err)
 	}
 	
-	// Create system prompt object
-	systemPrompt := h.bedrockAdapter.CreateSystemPrompt(
-		prompt, version, verificationContext.VerificationId)
+	// Create complete system prompt object with full structure
+	completeSystemPrompt := h.bedrockAdapter.CreateCompleteSystemPrompt(
+		prompt, version, verificationContext)
 	
 	// Create workflow state for storage
 	state := input.CreateWorkflowState()
@@ -345,7 +354,16 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 	// Update verification context status
 	verificationContext.Status = schema.StatusPromptPrepared
 	state.VerificationContext = verificationContext
-	state.SystemPrompt = systemPrompt
+	state.SystemPrompt = &schema.SystemPrompt{
+		Content:       completeSystemPrompt.PromptContent.SystemMessage,
+		PromptId:      completeSystemPrompt.VerificationId + "-prompt",
+		PromptVersion: completeSystemPrompt.PromptContent.TemplateVersion,
+		BedrockConfig: &schema.BedrockConfig{
+			AnthropicVersion: completeSystemPrompt.BedrockConfiguration.AnthropicVersion,
+			MaxTokens:        completeSystemPrompt.BedrockConfiguration.MaxTokens,
+			Thinking:         completeSystemPrompt.BedrockConfiguration.Thinking,
+		},
+	}
 	
 	// Store state in S3
 	stateRef, err := h.s3Adapter.UpdateWorkflowState(
@@ -359,8 +377,8 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 	}
 	
 	// Store system prompt in S3
-	promptRef, err := h.s3Adapter.StoreSystemPrompt(
-		datePartition, verificationContext.VerificationId, systemPrompt)
+	promptRef, err := h.s3Adapter.StoreCompleteSystemPrompt(
+		datePartition, verificationContext.VerificationId, completeSystemPrompt)
 	if err != nil {
 		h.logger.Error("Failed to store system prompt", map[string]interface{}{
 			"error": err.Error(),
@@ -391,7 +409,7 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 	processingTimeMs := time.Since(start).Milliseconds()
 	
 	// Add summary
-	envelope.Summary = models.CreateSummary(systemPrompt, verificationContext.VerificationType, processingTimeMs)
+	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs)
 	
 	// Create response
 	response := models.BuildResponseWithContext(envelope, verificationContext, datePartition)

@@ -20,6 +20,8 @@ const (
 	EnvMaxTokens             = "MAX_TOKENS"
 	EnvBudgetTokens          = "BUDGET_TOKENS"
 	EnvPromptVersion         = "PROMPT_VERSION"
+	EnvBedrockModel          = "BEDROCK_MODEL"
+	EnvAnthropicVersion      = "ANTHROPIC_VERSION"
 	
 	// Default values
 	DefaultTemplateBasePath     = "/opt/templates"
@@ -28,6 +30,8 @@ const (
 	DefaultMaxTokens             = 24000
 	DefaultBudgetTokens          = 16000
 	DefaultPromptVersion         = "1.0.0"
+	DefaultBedrockModel          = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+	DefaultAnthropicVersion      = "bedrock-2023-05-31"
 )
 
 // Config represents the application configuration
@@ -44,6 +48,8 @@ type Config struct {
 	// Bedrock settings
 	MaxTokens        int
 	BudgetTokens     int
+	BedrockModel     string
+	AnthropicVersion string
 	
 	// Application settings
 	ComponentName        string
@@ -62,6 +68,8 @@ func LoadConfig() (*Config, error) {
 		DatePartitionTimezone: getEnv(EnvDatePartitionTimezone, DefaultDatePartitionTimezone),
 		MaxTokens:            getIntEnv(EnvMaxTokens, DefaultMaxTokens),
 		BudgetTokens:         getIntEnv(EnvBudgetTokens, DefaultBudgetTokens),
+		BedrockModel:         getEnv(EnvBedrockModel, DefaultBedrockModel),
+		AnthropicVersion:     getEnv(EnvAnthropicVersion, DefaultAnthropicVersion),
 		PromptVersion:        getEnv(EnvPromptVersion, DefaultPromptVersion),
 		Debug:                getBoolEnv(EnvDebug, false),
 	}

@@ -5,6 +5,66 @@ PrepareSystemPrompt function will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.9] - 2025-06-02
+
+### Fixed
+- **Critical**: Removed hardcoded `modelId` and `anthropicVersion` values and made them configurable via environment variables
+- Added `BEDROCK_MODEL` environment variable support (maps to `modelId` field)
+- Added `ANTHROPIC_VERSION` environment variable support (maps to `anthropicVersion` field)
+- Updated configuration system to load and validate new environment variables
+- Modified BedrockAdapter to use configurable values instead of hardcoded ones
+- Updated CreateSummary function to accept configurable parameters
+- Added new ConvertToCompleteSystemPromptWithConfig function in shared schema for configurable model ID
+
+### Technical Details
+- Added `EnvBedrockModel` and `EnvAnthropicVersion` constants to config
+- Added `DefaultBedrockModel` and `DefaultAnthropicVersion` default values
+- Added `BedrockModel` and `AnthropicVersion` fields to Config struct
+- Updated `LoadConfig()` to initialize new fields from environment variables
+- Modified `BedrockAdapter.ConfigureBedrockSettings()` to use `b.config.AnthropicVersion`
+- Added `BedrockAdapter.GetModelId()` method to return configurable model ID
+- Updated `CreateSummary()` function signature to accept `modelId` and `anthropicVersion` parameters
+- Added `ConvertToCompleteSystemPromptWithConfig()` function in shared schema
+- Updated `BedrockAdapter.CreateCompleteSystemPrompt()` to use configurable conversion function
+
+### Environment Variables
+```bash
+BEDROCK_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
+ANTHROPIC_VERSION=bedrock-2023-05-31
+```
+
+### Backward Compatibility
+- All changes are backward compatible with sensible defaults
+- Existing deployments will continue to work with default values
+- Old `ConvertToCompleteSystemPrompt()` function preserved for compatibility
+
+## [4.0.8] - 2025-06-02
+
+### Fixed
+- **Critical**: Fixed flat output structure issue where system prompt was returning only basic fields instead of complete expected format
+- Root cause: Variable scope error in handler where `systemPrompt` was undefined, causing `CreateSummary` to receive wrong data
+- Fixed type mismatch between `SystemPrompt` and `CompleteSystemPrompt` objects
+- Updated `CreateSummary` function to `CreateCompleteSummary` that works with `CompleteSystemPrompt` and returns full structured output
+- Fixed `BuildResponseWithContext` function that was overriding complete summary with simple verification context data
+- Ensured both `processS3ReferenceInput` and `processDirectJSONInput` use consistent complete system prompt approach
+
+### Technical Details
+- Added `CreateCompleteSummary` function that converts `CompleteSystemPrompt` to complete JSON structure
+- Modified `BuildResponseWithContext` to preserve complete system prompt structure when present
+- Fixed variable scope issues in both processing methods
+- Updated all handlers to use `CreateCompleteSystemPrompt` and `StoreCompleteSystemPrompt` consistently
+- Output now matches expected format with `bedrockConfiguration`, `contextInformation`, `outputSpecification`, and `processingMetadata`
+
+### Before Fix
+```json
+{"content":"Vending Machine Layout Verificat']","promptId":"prompt-verif-20250602095239-4f4d-20250602-095243","promptVersion":"1.0.0"}
+```
+
+### After Fix
+```json
+{"bedrockConfiguration":{"anthropicVersion":"bedrock-2023-05-31","maxTokens":24000,"modelId":"anthropic.claude-3-7-sonnet-20250219-v1:0","thinking":{"budgetTokens":16000,"type":"enabled"}},"contextInformation":{"historicalContext":null,"layoutInformation":{"layoutId":23591,"layoutPrefix":"5560c9c9","productCount":3},"machineStructure":{"columnOrder":["1","2","3","4","5","6","7","8","9","10"],"columnsPerRow":10,"rowCount":6,"rowOrder":["A","B","C","D","E","F"]}},"outputSpecification":{"conversationTurns":2,"expectedFormat":"STRUCTURED_TEXT","requiresMandatoryStructure":true},"processingMetadata":{"contextEnrichment":["MACHINE_STRUCTURE_INJECTION"],"createdAt":"2025-06-01T16:20:30Z","generationTimeMs":0,"templateSource":"DYNAMIC_GENERATION"},"promptContent":{"promptType":"LAYOUT_VERIFICATION","systemMessage":"Vending Machine Layout Verificch']","templateVersion":"1.0.0"},"verificationId":"verif-20250601162028-ce0f","verificationType":"LAYOUT_VS_CHECKING","version":"1.0"}
+```
+
 ## [4.0.7] - 2025-05-20
 
 ### Fixed

@@ -52,16 +52,29 @@ type SystemPromptReference struct {
 }
 
 // CreateSummary creates a summary object for the response
-func CreateSummary(prompt *schema.SystemPrompt, verificationType string, processingTimeMs int64) map[string]interface{} {
+func CreateSummary(prompt *schema.SystemPrompt, verificationType string, processingTimeMs int64, modelId string, anthropicVersion string) map[string]interface{} {
 	return map[string]interface{}{
 		"promptType":        verificationType,
 		"estimatedTokens":   len(prompt.Content) / 4, // Rough estimate
 		"processingTimeMs":  processingTimeMs,
 		"promptTimestamp":   time.Now().UTC().Format(time.RFC3339),
 		"promptVersion":     prompt.PromptVersion,
-		"modelId":           "anthropic.claude-3-7-sonnet-20250219-v1:0",
-		"anthropicVersion":  "bedrock-2023-05-31",
+		"modelId":           modelId,
+		"anthropicVersion":  anthropicVersion,
 	}
+}
+
+// CreateCompleteSummary creates a complete summary object from CompleteSystemPrompt
+func CreateCompleteSummary(prompt *schema.CompleteSystemPrompt, verificationType string, processingTimeMs int64) map[string]interface{} {
+	// Update processing metadata with actual processing time
+	prompt.ProcessingMetadata.GenerationTimeMs = processingTimeMs
+	
+	// Convert the complete system prompt to a map for the summary
+	promptBytes, _ := json.Marshal(prompt)
+	var promptMap map[string]interface{}
+	json.Unmarshal(promptBytes, &promptMap)
+	
+	return promptMap
 }
 
 // AddReferencesToEnvelope adds system prompt references to an envelope
@@ -81,9 +94,13 @@ func BuildResponseWithContext(
 ) *Response {
 	resp := BuildResponse(envelope, datePartition)
 	
-	// Add verification context data to summary
-	resp.Summary["verificationType"] = verificationContext.VerificationType
-	resp.Summary["vendingMachineId"] = verificationContext.VendingMachineId
+	// Only add verification context data if summary doesn't already contain complete structure
+	if _, hasVerificationId := resp.Summary["verificationId"]; !hasVerificationId {
+		// This is a simple summary, add verification context data
+		resp.Summary["verificationType"] = verificationContext.VerificationType
+		resp.Summary["vendingMachineId"] = verificationContext.VendingMachineId
+	}
+	// If summary already has verificationId, it's a complete system prompt structure, don't modify it
 	
 	return resp
 }

@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	
+
 	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
 	"workflow-function/shared/s3state"
-	
+	"workflow-function/shared/schema"
+
 	"workflow-function/PrepareSystemPrompt/internal/config"
 )
 
@@ -323,6 +323,28 @@ func (s *S3StateAdapter) StoreSystemPrompt(datePartition, verificationID string,
 	}
 	
 	s.logger.Info("Stored system prompt", map[string]interface{}{
+		"bucket": ref.Bucket,
+		"key": ref.Key,
+		"size": ref.Size,
+	})
+	
+	return ref, nil
+}
+
+// StoreCompleteSystemPrompt stores a complete system prompt in S3 state
+func (s *S3StateAdapter) StoreCompleteSystemPrompt(datePartition, verificationID string, prompt *schema.CompleteSystemPrompt) (*s3state.Reference, error) {
+	// Create the full key path including the prompts category
+	// Format: {datePartition}/{verificationId}/prompts/system-prompt.json
+	key := fmt.Sprintf("%s/%s/prompts/system-prompt.json", datePartition, verificationID)
+	
+	// Use empty category to avoid duplication since we're building the full path ourselves
+	ref, err := (*s.stateManager).StoreJSON("", key, prompt)
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to store complete system prompt: %w", err)
+	}
+	
+	s.logger.Info("Stored complete system prompt", map[string]interface{}{
 		"bucket": ref.Bucket,
 		"key": ref.Key,
 		"size": ref.Size,

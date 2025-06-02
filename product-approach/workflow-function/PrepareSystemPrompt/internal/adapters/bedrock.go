@@ -27,7 +27,7 @@ func NewBedrockAdapter(cfg *config.Config, log logger.Logger) *BedrockAdapter {
 func (b *BedrockAdapter) ConfigureBedrockSettings() *schema.BedrockConfig {
 	// Use configuration from the config object
 	return &schema.BedrockConfig{
-		AnthropicVersion: "bedrock-2023-05-31", // This is fixed for Bedrock
+		AnthropicVersion: b.config.AnthropicVersion,
 		MaxTokens:        b.config.MaxTokens,
 		Thinking: &schema.Thinking{
 			Type:         "enabled",
@@ -48,6 +48,11 @@ func (b *BedrockAdapter) EstimateTokenUsage(text string) int {
 	return len(text) / 4
 }
 
+// GetModelId returns the configured Bedrock model ID
+func (b *BedrockAdapter) GetModelId() string {
+	return b.config.BedrockModel
+}
+
 // CreateSystemPrompt creates a system prompt object
 func (b *BedrockAdapter) CreateSystemPrompt(content, promptVersion string, verificationID string) *schema.SystemPrompt {
 	// Configure Bedrock
@@ -64,4 +69,15 @@ func (b *BedrockAdapter) CreateSystemPrompt(content, promptVersion string, verif
 		PromptId:      promptID,
 		PromptVersion: promptVersion,
 	}
+}
+
+// CreateCompleteSystemPrompt creates a complete system prompt object with full structure
+func (b *BedrockAdapter) CreateCompleteSystemPrompt(content, promptVersion string, verificationContext *schema.VerificationContext) *schema.CompleteSystemPrompt {
+	// First create the basic system prompt
+	basicPrompt := b.CreateSystemPrompt(content, promptVersion, verificationContext.VerificationId)
+	
+	// Convert to complete system prompt using the configurable conversion function
+	completePrompt := schema.ConvertToCompleteSystemPromptWithConfig(basicPrompt, verificationContext, b.config.BedrockModel)
+	
+	return completePrompt
 }
