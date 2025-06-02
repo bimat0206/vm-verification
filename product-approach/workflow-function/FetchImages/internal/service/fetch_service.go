@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
+	
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
-
+	
 	"workflow-function/FetchImages/internal/models"
 	"workflow-function/FetchImages/internal/repository"
 )
@@ -46,45 +46,15 @@ func (s *FetchService) ProcessRequest(
 		"verificationId": request.VerificationId,
 	})
 
-	// Load or create envelope with enhanced error handling
+	// Load or create envelope
 	envelope, err := s.stateManager.LoadEnvelope(request)
 	if err != nil {
-		// Categorize the error for better handling
-		errorCategory := s3state.CategorizeError(err)
-		s.logger.Error("Failed to load state envelope", map[string]interface{}{
-			"error": err.Error(),
-			"errorCategory": errorCategory,
-			"verificationId": request.VerificationId,
-		})
-
-		if s3state.IsInheritedError(err) {
-			s.logger.Warn("Detected inherited error from previous workflow step", map[string]interface{}{
-				"verificationId": request.VerificationId,
-				"inheritedError": err.Error(),
-			})
-		}
-
 		return nil, models.NewProcessingError("failed to load state envelope", err)
 	}
 
-	// Load verification context with enhanced error handling
+	// Load verification context
 	context, err := s.loadVerificationContext(ctx, envelope, request)
 	if err != nil {
-		errorCategory := s3state.CategorizeError(err)
-		s.logger.Error("Failed to load verification context", map[string]interface{}{
-			"error": err.Error(),
-			"errorCategory": errorCategory,
-			"verificationId": request.VerificationId,
-		})
-
-		if s3state.IsJSONParsingError(err) {
-			s.logger.Error("JSON parsing error detected in verification context", map[string]interface{}{
-				"verificationId": request.VerificationId,
-				"jsonError": err.Error(),
-				"suggestion": "Check if initialization.json is complete and valid",
-			})
-		}
-
 		return nil, models.NewProcessingError("failed to load verification context", err)
 	}
 
@@ -187,76 +157,36 @@ func (s *FetchService) ProcessRequest(
 	}, nil
 }
 
-// loadVerificationContext loads the verification context from either the request or the envelope
+// loadVerificationContext loads the verification context from either the envelope or the request
 func (s *FetchService) loadVerificationContext(
-	ctx context.Context,
+	ctx context.Context, 
 	envelope *s3state.Envelope,
 	request *models.FetchImagesRequest,
 ) (interface{}, error) {
-	// PRIORITY 1: Use verification context from request if available (most reliable)
-	if request.VerificationContext != nil {
-		s.logger.Info("Using verification context from request", map[string]interface{}{
-			"verificationId": request.VerificationContext.VerificationId,
-			"verificationType": request.VerificationContext.VerificationType,
-		})
-		return request.VerificationContext, nil
-	}
-
-	// PRIORITY 2: Try to load from S3 state as fallback
+	// If using S3 state manager, load from the state
 	if ref := envelope.GetReference("processing_initialization"); ref != nil {
-		s.logger.Info("Attempting to load verification context from S3", map[string]interface{}{
-			"bucket": ref.Bucket,
-			"key": ref.Key,
-			"size": ref.Size,
-		})
-
 		var context interface{}
 		err := s.stateManager.Manager().RetrieveJSON(ref, &context)
 		if err != nil {
-			// Enhanced error handling for S3 JSON parsing issues
-			errorCategory := s3state.CategorizeError(err)
 			s.logger.Error("Failed to load verification context from S3", map[string]interface{}{
 				"reference": ref,
-				"error": err.Error(),
-				"errorCategory": errorCategory,
-				"bucket": ref.Bucket,
-				"key": ref.Key,
-				"size": ref.Size,
+				"error":     err.Error(),
 			})
-
-			if s3state.IsJSONParsingError(err) {
-				s.logger.Error("JSON parsing error detected in S3 initialization file", map[string]interface{}{
-					"verificationId": request.VerificationId,
-					"s3Key": ref.Key,
-					"s3Bucket": ref.Bucket,
-					"fileSize": ref.Size,
-					"jsonError": err.Error(),
-					"suggestion": "The initialization.json file may be corrupted or truncated",
-				})
-
-				// Return a more specific error for JSON parsing issues
-				return nil, fmt.Errorf("failed to parse verification context from S3: %s (file: %s, size: %d bytes)",
-					err.Error(), ref.Key, ref.Size)
+			// Fall back to request context if available
+			if request.VerificationContext != nil {
+				return request.VerificationContext, nil
 			}
-
-			return nil, fmt.Errorf("failed to load verification context from S3: %w", err)
+			return nil, err
 		}
-
-		s.logger.Info("Successfully loaded verification context from S3", map[string]interface{}{
-			"bucket": ref.Bucket,
-			"key": ref.Key,
-		})
 		return context, nil
 	}
 
-	// PRIORITY 3: No verification context found anywhere
-	s.logger.Error("Verification context not found in request or S3 state", map[string]interface{}{
-		"verificationId": request.VerificationId,
-		"hasRequestContext": request.VerificationContext != nil,
-		"hasS3Reference": envelope.GetReference("processing_initialization") != nil,
-	})
+	// Fall back to legacy format if available
+	if request.VerificationContext != nil {
+		return request.VerificationContext, nil
+	}
 
-	return nil, fmt.Errorf("verification context not found in request or S3 state")
+	return nil, fmt.Errorf("verification context not found in state or request")
 }
 
 // ParallelFetchResults holds all the fetched data

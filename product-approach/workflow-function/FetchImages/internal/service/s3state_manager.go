@@ -4,15 +4,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
-
-	"workflow-function/shared/logger"
-	"workflow-function/shared/s3state"
-
+	
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-
+	"workflow-function/shared/logger"
+	"workflow-function/shared/s3state"
+	
 	"workflow-function/FetchImages/internal/config"
 	"workflow-function/FetchImages/internal/models"
 )
@@ -165,7 +163,7 @@ func (s *S3StateManager) AddSummary(envelope *s3state.Envelope, key string, valu
 	envelope.AddSummary(key, value)
 }
 
-// LoadEnvelope loads an envelope from the input with enhanced error handling
+// LoadEnvelope loads an envelope from the input
 func (s *S3StateManager) LoadEnvelope(input interface{}) (*s3state.Envelope, error) {
 	// Check if input is a FetchImagesRequest, and convert it to an Envelope
 	if req, ok := input.(*models.FetchImagesRequest); ok {
@@ -175,84 +173,35 @@ func (s *S3StateManager) LoadEnvelope(input interface{}) (*s3state.Envelope, err
 			Status:         req.Status,
 			Summary:        make(map[string]interface{}),
 		}
-
-		// Check for inherited errors from previous workflow steps
-		s.checkForInheritedErrors(envelope, req)
-
+		
 		// If the conversion succeeded, return the envelope
 		if envelope.VerificationID != "" {
 			s.logger.Info("Created envelope from FetchImagesRequest", map[string]interface{}{
 				"verificationId": envelope.VerificationID,
 				"status":        envelope.Status,
 				"referenceCount": len(envelope.References),
-				"hasInheritedErrors": envelope.Summary["hasInheritedErrors"],
 			})
 			return envelope, nil
 		}
 	}
-
+	
 	// For other input types, use the standard method
 	envelope, err := s3state.LoadEnvelope(input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load envelope: %w", err)
 	}
-
+	
 	if envelope.VerificationID == "" {
 		return nil, fmt.Errorf("envelope is missing verification ID")
 	}
-
+	
 	s.logger.Info("Loaded envelope", map[string]interface{}{
 		"verificationId": envelope.VerificationID,
 		"status":         envelope.Status,
 		"referenceCount": len(envelope.References),
 	})
-
+	
 	return envelope, nil
-}
-
-// checkForInheritedErrors examines the request for errors from previous workflow steps
-func (s *S3StateManager) checkForInheritedErrors(envelope *s3state.Envelope, req *models.FetchImagesRequest) {
-	hasInheritedErrors := false
-	inheritedErrorSources := []string{}
-
-	// Check if the status indicates a previous error
-	if strings.Contains(strings.ToUpper(req.Status), "ERROR") ||
-	   strings.Contains(strings.ToUpper(req.Status), "FAILED") {
-		hasInheritedErrors = true
-		inheritedErrorSources = append(inheritedErrorSources, "status_field")
-		s.logger.Warn("Detected error status from previous step", map[string]interface{}{
-			"status": req.Status,
-			"verificationId": req.VerificationId,
-		})
-	}
-
-	// Check for error references in S3References
-	if req.S3References != nil {
-		for key, ref := range req.S3References {
-			if strings.Contains(strings.ToLower(key), "error") {
-				hasInheritedErrors = true
-				inheritedErrorSources = append(inheritedErrorSources, fmt.Sprintf("s3_reference_%s", key))
-				s.logger.Warn("Detected error reference from previous step", map[string]interface{}{
-					"referenceKey": key,
-					"bucket": ref.Bucket,
-					"key": ref.Key,
-					"verificationId": req.VerificationId,
-				})
-			}
-		}
-	}
-
-	// Store inherited error information in summary
-	envelope.Summary["hasInheritedErrors"] = hasInheritedErrors
-	if hasInheritedErrors {
-		envelope.Summary["inheritedErrorSources"] = inheritedErrorSources
-		envelope.Summary["inheritedErrorDetectedAt"] = time.Now().UTC().Format(time.RFC3339)
-
-		s.logger.Info("Inherited errors detected and catalogued", map[string]interface{}{
-			"verificationId": req.VerificationId,
-			"errorSources": inheritedErrorSources,
-		})
-	}
 }
 
 // GetTimeBasedKey generates a time-based key to ensure uniqueness

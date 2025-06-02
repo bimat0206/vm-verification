@@ -1,5 +1,74 @@
 # Changelog
 
+## [4.2.1] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Fixed missing storage metadata in metadata.json output
+- Fixed S3 reference key lookup for Base64 files (dashes are replaced with underscores)
+- Corrected reference keys from `"images_reference-base64"` to `"images_reference_base64"`
+- Corrected reference keys from `"images_checking-base64"` to `"images_checking_base64"`
+- Added comprehensive debug logging for S3 reference lookup
+
+### Technical Details
+- **Root Cause**: The s3state `BuildReferenceKey` function replaces dashes with underscores in filenames
+- **Fix**: Updated reference lookup to use correct naming convention: `images_reference_base64` and `images_checking_base64`
+- **Impact**: Storage metadata now properly populated with bucket, key, storedSize, storageClass, and encryption info
+
+### Expected Output
+- Storage metadata now includes complete S3 information:
+  ```json
+  "storageMetadata": {
+    "bucket": "kootoro-dev-s3-state-f6d3xl",
+    "key": "2025/06/02/verif-xxx/images/reference-base64.base64",
+    "storedSize": 1656692,
+    "storageClass": "STANDARD",
+    "encryption": {"method": "SSE-S3"}
+  }
+  ```
+
+## [4.2.0] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Restored Base64 functionality that was removed in version 4.0.0
+- Fixed metadata.json format to match expected comprehensive structure
+- Restored image download and Base64 conversion capabilities
+- Fixed integration with downstream functions that expect Base64 data
+
+### Added
+- **Base64 Processing**: Restored full image download and Base64 conversion functionality
+- **Comprehensive Metadata**: Added detailed metadata structure matching expected format with:
+  - `originalMetadata` with source information and image dimensions
+  - `base64Metadata` with encoding details and compression ratios
+  - `storageMetadata` with S3 storage information
+  - `validation` with Bedrock compatibility checks
+  - `processingMetadata` with processing steps and timing
+- **S3 Base64 Storage**: Added storage of Base64 data in S3 state bucket using s3state files:
+  - `reference-base64.base64` for reference image Base64 data
+  - `checking-base64.base64` for checking image Base64 data
+- **Image Analysis**: Added image dimension extraction (width, height, aspect ratio)
+- **Enhanced S3Repository**: Added `DownloadAndConvertToBase64` method for full image processing
+- **Detailed Models**: Added comprehensive data models matching expected API format
+
+### Changed
+- **Processing Logic**: Updated parallel fetch to download and convert both images to Base64
+- **Metadata Structure**: Enhanced metadata to include all required fields for downstream compatibility
+- **Storage Strategy**: Now stores both metadata and Base64 data in S3 state bucket
+- **Error Handling**: Improved error handling for image download and conversion failures
+
+### Technical Details
+- **Root Cause**: Version 4.0.0 removed Base64 functionality but downstream functions still expected it
+- **Architecture**: Maintained s3state integration while restoring Base64 processing
+- **Performance**: Parallel processing of image download and conversion
+- **Compatibility**: Maintains backward compatibility with existing s3state architecture
+- **Validation**: Added Bedrock size limit validation for Base64 data
+
+### Impact
+- Restores full functionality expected by PrepareSystemPrompt and other downstream functions
+- Generates comprehensive metadata.json matching expected format
+- Provides Base64 data for AI/ML processing workflows
+- Maintains high performance through parallel processing
+- Ensures Bedrock compatibility validation
+
 ## [4.1.0] - 2025-01-02
 
 ### Fixed

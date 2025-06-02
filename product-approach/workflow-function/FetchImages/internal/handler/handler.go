@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"workflow-function/shared/logger"
-
+	
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-
+	"workflow-function/shared/logger"
+	
 	localConfig "workflow-function/FetchImages/internal/config"
 	"workflow-function/FetchImages/internal/models"
 	"workflow-function/FetchImages/internal/repository"
@@ -134,44 +133,7 @@ func (h *Handler) Handle(ctx context.Context, event interface{}) (models.FetchIm
 			return models.FetchImagesResponse{}, models.NewValidationError("Invalid JSON input", parseErr)
 		}
 	}
-
-	// Log the parsed request for debugging
-	h.logger.Info("Parsed FetchImages request", map[string]interface{}{
-		"verificationId": req.VerificationId,
-		"status": req.Status,
-		"s3ReferencesCount": len(req.S3References),
-		"hasVerificationContext": req.VerificationContext != nil,
-		"schemaVersion": req.SchemaVersion,
-	})
-
-	// Log verification context details if available
-	if req.VerificationContext != nil {
-		h.logger.Info("Verification context found in request", map[string]interface{}{
-			"verificationId": req.VerificationContext.VerificationId,
-			"verificationType": req.VerificationContext.VerificationType,
-			"layoutId": req.VerificationContext.LayoutId,
-			"layoutPrefix": req.VerificationContext.LayoutPrefix,
-			"referenceImageUrl": req.VerificationContext.ReferenceImageUrl,
-			"checkingImageUrl": req.VerificationContext.CheckingImageUrl,
-		})
-	} else {
-		h.logger.Warn("No verification context found in request", map[string]interface{}{
-			"verificationId": req.VerificationId,
-		})
-	}
-
-	// Log S3 references for debugging
-	if req.S3References != nil {
-		for key, ref := range req.S3References {
-			h.logger.Info("S3 reference found", map[string]interface{}{
-				"key": key,
-				"bucket": ref.Bucket,
-				"s3Key": ref.Key,
-				"size": ref.Size,
-			})
-		}
-	}
-
+	
 	// Validate request
 	if err := req.Validate(); err != nil {
 		h.logger.Error("Request validation failed", map[string]interface{}{
@@ -180,70 +142,20 @@ func (h *Handler) Handle(ctx context.Context, event interface{}) (models.FetchIm
 		return models.FetchImagesResponse{}, models.NewValidationError("Request validation failed", err)
 	}
 	
-	// Process the request with enhanced error handling
+	// Process the request
 	response, err := h.fetchService.ProcessRequest(ctx, &req)
 	if err != nil {
 		h.logger.Error("Failed to process request", map[string]interface{}{
 			"error": err.Error(),
-			"errorType": fmt.Sprintf("%T", err),
 		})
-
-		// Create error response with proper error isolation
-		errorResponse := h.createErrorResponse(&req, err)
-		return errorResponse, nil // Return error in response, not as Go error
+		return models.FetchImagesResponse{}, err
 	}
-
+	
 	h.logger.Info("Successfully processed request", map[string]interface{}{
 		"verificationId": response.VerificationId,
 		"status":         response.Status,
 		"referenceCount": len(response.S3References),
 	})
-
+	
 	return *response, nil
-}
-
-// createErrorResponse creates a FetchImagesResponse with error information
-// This isolates current processing errors from inherited workflow errors
-func (h *Handler) createErrorResponse(req *models.FetchImagesRequest, err error) models.FetchImagesResponse {
-	h.logger.Info("Creating error response with error isolation", map[string]interface{}{
-		"verificationId": req.VerificationId,
-		"errorType": fmt.Sprintf("%T", err),
-		"errorMessage": err.Error(),
-	})
-
-	// Create base response structure
-	response := models.FetchImagesResponse{
-		VerificationId: req.VerificationId,
-		S3References:   req.S3References, // Preserve existing references
-		Status:         "FETCH_IMAGES_FAILED",
-		Summary: map[string]interface{}{
-			"imagesFetched": false,
-			"errorSource": "FetchImages",
-			"errorStage": "processing",
-			"errorType": fmt.Sprintf("%T", err),
-			"errorMessage": err.Error(),
-		},
-	}
-
-	// Add error categorization
-	if validationErr, ok := err.(*models.ValidationError); ok {
-		response.Summary["errorCategory"] = "validation"
-		response.Summary["validationDetails"] = validationErr.Message
-	} else if processingErr, ok := err.(*models.ProcessingError); ok {
-		response.Summary["errorCategory"] = "processing"
-		response.Summary["processingDetails"] = processingErr.Message
-	} else if notFoundErr, ok := err.(*models.NotFoundError); ok {
-		response.Summary["errorCategory"] = "not_found"
-		response.Summary["notFoundDetails"] = notFoundErr.Message
-	} else {
-		response.Summary["errorCategory"] = "unknown"
-	}
-
-	h.logger.Info("Error response created", map[string]interface{}{
-		"verificationId": response.VerificationId,
-		"status": response.Status,
-		"errorCategory": response.Summary["errorCategory"],
-	})
-
-	return response
 }
