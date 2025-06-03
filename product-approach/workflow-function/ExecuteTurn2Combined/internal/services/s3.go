@@ -142,8 +142,8 @@ type S3StateManager interface {
 	StoreProcessedTurn1Response(ctx context.Context, verificationID string, analysisData *bedrockparser.ParsedTurn1Data) (models.S3Reference, error)
 	StoreProcessedTurn1Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error)
 	StoreConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) (models.S3Reference, error)
-       // StoreTurn2Conversation builds and stores full conversation messages for turn2
-       StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error)
+	// StoreTurn2Conversation builds and stores full conversation messages for turn2
+	StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error)
 	StoreTemplateProcessor(ctx context.Context, verificationID string, processor *schema.TemplateProcessor) (models.S3Reference, error)
 	StoreProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) (models.S3Reference, error)
 	LoadProcessingState(ctx context.Context, verificationID string, stateType string) (interface{}, error)
@@ -823,7 +823,7 @@ func (m *s3Manager) StorePrompt(ctx context.Context, verificationID string, turn
 	}
 
 	key := fmt.Sprintf("prompts/turn%d-prompt.json", turn)
-	
+
 	// Check if prompt is already a JSON string (for Turn2)
 	if promptStr, ok := prompt.(string); ok {
 		// Validate that it's valid JSON
@@ -839,7 +839,7 @@ func (m *s3Manager) StorePrompt(ctx context.Context, verificationID string, turn
 			return m.fromStateReference(stateRef), nil
 		}
 	}
-	
+
 	// For non-JSON strings or objects, use the original StoreJSON method
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, prompt)
 	if err != nil {
