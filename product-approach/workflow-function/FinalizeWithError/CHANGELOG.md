@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.9] - 2025-06-04
+### Changed
+- Set `status` in `VerificationResults` to `VERIFICATION_FAILED` when finalizing with an error.
+
 ## [1.0.8] - 2025-06-03
 ### Fixed
 - **Output References**: Always return `processing_initialization` reference when provided in the input
