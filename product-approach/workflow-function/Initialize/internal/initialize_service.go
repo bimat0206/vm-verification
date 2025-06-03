@@ -324,9 +324,34 @@ func (s *InitializeService) createStateStructure(ctx context.Context, verificati
 	envelope := s.s3StateManager.CreateEnvelope(verificationContext.VerificationId)
 	envelope.SetStatus(verificationContext.Status)
 
-	err = s.s3StateManager.SaveContext(envelope, verificationContext)
+	// Fetch layout metadata if this is a LAYOUT_VS_CHECKING verification
+	var layoutMetadata interface{}
+	if verificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		// Fetch the layout metadata from DynamoDB
+		layout, err := s.layoutRepo.GetLayoutMetadata(ctx, verificationContext.LayoutId, verificationContext.LayoutPrefix)
+		if err != nil {
+			s.logger.Error("Failed to fetch layout metadata for initialization", map[string]interface{}{
+				"error":        err.Error(),
+				"layoutId":     verificationContext.LayoutId,
+				"layoutPrefix": verificationContext.LayoutPrefix,
+			})
+			// Continue with nil layout metadata - it will be handled gracefully
+			layoutMetadata = nil
+		} else {
+			layoutMetadata = layout
+			s.logger.Info("Successfully fetched layout metadata for initialization", map[string]interface{}{
+				"layoutId":     verificationContext.LayoutId,
+				"layoutPrefix": verificationContext.LayoutPrefix,
+			})
+		}
+	}
+
+	// Create InitializationData structure with proper schema version
+	initData := createInitializationData(verificationContext, layoutMetadata)
+
+	err = s.s3StateManager.SaveContext(envelope, initData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to save verification context: %w", err)
+		return nil, fmt.Errorf("failed to save initialization data: %w", err)
 	}
 
 	return envelope, nil
@@ -547,4 +572,33 @@ func (s *InitializeService) createVerificationContext(request ProcessRequest) (*
 	})
 
 	return verificationContext, nil
+}
+
+// createInitializationData creates the InitializationData structure expected by ExecuteTurn1Combined
+func createInitializationData(verificationContext *schema.VerificationContext, layoutMetadata interface{}) map[string]interface{} {
+	// Create the structure that matches what ExecuteTurn1Combined expects
+	// The systemPrompt must have the nested structure that ExecuteTurn1Combined's LoadSystemPrompt expects
+	initData := map[string]interface{}{
+		"schemaVersion":       schema.SchemaVersion, // This is the key fix - set to "2.1.0"
+		"verificationContext": verificationContext,
+		"systemPrompt": map[string]interface{}{
+			// This structure matches what ExecuteTurn1Combined's LoadSystemPrompt expects
+			"promptContent": map[string]interface{}{
+				"systemMessage": "", // Will be populated by PrepareSystemPrompt
+			},
+			"promptId":      verificationContext.VerificationId + "-prompt",
+			"promptVersion": "1.0.0",
+		},
+	}
+
+	// Add layout metadata if this is a LAYOUT_VS_CHECKING verification
+	if verificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		// Include the actual layout metadata
+		initData["layoutMetadata"] = layoutMetadata
+	} else {
+		// For other verification types, set to nil
+		initData["layoutMetadata"] = nil
+	}
+
+	return initData
 }

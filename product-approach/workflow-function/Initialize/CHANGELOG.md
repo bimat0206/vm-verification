@@ -5,6 +5,81 @@ All notable changes to the InitializeFunction will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Fixed system prompt structure mismatch causing "unexpected end of JSON input" error in ExecuteTurn1Combined
+- **Root Cause**: InitializeService was creating flat systemPrompt structure but ExecuteTurn1Combined expected nested promptContent structure
+- **Solution**: Updated `createInitializationData` function to generate correct nested structure:
+  ```json
+  "systemPrompt": {
+    "promptContent": {
+      "systemMessage": ""
+    },
+    "promptId": "...",
+    "promptVersion": "1.0.0"
+  }
+  ```
+- **ExecuteTurn1Combined Compatibility**: Fixed LoadSystemPrompt parsing by matching expected JSON schema
+- **Error Prevention**: Eliminates JSON parsing failures when ExecuteTurn1Combined loads system prompt from S3
+
+### Technical Details
+- **Issue**: ExecuteTurn1Combined's LoadSystemPrompt expected `promptContent.systemMessage` but received flat `content` field
+- **Fix**: Modified systemPrompt structure in initialization.json to match ExecuteTurn1Combined's parser expectations
+- **Impact**: Resolves "failed to parse event detail: unexpected end of JSON input" error completely
+- **Validation**: Ensures proper JSON structure compatibility between Initialize and ExecuteTurn1Combined functions
+
+## [3.2.0] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Fixed "failed to parse event: failed to parse event detail: unexpected end of JSON input" error in ExecuteTurn1Combined function
+- **Root Cause**: Initialize function was saving raw VerificationContext to S3 instead of proper InitializationData structure
+- **Solution**: Modified Initialize function to create proper InitializationData structure with required schemaVersion field
+- Added `createInitializationData` function to wrap VerificationContext in expected format
+- Set schemaVersion to "2.1.0" as required by ExecuteTurn1Combined function
+- Fixed structure mismatch between Initialize output and ExecuteTurn1Combined input expectations
+- **Layout Metadata Integration**: Fixed layoutMetadata field to contain actual layout data instead of null
+
+### Added
+- **InitializationData Structure**: Added proper initialization data structure creation with:
+  - `schemaVersion` field set to "2.1.0"
+  - `verificationContext` field containing the verification context
+  - `systemPrompt` field with placeholder structure
+  - `layoutMetadata` field populated with actual layout data for LAYOUT_VS_CHECKING verification type
+- **Layout Metadata Fetching**: Added automatic fetching of layout metadata from DynamoDB during initialization
+- **Enhanced Error Prevention**: Prevents JSON parsing errors in downstream functions
+- **Schema Compliance**: Ensures compatibility with ExecuteTurn1Combined function expectations
+
+### Changed
+- **S3 Storage Format**: Modified `createStateStructure` method to save InitializationData instead of raw VerificationContext
+- **Data Structure**: Updated saved initialization data to match ExecuteTurn1Combined input schema exactly
+- **Layout Metadata Handling**: Changed from storing null to fetching and storing actual layout metadata
+- **Error Handling**: Improved error handling for initialization data creation and layout metadata fetching
+
+### Technical Details
+- **Issue**: ExecuteTurn1Combined expected InitializationData with schemaVersion and populated layoutMetadata but received raw VerificationContext
+- **Fix**: Wrapped VerificationContext in proper InitializationData structure with actual layout metadata before S3 storage
+- **Layout Integration**: Added DynamoDB query to fetch complete layout metadata including productPositionMap and machineStructure
+- **Impact**: Eliminates JSON parsing errors and ensures proper workflow execution with complete layout data
+- **Compatibility**: Maintains backward compatibility while fixing schema mismatch and providing complete initialization data
+
+### Structure Compliance
+The initialization.json now matches the expected format:
+```json
+{
+  "schemaVersion": "2.1.0",
+  "verificationContext": { ... },
+  "systemPrompt": { ... },
+  "layoutMetadata": {
+    "layoutId": 23591,
+    "layoutPrefix": "5560c9c9",
+    "vendingMachineId": "VM-23591",
+    "productPositionMap": { ... },
+    "machineStructure": { ... }
+  }
+}
+```
+
 ## [3.1.0] - 2025-01-02
 
 ### Fixed
