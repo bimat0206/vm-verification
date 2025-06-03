@@ -62,7 +62,7 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 
 ### Enhanced
 - **DynamoDB Operations**: Strengthened resilience against transient failures
-  - Retry logic with 3 attempts, exponential backoff (100ms to 2s), and 25% jitter
+  - Single-attempt logic (no retries)
   - Comprehensive retryable error detection including WRAPPED_ERROR patterns
   - Detailed logging for retry attempts and success/failure outcomes
   - Graceful handling of non-retryable errors with immediate failure
@@ -751,13 +751,13 @@ setError := func(err error) {
 ##### **DynamoDB Operations Retry Logic**
 **File**: `internal/handler/turn2_handler.go`
 - **ADDED**: `dynamoRetryOperation()` method for DynamoDB operations
-- **CONFIGURED**: 3 max retry attempts, 200ms base delay, 2s max delay
+ - **CONFIGURED**: single attempt only
 - **IMPLEMENTED**: Exponential backoff for DynamoDB operations
 - **UPDATED**: Error tracking and conversation history updates to use retry logic
 - **ENHANCED**: Comprehensive retry logging and error reporting
 
 **DynamoDB Retry Configuration**:
-- **Max Retries**: 3 attempts
+- **Max Retries**: 1 attempt
 - **Base Delay**: 200ms
 - **Max Delay**: 2 seconds
 - **Operations**: `UpdateErrorTracking`, `UpdateConversationTurn`, `UpdateVerificationStatusEnhanced`

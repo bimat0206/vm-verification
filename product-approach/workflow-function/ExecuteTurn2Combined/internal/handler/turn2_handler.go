@@ -635,7 +635,7 @@ func (h *Turn2Handler) interpretDiscrepancies(parsedData *bedrockparser.ParsedTu
 
 // dynamoRetryOperation implements retry logic for DynamoDB operations
 func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func() error, operationName string, verificationID string) error {
-	const maxRetries = 3
+        const maxRetries = 1
 	const baseDelay = 200 * time.Millisecond
 	const maxDelay = 2 * time.Second
 
