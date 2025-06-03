@@ -5,6 +5,68 @@ All notable changes to the Streamlit Frontend application will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-06-02
+
+### Fixed
+- **CRITICAL PARAMETER FIX**: Resolved "unexpected keyword argument 'verificationType'" error in verification initiation
+  - Fixed parameter name mismatch between frontend call and APIClient.initiate_verification() method
+  - Updated method signature to use camelCase parameters matching frontend: `verificationType`, `referenceImageUrl`, `checkingImageUrl`
+  - Simplified method signature to remove unnecessary parameters: `vending_machine_id`, `layout_id`, `layout_prefix`, `previous_verification_id`
+  - Maintained backward compatibility with API payload structure (still wraps data in `verificationContext`)
+  - Aligned with user preference for simplified verification API with only essential fields
+
+### Changed
+- **Simplified API Method Signature**: Updated `initiate_verification()` method for better usability
+  - **BREAKING**: Changed from snake_case to camelCase parameter names to match frontend usage
+  - **BREAKING**: Reduced required parameters from 4+ to 3 essential fields only
+  - Added comprehensive docstring with parameter descriptions and usage examples
+  - Maintained same API endpoint and payload structure for backend compatibility
+
+### Improved
+- **Enhanced Developer Experience**: Better alignment between frontend and backend interfaces
+  - Eliminated parameter name confusion between frontend calls and API method signatures
+  - Reduced cognitive load with simplified parameter requirements
+  - Cleaner, more maintainable code with consistent naming conventions
+  - Better error prevention through matching parameter names
+
+### Technical
+- **Method Signature Update**: `initiate_verification(verificationType, referenceImageUrl, checkingImageUrl, notificationEnabled=False)`
+- **Removed Parameters**: No longer requires `vending_machine_id`, `layout_id`, `layout_prefix`, `previous_verification_id`
+- **Maintained Compatibility**: API payload structure unchanged - still wraps parameters in `verificationContext`
+- **Enhanced Documentation**: Added comprehensive method documentation with parameter descriptions
+
+### User Experience
+- **Seamless Verification Initiation**: Users can now successfully start verifications without parameter errors
+- **Consistent Interface**: Frontend parameter names now match API method expectations
+- **Simplified Workflow**: Reduced complexity with fewer required parameters
+- **Better Error Prevention**: Eliminated common parameter mismatch errors
+
+## [2.0.0] - 2025-06-02
+
+### Backend Integration
+- **Notification System Removal**: Updated to work with simplified backend that no longer supports notifications
+  - Backend has completely removed notify lambda function and notification infrastructure
+  - Verification workflow now completes directly without notification processing
+  - API payload no longer includes `notificationEnabled` field (already removed in v1.9.0)
+  - Enhanced verification completion performance due to simplified backend workflow
+
+### Compatibility
+- **Seamless Integration**: Frontend remains fully compatible with updated backend
+  - No frontend changes required due to notification removal
+  - All existing verification functionality preserved
+  - Verification initiation and results viewing work unchanged
+  - API communication patterns remain consistent
+
+### Performance
+- **Improved Response Times**: Benefits from simplified backend architecture
+  - Faster verification completion without notification processing overhead
+  - Reduced backend resource usage improves overall system responsiveness
+  - Streamlined workflow reduces potential points of failure
+
+### Notes
+- **No User Impact**: End users will not notice any functional changes
+- **Enhanced Reliability**: Simplified backend reduces complexity and improves system stability
+- **Future-Proof**: Frontend architecture supports potential future notification re-implementation if needed
 
 ## [1.9.0] - 2025-06-02
 

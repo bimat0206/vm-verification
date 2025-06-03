@@ -131,26 +131,24 @@ class APIClient:
             params["vendingMachineId"] = vending_machine_id
         return self.make_request('GET', 'api/verifications/lookup', params=params)
 
-    def initiate_verification(self, verification_type, reference_image_url, checking_image_url,
-                              vending_machine_id, layout_id=None, layout_prefix=None,
-                              previous_verification_id=None):
-        # Build the verification context according to API specification
-        verification_context = {
-            "verificationType": verification_type,
-            "referenceImageUrl": reference_image_url,
-            "checkingImageUrl": checking_image_url,
-            "vendingMachineId": vending_machine_id,
-            "notificationEnabled": False
-        }
+    def initiate_verification(self, verificationType, referenceImageUrl, checkingImageUrl,
+                              notificationEnabled=False):
+        """
+        Simplified verification API call with only required fields.
 
-        if verification_type == "LAYOUT_VS_CHECKING":
-            if not layout_id or not layout_prefix:
-                raise ValueError("layout_id and layout_prefix are required for LAYOUT_VS_CHECKING verification")
-            verification_context["layoutId"] = layout_id
-            verification_context["layoutPrefix"] = layout_prefix
-        elif verification_type == "PREVIOUS_VS_CURRENT":
-            if previous_verification_id:
-                verification_context["previousVerificationId"] = previous_verification_id
+        Args:
+            verificationType: Type of verification (e.g., "LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT")
+            referenceImageUrl: URL of the reference image
+            checkingImageUrl: URL of the checking image
+            notificationEnabled: Whether to enable notifications (default: False)
+        """
+        # Build the verification context according to simplified API specification
+        verification_context = {
+            "verificationType": verificationType,
+            "referenceImageUrl": referenceImageUrl,
+            "checkingImageUrl": checkingImageUrl,
+            "notificationEnabled": notificationEnabled
+        }
 
         # Wrap the verification context in the expected API structure
         data = {
