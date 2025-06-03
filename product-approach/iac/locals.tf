@@ -105,36 +105,7 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    store_results = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "store-results", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    notify = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "notify", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
-    handle_bedrock_error = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "handle-bedrock-error", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
+
     finalize_with_error = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "finalize-with-error", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
@@ -154,20 +125,10 @@ locals {
       kms_key              = null
       lifecycle_policy     = null
       repository_policy    = null
-      api_images_browser = {
-        name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-images-browser", local.name_suffix])))
-        image_tag_mutability = "MUTABLE"
-        scan_on_push         = true
-        force_delete         = false
-        encryption_type      = "AES256"
-        kms_key              = null
-        lifecycle_policy     = null
-        repository_policy    = null
-      },
-    }
+    },
     # Add new repositories for dedicated functions
-    list_verifications = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "list-verifications", local.name_suffix])))
+    api_verifications_list = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-verifications-list", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -176,16 +137,7 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    get_verification = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-verification", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
+
     get_conversation = {
       name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-conversation", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
@@ -301,7 +253,7 @@ locals {
         BEDROCK_MODEL               = var.bedrock.model_id
         MAX_TOKENS                  = var.bedrock.max_tokens
         BUDGET_TOKENS               = var.bedrock.budget_tokens
-        THINKING_TYPE               = "enable"
+        THINKING_TYPE               = "enabled"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         REFERENCE_BUCKET            = local.s3_buckets.reference
@@ -327,7 +279,7 @@ locals {
         BEDROCK_MODEL               = var.bedrock.model_id
         MAX_TOKENS                  = var.bedrock.max_tokens
         BUDGET_TOKENS               = var.bedrock.budget_tokens
-        THINKING_TYPE               = "enable"
+        THINKING_TYPE               = "enabled"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         REFERENCE_BUCKET            = local.s3_buckets.reference
@@ -348,6 +300,8 @@ locals {
       description = "Finalize verification results",
       memory_size = 256,
       timeout     = 30,
+      # Add explicit image URI to ensure it's not removed when updating
+      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest"
       environment_variables = {
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
@@ -355,39 +309,7 @@ locals {
         STATE_BUCKET                = local.s3_buckets.state
       }
     },
-    store_results = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "store-results", local.name_suffix]))),
-      description = "Store verification results",
-      memory_size = 256,
-      timeout     = 30,
-      environment_variables = {
-        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-        RESULTS_BUCKET              = local.s3_buckets.results
-        LOG_LEVEL                   = "INFO"
-        STATE_BUCKET                = local.s3_buckets.state
-      }
-    },
-    notify = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "notify", local.name_suffix]))),
-      description = "Send notification about verification results",
-      memory_size = 256,
-      timeout     = 30,
-      environment_variables = {
-        SNS_TOPIC_ARN = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:KootoroVerificationTopic"
-        LOG_LEVEL     = "INFO"
-      }
-    },
-    handle_bedrock_error = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "handle-bedrock-error", local.name_suffix]))),
-      description = "Handle Bedrock errors",
-      memory_size = 256,
-      timeout     = 30,
-      environment_variables = {
-        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-        LOG_LEVEL                   = "INFO"
-      }
-    },
+
     finalize_with_error = {
       name        = lower(join("-", compact([local.name_prefix, "lambda", "finalize-with-error", local.name_suffix]))),
       description = "Finalize workflow with error",
@@ -396,29 +318,22 @@ locals {
       environment_variables = {
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         LOG_LEVEL                   = "INFO"
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        STATE_BUCKET                = local.s3_buckets.state
       }
     },
     # Add new Lambda functions
-    list_verifications = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "list-verifications", local.name_suffix]))),
-      description = "List verification results",
-      memory_size = 256,
+    api_verifications_list = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "api-verifications-list", local.name_suffix]))),
+      description = "API endpoint for listing verification results with filtering and pagination",
+      memory_size = 512,
       timeout     = 30,
       environment_variables = {
-        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        LOG_LEVEL                   = "INFO"
+        VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        LOG_LEVEL          = "INFO"
       }
     },
-    get_verification = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "get-verification", local.name_suffix]))),
-      description = "Get verification details",
-      memory_size = 256,
-      timeout     = 30,
-      environment_variables = {
-        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        LOG_LEVEL                   = "INFO"
-      }
-    },
+
     get_conversation = {
       name        = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
       description = "Get verification conversation history",
@@ -480,16 +395,6 @@ locals {
         CHECKING_BUCKET  = local.s3_buckets.checking
         LOG_LEVEL        = "INFO"
       }
-      api_images_browser = {
-        name        = lower(join("-", compact([local.name_prefix, "lambda", "api-images-browser", local.name_suffix]))),
-        description = "API endpoint for browsing images",
-        memory_size = 256,
-        timeout     = 30,
-        environment_variables = {
-          LOG_LEVEL = "INFO"
-          # Add additional environment variables as needed
-        }
-      },
     }
   }
 

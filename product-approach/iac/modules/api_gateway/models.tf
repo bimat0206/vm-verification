@@ -55,11 +55,8 @@ resource "aws_api_gateway_model" "verification_request" {
           checkingImageUrl = {
             type = "string"
           }
-          notificationEnabled = {
-            type = "boolean"
-          }
         }
-        required = ["verificationType", "referenceImageUrl", "checkingImageUrl", "notificationEnabled"]
+        required = ["verificationType", "referenceImageUrl", "checkingImageUrl"]
       }
     }
     required = ["verificationContext"]
@@ -113,16 +110,51 @@ resource "aws_api_gateway_model" "verification_list" {
             verificationAt = {
               type = "string"
             }
+            verificationStatus = {
+              type = "string"
+              enum = ["CORRECT", "INCORRECT"]
+            }
+            verificationType = {
+              type = "string"
+            }
             vendingMachineId = {
               type = "string"
             }
-            verificationStatus = {
+            referenceImageUrl = {
               type = "string"
             }
-            verificationOutcome = {
+            checkingImageUrl = {
               type = "string"
+            }
+            layoutId = {
+              type = ["integer", "null"]
+            }
+            layoutPrefix = {
+              type = ["string", "null"]
+            }
+            overallAccuracy = {
+              type = ["number", "null"]
+            }
+            correctPositions = {
+              type = ["integer", "null"]
+            }
+            discrepantPositions = {
+              type = ["integer", "null"]
+            }
+            result = {
+              type = ["object", "null"]
+            }
+            verificationSummary = {
+              type = ["object", "null"]
+            }
+            createdAt = {
+              type = ["string", "null"]
+            }
+            updatedAt = {
+              type = ["string", "null"]
             }
           }
+          required = ["verificationId", "verificationAt", "verificationStatus", "verificationType", "vendingMachineId"]
         }
       }
       pagination = {
@@ -141,6 +173,7 @@ resource "aws_api_gateway_model" "verification_list" {
             type = ["integer", "null"]
           }
         }
+        required = ["total", "limit", "offset"]
       }
     }
     required = ["results", "pagination"]

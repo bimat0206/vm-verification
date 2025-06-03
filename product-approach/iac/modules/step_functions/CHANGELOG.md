@@ -1,5 +1,59 @@
 # Changelog
 
+## [2.2.0] - 2025-06-02
+
+### Removed
+- **BREAKING CHANGE**: Completely removed notification functionality from Step Functions workflow
+  - **Notify State**: Removed `Notify` task state that invoked the notify lambda function
+  - **ShouldNotify Choice State**: Removed `ShouldNotify` choice state that conditionally triggered notifications
+  - **Notification Logic**: Eliminated all notification-related conditional logic and parameters
+
+### Changed
+- **Simplified Workflow**: Streamlined state machine by removing notification complexity
+  - `FinalizeAndStoreResults` now transitions directly to `WorkflowComplete`
+  - Removed conditional notification flow based on `verificationContext.notificationEnabled`
+  - Eliminated notification result handling and error paths
+
+- **Updated State Machine Definition**: Modified template to remove notification states
+  - Removed `ShouldNotify` choice state with notification condition checks
+  - Removed `Notify` task state with SNS integration and retry logic
+  - Simplified workflow completion path for better performance
+
+### Benefits
+- **Reduced Complexity**: Further simplified state machine by removing notification overhead
+- **Improved Performance**: Faster workflow completion without notification processing delays
+- **Enhanced Reliability**: Fewer potential failure points in the verification workflow
+- **Cleaner Architecture**: More focused workflow without notification dependencies
+
+### Technical Details
+- **State Count Reduction**: Reduced from 12 to 10 states (17% additional reduction)
+- **Simplified Error Handling**: Removed notification-specific error handling paths
+- **Direct Completion**: Verification workflow now completes immediately after result storage
+- **Maintained Functionality**: All core verification capabilities preserved
+
+### Migration Impact
+- **Automatic Update**: State machine definition will be automatically updated during deployment
+- **No Data Loss**: Historical verification data and workflow state preserved
+- **Backward Compatibility**: Existing verification executions will complete normally
+- **Performance Improvement**: New verifications will complete faster without notification overhead
+
+## [2.1.0] - 2025-05-31
+
+### Changed
+- **BREAKING CHANGE**: Simplified state machine by removing all Handle...Error states
+- Consolidated error handling to use single `FinalizeWithError` state for all errors
+- Combined `FinalizeResults` and `StoreResults` into unified `FinalizeAndStoreResults` state
+- Updated all Catch blocks to point directly to `FinalizeWithError` instead of specific error handlers
+- Removed 7 error handling states: HandleInitializationError, HandleHistoricalFetchError, HandleFetchImagesError, HandlePromptError, HandleBedrockError, HandleFinalizationError, HandleStorageError
+- Simplified `FinalizeWithError` state to handle all error types generically without specific error stages
+
+### Benefits
+- Reduced state machine complexity from 19 to 12 states (37% reduction)
+- Streamlined error handling with single point of failure management
+- Improved maintainability with fewer state transitions
+- Consolidated finalization and storage operations for better performance
+- Maintained all retry logic and error resilience
+
 ## [2.0.1] - 2025-05-22
 
 ### Fixed

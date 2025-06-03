@@ -23,7 +23,7 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleInitializationError"
+          "Next": "FinalizeWithError"
         }
       ],
       "Next": "CheckVerificationType"
@@ -52,7 +52,9 @@
       "Parameters": {
         "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "verificationContext.$": "$.verificationContext",
+        "s3References.$": "$.s3References"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -68,7 +70,7 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleHistoricalFetchError"
+          "Next": "FinalizeWithError"
         }
       ],
       "Next": "FetchImages"
@@ -81,7 +83,8 @@
         "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
         "s3References.$": "$.s3References",
-        "status.$": "$.status"
+        "status.$": "$.status",
+        "verificationContext.$": "$.verificationContext"
       },
       "ResultPath": "$",
       "OutputPath": "$",
@@ -97,7 +100,7 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleFetchImagesError"
+          "Next": "FinalizeWithError"
         }
       ],
       "Next": "PrepareSystemPrompt"
@@ -126,7 +129,7 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandlePromptError"
+          "Next": "FinalizeWithError"
         }
       ],
       "Next": "ExecuteTurn1Combined"
@@ -155,7 +158,7 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleBedrockError"
+          "Next": "FinalizeWithError"
         }
       ],
       "Next": "ExecuteTurn2Combined"
@@ -184,13 +187,13 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleBedrockError"
+          "Next": "FinalizeWithError"
         }
       ],
-      "Next": "FinalizeResults"
+      "Next": "FinalizeAndStoreResults"
     },
 
-    "FinalizeResults": {
+    "FinalizeAndStoreResults": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_results"]}",
       "Parameters": {
@@ -213,104 +216,9 @@
         {
           "ErrorEquals": ["States.ALL"],
           "ResultPath": "$.error",
-          "Next": "HandleFinalizationError"
+          "Next": "FinalizeWithError"
         }
       ],
-      "Next": "StoreResults"
-    },
-
-    "StoreResults": {
-      "Type": "Task",
-      "Resource": "${function_arns["store_results"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status",
-        "s3References.$": "$.s3References"
-      },
-      "ResultPath": "$",
-      "OutputPath": "$",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "HandleStorageError"
-        }
-      ],
-      "Next": "ShouldNotify"
-    },
-
-    "ShouldNotify": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "And": [
-            {
-              "Variable": "$.verificationContext.notificationEnabled",
-              "BooleanEquals": true
-            },
-            {
-              "Variable": "$.status",
-              "StringMatches": "RESULTS_STORED"
-            }
-          ],
-          "Next": "Notify"
-        }
-      ],
-      "Default": "WorkflowComplete"
-    },
-
-    "Notify": {
-      "Type": "Task",
-      "Resource": "${function_arns["notify"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "status.$": "$.status",
-        "s3References.$": "$.s3References"
-      },
-      "ResultPath": "$.notificationResult",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "ServiceException", "ThrottlingException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.notificationError",
-          "Next": "WorkflowComplete"
-        }
-      ],
-      "Next": "WorkflowComplete"
-    },
-
-    "WorkflowComplete": {
-      "Type": "Pass",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "verificationType.$": "$.verificationContext.verificationType",
-        "status": "COMPLETED",
-        "timestamp.$": "$.State.EnteredTime",
-        "result": {
-          "verificationStatus.$": "$.summary.verificationStatus",
-          "resultImageUrl.$": "$.summary.resultImageUrl",
-          "confidenceScore.$": "$.summary.confidenceScore",
-          "discrepanciesCount.$": "$.summary.discrepanciesCount"
-        }
-      },
       "End": true
     },
 
@@ -330,108 +238,16 @@
       "End": true
     },
 
-    "HandleInitializationError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "INITIALIZATION"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
-    "HandleHistoricalFetchError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "HISTORICAL_FETCH"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
-    "HandleFetchImagesError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "IMAGE_FETCH"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
-    "HandlePromptError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "PROMPT_PREPARATION"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
-    "HandleBedrockError": {
-      "Type": "Task",
-      "Resource": "${function_arns["handle_bedrock_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "BEDROCK_PROCESSING"
-      },
-      "ResultPath": "$",
-      "Next": "FinalizeWithError"
-    },
-
-    "HandleFinalizationError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "RESULT_FINALIZATION"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
-    "HandleStorageError": {
-      "Type": "Task",
-      "Resource": "${function_arns["finalize_with_error"]}",
-      "Parameters": {
-        "schemaVersion": "2.1.0",
-        "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "RESULT_STORAGE"
-      },
-      "ResultPath": "$",
-      "Next": "WorkflowComplete"
-    },
-
     "FinalizeWithError": {
       "Type": "Task",
       "Resource": "${function_arns["finalize_with_error"]}",
       "Parameters": {
         "schemaVersion": "2.1.0",
         "verificationId.$": "$.verificationId",
-        "error.$": "$.error",
-        "errorStage": "BEDROCK_PROCESSING"
+        "error.$": "$.error"
       },
       "ResultPath": "$",
-      "Next": "StoreResults"
+      "End": true
     }
   }
 }

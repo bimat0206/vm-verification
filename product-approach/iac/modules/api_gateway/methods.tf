@@ -257,7 +257,7 @@ resource "aws_api_gateway_integration" "verifications_get" {
   http_method             = aws_api_gateway_method.verifications_get.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["list_verifications"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_verifications_list"]}/invocations"
 }
 
 # 4. Get Verification - GET /api/verifications/{verificationId}
@@ -405,7 +405,7 @@ resource "aws_api_gateway_integration" "verification_id_get" {
   http_method             = aws_api_gateway_method.verification_id_get.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["get_verification"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_verifications_list"]}/invocations"
 }
 
 resource "aws_api_gateway_method_response" "verification_id_get" {

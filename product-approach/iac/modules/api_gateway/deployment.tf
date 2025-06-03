@@ -159,8 +159,8 @@ resource "aws_api_gateway_stage" "stage" {
   variables = {
     verification_lookup_lambda       = var.lambda_function_names["fetch_historical_verification"]
     verification_initiate_lambda     = var.lambda_function_names["initialize"]
-    verification_list_lambda         = var.lambda_function_names["list_verifications"]
-    verification_get_lambda          = var.lambda_function_names["get_verification"]
+    verification_list_lambda         = var.lambda_function_names["api_verifications_list"]
+    verification_get_lambda          = var.lambda_function_names["api_verifications_list"]
     verification_conversation_lambda = var.lambda_function_names["get_conversation"]
     health_lambda                    = var.lambda_function_names["health_check"]
     image_view_lambda                = var.lambda_function_names["api_images_view"]

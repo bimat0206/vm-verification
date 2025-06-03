@@ -108,11 +108,7 @@ ecr = {
       scan_on_push         = true
       image_tag_mutability = "mutable"
     },
-    notify = {
-      force_delete         = false
-      scan_on_push         = true
-      image_tag_mutability = "mutable"
-    },
+
     handle_bedrock_error = {
       force_delete         = false
       scan_on_push         = true
@@ -147,14 +143,14 @@ lambda_functions = {
     execute_turn2_combined        = 1536
     finalize_results              = 1024
     store_results                 = 1024
-    notify                        = 512
-    handle_bedrock_error          = 512
-    finalize_with_error           = 512
-    render_layout                 = 2048
-    list_verifications            = 1024
-    get_verification              = 1024
-    get_conversation              = 1024
-    health_check                  = 512
+
+    handle_bedrock_error = 512
+    finalize_with_error  = 512
+    render_layout        = 2048
+    list_verifications   = 1024
+    get_verification     = 1024
+    get_conversation     = 1024
+    health_check         = 512
   }
   timeouts = {
     initialize                    = 30
@@ -165,14 +161,14 @@ lambda_functions = {
     execute_turn2_combined        = 150
     finalize_results              = 90
     store_results                 = 60
-    notify                        = 60
-    handle_bedrock_error          = 60
-    finalize_with_error           = 60
-    render_layout                 = 120
-    list_verifications            = 30
-    get_verification              = 30
-    get_conversation              = 30
-    health_check                  = 30
+
+    handle_bedrock_error = 60
+    finalize_with_error  = 60
+    render_layout        = 120
+    list_verifications   = 30
+    get_verification     = 30
+    get_conversation     = 30
+    health_check         = 30
   }
   log_retention_days            = 90
   s3_trigger_functions          = ["render_layout"]
@@ -244,7 +240,7 @@ vpc = {
 
 # Bedrock Configuration
 bedrock = {
-  model_id          = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+  model_id          = "us.anthropic.claude-sonnet-4-20250514-v1:0"
   anthropic_version = "bedrock-2023-05-31"
   max_tokens        = 24000
   budget_tokens     = 16000

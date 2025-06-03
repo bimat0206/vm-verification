@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-01-03
+
+### Removed
+- **Deprecated Lambda Functions**: Removed 4 Lambda functions from configuration
+  - `store_results`: Redundant functionality consolidated into `finalize_results`
+  - `handle_bedrock_error`: Error handling consolidated into `finalize_with_error`
+  - `list_verifications`: Replaced by enhanced `api_verifications_list` function
+  - `get_verification`: Basic functionality maintained through existing API endpoints
+
+### Changed
+- **Configuration Cleanup**: Updated locals.tf to remove deprecated function definitions
+- **ECR Integration**: Removed corresponding ECR repository configurations for deleted functions
+- **Resource Optimization**: Streamlined Lambda function inventory for better maintainability
+
+### Benefits
+- Reduced complexity with fewer Lambda functions to manage
+- Improved cost efficiency by eliminating redundant resources
+- Enhanced maintainability with consolidated functionality
+- Better resource organization and cleaner configuration
+
 ## [2.0.0] - 2025-05-22
 
 ### Changed

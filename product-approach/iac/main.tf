@@ -132,17 +132,7 @@ module "step_functions" {
     execute_turn1_combined        = module.lambda_functions[0].function_arns["execute_turn1_combined"]
     execute_turn2_combined        = module.lambda_functions[0].function_arns["execute_turn2_combined"]
     finalize_results              = module.lambda_functions[0].function_arns["finalize_results"]
-    store_results                 = module.lambda_functions[0].function_arns["store_results"]
-    notify                        = module.lambda_functions[0].function_arns["notify"]
-    handle_bedrock_error          = module.lambda_functions[0].function_arns["handle_bedrock_error"]
     finalize_with_error           = module.lambda_functions[0].function_arns["finalize_with_error"]
-    list_verifications            = module.lambda_functions[0].function_arns["list_verifications"]
-    get_verification              = module.lambda_functions[0].function_arns["get_verification"]
-    get_conversation              = module.lambda_functions[0].function_arns["get_conversation"]
-    health_check                  = module.lambda_functions[0].function_arns["health_check"]
-    api_images_browser            = module.lambda_functions[0].function_arns["api_images_browser"]
-    api_images_view               = module.lambda_functions[0].function_arns["api_images_view"]
-
   }
 
   # Add DynamoDB table ARNs

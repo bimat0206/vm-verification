@@ -9,3 +9,6 @@ override.tf.json
 *_override.tf.json
 *.log
 .qodo
+node_modules/
+.claude 
+.vscode

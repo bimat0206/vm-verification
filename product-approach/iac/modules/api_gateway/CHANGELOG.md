@@ -5,6 +5,36 @@ All notable changes to the API Gateway module will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-06-02
+
+### Removed
+- **BREAKING CHANGE**: Removed notification functionality from API Gateway integration
+  - **Lambda Permission**: Removed lambda permission for notify function invocation
+  - **Model Property**: Removed `notificationEnabled` property from `VerificationRequest` model schema
+
+### Changed
+- **Simplified API Model**: Updated verification request model to remove notification support
+  - Removed `notificationEnabled` boolean property from verification context schema
+  - Updated required fields list to exclude notification preferences
+  - Simplified API payload structure for verification initiation
+
+- **Updated Integration Responses**: Modified integration responses for verification endpoints
+  - Updated response parameter handling for simplified verification workflow
+  - Removed notification-related response headers and templates
+  - Streamlined response structure for better performance
+
+### Benefits
+- **Simplified API**: Cleaner API interface without notification complexity
+- **Reduced Payload Size**: Smaller request payloads without notification preferences
+- **Enhanced Performance**: Faster API processing without notification parameter validation
+- **Cleaner Documentation**: Simplified API documentation without notification options
+
+### Migration Impact
+- **Automatic Update**: API Gateway model will be automatically updated during deployment
+- **Client Compatibility**: Existing clients should remove `notificationEnabled` from requests
+- **Backward Compatibility**: API will ignore any notification-related fields if present
+- **No Functional Impact**: Core verification functionality remains unchanged
+
 ## [Unreleased]
 
 ### Changed

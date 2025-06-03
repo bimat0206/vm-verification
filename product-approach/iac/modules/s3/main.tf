@@ -165,11 +165,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "reference" {
       id     = rule.value.id
       status = rule.value.enabled ? "Enabled" : "Disabled"
 
-      dynamic "filter" {
-        for_each = rule.value.prefix != null ? [rule.value.prefix] : []
-        content {
-          prefix = filter.value
-        }
+      filter {
+        prefix = rule.value.prefix != null ? rule.value.prefix : ""
       }
 
       dynamic "expiration" {
@@ -207,11 +204,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "checking" {
       id     = rule.value.id
       status = rule.value.enabled ? "Enabled" : "Disabled"
 
-      dynamic "filter" {
-        for_each = rule.value.prefix != null ? [rule.value.prefix] : []
-        content {
-          prefix = filter.value
-        }
+      filter {
+        prefix = rule.value.prefix != null ? rule.value.prefix : ""
       }
 
       dynamic "expiration" {

@@ -1,5 +1,6 @@
 # Step Functions Module
 
+
 ## Overview
 This module creates and configures an AWS Step Functions state machine for the vending machine verification workflow. It includes integration with Lambda functions, DynamoDB, and API Gateway.
 
