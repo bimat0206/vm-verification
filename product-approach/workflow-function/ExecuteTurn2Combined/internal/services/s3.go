@@ -152,7 +152,9 @@ type S3StateManager interface {
 	LoadTurn1ProcessedResponse(ctx context.Context, ref models.S3Reference) (*schema.Turn1ProcessedResponse, error)
 	LoadTurn1RawResponse(ctx context.Context, ref models.S3Reference) (json.RawMessage, error)
 	// LoadTurn1SchemaResponse loads the raw Turn1 response into schema.TurnResponse
-	LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference) (*schema.TurnResponse, error)
+	// conversationRef optionally provides a path to turn1-conversation.json to recover
+	// missing prompt or response content when the raw response lacks these fields
+	LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference, conversationRef *models.S3Reference) (*schema.TurnResponse, error)
 
 	// Turn2 specific storage helpers
 	StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error)

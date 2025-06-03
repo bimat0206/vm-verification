@@ -93,7 +93,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	var loadedTurn1Response *schema.TurnResponse
 	if req.S3Refs.Turn1.RawResponse.Key != "" {
 		var err error
-		loadedTurn1Response, err = h.s3.LoadTurn1SchemaResponse(ctx, req.S3Refs.Turn1.RawResponse)
+		loadedTurn1Response, err = h.s3.LoadTurn1SchemaResponse(ctx, req.S3Refs.Turn1.RawResponse, &req.S3Refs.Turn1.Conversation)
 		if err != nil {
 			wfErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load Turn1 raw response", true).

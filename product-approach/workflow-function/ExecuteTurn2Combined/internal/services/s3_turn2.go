@@ -200,7 +200,7 @@ func (m *s3Manager) LoadTurn1RawResponse(ctx context.Context, ref models.S3Refer
 }
 
 // LoadTurn1SchemaResponse loads the raw Turn1 response and unmarshals it into schema.TurnResponse
-func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference) (*schema.TurnResponse, error) {
+func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Reference, conversationRef *models.S3Reference) (*schema.TurnResponse, error) {
 	raw, err := m.LoadTurn1RawResponse(ctx, ref)
 	if err != nil {
 		return nil, err
@@ -263,6 +263,56 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 			}
 		}
 	}
+
+	// If prompt or response content is empty, attempt to recover from
+	// conversation history when provided
+	if (resp.Prompt == "" || resp.Response.Content == "") && conversationRef != nil && conversationRef.Key != "" {
+		var conv struct {
+			Messages []schema.BedrockMessage `json:"messages"`
+		}
+		if err := m.LoadJSON(ctx, *conversationRef, &conv); err == nil {
+			var userText, assistantText string
+			for _, msg := range conv.Messages {
+				if msg.Role == "user" && userText == "" {
+					for _, c := range msg.Content {
+						if c.Type == "text" && c.Text != "" {
+							userText = c.Text
+							break
+						}
+					}
+				}
+				if msg.Role == "assistant" && assistantText == "" {
+					for _, c := range msg.Content {
+						if c.Type == "text" && c.Text != "" {
+							assistantText = c.Text
+							break
+						}
+					}
+				}
+				if userText != "" && assistantText != "" {
+					break
+				}
+			}
+			if resp.Prompt == "" && userText != "" {
+				resp.Prompt = userText
+				m.logger.Info("turn1_prompt_loaded_for_history", map[string]interface{}{
+					"bucket": conversationRef.Bucket,
+					"key":    conversationRef.Key,
+					"length": len(userText),
+				})
+			}
+			if resp.Response.Content == "" && assistantText != "" {
+				resp.Response.Content = assistantText
+			}
+		} else {
+			m.logger.Warn("turn1_conversation_load_failed", map[string]interface{}{
+				"error":  err.Error(),
+				"bucket": conversationRef.Bucket,
+				"key":    conversationRef.Key,
+			})
+		}
+	}
+
 	return &resp, nil
 }
 
