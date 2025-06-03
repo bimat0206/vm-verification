@@ -2,8 +2,6 @@ module workflow-function/FinalizeAndStoreResults
 
 go 1.22
 
-toolchain go1.24.0
-
 replace workflow-function/shared/logger => ../shared/logger
 
 replace workflow-function/shared/schema => ../shared/schema
@@ -19,7 +17,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
+	workflow-function/shared/errors v0.0.0-00010101000000-000000000000
 	workflow-function/shared/logger v0.0.0-00010101000000-000000000000
+	workflow-function/shared/s3state v0.0.0-00010101000000-000000000000
+	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
 )
 
 require (

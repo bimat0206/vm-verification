@@ -9,19 +9,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"workflow-function/FinalizeAndStoreResults/internal/models"
+	"workflow-function/shared/errors"
 )
 
 func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, tableName string, item models.VerificationResultItem) error {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return err
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to marshal verification result item", false)
 	}
 
 	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &tableName,
 		Item:      av,
 	})
-	return err
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to put item to DynamoDB", false)
+	}
+	return nil
 }
 
 func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tableName, verificationID string) error {
@@ -35,5 +39,8 @@ func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tab
 			":ts": &types.AttributeValueMemberS{Value: "WORKFLOW_COMPLETED"},
 		},
 	})
-	return err
+	if err != nil {
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update conversation history", false)
+	}
+	return nil
 }
