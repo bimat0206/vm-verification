@@ -124,7 +124,7 @@ func HandleRequest(ctx context.Context, event models.LambdaInput) (models.Lambda
 
 	// Create envelope for error storage
 	envelope := s3state.NewEnvelope(event.VerificationID)
-	
+
 	// Store error details using SaveToEnvelope for proper date-based path structure
 	err := stateManager.SaveToEnvelope(envelope, "error", "error.json", stepCause)
 	if err != nil {
@@ -133,22 +133,35 @@ func HandleRequest(ctx context.Context, event models.LambdaInput) (models.Lambda
 	}
 
 	// Update initialization data with error information and save it
+	var processingRef *s3state.Reference
 	var hasProcessingRef bool
 	if initData != nil {
 		initData.Status = schema.VerificationStatusFailed
 		initData.ErrorStage = errorStage
 		initData.ErrorMessage = rawMessage
 		initData.FailedAt = time.Now().UTC().Format(time.RFC3339)
-		
+
 		// Save updated initialization data
 		err = stateManager.SaveToEnvelope(envelope, "processing", "initialization.json", initData)
 		if err != nil {
 			log.Error("Failed to update initialization data", map[string]interface{}{"error": err.Error()})
 			return models.LambdaOutput{}, fmt.Errorf("failed to update initialization data: %w", err)
 		}
+		processingRef = envelope.GetReference("processing_initialization")
+		if processingRef == nil {
+			log.Error("Failed to get processing initialization reference from envelope", nil)
+			return models.LambdaOutput{}, fmt.Errorf("failed to get processing initialization reference")
+		}
 		hasProcessingRef = true
 	} else {
 		log.Warn("No initialization data available to update - proceeding with error-only output", nil)
+		if ref := event.S3References.InitializationS3Ref; ref.Bucket != "" && ref.Key != "" {
+			processingRef = &s3state.Reference{
+				Bucket: ref.Bucket,
+				Key:    ref.Key,
+				Size:   ref.Size,
+			}
+		}
 	}
 
 	// Get references from the envelope
@@ -156,15 +169,6 @@ func HandleRequest(ctx context.Context, event models.LambdaInput) (models.Lambda
 	if errorRef == nil {
 		log.Error("Failed to get error reference from envelope", nil)
 		return models.LambdaOutput{}, fmt.Errorf("failed to get error reference")
-	}
-	
-	var processingRef *s3state.Reference
-	if hasProcessingRef {
-		processingRef = envelope.GetReference("processing_initialization")
-		if processingRef == nil {
-			log.Error("Failed to get processing initialization reference from envelope", nil)
-			return models.LambdaOutput{}, fmt.Errorf("failed to get processing initialization reference")
-		}
 	}
 
 	// Update databases
