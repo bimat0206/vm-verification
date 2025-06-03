@@ -332,7 +332,7 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 }
 
 // StoreTurn2Conversation stores full conversation messages for turn2
-func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for storing Turn2 conversation",
@@ -366,7 +366,7 @@ func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID s
 				"image": map[string]interface{}{
 					"format": "png",
 					"source": map[string]interface{}{
-						"bytes": "<Base64-reference-image>",
+						"s3Uri": fmt.Sprintf("s3://%s/%s", base64Ref.Bucket, base64Ref.Key),
 					},
 				},
 			},

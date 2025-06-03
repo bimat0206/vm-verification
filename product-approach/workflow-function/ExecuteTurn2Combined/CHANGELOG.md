@@ -2,6 +2,10 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.5] - 2025-06-06
+### Changed
+- `turn2-conversation.json` now stores the user image source as an S3 URI.
+
 ## [2.1.4] - 2025-06-02
 ### Fixed
 - Fixed reflection panic when processing Bedrock responses by skipping unexported struct fields

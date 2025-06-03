@@ -382,7 +382,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		}
 	}
 
-	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, turn1Messages, loadResult.SystemPrompt, prompt, loadResult.Base64Image, bedrockTextOutput, bedrockResponse.Thinking, thinkingBlocks, &schema.TokenUsage{
+	convRef, convErr := h.s3.StoreTurn2Conversation(ctx, req.VerificationID, turn1Messages, loadResult.SystemPrompt, prompt, loadResult.Base64Image, req.S3Refs.Images.CheckingBase64, bedrockTextOutput, bedrockResponse.Thinking, thinkingBlocks, &schema.TokenUsage{
 		InputTokens:    bedrockResponse.InputTokens,
 		OutputTokens:   bedrockResponse.OutputTokens,
 		ThinkingTokens: 0,
