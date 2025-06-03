@@ -41,7 +41,7 @@ func UpdateVerificationResultOnError(
 				}
 			}
 		}
-		
+
 		// If still empty, use current timestamp as fallback
 		if verificationAt == "" {
 			verificationAt = time.Now().UTC().Format(time.RFC3339)
@@ -80,10 +80,11 @@ func UpdateVerificationResultOnError(
 		},
 	}
 
-	updateExpression := "SET #cs = :cs, #vs = :vs, #lua = :lua, #et = :et, #sh = list_append(if_not_exists(#sh, :empty), :entry)"
+	updateExpression := "SET #cs = :cs, #vs = :vs, #st = :st, #lua = :lua, #et = :et, #sh = list_append(if_not_exists(#sh, :empty), :entry)"
 	exprNames := map[string]string{
 		"#cs":  "currentStatus",
 		"#vs":  "verificationStatus",
+		"#st":  "status",
 		"#lua": "lastUpdatedAt",
 		"#et":  "errorTracking",
 		"#sh":  "statusHistory",
@@ -99,7 +100,8 @@ func UpdateVerificationResultOnError(
 
 	exprValues := map[string]types.AttributeValue{
 		":cs":    &types.AttributeValueMemberS{Value: errorStatus},
-		":vs":    &types.AttributeValueMemberS{Value: "FAILED"},
+		":vs":    &types.AttributeValueMemberS{Value: schema.VerificationStatusFailed},
+		":st":    &types.AttributeValueMemberS{Value: schema.StatusVerificationFailed},
 		":lua":   &types.AttributeValueMemberS{Value: currentTimestamp},
 		":et":    &types.AttributeValueMemberM{Value: marshaledTracking},
 		":entry": &types.AttributeValueMemberL{Value: []types.AttributeValue{&types.AttributeValueMemberM{Value: marshaledEntry}}},
@@ -139,7 +141,7 @@ func UpdateConversationHistoryOnError(ctx context.Context, ddbClient *dynamodb.C
 				}
 			}
 		}
-		
+
 		// If still empty, use current timestamp as fallback
 		if conversationAt == "" {
 			conversationAt = time.Now().UTC().Format(time.RFC3339)

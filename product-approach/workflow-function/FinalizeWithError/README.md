@@ -3,7 +3,8 @@
 This Lambda finalizes the verification workflow when an error occurs. It updates DynamoDB tables with failure status and logs details for RCA.
 
 ## Overview
-- Updates `VerificationResults` with failure status and error details.
+ - Updates `VerificationResults` with failure status and error details.
+ - Sets the `status` field in the results table to `VERIFICATION_FAILED`.
 - Optionally updates `ConversationHistory` if present.
 - Loads minimal context from `initialization.json` in S3 when available.
 - Returns a structured response used by Step Functions to terminate the workflow.
