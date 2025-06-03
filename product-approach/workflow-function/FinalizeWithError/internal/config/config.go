@@ -14,7 +14,7 @@ import (
 type LambdaConfig struct {
 	VerificationResultsTable string
 	ConversationHistoryTable string
-	StateManagementBucket    string
+	StateBucket              string
 }
 
 // LoadEnvConfig loads configuration from environment variables.
@@ -22,13 +22,13 @@ func LoadEnvConfig() (*LambdaConfig, error) {
 	cfg := &LambdaConfig{
 		VerificationResultsTable: os.Getenv("DYNAMODB_VERIFICATION_TABLE"),
 		ConversationHistoryTable: os.Getenv("DYNAMODB_CONVERSATION_TABLE"),
-		StateManagementBucket:    os.Getenv("STATE_BUCKET"),
+		StateBucket:              os.Getenv("STATE_BUCKET"),
 	}
 
 	if cfg.VerificationResultsTable == "" {
 		return nil, fmt.Errorf("DYNAMODB_VERIFICATION_TABLE is required")
 	}
-	if cfg.StateManagementBucket == "" {
+	if cfg.StateBucket == "" {
 		return nil, fmt.Errorf("STATE_BUCKET is required")
 	}
 	return cfg, nil
