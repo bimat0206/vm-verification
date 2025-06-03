@@ -1,5 +1,51 @@
 # Changelog
 
+## [4.4.0] - 2025-06-02
+
+### Fixed
+- **CRITICAL**: Fixed "failed to parse event: failed to parse event detail: unexpected end of JSON input" error
+- **Root Cause**: FetchImages was not properly parsing the new InitializationData structure created by Initialize function
+- **Solution**: Updated `loadVerificationContext` method to handle the new schema format with `schemaVersion` and nested `verificationContext`
+- Fixed S3 URL parsing to handle empty URLs and provide better error messages
+- Enhanced S3 URL parser to support multiple URL formats (s3://, https://bucket.s3.region.amazonaws.com/, https://s3.region.amazonaws.com/bucket/)
+- Fixed compatibility with Initialize function's new InitializationData structure format
+
+### Added
+- **InitializationData Structure Support**: Added proper parsing for the new initialization data format:
+  ```json
+  {
+    "schemaVersion": "2.1.0",
+    "verificationContext": { ... },
+    "systemPrompt": { ... },
+    "layoutMetadata": null
+  }
+  ```
+- **Enhanced S3 URL Parser**: Added support for multiple S3 URL formats:
+  - `s3://bucket-name/path/to/object`
+  - `https://bucket-name.s3.region.amazonaws.com/path/to/object`
+  - `https://s3.region.amazonaws.com/bucket-name/path/to/object`
+- **Better Error Handling**: Added specific error messages for empty URLs and unsupported formats
+- **Schema Version Detection**: Added automatic detection of InitializationData vs legacy format
+- **Comprehensive Logging**: Added detailed logging for initialization data parsing and schema version detection
+
+### Changed
+- **Input Processing**: Modified `loadVerificationContext` to extract `verificationContext` from `InitializationData` structure
+- **S3 URL Validation**: Enhanced URL validation with empty string checks and format-specific error messages
+- **Error Messages**: Improved error messages to provide clear guidance on supported URL formats
+- **Backward Compatibility**: Maintained support for legacy format while adding new schema support
+
+### Technical Details
+- **Issue**: Initialize function now stores InitializationData with schemaVersion, but FetchImages expected raw VerificationContext
+- **Fix**: Added InitializationData struct and parsing logic to extract verificationContext from the new format
+- **URL Parsing**: Enhanced ParseS3URL function to handle various S3 URL formats and provide better error messages
+- **Compatibility**: Ensures seamless integration with updated Initialize function while maintaining backward compatibility
+
+### Impact
+- Eliminates JSON parsing errors when FetchImages receives input from updated Initialize function
+- Provides better error messages for S3 URL parsing issues
+- Ensures proper workflow execution between Initialize and FetchImages functions
+- Maintains backward compatibility with existing workflows
+
 ## [4.3.2] - 2025-06-02
 
 ### Fixed

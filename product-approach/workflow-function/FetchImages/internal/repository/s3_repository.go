@@ -125,28 +125,76 @@ type S3URL struct {
 
 // ParseS3URL parses an S3 URL into bucket and key components
 func ParseS3URL(s3url string) (S3URL, error) {
-	// This is a simplified placeholder - in production, you would implement
-	// a more robust URL parser that handles various S3 URL formats
-
-	// For example:
-	// s3://bucket-name/path/to/object
-	// https://bucket-name.s3.region.amazonaws.com/path/to/object
-	// https://s3.region.amazonaws.com/bucket-name/path/to/object
-
-	// For demonstration, we're just handling the s3:// format
-	if !strings.HasPrefix(s3url, "s3://") {
-		return S3URL{}, fmt.Errorf("unsupported S3 URL format: %s", s3url)
+	// Check for empty URL
+	if s3url == "" {
+		return S3URL{}, fmt.Errorf("S3 URL is empty")
 	}
 
-	parts := strings.SplitN(s3url[5:], "/", 2)
-	if len(parts) != 2 {
-		return S3URL{}, fmt.Errorf("invalid S3 URL format: %s", s3url)
+	// Handle s3:// format
+	if strings.HasPrefix(s3url, "s3://") {
+		parts := strings.SplitN(s3url[5:], "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return S3URL{}, fmt.Errorf("invalid S3 URL format: %s", s3url)
+		}
+		return S3URL{
+			Bucket: parts[0],
+			Key:    parts[1],
+		}, nil
 	}
 
-	return S3URL{
-		Bucket: parts[0],
-		Key:    parts[1],
-	}, nil
+	// Handle https://bucket-name.s3.region.amazonaws.com/path/to/object format
+	if strings.HasPrefix(s3url, "https://") {
+		// Remove https:// prefix
+		url := s3url[8:]
+		
+		// Check for bucket-name.s3.region.amazonaws.com format
+		if strings.Contains(url, ".s3.") && strings.Contains(url, ".amazonaws.com/") {
+			parts := strings.SplitN(url, "/", 2)
+			if len(parts) != 2 {
+				return S3URL{}, fmt.Errorf("invalid HTTPS S3 URL format: %s", s3url)
+			}
+			
+			// Extract bucket name from hostname
+			hostParts := strings.Split(parts[0], ".")
+			if len(hostParts) < 4 {
+				return S3URL{}, fmt.Errorf("invalid S3 hostname format: %s", parts[0])
+			}
+			
+			bucket := hostParts[0]
+			key := parts[1]
+			
+			if bucket == "" || key == "" {
+				return S3URL{}, fmt.Errorf("empty bucket or key in S3 URL: %s", s3url)
+			}
+			
+			return S3URL{
+				Bucket: bucket,
+				Key:    key,
+			}, nil
+		}
+		
+		// Check for s3.region.amazonaws.com/bucket-name/path format
+		if strings.Contains(url, "s3.") && strings.Contains(url, ".amazonaws.com/") {
+			parts := strings.SplitN(url, "/", 3)
+			if len(parts) < 3 {
+				return S3URL{}, fmt.Errorf("invalid path-style S3 URL format: %s", s3url)
+			}
+			
+			bucket := parts[1]
+			key := parts[2]
+			
+			if bucket == "" || key == "" {
+				return S3URL{}, fmt.Errorf("empty bucket or key in path-style S3 URL: %s", s3url)
+			}
+			
+			return S3URL{
+				Bucket: bucket,
+				Key:    key,
+			}, nil
+		}
+	}
+
+	return S3URL{}, fmt.Errorf("unsupported S3 URL format: %s (supported formats: s3://, https://bucket.s3.region.amazonaws.com/, https://s3.region.amazonaws.com/bucket/)", s3url)
 }
 
 // DownloadAndConvertToBase64 downloads an image from S3 and returns its Base64 representation and metadata

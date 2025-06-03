@@ -175,6 +175,14 @@ func (s *FetchService) ProcessRequest(
 	}, nil
 }
 
+// InitializationData represents the structure stored by Initialize function
+type InitializationData struct {
+	SchemaVersion       string                      `json:"schemaVersion"`
+	VerificationContext *schema.VerificationContext `json:"verificationContext"`
+	SystemPrompt        map[string]interface{}      `json:"systemPrompt"`
+	LayoutMetadata      interface{}                 `json:"layoutMetadata"`
+}
+
 // loadVerificationContext loads the verification context from either the envelope or the request
 func (s *FetchService) loadVerificationContext(
 	ctx context.Context,
@@ -183,10 +191,10 @@ func (s *FetchService) loadVerificationContext(
 ) (interface{}, error) {
 	// If using S3 state manager, load from the state
 	if ref := envelope.GetReference("processing_initialization"); ref != nil {
-		var context interface{}
-		err := s.stateManager.Manager().RetrieveJSON(ref, &context)
+		var rawData interface{}
+		err := s.stateManager.Manager().RetrieveJSON(ref, &rawData)
 		if err != nil {
-			s.logger.Error("Failed to load verification context from S3", map[string]interface{}{
+			s.logger.Error("Failed to load initialization data from S3", map[string]interface{}{
 				"reference": ref,
 				"error":     err.Error(),
 			})
@@ -196,7 +204,32 @@ func (s *FetchService) loadVerificationContext(
 			}
 			return nil, err
 		}
-		return context, nil
+
+		// Try to parse as InitializationData structure first
+		if dataMap, ok := rawData.(map[string]interface{}); ok {
+			// Check if this is the new InitializationData format
+			if schemaVersion, hasSchema := dataMap["schemaVersion"]; hasSchema {
+				s.logger.Info("Found InitializationData with schema version", map[string]interface{}{
+					"schemaVersion": schemaVersion,
+				})
+				
+				// Extract verificationContext from InitializationData
+				if vcData, hasVC := dataMap["verificationContext"]; hasVC {
+					return vcData, nil
+				} else {
+					return nil, fmt.Errorf("verificationContext not found in InitializationData")
+				}
+			} else {
+				// This might be legacy format - return as is
+				s.logger.Info("Found legacy format initialization data", map[string]interface{}{
+					"dataKeys": getMapKeys(dataMap),
+				})
+				return rawData, nil
+			}
+		}
+
+		// If not a map, return as is (might be direct VerificationContext)
+		return rawData, nil
 	}
 
 	// Fall back to legacy format if available
@@ -451,4 +484,13 @@ func getIntValue(m map[string]interface{}, key string) int {
 		}
 	}
 	return 0
+}
+
+// getMapKeys returns the keys of a map as a slice of strings
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
