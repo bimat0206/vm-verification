@@ -535,6 +535,12 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 				WithContext("verificationId", verificationID).
 				WithContext("table", d.conversationTable)
 		}
+		if conversationTracker.History == nil {
+			conversationTracker.History = make([]interface{}, 0)
+		}
+		if conversationTracker.Metadata == nil {
+			conversationTracker.Metadata = make(map[string]interface{})
+		}
 	} else {
 		// Initialize if not exists
 		conversationTracker = schema.ConversationTracker{

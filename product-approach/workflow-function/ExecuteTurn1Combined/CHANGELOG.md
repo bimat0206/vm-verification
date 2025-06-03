@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.5] - 2025-06-07
+### Fixed
+- Resolved DynamoDB marshalling errors during conversation history updates when
+  existing items lacked `metadata` or `history` attributes.
+
 ## [2.8.4] - 2025-06-06
 ### Changed
 - `turn1-conversation.json` now references the Base64 image using an S3 URI rather than an inline placeholder.

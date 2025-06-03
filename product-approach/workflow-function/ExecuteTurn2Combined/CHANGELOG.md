@@ -2,6 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.6] - 2025-06-07
+### Fixed
+- Conversation history updates could fail when existing items lacked `metadata`
+  or `history` attributes. Missing fields are now initialized after loading the
+  record from DynamoDB.
+
 ## [2.1.5] - 2025-06-06
 ### Changed
 - `turn2-conversation.json` now stores the user image source as an S3 URI.
