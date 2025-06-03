@@ -6,6 +6,10 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 ### Fixed
 - Missing Turn1 prompts now load from `turn1-conversation.json`, preventing Bedrock validation failures.
 
+## [2.1.10] - 2025-06-04
+### Changed
+- Reduced DynamoDB retry attempts from three to one to avoid prolonged failures.
+
 ## [2.1.8] - 2025-06-03
 ### Fixed
 - Turn1 raw responses stored with array-based `response.content` could not be
