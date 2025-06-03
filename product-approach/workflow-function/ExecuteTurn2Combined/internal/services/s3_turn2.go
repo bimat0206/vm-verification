@@ -20,6 +20,7 @@ type TurnConversationDataStore struct {
 	TurnId             int                     `json:"turnId"`
 	AnalysisStage      string                  `json:"analysisStage"`
 	Messages           []schema.BedrockMessage `json:"messages"`
+	Thinking           string                  `json:"thinking,omitempty"`
 	ThinkingBlocks     []interface{}           `json:"thinkingBlocks,omitempty"`
 	TokenUsage         *schema.TokenUsage      `json:"tokenUsage,omitempty"`
 	LatencyMs          int64                   `json:"latencyMs,omitempty"`
@@ -259,8 +260,22 @@ func (m *s3Manager) StoreTurn2RawResponse(ctx context.Context, verificationID st
 			map[string]interface{}{"operation": "store_turn2_raw"})
 	}
 
+	// Convert raw input to map for augmentation
+	var rawMap map[string]interface{}
+	b, err := json.Marshal(raw)
+	if err == nil {
+		_ = json.Unmarshal(b, &rawMap)
+		if resp, ok := rawMap["response"].(map[string]interface{}); ok {
+			if thinking, ok := resp["thinking"]; ok {
+				rawMap["thinking"] = thinking
+			}
+		}
+	} else {
+		rawMap = map[string]interface{}{"error": err.Error()}
+	}
+
 	key := "responses/turn2-raw-response.json"
-	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, raw)
+	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, rawMap)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store Turn2 raw response", true).
@@ -372,6 +387,10 @@ func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID s
 		"turnId":         2,
 		"analysisStage":  bedrock.AnalysisStageTurn2,
 		"messages":       messages,
+	}
+
+	if thinkingContent != "" {
+		data["thinking"] = thinkingContent
 	}
 
 	if addedStructuredThinkingBlocks {
