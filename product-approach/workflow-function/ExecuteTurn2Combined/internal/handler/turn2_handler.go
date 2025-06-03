@@ -322,7 +322,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	var turn1Messages []schema.BedrockMessage
 	if req.S3Refs.Turn1.Conversation.Key != "" {
 		var convData struct {
-			Messages []schema.BedrockMessage `json:"messages"`
+			Messages []map[string]interface{} `json:"messages"`
 		}
 		if err := h.s3.LoadJSON(ctx, req.S3Refs.Turn1.Conversation, &convData); err != nil {
 			h.log.Warn("failed_to_load_turn1_conversation", map[string]interface{}{
@@ -330,7 +330,48 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 				"verification_id": req.VerificationID,
 			})
 		} else {
-			turn1Messages = convData.Messages
+			for _, m := range convData.Messages {
+				var msg schema.BedrockMessage
+				if role, ok := m["role"].(string); ok {
+					msg.Role = role
+				}
+				if contents, ok := m["content"].([]interface{}); ok {
+					for _, c := range contents {
+						if cMap, ok := c.(map[string]interface{}); ok {
+							if thinking, ok := cMap["thinking"].(string); ok {
+								msg.Content = append(msg.Content, schema.BedrockContent{Type: "thinking", Text: thinking})
+								continue
+							}
+							if t, ok := cMap["type"].(string); ok {
+								bc := schema.BedrockContent{Type: t}
+								if text, ok := cMap["text"].(string); ok {
+									bc.Text = text
+								}
+								if img, ok := cMap["image"].(map[string]interface{}); ok {
+									var imgData schema.BedrockImageData
+									if format, ok := img["format"].(string); ok {
+										imgData.Format = format
+									}
+									if src, ok := img["source"].(map[string]interface{}); ok {
+										var source schema.BedrockImageSource
+										if data, ok := src["bytes"].(string); ok {
+											source.Type = "base64"
+											source.Data = data
+										}
+										if mt, ok := src["media_type"].(string); ok {
+											source.Media_type = mt
+										}
+										imgData.Source = source
+									}
+									bc.Image = &imgData
+								}
+								msg.Content = append(msg.Content, bc)
+							}
+						}
+					}
+				}
+				turn1Messages = append(turn1Messages, msg)
+			}
 		}
 	}
 

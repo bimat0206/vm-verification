@@ -855,8 +855,7 @@ func buildAssistantContent(assistantResponse string, thinkingContent string, inc
 	// Add thinking content if available and requested
 	if thinkingContent != "" && includeThinkingContentInMessage {
 		content = append(content, map[string]interface{}{
-			"type": "thinking",
-			"text": thinkingContent,
+			"thinking": thinkingContent,
 		})
 	}
 
