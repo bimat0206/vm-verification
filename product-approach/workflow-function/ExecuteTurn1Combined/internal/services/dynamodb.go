@@ -499,6 +499,12 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
 func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
+	return d.retryWithBackoff(ctx, func() error {
+		return d.updateConversationTurnInternal(ctx, verificationID, turnData)
+	}, "UpdateConversationTurn")
+}
+
+func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
 	// Query to find the most recent conversation record for this verificationID
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &d.conversationTable,
@@ -514,7 +520,9 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to query conversation for update", true).
-			WithContext("verificationId", verificationID)
+			WithContext("verificationId", verificationID).
+			WithContext("table", d.conversationTable).
+			WithContext("request", queryInput)
 	}
 
 	var conversationTracker schema.ConversationTracker
@@ -522,7 +530,8 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 		if err := attributevalue.UnmarshalMap(queryResult.Items[0], &conversationTracker); err != nil {
 			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				"failed to unmarshal conversation tracker", false).
-				WithContext("verificationId", verificationID)
+				WithContext("verificationId", verificationID).
+				WithContext("table", d.conversationTable)
 		}
 	} else {
 		// Initialize if not exists
@@ -702,7 +711,10 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 
 	_, err = d.client.UpdateItem(ctx, input)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn1 completion details", true)
+		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn1 completion details", true).
+			WithContext("verificationId", verificationID).
+			WithContext("table", d.verificationTable).
+			WithContext("request", input)
 	}
 
 	return nil
@@ -831,9 +843,9 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 	baseDelay := 200 * time.Millisecond
 	maxDelay := 5 * time.Second
 	backoffMultiple := 2.0
-	
+
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		// Execute the operation
 		err := operation()
@@ -844,27 +856,27 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 			}
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if !d.isRetryableError(err) {
 			log.Printf("DynamoDB operation %s failed with non-retryable error: %v", operationName, err)
 			return err
 		}
-		
+
 		// Don't retry on the last attempt
 		if attempt == maxAttempts {
 			log.Printf("DynamoDB operation %s failed after %d attempts: %v", operationName, maxAttempts, err)
 			break
 		}
-		
+
 		// Calculate delay with exponential backoff
 		delay := time.Duration(float64(baseDelay) * math.Pow(backoffMultiple, float64(attempt-1)))
 		if delay > maxDelay {
 			delay = maxDelay
 		}
-		
+
 		// Add jitter (±25%)
 		jitter := time.Duration(rand.Float64() * float64(delay) * 0.5)
 		if rand.Float64() < 0.5 {
@@ -872,9 +884,9 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 		} else {
 			delay += jitter
 		}
-		
+
 		log.Printf("DynamoDB operation %s failed on attempt %d, retrying in %v: %v", operationName, attempt, delay, err)
-		
+
 		// Wait before retry
 		select {
 		case <-ctx.Done():
@@ -883,7 +895,7 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 			// Continue to next attempt
 		}
 	}
-	
+
 	return lastErr
 }
 
@@ -892,18 +904,18 @@ func (d *dynamoClient) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	// Check for specific DynamoDB error types that are retryable
 	var throttleErr *types.ProvisionedThroughputExceededException
 	var internalErr *types.InternalServerError
 	var limitErr *types.LimitExceededException
-	
+
 	if goerrors.As(err, &throttleErr) ||
 		goerrors.As(err, &internalErr) ||
 		goerrors.As(err, &limitErr) {
 		return true
 	}
-	
+
 	// Check for wrapped errors that indicate retryable conditions
 	errorStr := err.Error()
 	retryablePatterns := []string{
@@ -918,12 +930,12 @@ func (d *dynamoClient) isRetryableError(err error) bool {
 		"network error",
 		"temporary failure",
 	}
-	
+
 	for _, pattern := range retryablePatterns {
 		if strings.Contains(errorStr, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
