@@ -2,7 +2,7 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
-## [2.1.7] - YYYY-MM-DD
+## [2.1.7] - 2025-06-03
 ### Changed
 - `StepFunctionEvent.S3References` now uses `map[string]interface{}` to support nested structures.
 - Added `convertToS3Reference` helper for safe conversion from `interface{}` values.
@@ -11,13 +11,13 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - `main.go` unmarshals Step Function events using the revised struct.
 - `InputS3References` retains the original nested map for Step Function responses.
 
-## [2.1.6] - 2025-06-07
+## [2.1.6] - 2025-06-02
 ### Fixed
 - Conversation history updates could fail when existing items lacked `metadata`
   or `history` attributes. Missing fields are now initialized after loading the
   record from DynamoDB.
 
-## [2.1.5] - 2025-06-06
+## [2.1.5] - 2025-06-02
 ### Changed
 - `turn2-conversation.json` now stores the user image source as an S3 URI.
 
