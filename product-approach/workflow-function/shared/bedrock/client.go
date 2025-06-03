@@ -267,13 +267,35 @@ func (bc *BedrockClient) convertFromBedrockResponse(result *bedrockruntime.Conve
 						Type: "text",
 						Text: cb.Value,
 					})
+				// Handle reasoning/thinking content blocks
+				case interface{ GetValue() interface{} }:
+					typeName := fmt.Sprintf("%T", cb)
+					log.Printf("Processing content block type: %s", typeName)
+					
+					// Check if this is a reasoning content block
+					if strings.Contains(strings.ToLower(typeName), "reasoning") || strings.Contains(strings.ToLower(typeName), "thinking") {
+						value := cb.GetValue()
+						if textValue, ok := value.(string); ok && textValue != "" {
+							content = append(content, ContentBlock{
+								Type: "thinking",
+								Text: textValue,
+							})
+							log.Printf("Extracted reasoning content: %d chars", len(textValue))
+						} else if structValue := extractValueFromStruct(value); structValue != "" {
+							content = append(content, ContentBlock{
+								Type: "thinking",
+								Text: structValue,
+							})
+							log.Printf("Extracted reasoning content from struct: %d chars", len(structValue))
+						}
+					}
 				default:
 					// Check if this might be a thinking content block
 					typeName := fmt.Sprintf("%T", cb)
 					log.Printf("Processing content block type: %s", typeName)
 
 					// Try to extract thinking content if it's a thinking block
-					if strings.Contains(strings.ToLower(typeName), "thinking") {
+					if strings.Contains(strings.ToLower(typeName), "thinking") || strings.Contains(strings.ToLower(typeName), "reasoning") {
 						// Try to extract the value using reflection
 						thinkingValue := extractValueFromUnknownType(cb)
 						if thinkingValue != "" {
@@ -403,8 +425,121 @@ func extractValueFromUnknownType(obj interface{}) string {
 		return valuer.GetValue()
 	}
 
+	// Try reflection as fallback
+	if textValue := extractValueFromStruct(obj); textValue != "" {
+		return textValue
+	}
+
 	// For debugging purposes
 	log.Printf("Could not extract value from %s", typeName)
+	return ""
+}
+
+// extractValueFromStruct uses reflection to extract text from struct fields
+func extractValueFromStruct(obj interface{}) string {
+	if obj == nil {
+		return ""
+	}
+
+	v := reflect.ValueOf(obj)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return ""
+		}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		// Try to convert to string directly
+		if str, ok := obj.(string); ok {
+			return str
+		}
+		return ""
+	}
+
+	// Log struct fields for debugging
+	typeName := v.Type().Name()
+	log.Printf("Extracting from struct %s with %d fields", typeName, v.NumField())
+
+	// Look for common field names that might contain text
+	fieldNames := []string{"Text", "Value", "Content", "Data", "Message", "Reasoning", "Thinking"}
+	for _, fieldName := range fieldNames {
+		field := v.FieldByName(fieldName)
+		if field.IsValid() {
+			log.Printf("Found field %s of kind %s", fieldName, field.Kind())
+			if field.Kind() == reflect.String {
+				value := field.String()
+				if value != "" {
+					log.Printf("Extracted %d chars from field %s", len(value), fieldName)
+					return value
+				}
+			}
+			// Handle nested structs or pointers
+			if field.Kind() == reflect.Ptr && !field.IsNil() {
+				if nestedValue := extractValueFromStruct(field.Interface()); nestedValue != "" {
+					log.Printf("Extracted %d chars from nested field %s", len(nestedValue), fieldName)
+					return nestedValue
+				}
+			}
+			if field.Kind() == reflect.Struct {
+				if nestedValue := extractValueFromStruct(field.Interface()); nestedValue != "" {
+					log.Printf("Extracted %d chars from nested struct field %s", len(nestedValue), fieldName)
+					return nestedValue
+				}
+			}
+		}
+	}
+
+	// If no specific field found, try to find any string field recursively
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldType := v.Type().Field(i)
+		
+		// Skip unexported fields to avoid reflection panic
+		if fieldType.PkgPath != "" {
+			continue
+		}
+		
+		log.Printf("Checking field %s of kind %s", fieldType.Name, field.Kind())
+		
+		// Handle interface fields by getting their concrete value
+		if field.Kind() == reflect.Interface && !field.IsNil() {
+			log.Printf("Processing interface field %s", fieldType.Name)
+			concreteField := field.Elem()
+			log.Printf("Interface contains %s of kind %s", concreteField.Type(), concreteField.Kind())
+			
+			// Try to extract from the concrete value
+			if concreteField.CanInterface() {
+				if nestedValue := extractValueFromStruct(concreteField.Interface()); nestedValue != "" {
+					log.Printf("Extracted value from interface field %s: %d chars", fieldType.Name, len(nestedValue))
+					return nestedValue
+				}
+			}
+			continue
+		}
+		
+		if field.Kind() == reflect.String && field.String() != "" {
+			value := field.String()
+			log.Printf("Found string field %s with %d chars", fieldType.Name, len(value))
+			return value
+		}
+		
+		// Recursively check nested structs
+		if field.Kind() == reflect.Ptr && !field.IsNil() {
+			if nestedValue := extractValueFromStruct(field.Interface()); nestedValue != "" {
+				log.Printf("Found nested value in pointer field %s", fieldType.Name)
+				return nestedValue
+			}
+		}
+		if field.Kind() == reflect.Struct {
+			if nestedValue := extractValueFromStruct(field.Interface()); nestedValue != "" {
+				log.Printf("Found nested value in struct field %s", fieldType.Name)
+				return nestedValue
+			}
+		}
+	}
+
+	log.Printf("No extractable value found in struct %s", typeName)
 	return ""
 }
 

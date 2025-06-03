@@ -63,6 +63,50 @@ func ValidateConverseRequest(request *ConverseRequest) error {
 		}
 	}
 
+	// Validate temperature and thinking mode compatibility
+	if err := ValidateTemperatureThinkingCompatibility(request); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ValidateTemperatureThinkingCompatibility validates that temperature and thinking mode are compatible
+func ValidateTemperatureThinkingCompatibility(request *ConverseRequest) error {
+	if request == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+
+	// Check if temperature is set to 1.0
+	if request.InferenceConfig.Temperature != nil && *request.InferenceConfig.Temperature >= 1.0 {
+		// When temperature is 1.0, thinking mode must be enabled
+		thinkingEnabled := false
+
+		// Check if thinking is enabled via structured thinking field
+		if request.Thinking != nil && len(request.Thinking) > 0 {
+			if thinkingType, ok := request.Thinking["type"]; ok {
+				if typeStr, ok := thinkingType.(string); ok && typeStr == "enabled" {
+					thinkingEnabled = true
+				}
+			}
+		}
+
+		// Check if thinking is enabled via legacy reasoning fields
+		if !thinkingEnabled {
+			reasoning := request.InferenceConfig.Reasoning
+			if reasoning == "" {
+				reasoning = request.Reasoning
+			}
+			if reasoning == "enable" || reasoning == "enabled" {
+				thinkingEnabled = true
+			}
+		}
+
+		if !thinkingEnabled {
+			return fmt.Errorf("temperature may only be set to 1 when thinking is enabled. Please set thinking type to 'enabled' or reduce temperature below 1.0")
+		}
+	}
+
 	return nil
 }
 

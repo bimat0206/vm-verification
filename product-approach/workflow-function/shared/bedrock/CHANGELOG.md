@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.3.2] - 2025-06-02 - Critical Bedrock API Fixes
+
+### Fixed
+- **CRITICAL**: Fixed Bedrock API temperature validation error: "temperature may only be set to 1 when thinking is enabled"
+  - Added `ValidateTemperatureThinkingCompatibility` function in validation.go
+  - Enhanced `ValidateConverseRequest` to include temperature/thinking compatibility validation
+  - Validates both structured thinking field and legacy reasoning fields
+  - Provides clear error message with remediation guidance when temperature >= 1.0 without thinking enabled
+
+- **CRITICAL**: Fixed unknown content type error: "ContentBlockMemberReasoningContent"
+  - Enhanced response parsing in client.go to handle ReasoningContent blocks returned when thinking is enabled
+  - Added comprehensive content block type detection for reasoning/thinking content
+  - Implemented `extractValueFromStruct` function using reflection for unknown struct types
+  - Enhanced `extractValueFromUnknownType` with better fallback mechanisms
+  - Added support for `interface{ GetValue() interface{} }` type assertions
+
+### Enhanced
+- **Response Processing**: Improved Bedrock response parsing to capture thinking content
+  - Added handling for reasoning content blocks with type-safe conversions
+  - Enhanced content block processing with comprehensive logging
+  - Improved thinking content extraction and budget application
+  - Added reflection-based value extraction for unknown AWS SDK types
+
+- **Validation System**: Strengthened request validation for Bedrock API compatibility
+  - Added temperature/thinking compatibility validation to prevent API errors
+  - Enhanced error messages for configuration validation failures
+  - Improved validation coverage for thinking mode requirements
+
+### Technical Details
+- **Root Cause Analysis**:
+  - Temperature=1.0 requires thinking mode to be enabled per Anthropic's extended thinking requirements
+  - Response parser wasn't handling ReasoningContent blocks returned when thinking is enabled
+  - Missing type handling for new AWS SDK content block types
+
+- **Solution Implementation**:
+  - Added comprehensive content block type detection and handling
+  - Enhanced reflection-based value extraction for unknown types
+  - Implemented proper validation chain for temperature/thinking compatibility
+  - Maintained backward compatibility with existing response formats
+
+### Impact
+- ✅ Resolves "temperature may only be set to 1 when thinking is enabled" Bedrock API errors
+- ✅ Enables proper handling of reasoning/thinking content in responses
+- ✅ Ensures thinking content is captured and stored in response metadata
+- ✅ Maintains compatibility with both thinking-enabled and standard responses
+- ✅ Provides clear validation errors for configuration issues
+
+### Files Modified
+- `client.go`: Enhanced response parsing for reasoning content blocks
+- `validation.go`: Added temperature/thinking compatibility validation
+- Both files maintain backward compatibility while adding new functionality
+
 ## [1.3.1] - 2025-06-01
 
 ### Changed
