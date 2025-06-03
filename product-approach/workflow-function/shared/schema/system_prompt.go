@@ -91,7 +91,7 @@ func ConvertToCompleteSystemPrompt(prompt *SystemPrompt, verificationContext *Ve
 				Type:         prompt.BedrockConfig.Thinking.Type,
 				BudgetTokens: prompt.BedrockConfig.Thinking.BudgetTokens,
 			},
-			ModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+			ModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0", // Default - use ConvertToCompleteSystemPromptWithConfig for configurable model
 		},
 		OutputSpecification: &OutputSpecification{
 			ExpectedFormat:           "STRUCTURED_TEXT",
@@ -142,6 +142,83 @@ func ConvertToCompleteSystemPrompt(prompt *SystemPrompt, verificationContext *Ve
 
 	return completePrompt
 }
+
+// ConvertToCompleteSystemPromptWithConfig converts a SystemPrompt to a CompleteSystemPrompt with configurable model ID
+func ConvertToCompleteSystemPromptWithConfig(prompt *SystemPrompt, verificationContext *VerificationContext, modelId string) *CompleteSystemPrompt {
+	// Determine prompt type based on verification type
+	promptType := "LAYOUT_VERIFICATION"
+	if verificationContext.VerificationType == VerificationTypePreviousVsCurrent {
+		promptType = "TEMPORAL_COMPARISON"
+	}
+
+	// Create the complete system prompt
+	completePrompt := &CompleteSystemPrompt{
+		VerificationId:   verificationContext.VerificationId,
+		VerificationType: verificationContext.VerificationType,
+		PromptContent: &PromptContent{
+			SystemMessage:   prompt.Content,
+			TemplateVersion: prompt.PromptVersion,
+			PromptType:      promptType,
+		},
+		BedrockConfiguration: &BedrockConfiguration{
+			AnthropicVersion: prompt.BedrockConfig.AnthropicVersion,
+			MaxTokens:        prompt.BedrockConfig.MaxTokens,
+			Thinking: &Thinking{
+				Type:         prompt.BedrockConfig.Thinking.Type,
+				BudgetTokens: prompt.BedrockConfig.Thinking.BudgetTokens,
+			},
+			ModelId: modelId,
+		},
+		OutputSpecification: &OutputSpecification{
+			ExpectedFormat:           "STRUCTURED_TEXT",
+			RequiresMandatoryStructure: true,
+			ConversationTurns:        2,
+		},
+		ProcessingMetadata: &ProcessingMetadata{
+			CreatedAt:        FormatISO8601(),
+			GenerationTimeMs: 0, // This will be set by the caller
+			TemplateSource:   "DYNAMIC_GENERATION",
+			ContextEnrichment: []string{
+				"MACHINE_STRUCTURE_INJECTION",
+			},
+		},
+		Version: "1.0",
+	}
+
+	// Create machine structure
+	machineStructure := &MachineStructure{
+		RowCount:      6,
+		ColumnsPerRow: 10,
+		ColumnOrder:   []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+		RowOrder:      []string{"A", "B", "C", "D", "E", "F"},
+	}
+
+	// Create context information based on verification type
+	contextInfo := &ContextInformation{
+		MachineStructure: machineStructure,
+	}
+
+	// Add layout information for LAYOUT_VS_CHECKING
+	if verificationContext.VerificationType == VerificationTypeLayoutVsChecking {
+		contextInfo.LayoutInformation = &LayoutInformation{
+			LayoutId:     verificationContext.LayoutId,
+			LayoutPrefix: verificationContext.LayoutPrefix,
+			ProductCount: 3, // Default value
+		}
+	} else {
+		// Add historical context for PREVIOUS_VS_CURRENT
+		contextInfo.HistoricalContext = &HistoricalContext{
+			PreviousVerificationId:     verificationContext.PreviousVerificationId,
+			HoursSinceLastVerification: 24, // Default value
+			KnownIssuesCount:           0,  // Default value
+		}
+	}
+
+	completePrompt.ContextInformation = contextInfo
+
+	return completePrompt
+}
+
 // ADD: Enhanced system prompt with design-specific fields
 type EnhancedSystemPrompt struct {
     *CompleteSystemPrompt

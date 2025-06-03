@@ -22,7 +22,6 @@ type VerificationContext struct {
 	TurnTimestamps         *TurnTimestamps     `json:"turnTimestamps,omitempty"`
 	RequestMetadata        *RequestMetadata    `json:"requestMetadata,omitempty"`
 	ResourceValidation     *ResourceValidation `json:"resourceValidation,omitempty"`
-	NotificationEnabled    bool                `json:"notificationEnabled"`
 	Error                  *ErrorInfo          `json:"error,omitempty"`
 
 	// Enhanced fields for combined function operations
@@ -132,7 +131,6 @@ type WorkflowState struct {
 	CheckingAnalysis    map[string]interface{} `json:"checkingAnalysis,omitempty"`
 	FinalResults        *FinalResults          `json:"finalResults,omitempty"`
 	StorageResult       map[string]interface{} `json:"storageResult,omitempty"`
-	NotificationResult  map[string]interface{} `json:"notificationResult,omitempty"`
 	Error               *ErrorInfo             `json:"error,omitempty"`
 }
 
@@ -268,23 +266,7 @@ type VerificationResults struct {
 	Metadata                  map[string]interface{} `json:"metadata" dynamodbav:"metadata"`
 }
 
-// ADD: Notification support
-type NotificationConfig struct {
-	Enabled    bool                   `json:"enabled"`
-	Channels   []string               `json:"channels"` // ["email", "sns", "webhook"]
-	Recipients []string               `json:"recipients"`
-	Templates  map[string]string      `json:"templates"`
-	Settings   map[string]interface{} `json:"settings"`
-}
 
-type NotificationResult struct {
-	Channel   string `json:"channel"`
-	Status    string `json:"status"`
-	MessageId string `json:"messageId,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Timestamp string `json:"timestamp"`
-	Attempts  int    `json:"attempts"`
-}
 
 // ADD: Enhanced error handling
 type WorkflowError struct {

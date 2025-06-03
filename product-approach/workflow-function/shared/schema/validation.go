@@ -52,7 +52,7 @@ func ValidateVerificationContext(ctx *VerificationContext) Errors {
 			StatusVerificationRequested, StatusVerificationInitialized, StatusFetchingImages,
 			StatusImagesFetched, StatusPromptPrepared, StatusTurn1PromptReady, StatusTurn1Completed,
 			StatusTurn1Processed, StatusTurn2PromptReady, StatusTurn2Completed, StatusTurn2Processed,
-			StatusResultsFinalized, StatusResultsStored, StatusNotificationSent, StatusCompleted,
+			StatusResultsFinalized, StatusResultsStored, StatusCompleted,
 			StatusInitializationFailed, StatusHistoricalFetchFailed, StatusImageFetchFailed,
 			StatusBedrockProcessingFailed, StatusVerificationFailed,
 		} {
@@ -728,28 +728,7 @@ func ValidateVerificationResults(vr *VerificationResults) Errors {
     return errors
 }
 
-func ValidateNotificationConfig(nc *NotificationConfig) Errors {
-    var errors Errors
-    
-    if nc == nil {
-        return errors // Optional field
-    }
-    
-    if nc.Enabled && len(nc.Channels) == 0 {
-        errors = append(errors, ValidationError{Field: "channels", Message: "at least one channel required when enabled"})
-    }
-    
-    validChannels := []string{"email", "sns", "webhook"}
-    for _, channel := range nc.Channels {
-        if !contains(validChannels, channel) {
-            errors = append(errors, ValidationError{Field: "channels", Message: fmt.Sprintf("invalid channel: %s", channel)})
-        }
-    }
-    
-    return errors
-}
-
-// ADD: Helper function
+// Helper function
 func contains(slice []string, item string) bool {
     for _, s := range slice {
         if s == item {

@@ -37,7 +37,6 @@ const (
 	StatusTurn2Processed         = "TURN2_PROCESSED"
 	StatusResultsFinalized       = "RESULTS_FINALIZED"
 	StatusResultsStored          = "RESULTS_STORED"
-	StatusNotificationSent       = "NOTIFICATION_SENT"
 	StatusCompleted              = "COMPLETED"
 
 	// Error states
@@ -83,11 +82,6 @@ const (
     StatusDynamoDBWriteStarted   = "DYNAMODB_WRITE_STARTED"
     StatusDynamoDBWriteCompleted = "DYNAMODB_WRITE_COMPLETED"
     StatusDynamoDBWriteFailed    = "DYNAMODB_WRITE_FAILED"
-    
-    // Notification statuses
-    StatusNotificationStarted    = "NOTIFICATION_STARTED"
-    StatusNotificationCompleted  = "NOTIFICATION_COMPLETED"
-    StatusNotificationFailed     = "NOTIFICATION_FAILED"
 )
 
 // ADD: Verification result status constants

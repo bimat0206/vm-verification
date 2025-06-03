@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.3.0] - 2025-01-03
+
+### Added
+#### Thinking Content Support
+- Added `ThinkingTokens` field to `TokenUsage` structure for Claude thinking token tracking
+- Enhanced token usage calculation to include thinking tokens in total token counts
+- Added thinking content support infrastructure for future Claude reasoning features
+
+### Enhanced
+#### Token Usage Tracking
+- Extended `TokenUsage` structure with thinking token support
+- Maintained backward compatibility with existing token usage implementations
+- Added proper JSON serialization for thinking tokens with `omitempty` tag
+
+### Technical Details
+- **Breaking Change**: `TokenUsage` structure enhanced with `ThinkingTokens` field
+- **Backward Compatibility**: All existing code continues to work without modification
+- **Future-Proof**: Infrastructure ready for AWS SDK thinking token support
+- **Schema Compliance**: All token usage tracking now includes thinking token capability
+
 ## [2.2.0] - 2025-01-22
 
 ### Added
