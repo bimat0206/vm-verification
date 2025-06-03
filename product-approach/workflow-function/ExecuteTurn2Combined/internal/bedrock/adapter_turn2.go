@@ -2,7 +2,6 @@ package bedrock
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
@@ -150,14 +149,14 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		Messages: messages,
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,
-			Temperature: &[]float64{0.7}[0], // Default temperature
+			Temperature: &a.cfg.Processing.Temperature,
 		},
 	}
 
 	// Add thinking/reasoning configuration if enabled
 	if a.cfg.IsThinkingEnabled() {
-		request.Reasoning = "enable"
-		request.InferenceConfig.Reasoning = "enable"
+		request.Reasoning = "enabled"
+		request.InferenceConfig.Reasoning = "enabled"
 		request.Thinking = map[string]interface{}{
 			"type":          "enabled",
 			"budget_tokens": a.cfg.Processing.BudgetTokens,
@@ -310,7 +309,7 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 	}
 
 	// Populate thinking metadata
-	thinkingEnabled := strings.EqualFold(a.cfg.Processing.ThinkingType, "enable")
+	thinkingEnabled := a.cfg.IsThinkingEnabled()
 	schemaResponse.Metadata["thinking_enabled"] = thinkingEnabled
 	if thinkingText != "" {
 		blocks := a.generateThinkingBlocks(thinkingText, "response-processing")
@@ -359,7 +358,7 @@ func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prom
 	// Enrich response with metadata using available config
 	response.ModelConfig = &schema.ModelConfig{
 		ModelId:     a.cfg.AWS.BedrockModel,
-		Temperature: 0.7, // Default temperature
+		Temperature: a.cfg.Processing.Temperature,
 		TopP:        0.9, // Default TopP
 		MaxTokens:   a.cfg.Processing.MaxTokens,
 	}

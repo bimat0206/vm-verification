@@ -124,7 +124,6 @@ func (s *SchemaIntegratedService) CreateWorkflowState(
 			Initialized:  schema.FormatISO8601(),
 			Turn1Started: schema.FormatISO8601(),
 		},
-		NotificationEnabled: true,
 	}
 
 	// For layout verification, add layout-specific fields

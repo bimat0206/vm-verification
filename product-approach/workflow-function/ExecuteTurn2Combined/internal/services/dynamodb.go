@@ -5,6 +5,11 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"log"
+	"math"
+	"math/rand"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -496,6 +501,12 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
 func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
+	return d.retryWithBackoff(ctx, func() error {
+		return d.updateConversationTurnInternal(ctx, verificationID, turnData)
+	}, "UpdateConversationTurn")
+}
+
+func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
 	// Query to find the most recent conversation record for this verificationID
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &d.conversationTable,
@@ -703,6 +714,22 @@ func (d *dynamoClient) UpdateTurn2CompletionDetails(
 	comparisonSummary string,
 	conversationRef *models.S3Reference,
 ) error {
+	return d.retryWithBackoff(ctx, func() error {
+		return d.updateTurn2CompletionDetailsInternal(ctx, verificationID, verificationAt, statusEntry, turn2Metrics, verificationStatus, discrepancies, comparisonSummary, conversationRef)
+	}, "UpdateTurn2CompletionDetails")
+}
+
+func (d *dynamoClient) updateTurn2CompletionDetailsInternal(
+	ctx context.Context,
+	verificationID string,
+	verificationAt string,
+	statusEntry schema.StatusHistoryEntry,
+	turn2Metrics *schema.TurnMetrics,
+	verificationStatus string,
+	discrepancies []schema.Discrepancy,
+	comparisonSummary string,
+	conversationRef *models.S3Reference,
+) error {
 	if verificationID == "" || verificationAt == "" {
 		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
 	}
@@ -894,4 +921,107 @@ func (d *dynamoClient) getVerificationResultsKey(verificationID, verificationAt 
 		"verificationId": &types.AttributeValueMemberS{Value: verificationID},
 		"verificationAt": &types.AttributeValueMemberS{Value: verificationAt},
 	}
+}
+
+// retryWithBackoff executes a DynamoDB operation with exponential backoff retry logic
+func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() error, operationName string) error {
+	maxAttempts := 3
+	baseDelay := 100 * time.Millisecond
+	maxDelay := 2 * time.Second
+	backoffMultiple := 2.0
+	
+	var lastErr error
+	
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Execute the operation
+		err := operation()
+		if err == nil {
+			// Success
+			if attempt > 1 {
+				log.Printf("DynamoDB operation %s succeeded on attempt %d", operationName, attempt)
+			}
+			return nil
+		}
+		
+		lastErr = err
+		
+		// Check if error is retryable
+		if !d.isRetryableError(err) {
+			log.Printf("DynamoDB operation %s failed with non-retryable error: %v", operationName, err)
+			return err
+		}
+		
+		// Don't retry on the last attempt
+		if attempt == maxAttempts {
+			log.Printf("DynamoDB operation %s failed after %d attempts: %v", operationName, maxAttempts, err)
+			break
+		}
+		
+		// Calculate delay with exponential backoff
+		delay := time.Duration(float64(baseDelay) * math.Pow(backoffMultiple, float64(attempt-1)))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+		
+		// Add jitter (±25%)
+		jitter := time.Duration(rand.Float64() * float64(delay) * 0.5)
+		if rand.Float64() < 0.5 {
+			delay -= jitter
+		} else {
+			delay += jitter
+		}
+		
+		log.Printf("DynamoDB operation %s failed on attempt %d, retrying in %v: %v", operationName, attempt, delay, err)
+		
+		// Wait before retry
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+	}
+	
+	return lastErr
+}
+
+// isRetryableError determines if a DynamoDB error should be retried
+func (d *dynamoClient) isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	
+	// Check for specific DynamoDB error types that are retryable
+	var throttleErr *types.ProvisionedThroughputExceededException
+	var internalErr *types.InternalServerError
+	var limitErr *types.LimitExceededException
+	
+	if goerrors.As(err, &throttleErr) ||
+		goerrors.As(err, &internalErr) ||
+		goerrors.As(err, &limitErr) {
+		return true
+	}
+	
+	// Check for wrapped errors that indicate retryable conditions
+	errorStr := err.Error()
+	retryablePatterns := []string{
+		"WRAPPED_ERROR",
+		"ServiceUnavailable",
+		"InternalServerError",
+		"ProvisionedThroughputExceeded",
+		"RequestLimitExceeded",
+		"ThrottlingException",
+		"connection reset",
+		"timeout",
+		"network error",
+		"temporary failure",
+	}
+	
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(errorStr, pattern) {
+			return true
+			}
+	}
+	
+	return false
 }

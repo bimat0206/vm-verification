@@ -69,7 +69,7 @@ func (c *Client) ValidateConfiguration() error {
 			map[string]interface{}{"current_value": c.config.Temperature})
 	}
 
-	if c.config.Temperature == 1 && !strings.EqualFold(c.config.ThinkingType, "enable") {
+	if c.config.Temperature == 1 && !strings.EqualFold(c.config.ThinkingType, "enable") && !strings.EqualFold(c.config.ThinkingType, "enabled") {
 		return errors.NewValidationError("temperature may only be set to 1 when thinking is enabled",
 			map[string]interface{}{
 				"current_value": c.config.Temperature,

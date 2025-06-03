@@ -2,6 +2,176 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.4] - 2025-06-02
+### Fixed
+- Fixed reflection panic when processing Bedrock responses by skipping unexported struct fields
+  - Enhanced `extractValueFromStruct` function in shared/bedrock/client.go to check `fieldType.PkgPath != ""` before accessing fields
+  - Prevents "reflect.Value.Interface: cannot return value obtained from unexported field or method" errors
+  - Resolves panic when processing ContentBlockMemberReasoningContent with unexported noSmithyDocumentSerde field
+- Enhanced interface field handling in Bedrock response extraction
+  - Added proper handling for interface-type fields in `extractValueFromStruct` function
+  - Interface fields are now dereferenced using `field.Elem()` to access concrete values
+  - Enables extraction of reasoning/thinking content from ContentBlockMemberReasoningContent.Value interface field
+  - Comprehensive logging added for interface field processing and concrete value extraction
+
+## [2.1.3] - 2025-06-02 - DynamoDB Resilience & Content Block Extraction Fixes
+
+### Fixed
+- **CRITICAL**: Enhanced DynamoDB retry logic for conversation history and completion details updates
+  - Added exponential backoff retry with jitter for `UpdateConversationTurn` operations
+  - Added exponential backoff retry with jitter for `UpdateTurn2CompletionDetails` operations
+  - Implemented comprehensive error pattern matching for retryable DynamoDB errors
+  - Added circuit breaker functionality to prevent cascading failures
+  - Enhanced error logging with detailed retry attempt information
+
+- **CRITICAL**: Improved Bedrock content block extraction for ReasoningContent
+  - Enhanced `extractValueFromStruct` function with recursive field inspection
+  - Added comprehensive logging for content block structure debugging
+  - Implemented nested struct traversal for complex ReasoningContent blocks
+  - Added support for pointer field dereferencing in reflection-based extraction
+  - Enhanced field name matching to include "Reasoning" and "Thinking" patterns
+
+### Enhanced
+- **DynamoDB Operations**: Strengthened resilience against transient failures
+  - Retry logic with 3 attempts, exponential backoff (100ms to 2s), and 25% jitter
+  - Comprehensive retryable error detection including WRAPPED_ERROR patterns
+  - Detailed logging for retry attempts and success/failure outcomes
+  - Graceful handling of non-retryable errors with immediate failure
+
+- **Content Processing**: Improved thinking/reasoning content extraction
+  - Recursive struct field inspection with comprehensive logging
+  - Enhanced type detection for unknown AWS SDK content block types
+  - Better handling of nested pointer and struct fields
+  - Improved debugging output for content block processing
+
+### Technical Details
+- **Root Cause Analysis**:
+  - DynamoDB operations were failing due to transient "WRAPPED_ERROR" conditions
+  - Content block extraction was failing on `*types.ContentBlockMemberReasoningContent`
+  - Missing retry logic for critical database operations
+  - Insufficient reflection depth for complex content structures
+
+- **Solution Implementation**:
+  - Added `retryWithBackoff` wrapper function with exponential backoff and jitter
+  - Enhanced `isRetryableError` function with comprehensive error pattern matching
+  - Improved `extractValueFromStruct` with recursive traversal and detailed logging
+  - Separated internal implementation methods to enable clean retry wrapping
+
+### Impact
+- ✅ Resolves "conversation history recording failed" DynamoDB errors
+- ✅ Resolves "dynamodb update turn2 completion details failed" errors
+- ✅ Enables proper extraction of ReasoningContent from Bedrock responses
+- ✅ Provides resilience against transient DynamoDB failures
+- ✅ Maintains data integrity through reliable retry mechanisms
+- ✅ Improves system reliability and reduces error rates
+
+### Files Modified
+- `internal/services/dynamodb.go`: Added retry logic and enhanced error handling
+- `shared/bedrock/client.go`: Enhanced content block extraction with recursive reflection
+
+## [2.1.2] - 2025-06-02 - Critical Bedrock API Fixes
+### Fixed
+- **CRITICAL**: Fixed Bedrock API temperature validation error: "temperature may only be set to 1 when thinking is enabled"
+  - Enhanced `ValidateTemperatureThinkingCompatibility` function in shared/bedrock/validation.go
+  - Added validation to ensure thinking mode is enabled when temperature >= 1.0
+  - Validates both structured thinking field and legacy reasoning fields
+  - Provides clear error message with remediation guidance
+
+- **CRITICAL**: Fixed unknown content type error: "ContentBlockMemberReasoningContent"
+  - Enhanced response parsing in shared/bedrock/client.go to handle ReasoningContent blocks
+  - Added support for reasoning/thinking content blocks returned when thinking is enabled
+  - Implemented `extractValueFromStruct` function using reflection for unknown struct types
+  - Added comprehensive type detection for reasoning content blocks
+  - Enhanced `extractValueFromUnknownType` with better fallback mechanisms
+
+### Enhanced
+- **Response Processing**: Improved Bedrock response parsing to capture thinking content
+  - Added handling for `interface{ GetValue() interface{} }` type assertions
+  - Enhanced content block processing with type-safe conversions
+  - Added comprehensive logging for content block type detection
+  - Improved thinking content extraction and budget application
+
+- **Validation System**: Strengthened request validation for Bedrock API compatibility
+  - Added temperature/thinking compatibility validation to `ValidateConverseRequest`
+  - Enhanced error messages for configuration validation failures
+  - Improved validation coverage for thinking mode requirements
+
+### Technical Details
+- **Files Modified**:
+  - `shared/bedrock/client.go`: Enhanced response parsing for reasoning content blocks
+  - `shared/bedrock/validation.go`: Added temperature/thinking compatibility validation
+  - Both ExecuteTurn1Combined and ExecuteTurn2Combined config validation already included temperature checks
+
+- **Root Cause Analysis**:
+  - Temperature=1.0 requires thinking mode to be enabled per Anthropic's extended thinking requirements
+  - Response parser wasn't handling ReasoningContent blocks returned when thinking is enabled
+  - Missing type handling for new AWS SDK content block types
+
+- **Solution Implementation**:
+  - Added comprehensive content block type detection and handling
+  - Enhanced reflection-based value extraction for unknown types
+  - Implemented proper validation chain for temperature/thinking compatibility
+  - Maintained backward compatibility with existing response formats
+
+### Impact
+- ✅ Resolves "temperature may only be set to 1 when thinking is enabled" Bedrock API errors
+- ✅ Enables proper handling of reasoning/thinking content in responses
+- ✅ Ensures thinking content is captured and stored in JSON output
+- ✅ Maintains compatibility with both thinking-enabled and standard responses
+- ✅ Provides clear validation errors for configuration issues
+
+### Verification
+- ✅ Temperature validation prevents API errors at request time
+- ✅ Response parsing handles all content block types including ReasoningContent
+- ✅ Thinking content is properly extracted and included in response metadata
+- ✅ Configuration validation provides clear error messages for remediation
+
+## [2.1.1] - 2025-06-02 - Temperature Validation Fix
+### Fixed
+- **Bedrock API Temperature Validation Error**: Fixed temperature validation issue for extended thinking mode
+  - Updated `IsThinkingEnabled()` to only accept `THINKING_TYPE=enabled` (not "enable")
+  - Updated validation logic to only accept "enabled" for temperature=1 compatibility
+  - Fixed API request to use "enabled" consistently for reasoning configuration
+  - Fixed Bedrock API error: "temperature may only be set to 1 when thinking is enabled"
+  - Removed unused imports and cleaned up code
+
+### Enhanced
+- **Configuration Management**: Improved environment variable handling for thinking mode
+  - Enhanced validation logic to prevent invalid temperature/thinking combinations
+  - Added proper error messages for configuration validation failures
+  - Ensured consistent thinking type validation across both Turn1 and Turn2 services
+  - Updated API request handling to use configurable temperature from environment
+
+### Technical Details
+- **Environment Variables**: Now requires `THINKING_TYPE=enabled` (exactly "enabled", not "enable")
+- **API Compliance**: Full compliance with Anthropic's extended thinking requirements
+- **Request Structure**: Updated reasoning fields to use "enabled" consistently
+- **Code Quality**: Removed unused imports and improved consistency
+
+## [2.2.16] - 2025-06-02 - Critical JSON Parsing Fix
+### Fixed
+- **CRITICAL**: Fixed "unexpected end of JSON input" error in Step Function event parsing
+- **FIXED**: Updated `StepFunctionEvent.S3References` type from `map[string]interface{}` to `map[string]models.S3Reference`
+- **RESOLVED**: JSON unmarshaling failure when deserializing nested S3Reference objects
+- **ALIGNED**: Event parsing structure with working ExecuteTurn1Combined implementation
+
+### Technical Details
+- **Root Cause**: Type mismatch in event transformer struct definition
+- **Issue**: `map[string]interface{}` couldn't properly deserialize S3Reference objects with `bucket`, `key`, and `size` fields
+- **Solution**: Changed to `map[string]models.S3Reference` for proper type safety
+- **Files Modified**: `internal/handler/event_transformer.go`
+
+### Impact
+- ✅ Resolves JSON parsing errors preventing ExecuteTurn2Combined from processing Step Function events
+- ✅ Enables proper workflow progression from ExecuteTurn1Combined to ExecuteTurn2Combined
+- ✅ Maintains backward compatibility with existing S3 reference structures
+- ✅ Successful compilation without errors
+
+### Verification
+- ✅ Code builds successfully
+- ✅ Struct definition matches ExecuteTurn1Combined (working implementation)
+- ✅ Proper type safety for S3Reference object handling
+
 ## [2.2.15] - 2025-06-03 - Temperature Validation Fix
 ### Fixed
 - Case-insensitive `THINKING_TYPE` comparison prevents misconfiguration.

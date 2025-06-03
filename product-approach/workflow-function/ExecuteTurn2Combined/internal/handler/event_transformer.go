@@ -28,10 +28,10 @@ func NewEventTransformer(s3 services.S3StateManager, log logger.Logger) *EventTr
 
 // StepFunctionEvent represents the structured input from Step Functions orchestration
 type StepFunctionEvent struct {
-	SchemaVersion  string                 `json:"schemaVersion"`
-	S3References   map[string]interface{} `json:"s3References"`
-	VerificationID string                 `json:"verificationId"`
-	Status         string                 `json:"status"`
+	SchemaVersion  string                        `json:"schemaVersion"`
+	S3References   map[string]models.S3Reference `json:"s3References"`
+	VerificationID string                        `json:"verificationId"`
+	Status         string                        `json:"status"`
 }
 
 // TransformStepFunctionEvent provides comprehensive transformation with schema integration
@@ -46,27 +46,18 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 
 	transformLogger.Info("step_function_transformation_started", map[string]interface{}{
 		"s3_references_count": len(event.S3References),
-		"available_refs":      getInterfaceMapKeys(event.S3References),
+		"available_refs":      getMapKeys(event.S3References),
 		"schema_integration":  "comprehensive",
 	})
 
 	// STRATEGIC STAGE 1: Load initialization data using schema-integrated loader
-	initRefInterface, exists := event.S3References["processing_initialization"]
+	initRef, exists := event.S3References["processing_initialization"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing processing_initialization",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs":  getInterfaceMapKeys(event.S3References),
-			})
-	}
-
-	initRef, ok := convertToS3Reference(initRefInterface)
-	if !ok {
-		return nil, errors.NewValidationError(
-			"invalid processing_initialization reference format",
-			map[string]interface{}{
-				"verification_id": event.VerificationID,
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 
@@ -143,22 +134,13 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	})
 
 	// STRATEGIC STAGE 2: Load image metadata with comprehensive validation
-	metadataRefInterface, exists := event.S3References["images_metadata"]
+	metadataRef, exists := event.S3References["images_metadata"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing images_metadata reference",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs":  getInterfaceMapKeys(event.S3References),
-			})
-	}
-
-	metadataRef, ok := convertToS3Reference(metadataRefInterface)
-	if !ok {
-		return nil, errors.NewValidationError(
-			"invalid images_metadata reference format",
-			map[string]interface{}{
-				"verification_id": event.VerificationID,
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 
@@ -196,22 +178,13 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 	})
 
 	// STRATEGIC STAGE 3: Validate system prompt reference
-	systemPromptRefInterface, exists := event.S3References["prompts_system"]
+	systemPromptRef, exists := event.S3References["prompts_system"]
 	if !exists {
 		return nil, errors.NewValidationError(
 			"missing prompts_system reference",
 			map[string]interface{}{
 				"verification_id": event.VerificationID,
-				"available_refs":  getInterfaceMapKeys(event.S3References),
-			})
-	}
-
-	systemPromptRef, ok := convertToS3Reference(systemPromptRefInterface)
-	if !ok {
-		return nil, errors.NewValidationError(
-			"invalid prompts_system reference format",
-			map[string]interface{}{
-				"verification_id": event.VerificationID,
+				"available_refs":  getMapKeys(event.S3References),
 			})
 	}
 
@@ -223,55 +196,47 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 
 	// STRATEGIC STAGE 4: Enhanced layout metadata integration with schema validation
 	if initData.VerificationContext.VerificationType == schema.VerificationTypeLayoutVsChecking {
-		if layoutMetadataRefInterface, exists := event.S3References["processing_layout-metadata"]; exists {
-			layoutMetadataRef, ok := convertToS3Reference(layoutMetadataRefInterface)
-			if !ok {
-				transformLogger.Warn("invalid_layout_metadata_reference_format", map[string]interface{}{
-					"verification_id": event.VerificationID,
-					"impact":          "continuing_with_embedded_layout_data",
+		if layoutMetadataRef, exists := event.S3References["processing_layout-metadata"]; exists {
+			transformLogger.Info("loading_layout_metadata", map[string]interface{}{
+				"bucket":         layoutMetadataRef.Bucket,
+				"key":            layoutMetadataRef.Key,
+				"schema_version": schema.SchemaVersion,
+			})
+
+			// STRATEGIC ENHANCEMENT: Use shared schema layout metadata loader
+			layoutData, err := e.s3.LoadLayoutMetadata(ctx, layoutMetadataRef)
+			if err != nil {
+				transformLogger.Warn("layout_metadata_load_failed", map[string]interface{}{
+					"error":  err.Error(),
+					"key":    layoutMetadataRef.Key,
+					"impact": "continuing_with_embedded_layout_data",
 				})
 			} else {
-				transformLogger.Info("loading_layout_metadata", map[string]interface{}{
-					"bucket":         layoutMetadataRef.Bucket,
-					"key":            layoutMetadataRef.Key,
-					"schema_version": schema.SchemaVersion,
-				})
-
-				// STRATEGIC ENHANCEMENT: Use shared schema layout metadata loader
-				layoutData, err := e.s3.LoadLayoutMetadata(ctx, layoutMetadataRef)
-				if err != nil {
-					transformLogger.Warn("layout_metadata_load_failed", map[string]interface{}{
-						"error":  err.Error(),
-						"key":    layoutMetadataRef.Key,
-						"impact": "continuing_with_embedded_layout_data",
-					})
-				} else {
-					// Strategic schema integration: Populate VerificationContext LayoutMetadata
-					if initData.VerificationContext.LayoutId == 0 {
-						initData.VerificationContext.LayoutId = layoutData.LayoutId
-					}
-					if initData.VerificationContext.LayoutPrefix == "" {
-						initData.VerificationContext.LayoutPrefix = layoutData.LayoutPrefix
-					}
-					if initData.VerificationContext.VendingMachineId == "" {
-						initData.VerificationContext.VendingMachineId = layoutData.VendingMachineId
-					}
-
-					// Store the layout metadata for later use in the local verification context
-					// This will be converted and included in the Turn1Request
-					if initData.LayoutMetadata == nil {
-						initData.LayoutMetadata = layoutData
-					}
-
-					transformLogger.Info("layout_metadata_integrated_successfully", map[string]interface{}{
-						"layout_id":          layoutData.LayoutId,
-						"layout_prefix":      layoutData.LayoutPrefix,
-						"vending_machine_id": layoutData.VendingMachineId,
-						"location":           layoutData.Location,
-						"product_positions":  len(layoutData.ProductPositionMap),
-						"schema_validation":  "passed",
-					})
+				// Strategic schema integration: Populate VerificationContext LayoutMetadata
+				if initData.VerificationContext.LayoutId == 0 {
+					initData.VerificationContext.LayoutId = layoutData.LayoutId
 				}
+				if initData.VerificationContext.LayoutPrefix == "" {
+					initData.VerificationContext.LayoutPrefix = layoutData.LayoutPrefix
+				}
+				if initData.VerificationContext.VendingMachineId == "" {
+					initData.VerificationContext.VendingMachineId = layoutData.VendingMachineId
+				}
+
+				// Store the layout metadata for later use in the local verification context
+				// This will be converted and included in the Turn1Request
+				if initData.LayoutMetadata == nil {
+					initData.LayoutMetadata = layoutData
+				}
+
+				transformLogger.Info("layout_metadata_integrated_successfully", map[string]interface{}{
+					"layout_id":          layoutData.LayoutId,
+					"layout_prefix":      layoutData.LayoutPrefix,
+					"vending_machine_id": layoutData.VendingMachineId,
+					"location":           layoutData.Location,
+					"product_positions":  len(layoutData.ProductPositionMap),
+					"schema_validation":  "passed",
+				})
 			}
 		} else {
 			transformLogger.Info("layout_metadata_not_available", map[string]interface{}{
@@ -281,50 +246,29 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		}
 	}
 
-	// STRATEGIC STAGE 5: Extract Turn1 response references from nested structure
+	// STRATEGIC STAGE 5: Extract Turn1 response references - simplified approach
 	var turn1ProcessedRef, turn1RawRef, turn1ConvRef models.S3Reference
 
-	// Check if responses are nested under "responses" key
-	if responsesMap, ok := event.S3References["responses"]; ok {
-		// Convert interface{} to map for nested access
-		if responsesData, ok := responsesMap.(map[string]interface{}); ok {
-			if turn1Proc, exists := responsesData["turn1Processed"]; exists {
-				if procRef, ok := turn1Proc.(models.S3Reference); ok {
-					turn1ProcessedRef = procRef
-				}
-			}
-			if turn1Raw, exists := responsesData["turn1Raw"]; exists {
-				if rawRef, ok := turn1Raw.(models.S3Reference); ok {
-					turn1RawRef = rawRef
-				}
-			}
-		}
+	// Try direct access for Turn1 references
+	if procRef, exists := event.S3References["responses_turn1Processed"]; exists {
+		turn1ProcessedRef = procRef
+	}
+	if rawRef, exists := event.S3References["responses_turn1Raw"]; exists {
+		turn1RawRef = rawRef
+	}
+	if convRef, exists := event.S3References["conversation_turn1"]; exists {
+		turn1ConvRef = convRef
 	}
 
-	// Extract conversation.turn1 reference if provided
-	if convMap, ok := event.S3References["conversation"]; ok {
-		if convData, ok := convMap.(map[string]interface{}); ok {
-			if turn1Conv, exists := convData["turn1"]; exists {
-				if convRef, ok := convertToS3Reference(turn1Conv); ok {
-					turn1ConvRef = convRef
-				}
-			}
-		}
-	}
-
-	// Fallback: try direct access for backward compatibility
+	// Fallback: try alternative naming patterns
 	if turn1ProcessedRef.Key == "" {
-		if procRefInterface, exists := event.S3References["processing_turn1_processed_response"]; exists {
-			if procRef, ok := convertToS3Reference(procRefInterface); ok {
-				turn1ProcessedRef = procRef
-			}
+		if procRef, exists := event.S3References["processing_turn1_processed_response"]; exists {
+			turn1ProcessedRef = procRef
 		}
 	}
 	if turn1RawRef.Key == "" {
-		if rawRefInterface, exists := event.S3References["responses_turn1_raw_response"]; exists {
-			if rawRef, ok := convertToS3Reference(rawRefInterface); ok {
-				turn1RawRef = rawRef
-			}
+		if rawRef, exists := event.S3References["responses_turn1_raw_response"]; exists {
+			turn1RawRef = rawRef
 		}
 	}
 
@@ -362,23 +306,17 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 			},
 		},
 		InputInitializationFileRef: initRef,
-		InputS3References:          event.S3References,
+		InputS3References:          convertS3ReferencesToInterface(event.S3References),
 	}
 
 	// Populate historical context S3 reference for PREVIOUS_VS_CURRENT
 	if initData.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		if histCtxRefInterface, ok := event.S3References["processing_historical-context"]; ok {
-			if histCtxRef, converted := convertToS3Reference(histCtxRefInterface); converted {
-				req.S3Refs.Processing.HistoricalContext = histCtxRef
-				transformLogger.Info("historical_context_s3_reference_found_in_event", map[string]interface{}{
-					"bucket": histCtxRef.Bucket,
-					"key":    histCtxRef.Key,
-				})
-			} else {
-				transformLogger.Warn("invalid_historical_context_reference_format", map[string]interface{}{
-					"verification_id": event.VerificationID,
-				})
-			}
+		if histCtxRef, ok := event.S3References["processing_historical-context"]; ok {
+			req.S3Refs.Processing.HistoricalContext = histCtxRef
+			transformLogger.Info("historical_context_s3_reference_found_in_event", map[string]interface{}{
+				"bucket": histCtxRef.Bucket,
+				"key":    histCtxRef.Key,
+			})
 		} else {
 			transformLogger.Warn("s3_reference_for_processing_historical_context_not_found_in_event_for_uc2", map[string]interface{}{
 				"verification_id": event.VerificationID,
@@ -478,56 +416,13 @@ func getMapKeys(m map[string]models.S3Reference) []string {
 	return keys
 }
 
-// getInterfaceMapKeys provides clean key extraction for interface{} maps
-func getInterfaceMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// convertS3ReferencesToInterface converts map[string]models.S3Reference to map[string]interface{}
+func convertS3ReferencesToInterface(refs map[string]models.S3Reference) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range refs {
+		result[k] = v
 	}
-	return keys
-}
-
-// convertToS3Reference converts interface{} to models.S3Reference with type safety
-func convertToS3Reference(ref interface{}) (models.S3Reference, bool) {
-	if s3Ref, ok := ref.(models.S3Reference); ok {
-		return s3Ref, true
-	}
-
-	// Try to convert from map[string]interface{} (JSON unmarshaling)
-	if refMap, ok := ref.(map[string]interface{}); ok {
-		s3Ref := models.S3Reference{}
-
-		if bucket, exists := refMap["bucket"]; exists {
-			if bucketStr, ok := bucket.(string); ok {
-				s3Ref.Bucket = bucketStr
-			} else {
-				return models.S3Reference{}, false
-			}
-		}
-
-		if key, exists := refMap["key"]; exists {
-			if keyStr, ok := key.(string); ok {
-				s3Ref.Key = keyStr
-			} else {
-				return models.S3Reference{}, false
-			}
-		}
-
-		if size, exists := refMap["size"]; exists {
-			switch sizeVal := size.(type) {
-			case int:
-				s3Ref.Size = int64(sizeVal)
-			case int64:
-				s3Ref.Size = sizeVal
-			case float64:
-				s3Ref.Size = int64(sizeVal)
-			}
-		}
-
-		return s3Ref, true
-	}
-
-	return models.S3Reference{}, false
+	return result
 }
 
 // extractVerificationIDFromKey extracts verification ID from S3 key

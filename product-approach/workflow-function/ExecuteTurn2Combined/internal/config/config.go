@@ -24,6 +24,7 @@ type Config struct {
 		MaxTokens                int
 		BudgetTokens             int
 		ThinkingType             string
+		Temperature              float64
 		MaxRetries               int
 		BedrockConnectTimeoutSec int
 		BedrockCallTimeoutSec    int
@@ -72,6 +73,7 @@ func LoadConfiguration() (*Config, error) {
 	cfg.Processing.MaxTokens = getInt("MAX_TOKENS", 24000)
 	cfg.Processing.BudgetTokens = getInt("BUDGET_TOKENS", 16000)
 	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "enable")
+	cfg.Processing.Temperature = getFloat("TEMPERATURE", 0.7)
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 3)
 	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
 	cfg.Processing.BedrockCallTimeoutSec = getInt("BEDROCK_CALL_TIMEOUT_SEC", 30)
@@ -116,6 +118,15 @@ func getInt(key string, def int) int {
 	return def
 }
 
+func getFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
+}
+
 // CurrentDatePartition returns the current date partition in YYYY/MM/DD format
 func (c *Config) CurrentDatePartition() string {
 	loc, _ := time.LoadLocation(c.DatePartitionTimezone)
@@ -135,8 +146,8 @@ func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
 }
 
 // IsThinkingEnabled returns true if thinking/reasoning mode is enabled
-// Thinking is enabled only when THINKING_TYPE is explicitly set to "enable"
+// Thinking is enabled only when THINKING_TYPE is explicitly set to "enabled"
 // Thinking is disabled when THINKING_TYPE is "disable" or unset (empty string)
 func (c *Config) IsThinkingEnabled() bool {
-	return strings.EqualFold(c.Processing.ThinkingType, "enable")
+	return strings.EqualFold(c.Processing.ThinkingType, "enabled")
 }
