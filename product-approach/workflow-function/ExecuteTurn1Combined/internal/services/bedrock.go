@@ -30,9 +30,9 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 	log := logger.New("ExecuteTurn1Combined", "BedrockService")
 
 	// Create shared bedrock client first
-	thinkingType := "disable"
+	// Use the thinking type directly from configuration instead of hardcoding
+	thinkingType := cfg.Processing.ThinkingType
 	if cfg.IsThinkingEnabled() {
-		thinkingType = "enable"
 		log.Info("THINKING_SERVICE_ENABLED", map[string]interface{}{
 			"thinking_type":   thinkingType,
 			"budget_tokens":   cfg.Processing.BudgetTokens,
@@ -65,7 +65,7 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 		ModelID:          cfg.AWS.BedrockModel,
 		AnthropicVersion: cfg.AWS.AnthropicVersion,
 		MaxTokens:        cfg.Processing.MaxTokens,
-		Temperature:      0.7,
+		Temperature:      cfg.Processing.Temperature,
 		ThinkingType:     cfg.Processing.ThinkingType,
 		ThinkingBudget:   cfg.Processing.BudgetTokens,
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,

@@ -100,9 +100,9 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 	)
 
 	// Add thinking/reasoning configuration if enabled
-	if config.ThinkingType == "enable" {
-		request.Reasoning = "enable"
-		request.InferenceConfig.Reasoning = "enable"
+	if config.ThinkingType == "enabled" {
+		request.Reasoning = "enabled"
+		request.InferenceConfig.Reasoning = "enabled"
 		request.Thinking = map[string]interface{}{
 			"type":          "enabled",
 			"budget_tokens": config.ThinkingBudget,

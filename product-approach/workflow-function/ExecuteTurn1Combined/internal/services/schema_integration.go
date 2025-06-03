@@ -125,7 +125,6 @@ func (s *SchemaIntegratedService) CreateWorkflowState(
 			Initialized:  schema.FormatISO8601(),
 			Turn1Started: schema.FormatISO8601(),
 		},
-		NotificationEnabled: true,
 	}
 
 	// For layout verification, add layout-specific fields
@@ -191,7 +190,6 @@ func (s *SchemaIntegratedService) ConvertLegacyToSchema(legacyRequest *models.Tu
 			RequestTimestamp:  schema.FormatISO8601(),
 			ProcessingStarted: schema.FormatISO8601(),
 		},
-		NotificationEnabled: true,
 	}
 
 	// Note: LayoutMetadata and HistoricalContext are stored at WorkflowState level in schema

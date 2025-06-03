@@ -2,6 +2,53 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.3] - 2025-06-02 - THINKING_TYPE Fix
+
+### Fixed
+- **CRITICAL**: Fixed thinking parameter configuration issues
+  - **Root Cause**: Configuration default for `THINKING_TYPE` was empty string instead of "disabled"
+  - **Issue**: When `THINKING_TYPE` environment variable was unset, config loaded empty string, causing thinking adapter to be disabled even when explicitly set to "enabled"
+  - **Resolution**: Changed default value from `getEnv("THINKING_TYPE", "")` to `getEnv("THINKING_TYPE", "disabled")` in config.go
+  - **Impact**: Now thinking is properly enabled when `THINKING_TYPE=enabled` and disabled when unset or set to "disabled"
+  - **Validation**: With current environment variables (`THINKING_TYPE=enabled`, `TEMPERATURE=1`, `BUDGET_TOKENS=16000`), thinking blocks should now be properly processed
+- **CRITICAL**: Enhanced DynamoDB retry logic for better resilience
+  - **Root Cause**: DynamoDB operations failing with "WRAPPED_ERROR" due to insufficient retry configuration
+  - **Issue**: Original retry logic had only 3 attempts with 100ms base delay, insufficient for handling AWS service throttling
+  - **Resolution**: Enhanced retry configuration:
+    - Increased max attempts from 3 to 5
+    - Increased base delay from 100ms to 200ms
+    - Increased max delay from 2s to 5s
+    - Added comprehensive error pattern matching for "WRAPPED_ERROR" and other retryable conditions
+  - **Impact**: Better handling of transient DynamoDB errors, reduced function failures due to temporary AWS service issues
+- **Enhancement**: Improved error handling and resilience for DynamoDB operations
+  - Added comprehensive retry patterns for throttling, internal server errors, and network issues
+  - Added jitter to retry delays to prevent thundering herd problems
+  - Added detailed logging for retry attempts and failures
+  - Enhanced error pattern matching to handle AWS SDK wrapped errors
+
+## [2.8.2] - 2025-06-02 - Temperature Validation Fix
+### Fixed
+- **Bedrock API Temperature Validation Error**: Fixed temperature validation issue for extended thinking mode
+  - Updated `IsThinkingEnabled()` to only accept `THINKING_TYPE=enabled` (not "enable")
+  - Added `Temperature` field to Processing config with environment variable support
+  - Added `getFloat()` helper function for parsing float environment variables
+  - Added comprehensive temperature validation (0-1 range) in validate.go
+  - Added temperature/thinking compatibility validation ensuring temperature=1 only when thinking is enabled
+  - Fixed Bedrock API error: "temperature may only be set to 1 when thinking is enabled"
+
+### Enhanced
+- **Configuration Management**: Improved environment variable handling for thinking mode
+  - Added `TEMPERATURE` environment variable support (default: 0.7)
+  - Enhanced validation logic to prevent invalid temperature/thinking combinations
+  - Added proper error messages for configuration validation failures
+  - Ensured consistent thinking type validation across both Turn1 and Turn2 services
+
+### Technical Details
+- **Environment Variables**: Now requires `THINKING_TYPE=enabled` (exactly "enabled", not "enable")
+- **Temperature Control**: Configurable via `TEMPERATURE` environment variable
+- **Validation Pipeline**: Comprehensive validation prevents invalid configurations at startup
+- **API Compliance**: Full compliance with Anthropic's extended thinking requirements
+
 ## [2.8.1] - 2025-06-01 - Extended Thinking Integration
 ### Added
 - Unified reasoning configuration across service, adapter, and shared Bedrock client.

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 	"workflow-function/shared/errors"
 )
@@ -39,6 +40,21 @@ func (c *Config) Validate() error {
 			"invalid timezone",
 			"DATE_PARTITION_TIMEZONE",
 		)
+	}
+
+	// Validate temperature
+	if c.Processing.Temperature < 0 || c.Processing.Temperature > 1 {
+		return errors.NewValidationError("temperature must be between 0 and 1",
+			map[string]interface{}{"current_value": c.Processing.Temperature})
+	}
+
+	// Validate temperature and thinking compatibility
+	if c.Processing.Temperature == 1 && !strings.EqualFold(c.Processing.ThinkingType, "enabled") {
+		return errors.NewValidationError("temperature may only be set to 1 when thinking is enabled",
+			map[string]interface{}{
+				"current_value": c.Processing.Temperature,
+				"thinking_type": c.Processing.ThinkingType,
+			})
 	}
 
 	return nil

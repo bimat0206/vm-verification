@@ -200,7 +200,6 @@ func CreateVerificationContext(verificationID, verificationType string) *SchemaV
 			ErrorHistory:     make([]schema.ErrorInfo, 0),
 			RecoveryAttempts: 0,
 		},
-		NotificationEnabled: false,
 	}
 }
 

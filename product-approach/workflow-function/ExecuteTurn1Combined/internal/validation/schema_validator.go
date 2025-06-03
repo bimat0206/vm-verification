@@ -209,7 +209,6 @@ func convertToSchemaVerificationContext(verificationID string, localCtx *models.
 			RequestTimestamp:  schema.FormatISO8601(),
 			ProcessingStarted: schema.FormatISO8601(),
 		},
-		NotificationEnabled: true,
 	}
 
 	// Note: LayoutMetadata and HistoricalContext are handled at WorkflowState level
