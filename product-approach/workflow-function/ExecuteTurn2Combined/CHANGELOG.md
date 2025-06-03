@@ -2,6 +2,15 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.7] - YYYY-MM-DD
+### Changed
+- `StepFunctionEvent.S3References` now uses `map[string]interface{}` to support nested structures.
+- Added `convertToS3Reference` helper for safe conversion from `interface{}` values.
+- Updated `getMapKeys` and `convertS3ReferencesToInterface` for the new map type.
+- Turn1 references are extracted from `responses.turn1Processed` and `responses.turn1Raw` when present.
+- `main.go` unmarshals Step Function events using the revised struct.
+- `InputS3References` retains the original nested map for Step Function responses.
+
 ## [2.1.6] - 2025-06-07
 ### Fixed
 - Conversation history updates could fail when existing items lacked `metadata`
