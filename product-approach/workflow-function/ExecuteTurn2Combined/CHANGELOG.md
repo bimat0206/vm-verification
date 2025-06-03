@@ -2,6 +2,10 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.9] - 2025-06-03
+### Fixed
+- Missing Turn1 prompts now load from `turn1-conversation.json`, preventing Bedrock validation failures.
+
 ## [2.1.8] - 2025-06-03
 ### Fixed
 - Turn1 raw responses stored with array-based `response.content` could not be
