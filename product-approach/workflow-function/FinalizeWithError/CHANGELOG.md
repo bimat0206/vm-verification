@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.8] - 2025-06-03
+### Fixed
+- **Output References**: Always return `processing_initialization` reference when provided in the input
+  - Falls back to the input S3 reference if initialization data could not be loaded
+  - Ensures Step Functions receive complete S3 reference data even on failures
+
 ## [1.0.7] - 2025-06-03
 ### Fixed
 - **Critical Bug**: Fixed "failed to get processing initialization reference" error
