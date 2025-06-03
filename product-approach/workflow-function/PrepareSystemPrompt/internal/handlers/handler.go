@@ -286,7 +286,7 @@ func (h *Handler) processS3ReferenceInput(ctx context.Context, input *models.Inp
 	processingTimeMs := time.Since(start).Milliseconds()
 	
 	// Add summary
-	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs)
+	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs, verificationContext.VendingMachineId)
 	
 	// Create response
 	response := models.BuildResponseWithContext(envelope, verificationContext, datePartition)
@@ -409,7 +409,7 @@ func (h *Handler) processDirectJSONInput(ctx context.Context, input *models.Inpu
 	processingTimeMs := time.Since(start).Milliseconds()
 	
 	// Add summary
-	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs)
+	envelope.Summary = models.CreateCompleteSummary(completeSystemPrompt, verificationContext.VerificationType, processingTimeMs, verificationContext.VendingMachineId)
 	
 	// Create response
 	response := models.BuildResponseWithContext(envelope, verificationContext, datePartition)

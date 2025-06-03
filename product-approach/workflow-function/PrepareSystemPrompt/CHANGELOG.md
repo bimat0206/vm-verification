@@ -5,6 +5,65 @@ PrepareSystemPrompt function will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.10] - 2025-06-02
+
+### Fixed
+- **Critical**: Fixed excessive fields in PrepareSystemPrompt function output by simplifying summary structure
+- Root cause: `CreateCompleteSummary` function was marshaling the entire `CompleteSystemPrompt` object instead of returning only expected fields
+- Modified `CreateCompleteSummary` to return only the expected summary fields matching the specification:
+  - `promptType`, `estimatedTokens`, `processingTimeMs`, `promptTimestamp`
+  - `promptVersion`, `modelId`, `anthropicVersion`, `verificationType`, `vendingMachineId`
+- Removed unnecessary nested structures from summary output:
+  - `bedrockConfiguration` (with nested `thinking` object)
+  - `contextInformation` (with `machineStructure`, `layoutInformation`)
+  - `outputSpecification`, `processingMetadata`, `promptContent`
+- Updated function signature to include `vendingMachineId` parameter
+- Fixed handler calls to pass the required `vendingMachineId` parameter
+
+### Technical Details
+- Updated `CreateCompleteSummary` function in `internal/models/output.go`
+- Modified function signature: `CreateCompleteSummary(prompt *schema.CompleteSystemPrompt, verificationType string, processingTimeMs int64, vendingMachineId string)`
+- Updated handler calls in `processS3ReferenceInput` and `processDirectJSONInput` methods
+- Ensured output matches expected format with simplified summary structure
+
+### Before Fix
+```json
+{
+  "summary": {
+    "bedrockConfiguration": {
+      "anthropicVersion": "bedrock-2023-05-31",
+      "maxTokens": 24000,
+      "modelId": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "thinking": {
+        "budget_tokens": 16000,
+        "type": "enabled"
+      }
+    },
+    "contextInformation": { /* large nested object */ },
+    "outputSpecification": { /* ... */ },
+    "processingMetadata": { /* ... */ },
+    "promptContent": { /* ... */ }
+  }
+}
+```
+
+### After Fix
+```json
+{
+  "summary": {
+    "promptType": "LAYOUT_VS_CHECKING",
+    "estimatedTokens": 2907,
+    "processingTimeMs": 275,
+    "promptTimestamp": "2025-05-25T10:23:24Z",
+    "promptVersion": "1.0.0",
+    "modelId": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "anthropicVersion": "bedrock-2023-05-31",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-3245"
+  }
+}
+```
+
 ## [4.0.9] - 2025-06-02
 
 ### Fixed

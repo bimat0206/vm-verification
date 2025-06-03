@@ -3,9 +3,9 @@ package models
 import (
 	"encoding/json"
 	"time"
-	
-	"workflow-function/shared/schema"
+
 	"workflow-function/shared/s3state"
+	"workflow-function/shared/schema"
 )
 
 // Response represents the Lambda response
@@ -64,17 +64,19 @@ func CreateSummary(prompt *schema.SystemPrompt, verificationType string, process
 	}
 }
 
-// CreateCompleteSummary creates a complete summary object from CompleteSystemPrompt
-func CreateCompleteSummary(prompt *schema.CompleteSystemPrompt, verificationType string, processingTimeMs int64) map[string]interface{} {
-	// Update processing metadata with actual processing time
-	prompt.ProcessingMetadata.GenerationTimeMs = processingTimeMs
-	
-	// Convert the complete system prompt to a map for the summary
-	promptBytes, _ := json.Marshal(prompt)
-	var promptMap map[string]interface{}
-	json.Unmarshal(promptBytes, &promptMap)
-	
-	return promptMap
+// CreateCompleteSummary creates a simplified summary object matching expected output format
+func CreateCompleteSummary(prompt *schema.CompleteSystemPrompt, verificationType string, processingTimeMs int64, vendingMachineId string) map[string]interface{} {
+	return map[string]interface{}{
+		"promptType":        verificationType,
+		"estimatedTokens":   len(prompt.PromptContent.SystemMessage) / 4, // Rough estimate
+		"processingTimeMs":  processingTimeMs,
+		"promptTimestamp":   time.Now().UTC().Format(time.RFC3339),
+		"promptVersion":     prompt.PromptContent.TemplateVersion,
+		"modelId":           prompt.BedrockConfiguration.ModelId,
+		"anthropicVersion":  prompt.BedrockConfiguration.AnthropicVersion,
+		"verificationType":  verificationType,
+		"vendingMachineId":  vendingMachineId,
+	}
 }
 
 // AddReferencesToEnvelope adds system prompt references to an envelope
