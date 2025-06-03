@@ -208,19 +208,59 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 
 	var resp schema.TurnResponse
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		m.logger.Error("turn1_schema_unmarshal_failed", map[string]interface{}{
-			"error":  err.Error(),
-			"bucket": ref.Bucket,
-			"key":    ref.Key,
-		})
-		return nil, &errors.WorkflowError{
-			Type:      errors.ErrorTypeValidation,
-			Code:      "BadTurn1SchemaResponse",
-			Message:   fmt.Sprintf("failed to parse Turn1 raw response: %v", err),
-			Retryable: false,
-			Severity:  errors.ErrorSeverityCritical,
-			APISource: errors.APISourceUnknown,
-			Timestamp: time.Now(),
+		// Attempt to parse legacy structured format where response.content is an array
+		var alt struct {
+			TurnId    int               `json:"turnId"`
+			Timestamp string            `json:"timestamp"`
+			Prompt    string            `json:"prompt"`
+			ImageUrls map[string]string `json:"imageUrls,omitempty"`
+			Response  struct {
+				Content []map[string]interface{} `json:"content"`
+			} `json:"response"`
+			LatencyMs  int64                  `json:"latencyMs"`
+			TokenUsage *schema.TokenUsage     `json:"tokenUsage,omitempty"`
+			Stage      string                 `json:"analysisStage"`
+			Metadata   map[string]interface{} `json:"metadata,omitempty"`
+		}
+
+		if altErr := json.Unmarshal(raw, &alt); altErr == nil {
+			resp.TurnId = alt.TurnId
+			resp.Timestamp = alt.Timestamp
+			resp.Prompt = alt.Prompt
+			resp.ImageUrls = alt.ImageUrls
+			resp.LatencyMs = alt.LatencyMs
+			resp.TokenUsage = alt.TokenUsage
+			resp.Stage = alt.Stage
+			resp.Metadata = alt.Metadata
+			for _, c := range alt.Response.Content {
+				if typ, ok := c["type"].(string); ok {
+					switch typ {
+					case "text":
+						if s, ok := c["text"].(string); ok {
+							resp.Response.Content = s
+						}
+					case "thinking":
+						if s, ok := c["text"].(string); ok {
+							resp.Response.Thinking = s
+						}
+					}
+				}
+			}
+		} else {
+			m.logger.Error("turn1_schema_unmarshal_failed", map[string]interface{}{
+				"error":  err.Error(),
+				"bucket": ref.Bucket,
+				"key":    ref.Key,
+			})
+			return nil, &errors.WorkflowError{
+				Type:      errors.ErrorTypeValidation,
+				Code:      "BadTurn1SchemaResponse",
+				Message:   fmt.Sprintf("failed to parse Turn1 raw response: %v", err),
+				Retryable: false,
+				Severity:  errors.ErrorSeverityCritical,
+				APISource: errors.APISourceUnknown,
+				Timestamp: time.Now(),
+			}
 		}
 	}
 	return &resp, nil

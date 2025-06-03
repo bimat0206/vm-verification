@@ -2,6 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.1.8] - 2025-06-03
+### Fixed
+- Turn1 raw responses stored with array-based `response.content` could not be
+  parsed for conversation history. `LoadTurn1SchemaResponse` now detects the
+  legacy structured format and extracts the text and thinking fields correctly.
+
 ## [2.1.7] - 2025-06-03
 ### Changed
 - `StepFunctionEvent.S3References` now uses `map[string]interface{}` to support nested structures.
