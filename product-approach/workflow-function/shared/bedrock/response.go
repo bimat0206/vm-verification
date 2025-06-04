@@ -124,6 +124,7 @@ func CreateConverseRequest(
 	maxTokens int,
 	temperature *float64,
 	topP *float64,
+	cacheControl map[string]string,
 ) *ConverseRequest {
 	request := &ConverseRequest{
 		ModelId:  modelID,
@@ -135,6 +136,7 @@ func CreateConverseRequest(
 			TopP:          topP,
 			StopSequences: []string{},
 		},
+		CacheControl: cacheControl,
 	}
 
 	return request
@@ -267,6 +269,7 @@ func CreateConverseRequestForTurn2(
 	maxTokens int,
 	temperature *float64,
 	topP *float64,
+	cacheControl map[string]string,
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
@@ -283,7 +286,7 @@ func CreateConverseRequestForTurn2(
 	})
 
 	// Create the request
-	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP, cacheControl)
 }
 
 // CreateConverseRequestForTurn2WithImages creates a request for Turn 2 with images
@@ -296,6 +299,7 @@ func CreateConverseRequestForTurn2WithImages(
 	maxTokens int,
 	temperature *float64,
 	topP *float64,
+	cacheControl map[string]string,
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
@@ -304,7 +308,7 @@ func CreateConverseRequestForTurn2WithImages(
 	messages = append(messages, CreateUserMessageWithContent(turn2Prompt, images))
 
 	// Create the request
-	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
+	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP, cacheControl)
 }
 
 // Note: ExtractThinkingContent function removed - now using proper thinking blocks from Bedrock API

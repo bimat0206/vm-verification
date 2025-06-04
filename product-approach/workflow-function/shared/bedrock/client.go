@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 )
 
@@ -176,6 +176,15 @@ func (bc *BedrockClient) Converse(ctx context.Context, request *ConverseRequest)
 
 		converseInput.GuardrailConfig = guardrailConfig
 		log.Printf("Added guardrail config with identifier: %s", request.GuardrailConfig.GuardrailIdentifier)
+	}
+
+	// Add cache control if provided
+	if request.CacheControl != nil && len(request.CacheControl) > 0 {
+		additionalFields := map[string]interface{}{
+			"cache_control": request.CacheControl,
+		}
+		converseInput.AdditionalModelRequestFields = document.NewLazyDocument(additionalFields)
+		log.Printf("Added cache control: %v", request.CacheControl)
 	}
 
 	// Log request details

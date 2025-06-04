@@ -23,12 +23,13 @@ const (
 
 // ConverseRequest represents a request to the Bedrock Converse API
 type ConverseRequest struct {
-	ModelId         string           `json:"modelId"`
-	Messages        []MessageWrapper `json:"messages"`
-	System          string           `json:"system,omitempty"`
-	InferenceConfig InferenceConfig  `json:"inferenceConfig,omitempty"`
-	GuardrailConfig *GuardrailConfig `json:"guardrailConfig,omitempty"`
-	Reasoning       string           `json:"reasoning,omitempty"` // Added for Claude 3.5 Sonnet thinking support
+	ModelId         string            `json:"modelId"`
+	Messages        []MessageWrapper  `json:"messages"`
+	System          string            `json:"system,omitempty"`
+	InferenceConfig InferenceConfig   `json:"inferenceConfig,omitempty"`
+	GuardrailConfig *GuardrailConfig  `json:"guardrailConfig,omitempty"`
+	CacheControl    map[string]string `json:"cache_control,omitempty"`
+	Reasoning       string            `json:"reasoning,omitempty"` // Added for Claude 3.5 Sonnet thinking support
 }
 
 // MessageWrapper represents a message in the Converse API
