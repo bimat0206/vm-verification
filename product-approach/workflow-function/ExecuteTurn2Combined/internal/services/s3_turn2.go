@@ -236,9 +236,9 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 							resp.Response.Content = s
 						}
 					case "thinking":
-						if s, ok := c["text"].(string); ok {
-							resp.Response.Thinking = s
-						}
+						// thinking blocks are ignored as
+						// the Bedrock types no longer include
+						// explicit thinking fields
 					}
 				}
 			}
@@ -318,9 +318,7 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 		Response: bedrock.TextResponse{
 			Content:    resp.Response.Content,
 			StopReason: resp.Response.StopReason,
-			Thinking:   resp.Response.Thinking,
 		},
-		Thinking:      resp.Response.Thinking,
 		LatencyMs:     resp.LatencyMs,
 		AnalysisStage: resp.Stage,
 		BedrockMetadata: bedrock.BedrockMetadata{
@@ -333,10 +331,9 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 	}
 	if resp.TokenUsage != nil {
 		bResp.TokenUsage = bedrock.TokenUsage{
-			InputTokens:    resp.TokenUsage.InputTokens,
-			OutputTokens:   resp.TokenUsage.OutputTokens,
-			ThinkingTokens: resp.TokenUsage.ThinkingTokens,
-			TotalTokens:    resp.TokenUsage.TotalTokens,
+			InputTokens:  resp.TokenUsage.InputTokens,
+			OutputTokens: resp.TokenUsage.OutputTokens,
+			TotalTokens:  resp.TokenUsage.TotalTokens,
 		}
 	}
 
@@ -522,10 +519,9 @@ func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID s
 
 	if tokenUsage != nil {
 		data["tokenUsage"] = map[string]interface{}{
-			"input":    tokenUsage.InputTokens,
-			"output":   tokenUsage.OutputTokens,
-			"thinking": tokenUsage.ThinkingTokens,
-			"total":    tokenUsage.TotalTokens,
+			"input":  tokenUsage.InputTokens,
+			"output": tokenUsage.OutputTokens,
+			"total":  tokenUsage.TotalTokens,
 		}
 	}
 
