@@ -266,7 +266,7 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 
 	// If prompt or response content is empty, attempt to recover from
 	// conversation history when provided
-	if (resp.Prompt == "" || resp.Response.Content == "") && conversationRef != nil && conversationRef.Key != "" {
+        if (resp.Prompt == "" || resp.Response.Content == "") && conversationRef != nil && conversationRef.Key != "" {
 		var conv struct {
 			Messages []schema.BedrockMessage `json:"messages"`
 		}
@@ -310,10 +310,28 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 				"bucket": conversationRef.Bucket,
 				"key":    conversationRef.Key,
 			})
-		}
-	}
+                }
+        }
 
-	return &resp, nil
+        // Validate the loaded Turn1 response to ensure required fields are present
+        if err := bedrock.ValidateTurn1Response(&resp); err != nil {
+                m.logger.Error("turn1_schema_validation_failed", map[string]interface{}{
+                        "error":  err.Error(),
+                        "bucket": ref.Bucket,
+                        "key":    ref.Key,
+                })
+                return nil, &errors.WorkflowError{
+                        Type:      errors.ErrorTypeValidation,
+                        Code:      "InvalidTurn1Response",
+                        Message:   err.Error(),
+                        Retryable: false,
+                        Severity:  errors.ErrorSeverityCritical,
+                        APISource: errors.APISourceUnknown,
+                        Timestamp: time.Now(),
+                }
+        }
+
+        return &resp, nil
 }
 
 // StoreTurn2Response stores the Turn2 response
