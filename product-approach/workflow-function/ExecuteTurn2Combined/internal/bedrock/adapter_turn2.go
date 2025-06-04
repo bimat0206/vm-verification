@@ -113,6 +113,29 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 				StopReason: turn1Response.Response.StopReason,
 			},
 		}
+
+		trimmedPrompt := strings.TrimSpace(turn1.Prompt)
+		if trimmedPrompt != "" {
+			a.log.Debug("turn1_prompt_included", map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+			})
+		} else {
+			a.log.Debug("turn1_prompt_skipped", map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+			})
+		}
+
+		trimmedResponse := strings.TrimSpace(turn1.Response.Content)
+		if trimmedResponse != "" {
+			a.log.Debug("turn1_response_included", map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+			})
+		} else {
+			a.log.Debug("turn1_response_skipped", map[string]interface{}{
+				"operation": "bedrock_converse_with_history",
+			})
+		}
+
 		messages = append(messages, sharedBedrock.CreateTurn2ConversationHistory(turn1)...)
 	} else {
 		a.log.Debug("turn1_response_nil", map[string]interface{}{

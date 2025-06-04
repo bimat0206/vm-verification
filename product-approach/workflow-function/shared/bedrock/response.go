@@ -26,7 +26,7 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 	if responseText == "" {
 		return nil, fmt.Errorf("no text content in response")
 	}
-	
+
 	// Extract thinking content from response
 	thinkingText := ExtractThinkingFromResponse(response)
 
@@ -48,11 +48,11 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 
 	// Create Turn1Response
 	turn1Response := &Turn1Response{
-		TurnID:        ExpectedTurn1Number,
-		Timestamp:     timestamp.Format(time.RFC3339),
-		Prompt:        promptText,
+		TurnID:    ExpectedTurn1Number,
+		Timestamp: timestamp.Format(time.RFC3339),
+		Prompt:    promptText,
 		Response: TextResponse{
-			Content: responseText,
+			Content:    responseText,
 			StopReason: response.StopReason,
 		},
 		Thinking:      thinkingText,
@@ -60,10 +60,10 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn1,
 		BedrockMetadata: BedrockMetadata{
-			ModelID:        response.ModelID,
-			RequestID:      response.RequestID,
+			ModelID:         response.ModelID,
+			RequestID:       response.RequestID,
 			InvokeLatencyMs: latencyMs,
-			APIType:        APITypeConverse,
+			APIType:         APITypeConverse,
 		},
 	}
 
@@ -83,7 +83,7 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 	if responseText == "" {
 		return nil, fmt.Errorf("no text content in response")
 	}
-	
+
 	// Extract thinking content from response
 	thinkingText := ExtractThinkingFromResponse(response)
 
@@ -105,11 +105,11 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 
 	// Create Turn2Response
 	turn2Response := &Turn2Response{
-		TurnID:        ExpectedTurn2Number,
-		Timestamp:     timestamp.Format(time.RFC3339),
-		Prompt:        promptText,
+		TurnID:    ExpectedTurn2Number,
+		Timestamp: timestamp.Format(time.RFC3339),
+		Prompt:    promptText,
 		Response: TextResponse{
-			Content: responseText,
+			Content:    responseText,
 			StopReason: response.StopReason,
 		},
 		Thinking:      thinkingText,
@@ -117,12 +117,12 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn2,
 		BedrockMetadata: BedrockMetadata{
-			ModelID:        response.ModelID,
-			RequestID:      response.RequestID,
+			ModelID:         response.ModelID,
+			RequestID:       response.RequestID,
 			InvokeLatencyMs: latencyMs,
-			APIType:        APITypeConverse,
+			APIType:         APITypeConverse,
 		},
-		PreviousTurn:  previousTurn,
+		PreviousTurn: previousTurn,
 	}
 
 	return turn2Response, nil
@@ -160,18 +160,18 @@ func CreateImageContentBlock(format string, bytes string) ContentBlock {
 	if format == "jpg" {
 		format = "jpeg"
 	}
-	
+
 	// Validate format for Converse API
 	if format != "jpeg" && format != "png" {
 		// Log warning but allow creation - validation will happen at request time
 		fmt.Printf("Warning: Image format '%s' may not be supported by Bedrock Converse API. Only 'jpeg' and 'png' are guaranteed to work.\n", format)
 	}
-	
+
 	// Create image block
 	imageBlock := &ImageBlock{
 		Format: format,
 		Source: ImageSource{
-			Type: "bytes",
+			Type:  "bytes",
 			Bytes: bytes,
 		},
 	}
@@ -197,17 +197,17 @@ func CreateUserMessageWithContent(text string, images []ContentBlock) MessageWra
 			Text: text,
 		})
 	}
-	
+
 	// Add images if provided
 	if len(images) > 0 {
 		content = append(content, images...)
 	}
-	
+
 	// Validate that at least one content item is present
 	if len(content) == 0 {
 		panic("user message must contain at least text or image content")
 	}
-	
+
 	return MessageWrapper{
 		Role:    "user",
 		Content: content,
@@ -219,7 +219,7 @@ func CreateAssistantMessageWithText(text string) MessageWrapper {
 	if text == "" {
 		panic("assistant message text cannot be empty")
 	}
-	
+
 	return MessageWrapper{
 		Role: "assistant",
 		Content: []ContentBlock{
@@ -237,28 +237,34 @@ func CreateTurn2ConversationHistory(turn1Response *Turn1Response) []MessageWrapp
 		return nil
 	}
 
-	// Create conversation history with user prompt and assistant response from Turn 1
-	messages := []MessageWrapper{
-		// User message from Turn 1
-		{
+	messages := []MessageWrapper{}
+
+	// Trim prompt and include only if non-empty
+	trimmedPrompt := strings.TrimSpace(turn1Response.Prompt)
+	if trimmedPrompt != "" {
+		messages = append(messages, MessageWrapper{
 			Role: "user",
 			Content: []ContentBlock{
 				{
 					Type: "text",
-					Text: turn1Response.Prompt,
+					Text: trimmedPrompt,
 				},
 			},
-		},
-		// Assistant response from Turn 1
-		{
+		})
+	}
+
+	// Trim response content and include only if non-empty
+	trimmedResponse := strings.TrimSpace(turn1Response.Response.Content)
+	if trimmedResponse != "" {
+		messages = append(messages, MessageWrapper{
 			Role: "assistant",
 			Content: []ContentBlock{
 				{
 					Type: "text",
-					Text: turn1Response.Response.Content,
+					Text: trimmedResponse,
 				},
 			},
-		},
+		})
 	}
 
 	return messages
@@ -276,7 +282,7 @@ func CreateConverseRequestForTurn2(
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
-	
+
 	// Add the new user message for Turn 2
 	messages = append(messages, MessageWrapper{
 		Role: "user",
@@ -287,7 +293,7 @@ func CreateConverseRequestForTurn2(
 			},
 		},
 	})
-	
+
 	// Create the request
 	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
 }
@@ -305,10 +311,10 @@ func CreateConverseRequestForTurn2WithImages(
 ) *ConverseRequest {
 	// Get conversation history from Turn 1
 	messages := CreateTurn2ConversationHistory(turn1Response)
-	
+
 	// Add the new user message for Turn 2 with images
 	messages = append(messages, CreateUserMessageWithContent(turn2Prompt, images))
-	
+
 	// Create the request
 	return CreateConverseRequest(modelID, messages, systemPrompt, maxTokens, temperature, topP)
 }
