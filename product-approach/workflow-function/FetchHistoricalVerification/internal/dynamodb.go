@@ -25,30 +25,31 @@ func NewDynamoDBRepository(client *dynamodb.Client, tableName string, log logger
 	return &DynamoDBRepository{
 		client:    client,
 		tableName: tableName,
-		logger:    log.WithFields(map[string]interface{}{
+		logger: log.WithFields(map[string]interface{}{
 			"component": "dynamodb-repository",
 		}),
 	}
 }
 
-// FindPreviousVerification finds the most recent verification using the given image URL as a checking image
+// FindPreviousVerification finds the most recent verification record
+// where the reference image URL matches the provided S3 path
 func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, imageURL string) (*VerificationRecord, error) {
 	repo.logger.Info("Finding previous verification", map[string]interface{}{
 		"imageURL": imageURL,
 	})
 
-	// Create query to find verifications where checking image matches the reference image
+	// Create query to find verifications where reference image matches the provided URL
 	queryInput := &dynamodb.QueryInput{
-		TableName: aws.String(repo.tableName),
-		IndexName: aws.String("CheckingImageIndex"), // Assuming this GSI exists
-		KeyConditionExpression: aws.String("CheckingImageUrl = :img"),
+		TableName:              aws.String(repo.tableName),
+		IndexName:              aws.String("ReferenceImageIndex"), // Query by reference image
+		KeyConditionExpression: aws.String("referenceImageUrl = :img"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":img": &types.AttributeValueMemberS{Value: imageURL},
 		},
 		ScanIndexForward: aws.Bool(false), // Most recent first
-		Limit: aws.Int32(1),
+		Limit:            aws.Int32(1),
 	}
-	
+
 	// Execute query
 	result, err := repo.client.Query(ctx, queryInput)
 	if err != nil {
@@ -57,7 +58,7 @@ func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, im
 		})
 		return nil, fmt.Errorf("failed to query DynamoDB: %w", err)
 	}
-	
+
 	// Check if any items returned
 	if len(result.Items) == 0 {
 		repo.logger.Warn("No previous verification found", map[string]interface{}{
@@ -69,7 +70,7 @@ func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, im
 				"resource": "Verification",
 			})
 	}
-	
+
 	// Unmarshal the first (most recent) item
 	var record VerificationRecord
 	err = attributevalue.UnmarshalMap(result.Items[0], &record)
@@ -79,11 +80,11 @@ func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, im
 		})
 		return nil, fmt.Errorf("failed to unmarshal DynamoDB item: %w", err)
 	}
-	
+
 	repo.logger.Info("Found previous verification", map[string]interface{}{
 		"verificationId": record.VerificationID,
 		"verificationAt": record.VerificationAt,
 	})
-	
+
 	return &record, nil
 }
