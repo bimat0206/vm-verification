@@ -84,8 +84,7 @@ The Lambda function expects input in the following format:
     "verificationType": "PREVIOUS_VS_CURRENT",
     "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
     "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
-    "previousVerificationId": "verif-2025042010000000",
-    "vendingMachineId": "VM-3245"
+    "previousVerificationId": "verif-2025042010000000"
   }
 }
 ```
@@ -97,7 +96,6 @@ The Lambda function expects input in the following format:
 - `referenceImageUrl` - S3 URI of the reference image (previous checking image)
 - `checkingImageUrl` - S3 URI of the current checking image
 - `previousVerificationId` - ID of the previous verification to retrieve
-- `vendingMachineId` - ID of the vending machine being verified
 
 ## Output Format
 

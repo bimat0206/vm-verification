@@ -83,9 +83,6 @@ func ValidateVerificationContext(ctx *VerificationContext) Errors {
 	if ctx.CheckingImageUrl == "" {
 		errors = append(errors, ValidationError{Field: "checkingImageUrl", Message: "required field missing"})
 	}
-	if ctx.VendingMachineId == "" {
-		errors = append(errors, ValidationError{Field: "vendingMachineId", Message: "required field missing"})
-	}
 
 	// Verification type-specific validations
 	if ctx.VerificationType == VerificationTypeLayoutVsChecking {
