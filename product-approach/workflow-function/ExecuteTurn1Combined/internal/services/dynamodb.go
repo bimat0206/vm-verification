@@ -485,13 +485,15 @@ func (d *dynamoClient) GetVerificationStatus(ctx context.Context, verificationID
 // Conversation management: InitializeConversationHistory creates initial conversation record.
 func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verificationID string, maxTurns int, metadata map[string]interface{}) error {
 	conversationTracker := &schema.ConversationTracker{
-		ConversationId: verificationID,
-		CurrentTurn:    0,
-		MaxTurns:       maxTurns,
-		TurnStatus:     "INITIALIZED",
-		ConversationAt: schema.FormatISO8601(),
-		History:        make([]interface{}, 0),
-		Metadata:       metadata,
+		ConversationId:     verificationID,
+		CurrentTurn:        0,
+		MaxTurns:           maxTurns,
+		TurnStatus:         "INITIALIZED",
+		ConversationAt:     schema.FormatISO8601(),
+		Turn1ProcessedPath: "",
+		Turn2ProcessedPath: "",
+		History:            make([]interface{}, 0),
+		Metadata:           metadata,
 	}
 
 	return d.RecordConversationHistory(ctx, conversationTracker)
@@ -542,6 +544,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		if turnData != nil && turnData.Metadata != nil {
 			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
 				conversationTracker.Metadata["turn1ProcessedPath"] = path
+				conversationTracker.Turn1ProcessedPath = path
+			}
+			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn2ProcessedPath"] = path
+				conversationTracker.Turn2ProcessedPath = path
 			}
 		}
 	} else {
@@ -558,6 +565,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		if turnData != nil && turnData.Metadata != nil {
 			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
 				conversationTracker.Metadata["turn1ProcessedPath"] = path
+				conversationTracker.Turn1ProcessedPath = path
+			}
+			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn2ProcessedPath"] = path
+				conversationTracker.Turn2ProcessedPath = path
 			}
 		}
 	}

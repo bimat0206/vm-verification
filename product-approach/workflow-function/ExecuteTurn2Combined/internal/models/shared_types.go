@@ -232,13 +232,15 @@ func CreateVerificationContext(verificationID, verificationType string) *SchemaV
 // CreateConversationTracker creates a basic conversation tracker
 func CreateConversationTracker(verificationID string, maxTurns int) *SchemaConversationTracker {
 	return &SchemaConversationTracker{
-		ConversationId: verificationID,
-		CurrentTurn:    0,
-		MaxTurns:       maxTurns,
-		TurnStatus:     "INITIALIZED",
-		ConversationAt: FormatISO8601(),
-		History:        make([]interface{}, 0),
-		Metadata:       make(map[string]interface{}),
+		ConversationId:     verificationID,
+		CurrentTurn:        0,
+		MaxTurns:           maxTurns,
+		TurnStatus:         "INITIALIZED",
+		ConversationAt:     FormatISO8601(),
+		Turn1ProcessedPath: "",
+		Turn2ProcessedPath: "",
+		History:            make([]interface{}, 0),
+		Metadata:           make(map[string]interface{}),
 	}
 }
 
@@ -249,10 +251,10 @@ func CreateConversationTracker(verificationID string, maxTurns int) *SchemaConve
 // StepFunctionResponse represents the response structure for Step Functions
 // This matches the expected output format from the requirements
 type StepFunctionResponse struct {
-	VerificationID string                          `json:"verificationId"`
-	S3References   map[string]interface{}          `json:"s3References"`
-	Status         string                          `json:"status"`
-	Summary        map[string]interface{}          `json:"summary"`
+	VerificationID string                 `json:"verificationId"`
+	S3References   map[string]interface{} `json:"s3References"`
+	Status         string                 `json:"status"`
+	Summary        map[string]interface{} `json:"summary"`
 }
 
 // ===================================================================
