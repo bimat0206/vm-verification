@@ -2,7 +2,6 @@ package bedrock
 
 import (
 	"context"
-	"strings"
 
 	"workflow-function/shared/bedrock"
 	"workflow-function/shared/errors"
@@ -67,14 +66,6 @@ func (c *Client) ValidateConfiguration() error {
 	if c.config.Temperature < 0 || c.config.Temperature > 1 {
 		return errors.NewValidationError("temperature must be between 0 and 1",
 			map[string]interface{}{"current_value": c.config.Temperature})
-	}
-
-	if c.config.Temperature == 1 && !strings.EqualFold(c.config.ThinkingType, "enable") && !strings.EqualFold(c.config.ThinkingType, "enabled") {
-		return errors.NewValidationError("temperature may only be set to 1 when thinking is enabled",
-			map[string]interface{}{
-				"current_value": c.config.Temperature,
-				"thinking_type": c.config.ThinkingType,
-			})
 	}
 
 	return nil

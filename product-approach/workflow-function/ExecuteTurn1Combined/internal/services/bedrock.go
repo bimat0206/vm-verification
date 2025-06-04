@@ -29,27 +29,13 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 	// Initialize structured logger for comprehensive observability
 	log := logger.New("ExecuteTurn1Combined", "BedrockService")
 
-	// Create shared bedrock client first
-	// Use the thinking type directly from configuration instead of hardcoding
-	thinkingType := cfg.Processing.ThinkingType
-	if cfg.IsThinkingEnabled() {
-		log.Info("THINKING_SERVICE_ENABLED", map[string]interface{}{
-			"thinking_type":   thinkingType,
-			"budget_tokens":   cfg.Processing.BudgetTokens,
-			"env_thinking_type": cfg.Processing.ThinkingType,
-		})
-	} else {
-		log.Info("THINKING_SERVICE_DISABLED", map[string]interface{}{
-			"thinking_type":   thinkingType,
-			"env_thinking_type": cfg.Processing.ThinkingType,
-		})
-	}
+	// Create shared bedrock client
 	clientConfig := sharedBedrock.CreateClientConfig(
 		cfg.AWS.Region,
 		cfg.AWS.AnthropicVersion,
 		cfg.Processing.MaxTokens,
-		thinkingType,
-		cfg.Processing.BudgetTokens,
+		"",
+		0,
 	)
 
 	sharedClient, err := sharedBedrock.NewBedrockClient(ctx, cfg.AWS.BedrockModel, clientConfig)
@@ -66,8 +52,8 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 		AnthropicVersion: cfg.AWS.AnthropicVersion,
 		MaxTokens:        cfg.Processing.MaxTokens,
 		Temperature:      cfg.Processing.Temperature,
-		ThinkingType:     cfg.Processing.ThinkingType,
-		ThinkingBudget:   cfg.Processing.BudgetTokens,
+		ThinkingType:     "",
+		ThinkingBudget:   0,
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
 		Region:           cfg.AWS.Region,
 	}

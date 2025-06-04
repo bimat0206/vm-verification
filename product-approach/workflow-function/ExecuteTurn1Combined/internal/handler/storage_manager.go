@@ -192,11 +192,10 @@ func (s *StorageManager) StoreResponses(ctx context.Context, req *models.Turn1Re
 
 	// Build enhanced bedrock metadata with thinking support
 	bedrockMetadata := map[string]interface{}{
-		"modelId":         s.cfg.AWS.BedrockModel,
-		"requestId":       resp.RequestID,
-		"stopReason":      stopReason,
-		"hasThinking":     hasThinking,
-		"thinkingEnabled": s.cfg.Processing.ThinkingType == "enable",
+		"modelId":     s.cfg.AWS.BedrockModel,
+		"requestId":   resp.RequestID,
+		"stopReason":  stopReason,
+		"hasThinking": hasThinking,
 	}
 
 	// Add thinking-specific metadata if available

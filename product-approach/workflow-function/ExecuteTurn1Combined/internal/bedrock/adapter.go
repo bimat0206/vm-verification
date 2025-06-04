@@ -99,35 +99,11 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		nil, // TopP - defer to model defaults
 	)
 
-	// Add thinking/reasoning configuration if enabled
-	if config.ThinkingType == "enabled" {
-		request.Reasoning = "enabled"
-		request.InferenceConfig.Reasoning = "enabled"
-		request.Thinking = map[string]interface{}{
-			"type":          "enabled",
-			"budget_tokens": config.ThinkingBudget,
-		}
-		a.logger.Info("THINKING_ADAPTER_ENABLED", map[string]interface{}{
-			"thinking_type":         config.ThinkingType,
-			"budget_tokens":         config.ThinkingBudget,
-			"request_reasoning":     request.Reasoning,
-			"inference_reasoning":   request.InferenceConfig.Reasoning,
-			"request_thinking":      request.Thinking,
-		})
-	} else {
-		a.logger.Info("THINKING_ADAPTER_DISABLED", map[string]interface{}{
-			"thinking_type":       config.ThinkingType,
-			"request_reasoning":   request.Reasoning,
-			"inference_reasoning": request.InferenceConfig.Reasoning,
-		})
-	}
-	
 	// Log the complete request structure for debugging
-	a.logger.Info("THINKING_REQUEST_STRUCTURE", map[string]interface{}{
+	a.logger.Info("bedrock_request_structure", map[string]interface{}{
 		"model_id":            request.ModelId,
 		"reasoning_field":     request.Reasoning,
 		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"thinking_field":      request.Thinking,
 		"max_tokens":          request.InferenceConfig.MaxTokens,
 	})
 
@@ -151,7 +127,7 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 func (a *Adapter) translateResponse(response *sharedBedrock.ConverseResponse) *BedrockResponse {
 	// Extract text content using shared utility
 	content := sharedBedrock.ExtractTextFromResponse(response)
-	
+
 	// Extract thinking content using shared utility (now with multi-strategy extraction)
 	thinking := sharedBedrock.ExtractThinkingFromResponse(response)
 
@@ -191,28 +167,28 @@ func (a *Adapter) translateResponse(response *sharedBedrock.ConverseResponse) *B
 		"model_id":    response.ModelID,
 		"stop_reason": response.StopReason,
 	}
-	
+
 	// Add comprehensive thinking metadata if available
 	if thinking != "" {
 		metadata["thinking"] = thinking
 		metadata["has_thinking"] = true
 		metadata["thinking_length"] = len(thinking)
 		metadata["thinking_enabled"] = true
-		
+
 		// Add thinking blocks for structured analysis
 		thinkingBlocks := a.generateThinkingBlocks(thinking, "response-processing")
 		metadata["thinking_blocks"] = thinkingBlocks
-		
+
 		a.logger.Info("THINKING_EXTRACTED_SUCCESSFULLY", map[string]interface{}{
-			"thinking_length": len(thinking),
-			"thinking_tokens": tokenUsage.ThinkingTokens,
+			"thinking_length":       len(thinking),
+			"thinking_tokens":       tokenUsage.ThinkingTokens,
 			"thinking_blocks_count": len(thinkingBlocks),
-			"extraction_method": "multi_strategy",
+			"extraction_method":     "multi_strategy",
 		})
 	} else {
 		metadata["has_thinking"] = false
 		metadata["thinking_enabled"] = false
-		
+
 		a.logger.Debug("THINKING_NOT_FOUND", map[string]interface{}{
 			"response_length": len(content),
 			"content_preview": a.truncateForLog(content, 100),
@@ -343,12 +319,12 @@ func (a *Adapter) truncateForLog(s string, maxLen int) string {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
-			len(s) > len(substr) && 
-			(s[:len(substr)] == substr || 
-			 s[len(s)-len(substr):] == substr || 
-			 indexContains(s, substr) >= 0))
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					indexContains(s, substr) >= 0))
 }
 
 // indexContains finds substring in string (simple implementation)

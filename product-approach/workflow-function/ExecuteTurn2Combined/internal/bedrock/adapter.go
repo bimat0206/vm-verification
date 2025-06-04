@@ -99,35 +99,11 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		nil, // TopP - defer to model defaults
 	)
 
-	// Add thinking/reasoning configuration if enabled
-	if config.ThinkingType == "enable" {
-		request.Reasoning = "enable"
-		request.InferenceConfig.Reasoning = "enable"
-		request.Thinking = map[string]interface{}{
-			"type":          "enabled",
-			"budget_tokens": config.ThinkingBudget,
-		}
-		a.logger.Info("THINKING_ADAPTER_ENABLED", map[string]interface{}{
-			"thinking_type":         config.ThinkingType,
-			"budget_tokens":         config.ThinkingBudget,
-			"request_reasoning":     request.Reasoning,
-			"inference_reasoning":   request.InferenceConfig.Reasoning,
-			"request_thinking":      request.Thinking,
-		})
-	} else {
-		a.logger.Info("THINKING_ADAPTER_DISABLED", map[string]interface{}{
-			"thinking_type":       config.ThinkingType,
-			"request_reasoning":   request.Reasoning,
-			"inference_reasoning": request.InferenceConfig.Reasoning,
-		})
-	}
-
 	// Log the complete request structure for debugging
-	a.logger.Info("THINKING_REQUEST_STRUCTURE", map[string]interface{}{
+	a.logger.Info("bedrock_request_structure", map[string]interface{}{
 		"model_id":            request.ModelId,
 		"reasoning_field":     request.Reasoning,
 		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"thinking_field":      request.Thinking,
 		"max_tokens":          request.InferenceConfig.MaxTokens,
 	})
 
@@ -203,4 +179,3 @@ func (a *Adapter) detectImageFormat(base64Data string) string {
 	// Default to PNG for maximum compatibility
 	return "png"
 }
-

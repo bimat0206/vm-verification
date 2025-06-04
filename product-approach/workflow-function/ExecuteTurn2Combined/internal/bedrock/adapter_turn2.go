@@ -177,35 +177,11 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		},
 	}
 
-	// Add thinking/reasoning configuration if enabled
-	if a.cfg.IsThinkingEnabled() {
-		request.Reasoning = "enabled"
-		request.InferenceConfig.Reasoning = "enabled"
-		request.Thinking = map[string]interface{}{
-			"type":          "enabled",
-			"budget_tokens": a.cfg.Processing.BudgetTokens,
-		}
-		a.log.Info("THINKING_ADAPTER_ENABLED", map[string]interface{}{
-			"thinking_type":       a.cfg.Processing.ThinkingType,
-			"budget_tokens":       a.cfg.Processing.BudgetTokens,
-			"request_reasoning":   request.Reasoning,
-			"inference_reasoning": request.InferenceConfig.Reasoning,
-			"request_thinking":    request.Thinking,
-		})
-	} else {
-		a.log.Info("THINKING_ADAPTER_DISABLED", map[string]interface{}{
-			"thinking_type":       a.cfg.Processing.ThinkingType,
-			"request_reasoning":   request.Reasoning,
-			"inference_reasoning": request.InferenceConfig.Reasoning,
-		})
-	}
-
 	// Log the complete request structure for debugging
-	a.log.Info("THINKING_REQUEST_STRUCTURE", map[string]interface{}{
+	a.log.Info("bedrock_request_structure", map[string]interface{}{
 		"model_id":            request.ModelId,
 		"reasoning_field":     request.Reasoning,
 		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"thinking_field":      request.Thinking,
 		"max_tokens":          request.InferenceConfig.MaxTokens,
 	})
 
@@ -333,23 +309,18 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 	}
 
 	// Populate thinking metadata
-	thinkingEnabled := a.cfg.IsThinkingEnabled()
-	schemaResponse.Metadata["thinking_enabled"] = thinkingEnabled
 	if thinkingText != "" {
 		blocks := a.generateThinkingBlocks(thinkingText, "response-processing")
 		schemaResponse.Metadata["thinking_blocks"] = blocks
 		schemaResponse.Metadata["has_thinking"] = true
 		schemaResponse.Metadata["thinking_length"] = len(thinkingText)
 		a.log.Info("thinking_extracted", map[string]interface{}{
-			"enabled":         thinkingEnabled,
 			"thinking_tokens": tokenUsage.ThinkingTokens,
 			"blocks":          len(blocks),
 		})
 	} else {
 		schemaResponse.Metadata["has_thinking"] = false
-		a.log.Info("thinking_not_found", map[string]interface{}{
-			"enabled": thinkingEnabled,
-		})
+		a.log.Info("thinking_not_found", nil)
 	}
 
 	// Log response details

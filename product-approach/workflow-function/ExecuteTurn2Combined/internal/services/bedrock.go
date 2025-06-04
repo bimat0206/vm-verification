@@ -34,8 +34,8 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 		cfg.AWS.Region,
 		cfg.AWS.AnthropicVersion,
 		cfg.Processing.MaxTokens,
-		cfg.Processing.ThinkingType,
-		cfg.Processing.BudgetTokens,
+		"",
+		0,
 	)
 
 	sharedClient, err := sharedBedrock.NewBedrockClient(ctx, cfg.AWS.BedrockModel, clientConfig)
@@ -52,8 +52,8 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 		AnthropicVersion: cfg.AWS.AnthropicVersion,
 		MaxTokens:        cfg.Processing.MaxTokens,
 		Temperature:      cfg.Processing.Temperature,
-		ThinkingType:     cfg.Processing.ThinkingType,
-		ThinkingBudget:   cfg.Processing.BudgetTokens,
+		ThinkingType:     "",
+		ThinkingBudget:   0,
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
 		Region:           cfg.AWS.Region,
 	}
