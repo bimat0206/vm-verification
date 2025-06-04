@@ -3,86 +3,105 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	configaws "github.com/aws/aws-sdk-go-v2/config"
 
 	"workflow-function/FetchHistoricalVerification/internal"
 	"workflow-function/shared/errors"
+	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
 )
 
-// handler is the Lambda handler function
-func handler(ctx context.Context, event internal.InputEvent) (internal.OutputEvent, error) {
-	// Load config first
+func handler(ctx context.Context, event map[string]interface{}) (internal.OutputEvent, error) {
 	cfg := internal.LoadConfig()
 
-	// Initialize dependencies
 	deps, err := initDependencies(ctx, cfg)
 	if err != nil {
 		return internal.OutputEvent{}, fmt.Errorf("failed to initialize dependencies: %w", err)
 	}
 
 	logger := deps.GetLogger()
-	logger.Info("Processing event", map[string]interface{}{
-		"verificationId":   event.VerificationContext.VerificationId,
-		"verificationType": event.VerificationContext.VerificationType,
-	})
 
-	// Validate input
-	if err := validateInput(event.VerificationContext); err != nil {
-		logger.Error("Input validation error", map[string]interface{}{
-			"error": err.Error(),
-		})
+	envelope, err := s3state.LoadEnvelope(event)
+	if err != nil {
+		logger.Error("Failed to load envelope", map[string]interface{}{"error": err.Error()})
+		return internal.OutputEvent{}, fmt.Errorf("failed to load envelope: %w", err)
+	}
+
+	initRef := envelope.GetReference("processing_initialization")
+	if initRef == nil {
+		return internal.OutputEvent{}, fmt.Errorf("initialization reference missing")
+	}
+
+	var initData struct {
+		VerificationContext *schema.VerificationContext `json:"verificationContext"`
+	}
+	if err := deps.GetStateManager().RetrieveJSON(initRef, &initData); err != nil {
+		logger.Error("Failed to load initialization", map[string]interface{}{"error": err.Error()})
+		return internal.OutputEvent{}, fmt.Errorf("failed to load initialization: %w", err)
+	}
+	if initData.VerificationContext == nil {
+		return internal.OutputEvent{}, fmt.Errorf("verificationContext missing in initialization")
+	}
+	vCtx := *initData.VerificationContext
+
+	if err := validateInput(vCtx); err != nil {
+		logger.Error("Input validation error", map[string]interface{}{"error": err.Error()})
 		return internal.OutputEvent{}, fmt.Errorf("input validation error: %w", err)
 	}
 
-	// Use the dynamoRepo directly
 	service := internal.NewHistoricalVerificationService(deps.GetDynamoRepo(), logger)
-
-	// Process the request
-	result, err := service.FetchHistoricalVerification(ctx, event.VerificationContext)
+	start := time.Now()
+	result, err := service.FetchHistoricalVerification(ctx, vCtx)
 	if err != nil {
-		logger.Error("Error fetching historical verification", map[string]interface{}{
-			"error": err.Error(),
-		})
+		logger.Error("Error fetching historical verification", map[string]interface{}{"error": err.Error()})
 		return internal.OutputEvent{}, fmt.Errorf("error fetching historical verification: %w", err)
 	}
 
-	// Return the result
-	logger.Info("Successfully retrieved historical verification", map[string]interface{}{
-		"previousVerificationId": result.PreviousVerificationID,
-		"hoursSince":             result.HoursSinceLastVerification,
-	})
+	if err := deps.GetStateManager().SaveToEnvelope(envelope, s3state.CategoryProcessing, s3state.HistoricalContextFile, result); err != nil {
+		logger.Error("Failed to store historical context", map[string]interface{}{"error": err.Error()})
+		return internal.OutputEvent{}, fmt.Errorf("failed to store historical context: %w", err)
+	}
+
+	envelope.SetStatus(schema.StatusHistoricalContextLoaded)
+	if envelope.Summary == nil {
+		envelope.Summary = make(map[string]interface{})
+	}
+	envelope.Summary["historicalDataFound"] = true
+	envelope.Summary["previousVerificationId"] = result.PreviousVerificationID
+	envelope.Summary["previousVerificationAt"] = result.PreviousVerificationAt
+	envelope.Summary["previousStatus"] = result.PreviousVerificationStatus
+	envelope.Summary["processingTimeMs"] = time.Since(start).Milliseconds()
 
 	return internal.OutputEvent{
-		HistoricalContext: result,
+		VerificationID: envelope.VerificationID,
+		S3References:   envelope.References,
+		Status:         envelope.Status,
+		Summary:        envelope.Summary,
 	}, nil
 }
 
-// initDependencies initializes all required dependencies
 func initDependencies(ctx context.Context, config internal.ConfigVars) (*internal.Dependencies, error) {
-	// Load AWS config with the region from our config
 	awsCfg, err := configaws.LoadDefaultConfig(ctx, configaws.WithRegion(config.Region))
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewDependencies(awsCfg, config), nil
+	deps, err := internal.NewDependencies(awsCfg, config)
+	if err != nil {
+		return nil, err
+	}
+	return deps, nil
 }
 
-// validateInput validates the input parameters
 func validateInput(ctx schema.VerificationContext) error {
-	// Check required fields
 	if ctx.VerificationId == "" {
 		return errors.NewMissingFieldError("verificationId")
 	}
-
 	if ctx.VerificationType == "" {
 		return errors.NewMissingFieldError("verificationType")
 	}
-
-	// Ensure verificationType is 'PREVIOUS_VS_CURRENT'
 	if ctx.VerificationType != schema.VerificationTypePreviousVsCurrent {
 		return errors.NewValidationError(
 			"invalid verificationType, expected 'PREVIOUS_VS_CURRENT'",
@@ -92,41 +111,13 @@ func validateInput(ctx schema.VerificationContext) error {
 			},
 		)
 	}
-
 	if ctx.ReferenceImageUrl == "" {
 		return errors.NewMissingFieldError("referenceImageUrl")
 	}
-
 	if ctx.CheckingImageUrl == "" {
 		return errors.NewMissingFieldError("checkingImageUrl")
 	}
-
-	// Verify S3 URL format for reference image
-	if !isValidS3Url(ctx.ReferenceImageUrl) {
-		return errors.NewValidationError("invalid reference image URL format, expected s3:// prefix",
-			map[string]interface{}{"url": ctx.ReferenceImageUrl})
-	}
-
-	// For previous_vs_current, reference image should be in the checking bucket
-	if !isCheckingBucketURL(ctx.ReferenceImageUrl) {
-		return errors.NewValidationError(
-			"for PREVIOUS_VS_CURRENT verification, referenceImageUrl must point to the checking bucket",
-			map[string]interface{}{"url": ctx.ReferenceImageUrl},
-		)
-	}
-
 	return nil
-}
-
-// isValidS3Url checks if the URL has the s3:// prefix
-func isValidS3Url(url string) bool {
-	return len(url) > 5 && url[:5] == "s3://"
-}
-
-// isCheckingBucketURL checks if the URL is from the checking bucket
-func isCheckingBucketURL(url string) bool {
-	checkingBucket := os.Getenv("CHECKING_BUCKET")
-	return len(url) > len(checkingBucket) && url[5:5+len(checkingBucket)] == checkingBucket
 }
 
 func main() {
