@@ -1,5 +1,9 @@
 # Changelog
-
+## [1.0.10] - 2025-06-04
+### Changed
+- `UpdateConversationHistoryOnError` now queries the latest conversation record and
+  updates `turnStatus` instead of creating a new row.
+  
 ## [1.0.9] - 2025-06-04
 ### Changed
 - Set `status` in `VerificationResults` to `VERIFICATION_FAILED` when finalizing with an error.

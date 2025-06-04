@@ -8,7 +8,7 @@ import (
 
 	"workflow-function/FinalizeWithErrorFunction/internal/models"
 	"workflow-function/shared/schema"
-
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -128,14 +128,33 @@ func UpdateConversationHistoryOnError(ctx context.Context, ddbClient *dynamodb.C
 	if initData != nil && initData.VerificationContext.VerificationAt != "" {
 		// For conversation history, conversationAt is typically the same as verificationAt
 		conversationAt = initData.VerificationContext.VerificationAt
-	} else {
-		// If we don't have initData or conversationAt, try to extract from verificationID
-		// VerificationID format: verif-YYYYMMDDHHMMSS-XXXX
+	// If conversationAt not provided, attempt to query the most recent record
+	if conversationAt == "" {
+		queryInput := &dynamodb.QueryInput{
+			TableName:              &tableName,
+			KeyConditionExpression: aws.String("verificationId = :id"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":id": &types.AttributeValueMemberS{Value: verificationID},
+			},
+			ScanIndexForward: aws.Bool(false),
+			Limit:            aws.Int32(1),
+		}
+		result, err := ddbClient.Query(ctx, queryInput)
+		if err == nil && len(result.Items) > 0 {
+			var ch schema.ConversationHistory
+			if unmarshalErr := attributevalue.UnmarshalMap(result.Items[0], &ch); unmarshalErr == nil {
+				conversationAt = ch.ConversationAt
+			}
+		}
+	}
+	}
+	if conversationAt == "" {
+		// Fallback to parsing from verificationID
 		if len(verificationID) >= 20 && strings.HasPrefix(verificationID, "verif-") {
 			// Extract timestamp part: verif-20250603103642-f1f2 -> 20250603103642
-			timestampPart := verificationID[6:20] // Skip "verif-" prefix
+			timestampPart := verificationID[6:20]
 			if len(timestampPart) == 14 {
-				// Parse YYYYMMDDHHMMSS format
+				
 				if parsedTime, err := time.Parse("20060102150405", timestampPart); err == nil {
 					conversationAt = parsedTime.UTC().Format(time.RFC3339)
 				}
@@ -160,6 +179,7 @@ func UpdateConversationHistoryOnError(ctx context.Context, ddbClient *dynamodb.C
 		UpdateExpression:          &updateExpression,
 		ExpressionAttributeNames:  exprNames,
 		ExpressionAttributeValues: exprValues,
+		ConditionExpression:       aws.String("attribute_exists(conversationAt)"),
 	})
 	return err
 }
