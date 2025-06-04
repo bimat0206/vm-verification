@@ -545,9 +545,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		}
 		if turnData != nil && turnData.Metadata != nil {
 			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn1ProcessedPath"] = path
 				conversationTracker.Turn1ProcessedPath = path
 			}
 			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn2ProcessedPath"] = path
 				conversationTracker.Turn2ProcessedPath = path
 			}
 		}
@@ -566,9 +568,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		}
 		if turnData != nil && turnData.Metadata != nil {
 			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn1ProcessedPath"] = path
 				conversationTracker.Turn1ProcessedPath = path
 			}
 			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn2ProcessedPath"] = path
 				conversationTracker.Turn2ProcessedPath = path
 			}
 		}
