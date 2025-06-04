@@ -197,7 +197,7 @@ lambda_functions = {
     render_layout                 = 2048
     list_verifications = 1024
     get_verification   = 1024
-    get_conversation   = 1024
+    api_get_conversation = 1024
     health_check       = 512
   }
   timeouts = {
@@ -219,7 +219,7 @@ lambda_functions = {
     render_layout                 = 120
     list_verifications = 30
     get_verification   = 30
-    get_conversation   = 30
+    api_get_conversation = 30
     health_check       = 30
   }
   log_retention_days            = 90

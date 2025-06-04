@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.2.0] - 2025-01-04
+
+### Changed
+- **Lambda Function Naming Standardization**: Renamed `get_conversation` Lambda function to `api_get_conversation`
+  - **Function Name**: Updated from `*-lambda-get-conversation-*` to `*-lambda-api-get-conversation-*`
+  - **ECR Repository**: Updated from `*-ecr-get-conversation-*` to `*-ecr-api-get-conversation-*`
+  - **CloudWatch Log Group**: Updated from `/aws/lambda/*-lambda-get-conversation-*` to `/aws/lambda/*-lambda-api-get-conversation-*`
+  - **API Gateway Integration**: Updated Lambda function ARN reference in `/api/verifications/{verificationId}/conversation` endpoint
+  - **Terraform Configuration**: Updated all references in `locals.tf`, `terraform.tfvars`, and API Gateway modules
+
+### Infrastructure Impact
+- **Resource Rename**: 3 AWS resources will be renamed during deployment
+  - Lambda function: `*-lambda-get-conversation-*` → `*-lambda-api-get-conversation-*`
+  - ECR repository: `*-ecr-get-conversation-*` → `*-ecr-api-get-conversation-*`
+  - CloudWatch log group: `/aws/lambda/*-lambda-get-conversation-*` → `/aws/lambda/*-lambda-api-get-conversation-*`
+
+- **Updated Resources**: 2 AWS resources will be updated
+  - API Gateway integration for conversation endpoint
+  - API Gateway deployment stage variables
+
+### Benefits
+- **Consistent Naming Convention**: Aligns with existing API function naming pattern (`api_*`)
+- **Improved Organization**: Clear distinction between API functions and internal workflow functions
+- **Enhanced Maintainability**: Standardized naming makes infrastructure management easier
+- **Better Documentation**: Function names now clearly indicate their API-facing purpose
+
+### Migration Notes
+- **Automatic Rename**: All resources will be automatically renamed during terraform apply
+- **No Functional Impact**: API endpoint `/api/verifications/{verificationId}/conversation` continues to work unchanged
+- **No Data Loss**: Function configuration and environment variables are preserved
+- **Backward Compatibility**: No changes required to API clients or application code
+
+### Technical Details
+- **Configuration Files Updated**:
+  - `locals.tf`: ECR repository and Lambda function configuration
+  - `terraform.tfvars`: Memory size and timeout configuration
+  - `modules/api_gateway/methods.tf`: Lambda function ARN reference
+  - `modules/api_gateway/deployment.tf`: Stage variable reference
+  - All backup files updated for consistency
+- **Terraform Validation**: ✅ All references updated and validated
+- **Naming Consistency**: ✅ Function now follows `api_*` naming convention
+- **Zero Downtime**: ✅ Rename operation preserves all functionality
 
 ## [2.1.0] - 2025-01-03
 

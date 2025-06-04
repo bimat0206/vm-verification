@@ -138,8 +138,8 @@ locals {
       repository_policy    = null
     },
 
-    get_conversation = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "get-conversation", local.name_suffix])))
+    api_get_conversation = {
+      name                 = lower(join("-", compact([local.name_prefix, "ecr", "api-get-conversation", local.name_suffix])))
       image_tag_mutability = "MUTABLE"
       scan_on_push         = true
       force_delete         = false
@@ -301,7 +301,7 @@ locals {
       memory_size = 256,
       timeout     = 30,
       # Add explicit image URI to ensure it's not removed when updating
-      image_uri   = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest"
+      image_uri = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-render:latest"
       environment_variables = {
         DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
@@ -329,18 +329,20 @@ locals {
       memory_size = 512,
       timeout     = 30,
       environment_variables = {
-        VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-        LOG_LEVEL          = "INFO"
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
+        DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        LOG_LEVEL                   = "INFO"
       }
     },
 
-    get_conversation = {
-      name        = lower(join("-", compact([local.name_prefix, "lambda", "get-conversation", local.name_suffix]))),
+    api_get_conversation = {
+      name        = lower(join("-", compact([local.name_prefix, "lambda", "api-get-conversation", local.name_suffix]))),
       description = "Get verification conversation history",
       memory_size = 256,
       timeout     = 30,
       environment_variables = {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
+        DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
         LOG_LEVEL                   = "INFO"
       }
     },

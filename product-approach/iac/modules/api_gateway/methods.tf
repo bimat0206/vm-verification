@@ -490,7 +490,7 @@ resource "aws_api_gateway_integration" "verification_conversation_get" {
   http_method             = aws_api_gateway_method.verification_conversation_get.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["get_conversation"]}/invocations"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_get_conversation"]}/invocations"
 }
 
 resource "aws_api_gateway_method_response" "verification_conversation_get" {
