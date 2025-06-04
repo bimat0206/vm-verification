@@ -2,8 +2,8 @@ package bedrock
 
 import (
 	"fmt"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // Validation constants
@@ -15,10 +15,10 @@ const (
 var (
 	// Supported image formats for Bedrock Converse API
 	supportedConverseFormats = []string{"png", "jpeg"}
-	
+
 	// Expanded supported image formats for our system (will be converted as needed)
 	supportedInputFormats = []string{"png", "jpeg", "jpg"}
-	
+
 	// Regex for validating base64 data
 	base64Regex = regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
 )
@@ -63,49 +63,9 @@ func ValidateConverseRequest(request *ConverseRequest) error {
 		}
 	}
 
-	// Validate temperature and thinking mode compatibility
-	if err := ValidateTemperatureThinkingCompatibility(request); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// ValidateTemperatureThinkingCompatibility validates that temperature and thinking mode are compatible
-func ValidateTemperatureThinkingCompatibility(request *ConverseRequest) error {
-	if request == nil {
-		return fmt.Errorf("request cannot be nil")
-	}
-
-	// Check if temperature is set to 1.0
-	if request.InferenceConfig.Temperature != nil && *request.InferenceConfig.Temperature >= 1.0 {
-		// When temperature is 1.0, thinking mode must be enabled
-		thinkingEnabled := false
-
-		// Check if thinking is enabled via structured thinking field
-		if request.Thinking != nil && len(request.Thinking) > 0 {
-			if thinkingType, ok := request.Thinking["type"]; ok {
-				if typeStr, ok := thinkingType.(string); ok && typeStr == "enabled" {
-					thinkingEnabled = true
-				}
-			}
-		}
-
-		// Check if thinking is enabled via legacy reasoning fields
-		if !thinkingEnabled {
-			reasoning := request.InferenceConfig.Reasoning
-			if reasoning == "" {
-				reasoning = request.Reasoning
-			}
-			if reasoning == "enable" || reasoning == "enabled" {
-				thinkingEnabled = true
-			}
-		}
-
-		if !thinkingEnabled {
-			return fmt.Errorf("temperature may only be set to 1 when thinking is enabled. Please set thinking type to 'enabled' or reduce temperature below 1.0")
-		}
-	}
+	// Validate temperature and thinking mode compatibility was removed
+	// after deprecating thinking support. Temperature values are validated
+	// independently when constructing the request.
 
 	return nil
 }
@@ -159,7 +119,7 @@ func ValidateImageBlock(img *ImageBlock) error {
 
 	// Normalize format
 	format := strings.ToLower(img.Format)
-	
+
 	// Validate format for Converse API
 	if !isValidConverseFormat(format) {
 		return fmt.Errorf("invalid image format for Converse API: %s (must be 'png' or 'jpeg')", format)
@@ -197,7 +157,7 @@ func ValidateImageSource(source ImageSource) error {
 	if len(sampleToCheck) > 100 {
 		sampleToCheck = sampleToCheck[:100] // Check just the beginning
 	}
-	
+
 	if !base64Regex.MatchString(sampleToCheck) {
 		return fmt.Errorf("bytes field does not appear to be valid base64 data")
 	}
@@ -208,12 +168,12 @@ func ValidateImageSource(source ImageSource) error {
 // isValidConverseFormat checks if the image format is supported by Converse API
 func isValidConverseFormat(format string) bool {
 	format = strings.ToLower(format)
-	
+
 	// Special case for jpg (Converse API expects 'jpeg')
 	if format == "jpg" {
 		format = "jpeg"
 	}
-	
+
 	for _, supported := range supportedConverseFormats {
 		if format == supported {
 			return true
@@ -315,24 +275,24 @@ func ValidateTurn2Response(turn2Response *Turn2Response) error {
 func ValidateImageData(format string, data string) error {
 	// Normalize format
 	format = NormalizeImageFormat(format)
-	
+
 	// Validate format
 	if !isValidConverseFormat(format) {
 		return fmt.Errorf("invalid image format: %s (supported formats: png, jpeg)", format)
 	}
-	
+
 	// Validate data
 	if data == "" {
 		return fmt.Errorf("image data cannot be empty")
 	}
-	
+
 	// Simple base64 validation
 	if len(data) < 100 {
 		return fmt.Errorf("image data suspiciously small: %d bytes", len(data))
 	}
-	
+
 	// More thorough validation could be added here
-	
+
 	return nil
 }
 
@@ -341,18 +301,18 @@ func ValidateModelID(modelID string) error {
 	if modelID == "" {
 		return fmt.Errorf("model ID cannot be empty")
 	}
-	
+
 	// Check for common model ID prefixes
-	if !strings.HasPrefix(modelID, "anthropic.claude") && 
-	   !strings.HasPrefix(modelID, "amazon.titan") &&
-	   !strings.HasPrefix(modelID, "stability.") &&
-	   !strings.HasPrefix(modelID, "ai21.") &&
-	   !strings.HasPrefix(modelID, "meta.") {
+	if !strings.HasPrefix(modelID, "anthropic.claude") &&
+		!strings.HasPrefix(modelID, "amazon.titan") &&
+		!strings.HasPrefix(modelID, "stability.") &&
+		!strings.HasPrefix(modelID, "ai21.") &&
+		!strings.HasPrefix(modelID, "meta.") {
 		// Not a recognized prefix, but we won't fail validation
 		// Just warn about it
 		fmt.Printf("Warning: Model ID '%s' doesn't match common Bedrock model ID patterns\n", modelID)
 	}
-	
+
 	return nil
 }
 
@@ -361,18 +321,18 @@ func ValidateBase64Data(data string) error {
 	if data == "" {
 		return fmt.Errorf("base64 data cannot be empty")
 	}
-	
+
 	// Sample test on first part of the string
 	sampleSize := 100
 	if len(data) < sampleSize {
 		sampleSize = len(data)
 	}
-	
+
 	sample := data[:sampleSize]
 	if !base64Regex.MatchString(sample) {
 		return fmt.Errorf("data does not appear to be valid base64")
 	}
-	
+
 	return nil
 }
 
@@ -381,31 +341,31 @@ func ValidateRequestCompleteness(request *ConverseRequest) error {
 	if request == nil {
 		return fmt.Errorf("request cannot be nil")
 	}
-	
+
 	// Check model ID
 	if err := ValidateModelID(request.ModelId); err != nil {
 		return err
 	}
-	
+
 	// Check messages
 	if len(request.Messages) == 0 {
 		return fmt.Errorf("request must contain at least one message")
 	}
-	
+
 	// Check inference config
 	if request.InferenceConfig.MaxTokens <= 0 {
 		return fmt.Errorf("maxTokens must be a positive integer")
 	}
-	
+
 	// Validate first message (user message)
 	firstMsg := request.Messages[0]
 	if firstMsg.Role != "user" {
 		return fmt.Errorf("first message must have role 'user', got '%s'", firstMsg.Role)
 	}
-	
+
 	if len(firstMsg.Content) == 0 {
 		return fmt.Errorf("first message must have content")
 	}
-	
+
 	return nil
 }
