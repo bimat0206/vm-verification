@@ -2,6 +2,12 @@
 
 All notable changes to the FetchHistoricalVerification Lambda function will be documented in this file.
 
+## [1.2.1] - 2025-06-05
+
+### Fixed
+- Now queries DynamoDB using `ReferenceImageIndex` and `referenceImageUrl` to
+  correctly locate historical verification records.
+
 ## [1.2.0] - 2025-06-04
 
 ### Changed
