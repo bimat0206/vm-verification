@@ -241,8 +241,8 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 		cfg.AWS.Region,
 		cfg.AWS.AnthropicVersion,
 		cfg.Processing.MaxTokens,
-		cfg.Processing.ThinkingType,
-		cfg.Processing.BudgetTokens,
+		"",
+		0,
 	)
 
 	sharedClient, err := sharedBedrock.NewBedrockClient(
