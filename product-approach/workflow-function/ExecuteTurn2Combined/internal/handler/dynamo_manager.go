@@ -19,15 +19,16 @@ type DynamoManager struct {
 
 // Turn2Result holds data required to finalize Turn2 processing
 type Turn2Result struct {
-	VerificationID     string
-	VerificationAt     string
-	StatusEntry        schema.StatusHistoryEntry
-	TurnEntry          *schema.TurnResponse
-	Metrics            *schema.TurnMetrics
-	VerificationStatus string
-	Discrepancies      []schema.Discrepancy
-	ComparisonSummary  string
-	ConversationRef    *models.S3Reference
+	VerificationID       string
+	VerificationAt       string
+	StatusEntry          schema.StatusHistoryEntry
+	TurnEntry            *schema.TurnResponse
+	Metrics              *schema.TurnMetrics
+	ProcessedMarkdownRef *models.S3Reference
+	VerificationStatus   string
+	Discrepancies        []schema.Discrepancy
+	ComparisonSummary    string
+	ConversationRef      *models.S3Reference
 }
 
 // NewDynamoManager creates a DynamoManager instance.
@@ -95,7 +96,7 @@ func (d *DynamoManager) UpdateTurn2Completion(ctx context.Context, res Turn2Resu
 		dynamoOK = false
 	}
 
-	if err := d.dynamo.UpdateTurn2CompletionDetails(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry, res.Metrics, res.VerificationStatus, res.Discrepancies, res.ComparisonSummary, res.ConversationRef); err != nil {
+	if err := d.dynamo.UpdateTurn2CompletionDetails(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry, res.Metrics, res.ProcessedMarkdownRef, res.VerificationStatus, res.Discrepancies, res.ComparisonSummary, res.ConversationRef); err != nil {
 		d.log.Warn("dynamodb update turn2 completion details failed", map[string]interface{}{
 			"error":     err.Error(),
 			"retryable": errors.IsRetryable(err),

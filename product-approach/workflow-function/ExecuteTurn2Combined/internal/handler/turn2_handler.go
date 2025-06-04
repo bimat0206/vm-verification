@@ -70,6 +70,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 
 	var convRef models.S3Reference
 	var promptRef models.S3Reference
+	var markdownRef models.S3Reference
 
 	// Load context (system prompt, checking image, Turn1 results)
 	loadResult := h.contextLoader.LoadContextTurn2(ctx, req)
@@ -306,7 +307,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	}
 
 	// Store markdown response
-	_, err = h.s3.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse.ComparisonMarkdown)
+	markdownRef, err = h.s3.StoreTurn2Markdown(ctx, req.VerificationID, markdownResponse.ComparisonMarkdown)
 	if err != nil {
 		h.log.Warn("failed_to_store_markdown_response", map[string]interface{}{
 			"error":           err.Error(),
@@ -564,15 +565,16 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		Stage: "CHECKING_ANALYSIS",
 	}
 	dynamoOK := h.dynamoManager.UpdateTurn2Completion(ctx, Turn2Result{
-		VerificationID:     req.VerificationID,
-		VerificationAt:     req.VerificationContext.VerificationAt,
-		StatusEntry:        statusEntry,
-		TurnEntry:          turnEntry,
-		Metrics:            turn2Metrics,
-		VerificationStatus: finalStatus,
-		Discrepancies:      discrepancies,
-		ComparisonSummary:  refinedSummary,
-		ConversationRef:    &convRef,
+		VerificationID:       req.VerificationID,
+		VerificationAt:       req.VerificationContext.VerificationAt,
+		StatusEntry:          statusEntry,
+		TurnEntry:            turnEntry,
+		Metrics:              turn2Metrics,
+		ProcessedMarkdownRef: &markdownRef,
+		VerificationStatus:   finalStatus,
+		Discrepancies:        discrepancies,
+		ComparisonSummary:    refinedSummary,
+		ConversationRef:      &convRef,
 	})
 	if !dynamoOK {
 		h.log.Warn("dynamodb_update_turn2_failed", map[string]interface{}{
@@ -635,7 +637,7 @@ func (h *Turn2Handler) interpretDiscrepancies(parsedData *bedrockparser.ParsedTu
 
 // dynamoRetryOperation implements retry logic for DynamoDB operations
 func (h *Turn2Handler) dynamoRetryOperation(ctx context.Context, operation func() error, operationName string, verificationID string) error {
-        const maxRetries = 1
+	const maxRetries = 1
 	const baseDelay = 200 * time.Millisecond
 	const maxDelay = 2 * time.Second
 
