@@ -2,6 +2,10 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.18] - YYYY-MM-DD
+### Changed
+- DynamoDB retries are now limited to one attempt, and the SDK client obeys this limit. This avoids prolonged failures.
+
 ## [2.2.17] - 2025-06-04
 ### Removed
 - Layout dimension warnings for Turn2 were removed from the prompt generation logic.
