@@ -690,6 +690,10 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 				"failed to marshal processed markdown ref", true)
 		}
 		update = update.Set(expression.Name("processedTurn1MarkdownRef"), expression.Value(avRef))
+		
+		// Add full S3 path for turn1Processed
+		turn1ProcessedPath := fmt.Sprintf("s3://%s/%s", processedMarkdownRef.Bucket, processedMarkdownRef.Key)
+		update = update.Set(expression.Name("turn1ProcessedPath"), expression.Value(turn1ProcessedPath))
 	}
 
 	if conversationRef != nil && conversationRef.Key != "" {

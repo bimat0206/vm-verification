@@ -2,6 +2,20 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.6] - 2025-06-04
+### Added
+- **Full S3 Path Storage in DynamoDB**: Added storage of complete S3 paths for turn1Processed responses
+  - Modified `updateTurn1CompletionDetailsInternal` to store `turn1ProcessedPath` field in DynamoDB
+  - Full S3 path format: `s3://bucket/key` (e.g., `s3://kootoro-dev-s3-state-f6d3xl/2025/06/04/verif-20250604034017-d1d2/responses/turn1-processed-response.md`)
+  - Path is written to DYNAMODB_CONVERSATION_TABLE after successful Turn1 completion
+  - Enables easy access to processed response files for downstream operations and debugging
+
+### Technical Details
+- **DynamoDB Integration**: Enhanced `UpdateTurn1CompletionDetails` method to include S3 path construction
+- **Path Format**: Standardized S3 URI format for consistent access patterns
+- **Storage Timing**: Path written after successful processing and S3 storage completion
+- **Backward Compatibility**: Addition is non-breaking, existing functionality preserved
+
 ## [2.8.5] - 2025-06-07
 ### Fixed
 - Resolved DynamoDB marshalling errors during conversation history updates when
