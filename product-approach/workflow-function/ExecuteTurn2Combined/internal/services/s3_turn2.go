@@ -20,32 +20,20 @@ type TurnConversationDataStore struct {
 	TurnId             int                     `json:"turnId"`
 	AnalysisStage      string                  `json:"analysisStage"`
 	Messages           []schema.BedrockMessage `json:"messages"`
-	Thinking           string                  `json:"thinking,omitempty"`
-	ThinkingBlocks     []interface{}           `json:"thinkingBlocks,omitempty"`
 	TokenUsage         *schema.TokenUsage      `json:"tokenUsage,omitempty"`
 	LatencyMs          int64                   `json:"latencyMs,omitempty"`
 	ProcessingMetadata map[string]interface{}  `json:"processingMetadata,omitempty"`
 	BedrockMetadata    map[string]interface{}  `json:"bedrockMetadata,omitempty"`
 }
 
-// buildAssistantContent creates assistant content with optional thinking blocks
-// When includeThinkingContentInMessage is false, thinking content is omitted
-// from the assistant message and expected to be represented separately.
-func buildAssistantContent(assistantResponse string, thinkingContent string, includeThinkingContentInMessage bool) []map[string]interface{} {
-	content := []map[string]interface{}{
+// buildAssistantContent creates the assistant message content
+func buildAssistantContent(assistantResponse string) []map[string]interface{} {
+	return []map[string]interface{}{
 		{
 			"type": "text",
 			"text": assistantResponse,
 		},
 	}
-
-	if thinkingContent != "" && includeThinkingContentInMessage {
-		content = append(content, map[string]interface{}{
-			"thinking": thinkingContent,
-		})
-	}
-
-	return content
 }
 
 func bedrockMessageToMap(msg schema.BedrockMessage) map[string]interface{} {
@@ -478,14 +466,12 @@ func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID strin
 }
 
 // StoreTurn2Conversation stores full conversation messages for turn2
-func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, thinkingContent string, thinkingBlocks []interface{}, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
+func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID string, turn1Messages []schema.BedrockMessage, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for storing Turn2 conversation",
 			map[string]interface{}{"operation": "store_turn2_conversation"})
 	}
-
-	addedStructuredThinkingBlocks := len(thinkingBlocks) > 0
 
 	// Build messages array
 	messages := []map[string]interface{}{}
@@ -522,7 +508,7 @@ func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID s
 
 	assistantMessage := map[string]interface{}{
 		"role":    "assistant",
-		"content": buildAssistantContent(assistantResponse, thinkingContent, !addedStructuredThinkingBlocks),
+		"content": buildAssistantContent(assistantResponse),
 	}
 	messages = append(messages, assistantMessage)
 
@@ -532,14 +518,6 @@ func (m *s3Manager) StoreTurn2Conversation(ctx context.Context, verificationID s
 		"turnId":         2,
 		"analysisStage":  bedrock.AnalysisStageTurn2,
 		"messages":       messages,
-	}
-
-	if thinkingContent != "" {
-		data["thinking"] = thinkingContent
-	}
-
-	if addedStructuredThinkingBlocks {
-		data["thinkingBlocks"] = thinkingBlocks
 	}
 
 	if tokenUsage != nil {
