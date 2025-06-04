@@ -77,6 +77,7 @@ type dynamoClient struct {
 	conversationTable string
 	layoutTable       string
 	region            string
+	maxRetries        int
 }
 
 // NewDynamoDBService constructs an enhanced DynamoDBService with comprehensive capabilities.
@@ -88,12 +89,17 @@ func NewDynamoDBService(cfg *config.Config) (DynamoDBService, error) {
 			WithContext("region", cfg.AWS.Region)
 	}
 	client := dynamodb.NewFromConfig(awsCfg)
+	maxRetries := cfg.Processing.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
 	return &dynamoClient{
 		client:            client,
 		verificationTable: cfg.AWS.DynamoDBVerificationTable,
 		conversationTable: cfg.AWS.DynamoDBConversationTable,
 		layoutTable:       "LayoutMetadata", // Would be configurable in real implementation
 		region:            cfg.AWS.Region,
+		maxRetries:        maxRetries,
 	}, nil
 }
 
@@ -982,7 +988,11 @@ func (d *dynamoClient) getVerificationResultsKey(verificationID, verificationAt 
 
 // retryWithBackoff executes a DynamoDB operation with exponential backoff retry logic
 func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() error, operationName string) error {
-	maxAttempts := 5
+	maxAttempts := d.maxRetries
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	log.Printf("DynamoDB operation %s will retry up to %d times", operationName, maxAttempts)
 	baseDelay := 200 * time.Millisecond
 	maxDelay := 5 * time.Second
 	backoffMultiple := 2.0
