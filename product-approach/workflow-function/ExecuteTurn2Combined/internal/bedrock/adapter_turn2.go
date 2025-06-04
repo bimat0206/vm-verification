@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"workflow-function/ExecuteTurn2Combined/internal/config"
@@ -452,20 +453,8 @@ func (a *AdapterTurn2) truncateForLog(s string, maxLen int) string {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			len(s) > len(substr) &&
-				(s[:len(substr)] == substr ||
-					s[len(s)-len(substr):] == substr ||
-					indexContains(s, substr) >= 0))
-}
-
-// indexContains finds substring in string
-func indexContains(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
+	if substr == "" {
+		return false
 	}
-	return -1
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
