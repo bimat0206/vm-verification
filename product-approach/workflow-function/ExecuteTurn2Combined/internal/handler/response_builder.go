@@ -160,7 +160,7 @@ func (r *ResponseBuilder) BuildTurn2StepFunctionResponse(
 		s3References["processing_layout-metadata"] = tree.Processing.LayoutMetadata
 	}
 	if tree.Processing.HistoricalContext.Key != "" {
-		s3References["processing_historical-context"] = tree.Processing.HistoricalContext
+		s3References["processing_historical_context"] = tree.Processing.HistoricalContext
 	}
 
 	summaryMap := map[string]interface{}{

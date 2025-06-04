@@ -371,7 +371,7 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 
 	// Populate historical context S3 reference for PREVIOUS_VS_CURRENT
 	if initData.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		if v, ok := event.S3References["processing_historical-context"]; ok {
+		if v, ok := event.S3References["processing_historical_context"]; ok {
 			if histCtxRef, ok := convertToS3Reference(v); ok {
 				req.S3Refs.Processing.HistoricalContext = histCtxRef
 				transformLogger.Info("historical_context_s3_reference_found_in_event", map[string]interface{}{

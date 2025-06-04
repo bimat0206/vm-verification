@@ -239,7 +239,7 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
   - `initialization` renamed to `processing_initialization`.
   - `images.metadata` flattened to `images_metadata`.
   - `processing.layoutMetadata` flattened to `processing_layout-metadata`.
-  - `processing.historicalContext` now outputs as `processing_historical-context`
+  - `processing.historicalContext` now outputs as `processing_historical_context`
     only when `verificationType` is `PREVIOUS_VS_CURRENT`.
 - Ensured all generated S3 reference keys include the date-partition prefix so
   paths are consistent across artifacts.
@@ -266,7 +266,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Historical Context Loading Refactor:**
-  - Historical context for `PREVIOUS_VS_CURRENT` verifications is now loaded from the provided S3 reference `processing_historical-context`.
+  - Historical context for `PREVIOUS_VS_CURRENT` verifications is now loaded from the provided S3 reference `processing_historical_context`.
   - Removed direct DynamoDB queries for previous verification data in `HistoricalContextLoader`.
   - `EventTransformer` now passes the historical context S3 reference through to the `Turn1Request` structure.
   - `Turn1RequestS3Refs` updated to include `Processing` references.

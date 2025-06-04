@@ -122,7 +122,7 @@ func (r *ResponseBuilder) BuildStepFunctionResponse(
 
 	if req.VerificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		if s3RefTree.Processing.HistoricalContext.Key != "" {
-			s3References["processing_historical-context"] = s3RefTree.Processing.HistoricalContext
+			s3References["processing_historical_context"] = s3RefTree.Processing.HistoricalContext
 		}
 	}
 
