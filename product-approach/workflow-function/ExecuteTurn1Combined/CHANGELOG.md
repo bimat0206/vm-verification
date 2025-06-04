@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.8] - 2025-06-08
+### Fixed
+- Added missing `anthropic-version` header when invoking Bedrock Converse API.
+  Without this header Bedrock returned generic `WRAPPED_ERROR` failures.
+
 ## [2.8.7] - 2025-06-05
 ### Changed
 - `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode

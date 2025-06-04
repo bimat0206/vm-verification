@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net/http"
 	"reflect"
 	"time"
 
@@ -34,6 +35,20 @@ type ClientConfig struct {
 	BudgetTokens     int
 }
 
+// anthropicVersionRoundTripper injects the Anthropc version header
+// required by the Bedrock Converse API on each request.
+type anthropicVersionRoundTripper struct {
+	next    http.RoundTripper
+	version string
+}
+
+func (rt *anthropicVersionRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.version != "" {
+		req.Header.Set("anthropic-version", rt.version)
+	}
+	return rt.next.RoundTrip(req)
+}
+
 // NewBedrockClient creates a new Bedrock client with Converse API support
 func NewBedrockClient(ctx context.Context, modelID string, clientConfig *ClientConfig) (*BedrockClient, error) {
 	// Load AWS configuration
@@ -44,8 +59,13 @@ func NewBedrockClient(ctx context.Context, modelID string, clientConfig *ClientC
 		return nil, fmt.Errorf("failed to load AWS configuration: %w", err)
 	}
 
-	// Create Bedrock runtime client
-	client := bedrockruntime.NewFromConfig(cfg)
+	// Inject anthropic-version header using custom HTTP client
+	httpClient := &http.Client{Transport: &anthropicVersionRoundTripper{next: http.DefaultTransport, version: clientConfig.AnthropicVersion}}
+
+	// Create Bedrock runtime client with the custom HTTP client
+	client := bedrockruntime.NewFromConfig(cfg, func(o *bedrockruntime.Options) {
+		o.HTTPClient = httpClient
+	})
 
 	return &BedrockClient{
 		client:  client,
