@@ -17,7 +17,7 @@ import (
 func handler(ctx context.Context, event internal.InputEvent) (internal.OutputEvent, error) {
 	// Load config first
 	cfg := internal.LoadConfig()
-	
+
 	// Initialize dependencies
 	deps, err := initDependencies(ctx, cfg)
 	if err != nil {
@@ -99,10 +99,6 @@ func validateInput(ctx schema.VerificationContext) error {
 
 	if ctx.CheckingImageUrl == "" {
 		return errors.NewMissingFieldError("checkingImageUrl")
-	}
-
-	if ctx.VendingMachineId == "" {
-		return errors.NewMissingFieldError("vendingMachineId")
 	}
 
 	// Verify S3 URL format for reference image
