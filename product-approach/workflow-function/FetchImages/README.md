@@ -138,7 +138,7 @@ docker build -t fetchimages .
             "bucket": "string",
             "key": "string"
         },
-        "processing_historical-context": {
+        "processing_historical_context": {
             "bucket": "string",
             "key": "string"
         }

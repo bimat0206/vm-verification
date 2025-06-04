@@ -88,10 +88,10 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 		"initialization_initialization",
 		"processing_initialization",
 	}
-	
+
 	var initRef *s3state.Reference
 	var foundKey string
-	
+
 	for _, key := range possibleKeys {
 		if ref, exists := input.References[key]; exists && ref != nil {
 			initRef = ref
@@ -99,21 +99,21 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 			break
 		}
 	}
-	
+
 	if initRef == nil {
 		// Log available references to help troubleshooting
 		refKeys := make([]string, 0, len(input.References))
 		for k := range input.References {
 			refKeys = append(refKeys, k)
 		}
-		
-		return errors.NewValidationError("Initialization reference not found", 
+
+		return errors.NewValidationError("Initialization reference not found",
 			map[string]interface{}{
 				"availableRefs": refKeys,
 				"triedKeys":     possibleKeys,
 			})
 	}
-	
+
 	l.log.Info("Found initialization reference", map[string]interface{}{
 		"key":    foundKey,
 		"bucket": initRef.Bucket,
@@ -123,10 +123,10 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 	// Load initialization data - try all possible formats
 	// First try nested format (with verificationContext field)
 	var initDataNested struct {
-		SchemaVersion      string                   `json:"schemaVersion"`
+		SchemaVersion       string                      `json:"schemaVersion"`
 		VerificationContext *schema.VerificationContext `json:"verificationContext"`
-		SystemPrompt       *schema.SystemPrompt     `json:"systemPrompt,omitempty"`
-		LayoutMetadata     map[string]interface{}   `json:"layoutMetadata,omitempty"`
+		SystemPrompt        *schema.SystemPrompt        `json:"systemPrompt,omitempty"`
+		LayoutMetadata      map[string]interface{}      `json:"layoutMetadata,omitempty"`
 	}
 
 	// Get the raw JSON first for additional attempts if needed
@@ -134,7 +134,7 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 	if err := l.s3Manager.RetrieveJSON(initRef, &rawJSON); err != nil {
 		return errors.NewInternalError("initialization-load-raw", err)
 	}
-	
+
 	// Try to parse as nested structure
 	if err := l.s3Manager.RetrieveJSON(initRef, &initDataNested); err != nil {
 		l.log.Warn("Failed to load as nested structure, will try alternative formats", map[string]interface{}{
@@ -146,20 +146,20 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 	if initDataNested.VerificationContext != nil {
 		// Set verification context in state using the nested structure
 		state.VerificationContext = initDataNested.VerificationContext
-		
+
 		// Also set system prompt and layout metadata if available
 		if initDataNested.SystemPrompt != nil {
 			state.SystemPrompt = initDataNested.SystemPrompt
 			l.log.Info("Loaded system prompt from nested initialization structure", nil)
 		}
-		
+
 		if initDataNested.LayoutMetadata != nil {
 			state.LayoutMetadata = initDataNested.LayoutMetadata
 			l.log.Info("Loaded layout metadata from nested initialization structure", nil)
 		}
-		
+
 		l.log.Info("Loaded verification context from nested structure", map[string]interface{}{
-			"verificationId": state.VerificationContext.VerificationId,
+			"verificationId":   state.VerificationContext.VerificationId,
 			"verificationType": state.VerificationContext.VerificationType,
 		})
 	} else {
@@ -180,13 +180,13 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 				} else {
 					state.VerificationContext = &verContext
 					l.log.Info("Loaded verification context from raw JSON map", map[string]interface{}{
-						"verificationId": state.VerificationContext.VerificationId,
+						"verificationId":   state.VerificationContext.VerificationId,
 						"verificationType": state.VerificationContext.VerificationType,
 					})
 				}
 			}
 		}
-		
+
 		// If still nil, try loading as a direct VerificationContext object
 		if state.VerificationContext == nil {
 			var initData schema.VerificationContext
@@ -200,19 +200,19 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 				// Set verification context in state from direct structure
 				state.VerificationContext = &initData
 				l.log.Info("Loaded verification context directly", map[string]interface{}{
-					"verificationId": state.VerificationContext.VerificationId,
+					"verificationId":   state.VerificationContext.VerificationId,
 					"verificationType": state.VerificationContext.VerificationType,
 				})
 			}
 		}
 	}
-	
+
 	// Validate that we have a valid verification context
 	if state.VerificationContext == nil {
-		return errors.NewInternalError("initialization-load", 
+		return errors.NewInternalError("initialization-load",
 			fmt.Errorf("failed to load verification context in any format"))
 	}
-	
+
 	// Ensure all required fields are set in the verification context
 	// This is required for validation to pass
 	if state.VerificationContext.VerificationId == "" && input.VerificationID != "" {
@@ -221,7 +221,7 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 			"verificationId": input.VerificationID,
 		})
 	}
-	
+
 	// Set verificationType if missing - try multiple sources
 	if state.VerificationContext.VerificationType == "" {
 		// First try input.VerificationType
@@ -240,7 +240,7 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 			}
 		}
 	}
-	
+
 	// Set status if missing
 	if state.VerificationContext.Status == "" && input.Status != "" {
 		state.VerificationContext.Status = input.Status
@@ -248,7 +248,7 @@ func (l *Loader) loadVerificationContext(input *Input, state *schema.WorkflowSta
 			"status": input.Status,
 		})
 	}
-	
+
 	// Set verificationAt if missing
 	if state.VerificationContext.VerificationAt == "" {
 		// Use current time if not available
@@ -302,11 +302,11 @@ func (l *Loader) loadImagesFromMetadata(input *Input, state *schema.WorkflowStat
 		if oldErr := l.s3Manager.RetrieveJSON(metadataRef, &oldMetadata); oldErr != nil {
 			return errors.NewInternalError("images-metadata-load", err)
 		}
-		
+
 		// Process old format
 		return l.processOldFormatMetadata(oldMetadata, state)
 	}
-	
+
 	// Process the new complex format
 	return l.processNewFormatMetadata(complexMetadata, state)
 }
@@ -318,7 +318,7 @@ func (l *Loader) processOldFormatMetadata(metadata map[string]*schema.ImageInfo,
 		// Set the image in the state
 		state.Images.Reference = refImage
 		state.Images.ReferenceImage = refImage // Also set in legacy format for compatibility
-		
+
 		l.log.Info("Loaded reference image from metadata (old format)", map[string]interface{}{
 			"url":           refImage.URL,
 			"storageMethod": refImage.StorageMethod,
@@ -342,7 +342,7 @@ func (l *Loader) processOldFormatMetadata(metadata map[string]*schema.ImageInfo,
 		// Set the image in the state
 		state.Images.Checking = checkImage
 		state.Images.CheckingImage = checkImage // Also set in legacy format for compatibility
-		
+
 		l.log.Info("Loaded checking image from metadata (old format)", map[string]interface{}{
 			"url":           checkImage.URL,
 			"storageMethod": checkImage.StorageMethod,
@@ -381,13 +381,13 @@ func (l *Loader) processNewFormatMetadata(metadata struct {
 		if !ok {
 			return errors.NewValidationError("Reference image storage metadata not found or invalid", nil)
 		}
-		
+
 		// Extract original metadata
 		originalMetadata, ok := metadata.ReferenceImage["originalMetadata"].(map[string]interface{})
 		if !ok {
 			return errors.NewValidationError("Reference image original metadata not found or invalid", nil)
 		}
-		
+
 		// Create ImageInfo from the complex structure
 		refImage := &schema.ImageInfo{
 			// From originalMetadata
@@ -396,30 +396,30 @@ func (l *Loader) processNewFormatMetadata(metadata struct {
 			S3Bucket:    getStringValue(originalMetadata, "sourceBucket"),
 			ContentType: getStringValue(originalMetadata, "contentType"),
 			Size:        getInt64Value(originalMetadata, "originalSize"),
-			
+
 			// From storageMetadata
 			Base64S3Bucket: getStringValue(storageMetadata, "bucket"),
 			Base64S3Key:    getStringValue(storageMetadata, "key"),
-			
+
 			// Set storage method
 			StorageMethod:   "s3-temporary",
 			Base64Generated: true,
 		}
-		
+
 		// Set the image in the state
 		state.Images.Reference = refImage
 		state.Images.ReferenceImage = refImage // Also set in legacy format for compatibility
-		
+
 		l.log.Info("Loaded reference image from metadata (new format)", map[string]interface{}{
-			"url":           refImage.URL,
-			"storageMethod": refImage.StorageMethod,
+			"url":            refImage.URL,
+			"storageMethod":  refImage.StorageMethod,
 			"base64S3Bucket": refImage.Base64S3Bucket,
 			"base64S3Key":    refImage.Base64S3Key,
 		})
 	} else {
 		return errors.NewValidationError("Reference image not found in metadata", nil)
 	}
-	
+
 	// Process checking image (optional for Turn 1)
 	if metadata.CheckingImage != nil {
 		// Extract storage metadata
@@ -428,14 +428,14 @@ func (l *Loader) processNewFormatMetadata(metadata struct {
 			l.log.Warn("Checking image storage metadata not found or invalid", nil)
 			return nil
 		}
-		
+
 		// Extract original metadata
 		originalMetadata, ok := metadata.CheckingImage["originalMetadata"].(map[string]interface{})
 		if !ok {
 			l.log.Warn("Checking image original metadata not found or invalid", nil)
 			return nil
 		}
-		
+
 		// Create ImageInfo from the complex structure
 		checkImage := &schema.ImageInfo{
 			// From originalMetadata
@@ -444,23 +444,23 @@ func (l *Loader) processNewFormatMetadata(metadata struct {
 			S3Bucket:    getStringValue(originalMetadata, "sourceBucket"),
 			ContentType: getStringValue(originalMetadata, "contentType"),
 			Size:        getInt64Value(originalMetadata, "originalSize"),
-			
+
 			// From storageMetadata
 			Base64S3Bucket: getStringValue(storageMetadata, "bucket"),
 			Base64S3Key:    getStringValue(storageMetadata, "key"),
-			
+
 			// Set storage method
 			StorageMethod:   "s3-temporary",
 			Base64Generated: true,
 		}
-		
+
 		// Set the image in the state
 		state.Images.Checking = checkImage
 		state.Images.CheckingImage = checkImage // Also set in legacy format for compatibility
-		
+
 		l.log.Info("Loaded checking image from metadata (new format)", map[string]interface{}{
-			"url":           checkImage.URL,
-			"storageMethod": checkImage.StorageMethod,
+			"url":            checkImage.URL,
+			"storageMethod":  checkImage.StorageMethod,
 			"base64S3Bucket": checkImage.Base64S3Bucket,
 			"base64S3Key":    checkImage.Base64S3Key,
 		})
@@ -468,7 +468,7 @@ func (l *Loader) processNewFormatMetadata(metadata struct {
 		// Checking image is not critical for Turn 1, so just log a warning
 		l.log.Warn("Checking image not found in metadata (new format)", nil)
 	}
-	
+
 	return nil
 }
 
@@ -501,10 +501,10 @@ func (l *Loader) loadLayoutMetadata(input *Input, state *schema.WorkflowState) e
 		"processing_layout_metadata",
 		"processing_layout-metadata",
 	}
-	
+
 	var layoutRef *s3state.Reference
 	var foundKey string
-	
+
 	for _, key := range possibleKeys {
 		if ref, exists := input.References[key]; exists && ref != nil {
 			layoutRef = ref
@@ -512,7 +512,7 @@ func (l *Loader) loadLayoutMetadata(input *Input, state *schema.WorkflowState) e
 			break
 		}
 	}
-	
+
 	if layoutRef == nil {
 		return errors.NewValidationError("Layout metadata reference not found", map[string]interface{}{
 			"triedKeys": possibleKeys,
@@ -553,10 +553,10 @@ func (l *Loader) loadHistoricalContext(input *Input, state *schema.WorkflowState
 		"processing_historical_context",
 		"processing_historical-context",
 	}
-	
+
 	var historicalRef *s3state.Reference
 	var foundKey string
-	
+
 	for _, key := range possibleKeys {
 		if ref, exists := input.References[key]; exists && ref != nil {
 			historicalRef = ref
@@ -564,7 +564,7 @@ func (l *Loader) loadHistoricalContext(input *Input, state *schema.WorkflowState
 			break
 		}
 	}
-	
+
 	if historicalRef == nil {
 		return errors.NewValidationError("Historical context reference not found", map[string]interface{}{
 			"triedKeys": possibleKeys,
@@ -612,10 +612,10 @@ func (l *Loader) loadSystemPrompt(input *Input, state *schema.WorkflowState) err
 		"prompts_system_prompt",
 		"prompts_system-prompt",
 	}
-	
+
 	var systemPromptRef *s3state.Reference
 	var foundKey string
-	
+
 	for _, key := range possibleKeys {
 		if ref, exists := input.References[key]; exists && ref != nil {
 			systemPromptRef = ref
@@ -623,21 +623,21 @@ func (l *Loader) loadSystemPrompt(input *Input, state *schema.WorkflowState) err
 			break
 		}
 	}
-	
+
 	if systemPromptRef == nil {
 		// Log available references to help troubleshooting
 		refKeys := make([]string, 0, len(input.References))
 		for k := range input.References {
 			refKeys = append(refKeys, k)
 		}
-		
-		return errors.NewValidationError("System prompt reference not found", 
+
+		return errors.NewValidationError("System prompt reference not found",
 			map[string]interface{}{
 				"availableRefs": refKeys,
 				"triedKeys":     possibleKeys,
 			})
 	}
-	
+
 	l.log.Info("Found system prompt reference", map[string]interface{}{
 		"key":    foundKey,
 		"bucket": systemPromptRef.Bucket,
