@@ -3,6 +3,11 @@
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
 
+## [2.2.19] - 2025-06-06
+### Fixed
+- Added validation of Turn1 raw response when loading conversation history
+  to prevent Bedrock request failures when required fields are missing.
+
 ## [2.2.18] - 2025-06-05
 ### Changed
 - `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode
