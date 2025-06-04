@@ -3,6 +3,11 @@
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
 
+## [2.2.20] - 2025-06-07
+### Fixed
+- `LoadTurn1SchemaResponse` now parses `bedrockMetadata` fields from
+  `turn1-raw-response.json`, ensuring `modelId` and `requestId` are
+  captured for schema validation.
 ## [2.2.19] - 2025-06-06
 ### Fixed
 - Added validation of Turn1 raw response when loading conversation history

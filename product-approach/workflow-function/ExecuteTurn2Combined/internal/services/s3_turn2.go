@@ -217,10 +217,15 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 			Response  struct {
 				Content []map[string]interface{} `json:"content"`
 			} `json:"response"`
-			LatencyMs  int64                  `json:"latencyMs"`
-			TokenUsage *schema.TokenUsage     `json:"tokenUsage,omitempty"`
-			Stage      string                 `json:"analysisStage"`
-			Metadata   map[string]interface{} `json:"metadata,omitempty"`
+			LatencyMs       int64                  `json:"latencyMs"`
+			TokenUsage      *schema.TokenUsage     `json:"tokenUsage,omitempty"`
+			Stage           string                 `json:"analysisStage"`
+			Metadata        map[string]interface{} `json:"metadata,omitempty"`
+			BedrockMetadata struct {
+				ModelId    string `json:"modelId"`
+				RequestId  string `json:"requestId"`
+				StopReason string `json:"stopReason,omitempty"`
+			} `json:"bedrockMetadata,omitempty"`
 		}
 
 		if altErr := json.Unmarshal(raw, &alt); altErr == nil {
@@ -232,6 +237,9 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 			resp.TokenUsage = alt.TokenUsage
 			resp.Stage = alt.Stage
 			resp.Metadata = alt.Metadata
+			resp.Response.ModelId = alt.BedrockMetadata.ModelId
+			resp.Response.RequestId = alt.BedrockMetadata.RequestId
+			resp.Response.StopReason = alt.BedrockMetadata.StopReason
 			for _, c := range alt.Response.Content {
 				if typ, ok := c["type"].(string); ok {
 					switch typ {
