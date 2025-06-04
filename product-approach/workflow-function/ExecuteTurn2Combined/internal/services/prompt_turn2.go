@@ -98,11 +98,11 @@ func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context,
 		},
 		"imageReference": map[string]interface{}{
 			"base64StorageReference": map[string]string{
-				"bucket": "kootoro-dev-s3-state-f6d3xl",
-				"key":    "checking-base64.base64",
+				"bucket": p.cfg.AWS.S3Bucket,
+				"key":    vCtx.CheckingImageUrl,
 			},
 			"imageType": "checking",
-			"sourceUrl": "s3://kootoro-dev-s3-state-f6d3xl/checking-base64.base64",
+			"sourceUrl": fmt.Sprintf("s3://%s/%s", p.cfg.AWS.S3Bucket, vCtx.CheckingImageUrl),
 		},
 		"messageStructure": map[string]interface{}{
 			"content": []map[string]string{
