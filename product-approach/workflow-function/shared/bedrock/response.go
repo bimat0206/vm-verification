@@ -27,22 +27,17 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 		return nil, fmt.Errorf("no text content in response")
 	}
 
-	// Extract thinking content from response
-	thinkingText := ExtractThinkingFromResponse(response)
-
 	// Create token usage
 	tokenUsage := TokenUsage{
-		InputTokens:    0,
-		OutputTokens:   0,
-		ThinkingTokens: 0,
-		TotalTokens:    0,
+		InputTokens:  0,
+		OutputTokens: 0,
+		TotalTokens:  0,
 	}
 
 	// Copy token usage if available
 	if response.Usage != nil {
 		tokenUsage.InputTokens = response.Usage.InputTokens
 		tokenUsage.OutputTokens = response.Usage.OutputTokens
-		tokenUsage.ThinkingTokens = response.Usage.ThinkingTokens
 		tokenUsage.TotalTokens = response.Usage.TotalTokens
 	}
 
@@ -55,7 +50,6 @@ func (rp *ResponseProcessor) ProcessTurn1Response(
 			Content:    responseText,
 			StopReason: response.StopReason,
 		},
-		Thinking:      thinkingText,
 		LatencyMs:     latencyMs,
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn1,
@@ -84,22 +78,17 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 		return nil, fmt.Errorf("no text content in response")
 	}
 
-	// Extract thinking content from response
-	thinkingText := ExtractThinkingFromResponse(response)
-
 	// Create token usage
 	tokenUsage := TokenUsage{
-		InputTokens:    0,
-		OutputTokens:   0,
-		ThinkingTokens: 0,
-		TotalTokens:    0,
+		InputTokens:  0,
+		OutputTokens: 0,
+		TotalTokens:  0,
 	}
 
 	// Copy token usage if available
 	if response.Usage != nil {
 		tokenUsage.InputTokens = response.Usage.InputTokens
 		tokenUsage.OutputTokens = response.Usage.OutputTokens
-		tokenUsage.ThinkingTokens = response.Usage.ThinkingTokens
 		tokenUsage.TotalTokens = response.Usage.TotalTokens
 	}
 
@@ -112,7 +101,6 @@ func (rp *ResponseProcessor) ProcessTurn2Response(
 			Content:    responseText,
 			StopReason: response.StopReason,
 		},
-		Thinking:      thinkingText,
 		LatencyMs:     latencyMs,
 		TokenUsage:    tokenUsage,
 		AnalysisStage: AnalysisStageTurn2,
