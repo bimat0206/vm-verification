@@ -142,7 +142,7 @@ The fix uses a **defensive programming approach**:
 
 To test the implementation:
 
-1. **Set Environment Variable**: `THINKING_TYPE=enable`
+1. **Set Environment Variable**: `THINKING_TYPE=enabled`
 2. **Deploy Lambda**: Deploy ExecuteTurn1Combined with the updated shared client
 3. **Trigger Verification**: Run a vending machine verification
 4. **Check Logs**: Look for thinking-related log messages in CloudWatch
@@ -150,7 +150,7 @@ To test the implementation:
 
 ## Expected Behavior
 
-With `THINKING_TYPE=enable`:
+With `THINKING_TYPE=enabled`:
 - ✅ Reasoning configuration is sent to Bedrock API
 - ✅ Content blocks are analyzed for thinking content
 - ✅ Token usage is checked for thinking tokens
