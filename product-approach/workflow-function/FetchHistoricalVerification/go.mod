@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
+	workflow-function/shared/errors v0.0.0
 	workflow-function/shared/logger v0.0.0
 	workflow-function/shared/schema v0.0.0
 )
@@ -32,9 +33,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
-	github.com/aws/smithy-go v1.22.2 // indirect
+	github.com/aws/smithy-go v1.22.3 // indirect
 )
 
 replace workflow-function/shared/schema => ../shared/schema
 
 replace workflow-function/shared/logger => ../shared/logger
+
+replace workflow-function/shared/errors => ../shared/errors
+
+replace workflow-function/shared/s3state => ../shared/s3state

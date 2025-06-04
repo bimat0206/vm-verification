@@ -3,13 +3,14 @@ package internal
 import (
 	"context"
 	"fmt"
-	//"time"
-	
+
+	"workflow-function/shared/errors"
+	"workflow-function/shared/logger"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"workflow-function/shared/logger"
 )
 
 // DynamoDBRepository handles direct DynamoDB operations
@@ -62,7 +63,11 @@ func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, im
 		repo.logger.Warn("No previous verification found", map[string]interface{}{
 			"imageURL": imageURL,
 		})
-		return nil, NewResourceNotFoundError("Verification", imageURL)
+		return nil, errors.NewValidationError("No previous verification found for image",
+			map[string]interface{}{
+				"imageURL": imageURL,
+				"resource": "Verification",
+			})
 	}
 	
 	// Unmarshal the first (most recent) item

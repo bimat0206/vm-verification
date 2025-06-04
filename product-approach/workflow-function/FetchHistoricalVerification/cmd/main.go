@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	
+	"os"
+
 	"github.com/aws/aws-lambda-go/lambda"
 	configaws "github.com/aws/aws-sdk-go-v2/config"
-	
+
 	"workflow-function/FetchHistoricalVerification/internal"
+	"workflow-function/shared/errors"
 	"workflow-function/shared/schema"
 )
 
@@ -73,18 +75,18 @@ func initDependencies(ctx context.Context, config internal.ConfigVars) (*interna
 func validateInput(ctx schema.VerificationContext) error {
 	// Check required fields
 	if ctx.VerificationId == "" {
-		return internal.NewValidationError("missing verificationId", nil)
+		return errors.NewMissingFieldError("verificationId")
 	}
 
 	if ctx.VerificationType == "" {
-		return internal.NewValidationError("missing verificationType", nil)
+		return errors.NewMissingFieldError("verificationType")
 	}
 
 	// Ensure verificationType is 'PREVIOUS_VS_CURRENT'
 	if ctx.VerificationType != schema.VerificationTypePreviousVsCurrent {
-		return internal.NewValidationError(
+		return errors.NewValidationError(
 			"invalid verificationType, expected 'PREVIOUS_VS_CURRENT'",
-			map[string]string{
+			map[string]interface{}{
 				"expected": schema.VerificationTypePreviousVsCurrent,
 				"actual":   ctx.VerificationType,
 			},
@@ -92,28 +94,28 @@ func validateInput(ctx schema.VerificationContext) error {
 	}
 
 	if ctx.ReferenceImageUrl == "" {
-		return internal.NewValidationError("missing referenceImageUrl", nil)
+		return errors.NewMissingFieldError("referenceImageUrl")
 	}
 
 	if ctx.CheckingImageUrl == "" {
-		return internal.NewValidationError("missing checkingImageUrl", nil)
+		return errors.NewMissingFieldError("checkingImageUrl")
 	}
 
 	if ctx.VendingMachineId == "" {
-		return internal.NewValidationError("missing vendingMachineId", nil)
+		return errors.NewMissingFieldError("vendingMachineId")
 	}
 
 	// Verify S3 URL format for reference image
 	if !isValidS3Url(ctx.ReferenceImageUrl) {
-		return internal.NewValidationError("invalid reference image URL format, expected s3:// prefix", 
-			map[string]string{"url": ctx.ReferenceImageUrl})
+		return errors.NewValidationError("invalid reference image URL format, expected s3:// prefix",
+			map[string]interface{}{"url": ctx.ReferenceImageUrl})
 	}
 
 	// For previous_vs_current, reference image should be in the checking bucket
 	if !isCheckingBucketURL(ctx.ReferenceImageUrl) {
-		return internal.NewValidationError(
+		return errors.NewValidationError(
 			"for PREVIOUS_VS_CURRENT verification, referenceImageUrl must point to the checking bucket",
-			map[string]string{"url": ctx.ReferenceImageUrl},
+			map[string]interface{}{"url": ctx.ReferenceImageUrl},
 		)
 	}
 
@@ -127,7 +129,7 @@ func isValidS3Url(url string) bool {
 
 // isCheckingBucketURL checks if the URL is from the checking bucket
 func isCheckingBucketURL(url string) bool {
-	checkingBucket := internal.GetEnv(internal.EnvCheckingBucketName)
+	checkingBucket := os.Getenv("CHECKING_BUCKET")
 	return len(url) > len(checkingBucket) && url[5:5+len(checkingBucket)] == checkingBucket
 }
 

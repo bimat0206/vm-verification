@@ -1,9 +1,11 @@
 package internal
 
 import (
+	"os"
+	"workflow-function/shared/logger"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"workflow-function/shared/logger"
 )
 
 // ConfigVars contains environment configuration values
@@ -57,9 +59,18 @@ func (d *Dependencies) GetDBClient() *dynamodb.Client {
 // LoadConfig loads configuration from environment variables
 func LoadConfig() ConfigVars {
 	return ConfigVars{
-		VerificationTable: getEnvWithDefault(EnvVerificationTableName, "VerificationResults"),
-		CheckingBucket:    getEnvWithDefault(EnvCheckingBucketName, "kootoro-checking-bucket"),
-		Region:            getEnvWithDefault(EnvRegion, "us-east-1"),
-		LogLevel:          getEnvWithDefault(EnvLogLevel, "INFO"),
+		VerificationTable: getEnvWithDefault("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
+		CheckingBucket:    getEnvWithDefault("CHECKING_BUCKET", "kootoro-checking-bucket"),
+		Region:            getEnvWithDefault("AWS_REGION", "us-east-1"),
+		LogLevel:          getEnvWithDefault("LOG_LEVEL", "INFO"),
 	}
+}
+
+// getEnvWithDefault returns environment variable value or default if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

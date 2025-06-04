@@ -13,6 +13,8 @@ WORKDIR /go/src/workflow-function/
 # Copy the shared packages from the build context
 COPY shared/schema/ ./shared/schema/
 COPY shared/logger/ ./shared/logger/
+COPY shared/errors/ ./shared/errors/
+COPY shared/s3state/ ./shared/s3state/
 
 # Copy the function code
 COPY FetchHistoricalVerification/ ./FetchHistoricalVerification/
