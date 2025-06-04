@@ -2,6 +2,12 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.21] - 2025-06-08
+### Fixed
+- Default `THINKING_TYPE` environment variable now set to `enabled` to ensure
+  temperature validation passes when `TEMPERATURE=1`.
+
+
 
 ## [2.2.20] - 2025-06-07
 ### Fixed

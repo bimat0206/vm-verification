@@ -235,7 +235,7 @@ locals {
         BEDROCK_MODEL               = var.bedrock.model_id
         MAX_TOKENS                  = var.bedrock.max_tokens
         BUDGET_TOKENS               = var.bedrock.budget_tokens
-        THINKING_TYPE               = "enable"
+        THINKING_TYPE               = "enabled"
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         LOG_LEVEL                   = "INFO"
         REFERENCE_BUCKET            = local.s3_buckets.reference

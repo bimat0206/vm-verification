@@ -72,7 +72,7 @@ func LoadConfiguration() (*Config, error) {
 
 	cfg.Processing.MaxTokens = getInt("MAX_TOKENS", 24000)
 	cfg.Processing.BudgetTokens = getInt("BUDGET_TOKENS", 16000)
-	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "enable")
+	cfg.Processing.ThinkingType = getEnv("THINKING_TYPE", "enabled")
 	cfg.Processing.Temperature = getFloat("TEMPERATURE", 0.7)
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 1)
 	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
