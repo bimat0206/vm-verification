@@ -40,6 +40,7 @@ This Lambda function combines multiple steps of the vending machine verification
   - Organized environment variables by functional area
   - Sensible defaults with comprehensive validation
   - Support for different storage modes and timeouts
+  - Prompt templates are cached in memory for faster load times (set `TEMPLATE_CACHE_ENABLED=false` to disable)
 
 ---
 
@@ -88,8 +89,6 @@ The function uses these environment variables with sensible defaults:
 | DYNAMODB_CONVERSATION_TABLE | DynamoDB table for conversation logs  | (required)                  |
 | **Processing Configuration** |                                      |                            |
 | MAX_TOKENS                  | Max tokens for response               | 24000                       |
-| BUDGET_TOKENS               | Max tokens for thinking               | 16000                       |
-| THINKING_TYPE               | Thinking extraction pattern           | enable                      |
 | MAX_RETRIES                 | Max retry attempts                    | 3                           |
 | BEDROCK_TIMEOUT_SECONDS     | Timeout for Bedrock calls             | 120                         |
 | **Logging Configuration**   |                                       |                            |
@@ -98,6 +97,7 @@ The function uses these environment variables with sensible defaults:
 | **Prompt Configuration**    |                                       |                            |
 | TURN1_PROMPT_VERSION        | Turn 1 prompt template version        | v1.0                        |
 | TEMPLATE_BASE_PATH          | Path to prompt templates              | /opt/templates              |
+| TEMPLATE_CACHE_ENABLED    | Enable in-memory prompt cache          | true                       |
 
 ---
 
