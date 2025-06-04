@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	"workflow-function/ExecuteTurn1Combined/internal/config"
 	"workflow-function/ExecuteTurn1Combined/internal/models"
@@ -35,6 +36,13 @@ func (d *DynamoManager) UpdateTurn1Completion(
 	conversationRef *models.S3Reference,
 ) bool {
 	dynamoOK := true
+
+	if processedMarkdownRef != nil && processedMarkdownRef.Key != "" {
+		if turnEntry.Metadata == nil {
+			turnEntry.Metadata = make(map[string]interface{})
+		}
+		turnEntry.Metadata["turn1ProcessedPath"] = fmt.Sprintf("s3://%s/%s", processedMarkdownRef.Bucket, processedMarkdownRef.Key)
+	}
 
 	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, verificationID, initialVerificationAt, statusEntry); err != nil {
 		d.log.Warn("dynamodb status update failed", map[string]interface{}{

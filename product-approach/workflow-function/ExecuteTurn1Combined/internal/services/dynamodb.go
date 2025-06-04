@@ -539,6 +539,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		if conversationTracker.Metadata == nil {
 			conversationTracker.Metadata = make(map[string]interface{})
 		}
+		if turnData != nil && turnData.Metadata != nil {
+			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn1ProcessedPath"] = path
+			}
+		}
 	} else {
 		// Initialize if not exists
 		conversationTracker = schema.ConversationTracker{
@@ -549,6 +554,11 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 			ConversationAt: schema.FormatISO8601(),
 			History:        make([]interface{}, 0),
 			Metadata:       make(map[string]interface{}),
+		}
+		if turnData != nil && turnData.Metadata != nil {
+			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Metadata["turn1ProcessedPath"] = path
+			}
 		}
 	}
 
@@ -690,7 +700,7 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 				"failed to marshal processed markdown ref", true)
 		}
 		update = update.Set(expression.Name("processedTurn1MarkdownRef"), expression.Value(avRef))
-		
+
 		// Add full S3 path for turn1Processed
 		turn1ProcessedPath := fmt.Sprintf("s3://%s/%s", processedMarkdownRef.Bucket, processedMarkdownRef.Key)
 		update = update.Set(expression.Name("turn1ProcessedPath"), expression.Value(turn1ProcessedPath))
