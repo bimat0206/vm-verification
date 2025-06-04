@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.8.7] - 2025-06-05
+### Changed
+- `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode
+  and honors `cfg.Processing.MaxRetries`.
+
 ## [2.8.6] - 2025-06-04
 ### Added
 - **Full S3 Path Storage in DynamoDB**: Added storage of complete S3 paths for turn1Processed responses

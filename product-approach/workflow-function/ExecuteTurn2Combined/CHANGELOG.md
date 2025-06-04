@@ -2,9 +2,13 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
-## [2.2.18] - YYYY-MM-DD
+
+## [2.2.18] - 2025-06-05
 ### Changed
+- `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode
+  and honors `cfg.Processing.MaxRetries`.
 - DynamoDB retries are now limited to one attempt, and the SDK client obeys this limit. This avoids prolonged failures.
+
 
 ## [2.2.17] - 2025-06-04
 ### Removed
