@@ -2,6 +2,10 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.17] - 2025-06-04
+### Removed
+- Layout dimension warnings for Turn2 were removed from the prompt generation logic.
+
 ## [2.1.9] - 2025-06-03
 ### Fixed
 - Missing Turn1 prompts now load from `turn1-conversation.json`, preventing Bedrock validation failures.
