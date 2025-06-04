@@ -127,7 +127,7 @@ func (m *StorageManager) StorePrompt(ctx context.Context, req *models.Turn1Reque
 }
 
 // StoreConversation stores turn1 conversation messages in S3 with complete schema compliance
-func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, thinkingContent string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
+func (m *StorageManager) StoreConversation(ctx context.Context, verificationID string, systemPrompt string, userPrompt string, base64Image string, base64Ref models.S3Reference, assistantResponse string, tokenUsage *schema.TokenUsage, latencyMs int64, bedrockRequestId string, modelId string, bedrockResponseMetadata map[string]interface{}) (models.S3Reference, error) {
 	if verificationID == "" {
 		return models.S3Reference{}, errors.NewValidationError(
 			"verification ID required for conversation storage",
@@ -135,7 +135,7 @@ func (m *StorageManager) StoreConversation(ctx context.Context, verificationID s
 	}
 
 	start := time.Now()
-	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, base64Ref, assistantResponse, thinkingContent, tokenUsage, latencyMs, bedrockRequestId, modelId, bedrockResponseMetadata)
+	ref, err := m.s3.StoreTurn1Conversation(ctx, verificationID, systemPrompt, userPrompt, base64Image, base64Ref, assistantResponse, tokenUsage, latencyMs, bedrockRequestId, modelId, bedrockResponseMetadata)
 	if err != nil {
 		m.log.Warn("s3 conversation-store warning", map[string]interface{}{
 			"error":  err.Error(),
