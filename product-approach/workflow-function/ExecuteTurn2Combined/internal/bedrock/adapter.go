@@ -97,6 +97,7 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		config.MaxTokens,
 		&temperature,
 		nil, // TopP - defer to model defaults
+		map[string]string{"type": "ephemeral"},
 	)
 
 	// Log the complete request structure for debugging
