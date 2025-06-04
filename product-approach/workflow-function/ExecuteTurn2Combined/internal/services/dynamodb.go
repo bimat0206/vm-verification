@@ -43,7 +43,7 @@ type DynamoDBService interface {
 	// Turn1 completion update storing metrics and processed markdown reference
 	UpdateTurn1CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn1Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference, conversationRef *models.S3Reference) error
 	// Turn2 completion update storing metrics and comparison details
-	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string, conversationRef *models.S3Reference) error
+	UpdateTurn2CompletionDetails(ctx context.Context, verificationID string, verificationAt string, statusEntry schema.StatusHistoryEntry, turn2Metrics *schema.TurnMetrics, processedMarkdownRef *models.S3Reference, verificationStatus string, discrepancies []schema.Discrepancy, comparisonSummary string, conversationRef *models.S3Reference) error
 
 	// Real-time status tracking methods
 	InitializeVerificationRecord(ctx context.Context, verificationContext *schema.VerificationContext) error
@@ -735,13 +735,14 @@ func (d *dynamoClient) UpdateTurn2CompletionDetails(
 	verificationAt string,
 	statusEntry schema.StatusHistoryEntry,
 	turn2Metrics *schema.TurnMetrics,
+	processedMarkdownRef *models.S3Reference,
 	verificationStatus string,
 	discrepancies []schema.Discrepancy,
 	comparisonSummary string,
 	conversationRef *models.S3Reference,
 ) error {
 	return d.retryWithBackoff(ctx, func() error {
-		return d.updateTurn2CompletionDetailsInternal(ctx, verificationID, verificationAt, statusEntry, turn2Metrics, verificationStatus, discrepancies, comparisonSummary, conversationRef)
+		return d.updateTurn2CompletionDetailsInternal(ctx, verificationID, verificationAt, statusEntry, turn2Metrics, processedMarkdownRef, verificationStatus, discrepancies, comparisonSummary, conversationRef)
 	}, "UpdateTurn2CompletionDetails")
 }
 
@@ -751,6 +752,7 @@ func (d *dynamoClient) updateTurn2CompletionDetailsInternal(
 	verificationAt string,
 	statusEntry schema.StatusHistoryEntry,
 	turn2Metrics *schema.TurnMetrics,
+	processedMarkdownRef *models.S3Reference,
 	verificationStatus string,
 	discrepancies []schema.Discrepancy,
 	comparisonSummary string,
@@ -777,6 +779,11 @@ func (d *dynamoClient) updateTurn2CompletionDetailsInternal(
 				"failed to marshal turn2 metrics", true)
 		}
 		update = update.Set(expression.Name("processingMetrics.turn2"), expression.Value(avMetrics))
+	}
+
+	if processedMarkdownRef != nil && processedMarkdownRef.Key != "" {
+		turn2ProcessedPath := fmt.Sprintf("s3://%s/%s", processedMarkdownRef.Bucket, processedMarkdownRef.Key)
+		update = update.Set(expression.Name("turn2ProcessedPath"), expression.Value(turn2ProcessedPath))
 	}
 
 	if verificationStatus != "" {
