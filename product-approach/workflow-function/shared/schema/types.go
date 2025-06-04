@@ -15,11 +15,11 @@ type MachineStructure struct {
 
 // ImageMetadata represents image metadata from S3
 type ImageMetadata struct {
-	ContentType   string    `json:"contentType"`
-	Size          int64     `json:"size"`
-	LastModified  time.Time `json:"lastModified"`
-	ETag          string    `json:"etag"`
-	BucketOwner   string    `json:"bucketOwner"`
+	ContentType  string    `json:"contentType"`
+	Size         int64     `json:"size"`
+	LastModified time.Time `json:"lastModified"`
+	ETag         string    `json:"etag"`
+	BucketOwner  string    `json:"bucketOwner"`
 }
 
 // Images represents the image metadata structure
@@ -45,32 +45,34 @@ type TurnHistory struct {
 
 // PromptTemplate represents a prompt template
 type PromptTemplate struct {
-    TemplateId      string                 `json:"templateId"`
-    TemplateVersion string                 `json:"templateVersion"`
-    TemplateType    string                 `json:"templateType"` // "turn1-layout-vs-checking", etc.
-    Content         string                 `json:"content"`
-    Variables       map[string]interface{} `json:"variables,omitempty"`
-    CreatedAt       string                 `json:"createdAt"`
-    UpdatedAt       string                 `json:"updatedAt"`
+	TemplateId      string                 `json:"templateId"`
+	TemplateVersion string                 `json:"templateVersion"`
+	TemplateType    string                 `json:"templateType"` // "turn1-layout-vs-checking", etc.
+	Content         string                 `json:"content"`
+	Variables       map[string]interface{} `json:"variables,omitempty"`
+	CreatedAt       string                 `json:"createdAt"`
+	UpdatedAt       string                 `json:"updatedAt"`
 }
 
 // TemplateProcessor handles template processing
 type TemplateProcessor struct {
-    Template        *PromptTemplate        `json:"template"`
-    ContextData     map[string]interface{} `json:"contextData"`
-    ProcessedPrompt string                 `json:"processedPrompt"`
-    ProcessingTime  int64                  `json:"processingTimeMs"`
-    InputTokens     int                    `json:"inputTokens"`
-    OutputTokens    int                    `json:"outputTokens"`
+	Template        *PromptTemplate        `json:"template"`
+	ContextData     map[string]interface{} `json:"contextData"`
+	ProcessedPrompt string                 `json:"processedPrompt"`
+	ProcessingTime  int64                  `json:"processingTimeMs"`
+	InputTokens     int                    `json:"inputTokens"`
+	OutputTokens    int                    `json:"outputTokens"`
 }
 
 // ConversationTracker tracks conversation progress
 type ConversationTracker struct {
-    ConversationId   string                 `json:"conversationId"`
-    CurrentTurn      int                    `json:"currentTurn"`
-    MaxTurns         int                    `json:"maxTurns"`
-    TurnStatus       string                 `json:"turnStatus"`
-    ConversationAt   string                 `json:"conversationAt"`
-    History          []interface{}          `json:"history"`
-    Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	ConversationId     string                 `json:"conversationId"`
+	CurrentTurn        int                    `json:"currentTurn"`
+	MaxTurns           int                    `json:"maxTurns"`
+	TurnStatus         string                 `json:"turnStatus"`
+	ConversationAt     string                 `json:"conversationAt"`
+	Turn1ProcessedPath string                 `json:"turn1ProcessedPath,omitempty"`
+	Turn2ProcessedPath string                 `json:"turn2ProcessedPath,omitempty"`
+	History            []interface{}          `json:"history"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }

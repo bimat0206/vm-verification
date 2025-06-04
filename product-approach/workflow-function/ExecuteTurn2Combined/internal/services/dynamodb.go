@@ -487,13 +487,15 @@ func (d *dynamoClient) GetVerificationStatus(ctx context.Context, verificationID
 // Conversation management: InitializeConversationHistory creates initial conversation record.
 func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verificationID string, maxTurns int, metadata map[string]interface{}) error {
 	conversationTracker := &schema.ConversationTracker{
-		ConversationId: verificationID,
-		CurrentTurn:    0,
-		MaxTurns:       maxTurns,
-		TurnStatus:     "INITIALIZED",
-		ConversationAt: schema.FormatISO8601(),
-		History:        make([]interface{}, 0),
-		Metadata:       metadata,
+		ConversationId:     verificationID,
+		CurrentTurn:        0,
+		MaxTurns:           maxTurns,
+		TurnStatus:         "INITIALIZED",
+		ConversationAt:     schema.FormatISO8601(),
+		Turn1ProcessedPath: "",
+		Turn2ProcessedPath: "",
+		History:            make([]interface{}, 0),
+		Metadata:           metadata,
 	}
 
 	return d.RecordConversationHistory(ctx, conversationTracker)
@@ -541,16 +543,34 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		if conversationTracker.Metadata == nil {
 			conversationTracker.Metadata = make(map[string]interface{})
 		}
+		if turnData != nil && turnData.Metadata != nil {
+			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Turn1ProcessedPath = path
+			}
+			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Turn2ProcessedPath = path
+			}
+		}
 	} else {
 		// Initialize if not exists
 		conversationTracker = schema.ConversationTracker{
-			ConversationId: verificationID,
-			CurrentTurn:    0,
-			MaxTurns:       2,
-			TurnStatus:     "ACTIVE",
-			ConversationAt: schema.FormatISO8601(),
-			History:        make([]interface{}, 0),
-			Metadata:       make(map[string]interface{}),
+			ConversationId:     verificationID,
+			CurrentTurn:        0,
+			MaxTurns:           2,
+			TurnStatus:         "ACTIVE",
+			ConversationAt:     schema.FormatISO8601(),
+			History:            make([]interface{}, 0),
+			Turn1ProcessedPath: "",
+			Turn2ProcessedPath: "",
+			Metadata:           make(map[string]interface{}),
+		}
+		if turnData != nil && turnData.Metadata != nil {
+			if path, ok := turnData.Metadata["turn1ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Turn1ProcessedPath = path
+			}
+			if path, ok := turnData.Metadata["turn2ProcessedPath"].(string); ok && path != "" {
+				conversationTracker.Turn2ProcessedPath = path
+			}
 		}
 	}
 
