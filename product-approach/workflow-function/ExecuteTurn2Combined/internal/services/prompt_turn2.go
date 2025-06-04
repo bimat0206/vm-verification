@@ -101,7 +101,7 @@ func (p *promptServiceTurn2) GenerateTurn2PromptWithMetrics(ctx context.Context,
 				"bucket": "kootoro-dev-s3-state-f6d3xl",
 				"key":    "checking-base64.base64",
 			},
-			"imageType":  "checking",
+			"imageType": "checking",
 			"sourceUrl": "s3://kootoro-dev-s3-state-f6d3xl/checking-base64.base64",
 		},
 		"messageStructure": map[string]interface{}{
@@ -169,7 +169,7 @@ func (p *promptServiceTurn2) buildTemplateContext(vCtx *schema.VerificationConte
 	// Extract layout dimensions from layoutMetadata when available
 	rowCount := -1
 	colCount := -1
-	
+
 	if layoutMetadata != nil {
 		if rc, ok := layoutMetadata["RowCount"]; ok {
 			switch v := rc.(type) {
@@ -192,15 +192,7 @@ func (p *promptServiceTurn2) buildTemplateContext(vCtx *schema.VerificationConte
 			}
 		}
 	}
-	
-	if rowCount == -1 || colCount == -1 {
-		p.log.Warn("layout_dimensions_missing_in_turn2", map[string]interface{}{
-			"rowCount":        rowCount,
-			"columnCount":     colCount,
-			"verification_id": vCtx.VerificationId,
-		})
-	}
-	
+
 	context["RowCount"] = rowCount
 	context["ColumnCount"] = colCount
 
@@ -233,7 +225,7 @@ func (p *promptServiceTurn2) ensureRowLabels(layoutMetadata map[string]interface
 	if rowCount <= 0 {
 		return []string{}
 	}
-	
+
 	// Check if RowLabels already exists in layout metadata
 	if layoutMetadata != nil {
 		if labels, ok := layoutMetadata["RowLabels"].([]string); ok && len(labels) >= rowCount {
