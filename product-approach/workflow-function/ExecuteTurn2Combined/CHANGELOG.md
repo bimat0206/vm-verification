@@ -2,6 +2,11 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.18] - 2025-06-05
+### Changed
+- `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode
+  and honors `cfg.Processing.MaxRetries`.
+
 ## [2.2.17] - 2025-06-04
 ### Removed
 - Layout dimension warnings for Turn2 were removed from the prompt generation logic.

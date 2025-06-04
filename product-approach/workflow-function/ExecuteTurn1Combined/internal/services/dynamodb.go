@@ -80,7 +80,12 @@ type dynamoClient struct {
 
 // NewDynamoDBService constructs an enhanced DynamoDBService with comprehensive capabilities.
 func NewDynamoDBService(cfg *config.Config) (DynamoDBService, error) {
-	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.AWS.Region))
+	awsCfg, err := awsconfig.LoadDefaultConfig(
+		context.Background(),
+		awsconfig.WithRegion(cfg.AWS.Region),
+		awsconfig.WithRetryMaxAttempts(cfg.Processing.MaxRetries),
+		awsconfig.WithRetryMode(aws.RetryModeAdaptive),
+	)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
 			"failed to load AWS config for DynamoDB", false).
