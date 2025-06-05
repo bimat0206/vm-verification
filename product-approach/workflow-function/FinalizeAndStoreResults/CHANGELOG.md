@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.1] - 2025-06-05
+### Fixed
+- **Conversation History Update**: `UpdateConversationHistory` now uses both `verificationId` and `conversationAt` keys when updating the `ConversationHistory` table.
+  - Root cause: missing sort key caused `ValidationException` errors during finalization.
+
 ## [1.3.0] - 2025-01-04 - Input Structure Support & S3 Error Resolution
 
 ### Fixed

@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	appConfig   *config.LambdaConfig
-	awsClients  *config.AWSClients
-	log         logger.Logger
+	appConfig    *config.LambdaConfig
+	awsClients   *config.AWSClients
+	log          logger.Logger
 	stateManager s3state.Manager
 )
 
@@ -220,11 +220,11 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 	log.LogReceivedEvent(envelope)
 
 	log.Info("extracted_references", map[string]interface{}{
-		"init_bucket":   initRef.Bucket,
-		"init_key":      initRef.Key,
-		"turn2_bucket":  turn2Ref.Bucket,
-		"turn2_key":     turn2Ref.Key,
-		"turn2_size":    turn2Ref.Size,
+		"init_bucket":  initRef.Bucket,
+		"init_key":     initRef.Key,
+		"turn2_bucket": turn2Ref.Bucket,
+		"turn2_key":    turn2Ref.Key,
+		"turn2_size":   turn2Ref.Size,
 	})
 
 	// Load initialization data using s3state manager
@@ -305,7 +305,7 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 	}
 
 	// Update conversation history in DynamoDB
-	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID)
+	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID, initData.InitialVerificationAt)
 	if err != nil {
 		wfErr := errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update conversation history", false)
 		wfErr.VerificationID = envelope.VerificationID

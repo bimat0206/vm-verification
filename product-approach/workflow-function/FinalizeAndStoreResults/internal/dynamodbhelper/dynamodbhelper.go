@@ -28,11 +28,16 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 	return nil
 }
 
-func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tableName, verificationID string) error {
+func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tableName, verificationID, conversationAt string) error {
+	if conversationAt == "" {
+		return errors.NewValidationError("conversationAt required", nil)
+	}
+
 	_, err := client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: &tableName,
 		Key: map[string]types.AttributeValue{
 			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
+			"conversationAt": &types.AttributeValueMemberS{Value: conversationAt},
 		},
 		UpdateExpression: aws.String("SET turnStatus = :ts"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
