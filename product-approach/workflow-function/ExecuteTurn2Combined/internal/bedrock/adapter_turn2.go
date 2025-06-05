@@ -174,13 +174,16 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 		InferenceConfig: sharedBedrock.InferenceConfig{
 			MaxTokens:   a.cfg.Processing.MaxTokens,
 			Temperature: &a.cfg.Processing.Temperature,
+			TopP:        &a.cfg.Processing.TopP,
 		},
 	}
 
 	// Log the complete request structure for debugging
 	a.log.Info("bedrock_request_structure", map[string]interface{}{
-		"model_id":   request.ModelId,
-		"max_tokens": request.InferenceConfig.MaxTokens,
+		"model_id":    request.ModelId,
+		"max_tokens":  request.InferenceConfig.MaxTokens,
+		"temperature": *request.InferenceConfig.Temperature,
+		"top_p":       *request.InferenceConfig.TopP,
 	})
 
 	// Validate request before sending to Bedrock
@@ -332,7 +335,7 @@ func (a *AdapterTurn2) ProcessTurn2(ctx context.Context, systemPrompt, turn2Prom
 	response.ModelConfig = &schema.ModelConfig{
 		ModelId:     a.cfg.AWS.BedrockModel,
 		Temperature: a.cfg.Processing.Temperature,
-		TopP:        0.9, // Default TopP
+		TopP:        a.cfg.Processing.TopP,
 		MaxTokens:   a.cfg.Processing.MaxTokens,
 	}
 

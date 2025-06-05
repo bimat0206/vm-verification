@@ -46,6 +46,7 @@ func NewClientTurn2(cfg config.Config, log logger.Logger) (*ClientTurn2, error) 
 		AnthropicVersion: cfg.AWS.AnthropicVersion,
 		MaxTokens:        cfg.Processing.MaxTokens,
 		Temperature:      cfg.Processing.Temperature,
+		TopP:             cfg.Processing.TopP,
 		ThinkingType:     "",
 		ThinkingBudget:   0,
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,

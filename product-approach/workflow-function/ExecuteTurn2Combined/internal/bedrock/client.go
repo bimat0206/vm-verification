@@ -68,6 +68,11 @@ func (c *Client) ValidateConfiguration() error {
 			map[string]interface{}{"current_value": c.config.Temperature})
 	}
 
+	if c.config.TopP < 0 || c.config.TopP > 1 {
+		return errors.NewValidationError("topP must be between 0 and 1",
+			map[string]interface{}{"current_value": c.config.TopP})
+	}
+
 	return nil
 }
 
@@ -77,6 +82,7 @@ func (c *Client) GetOperationalMetrics() map[string]interface{} {
 		"model_id":          c.config.ModelID,
 		"max_tokens":        c.config.MaxTokens,
 		"temperature":       c.config.Temperature,
+		"top_p":             c.config.TopP,
 		"timeout_seconds":   c.config.Timeout.Seconds(),
 		"region":            c.config.Region,
 		"anthropic_version": c.config.AnthropicVersion,

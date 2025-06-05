@@ -90,19 +90,22 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 
 	// Build request using shared package constructor
 	temperature := config.Temperature
+	topP := config.TopP
 	request := sharedBedrock.CreateConverseRequest(
 		config.ModelID,
 		[]sharedBedrock.MessageWrapper{userMessage},
 		systemPrompt,
 		config.MaxTokens,
 		&temperature,
-		nil, // TopP - defer to model defaults
+		&topP, // Use configurable TopP from environment
 	)
 
 	// Log the complete request structure for debugging
 	a.logger.Info("bedrock_request_structure", map[string]interface{}{
-		"model_id":   request.ModelId,
-		"max_tokens": request.InferenceConfig.MaxTokens,
+		"model_id":    request.ModelId,
+		"max_tokens":  request.InferenceConfig.MaxTokens,
+		"temperature": request.InferenceConfig.Temperature,
+		"top_p":       request.InferenceConfig.TopP,
 	})
 
 	// Log the final JSON payload for verification
