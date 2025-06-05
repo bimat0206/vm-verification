@@ -38,7 +38,7 @@ func (s *StorageManager) SaveTurn2Outputs(ctx context.Context, envelope *s3state
 	}
 
 	// Save processed structure
-	if err := s.manager.SaveToEnvelope(envelope, "responses", "turn2-processed-response.json", processed); err != nil {
+	if err := s.manager.SaveToEnvelope(envelope, "responses", "turn2-processed-response.md", processed); err != nil {
 		return models.S3Reference{}, models.S3Reference{}, err
 	}
 	procRef := envelope.GetReference("responses_turn2-processed-response")

@@ -2,6 +2,31 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.0] - 2025-01-03 - File Extension Fix & Output Compliance
+
+### Fixed
+- **Turn2 Processed Response File Extension**: Fixed incorrect `.json` extension to correct `.md` extension for Turn2 processed responses
+- **Storage Consistency**: Updated all storage functions to use `.md` extension for processed responses:
+  - `StoreTurn2Response()` - Changed from `turn2-processed-response.json` to `turn2-processed-response.md`
+  - `StoreTurn2ProcessedResponse()` - Changed from `turn2-processed-response.json` to `turn2-processed-response.md`
+  - `SaveTurn2Outputs()` - Changed from `turn2-processed-response.json` to `turn2-processed-response.md`
+
+### Changed
+- **Output Format Compliance**: Turn2 processed responses now correctly use markdown format (.md) instead of JSON format (.json)
+- **S3 Key Structure**: Updated S3 key generation to produce correct file extensions for processed responses
+
+### Technical Details
+- **Before**: `"key": "2025/06/04/verif-20250604172233-d8b2/processing/turn2-processed-response.json"`
+- **After**: `"key": "2025/06/04/verif-20250604172233-d8b2/processing/turn2-processed-response.md"`
+- **Files Modified**:
+  - `internal/services/s3_turn2.go` (lines 373, 432)
+  - `internal/handler/storage_manager.go` (line 41)
+
+### Impact
+- **Downstream Compatibility**: Ensures proper file type recognition for Turn2 processed responses
+- **Content Type Consistency**: Aligns with markdown content format expectations
+- **API Response Accuracy**: Output JSON now reflects correct file extensions
+
 ## [2.2.21] - 2025-06-08
 ### Fixed
 - Default `THINKING_TYPE` environment variable now set to `enabled` to ensure

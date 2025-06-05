@@ -97,15 +97,12 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		config.MaxTokens,
 		&temperature,
 		nil, // TopP - defer to model defaults
-		map[string]string{"type": "ephemeral"},
 	)
 
 	// Log the complete request structure for debugging
 	a.logger.Info("bedrock_request_structure", map[string]interface{}{
-		"model_id":            request.ModelId,
-		"reasoning_field":     request.Reasoning,
-		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"max_tokens":          request.InferenceConfig.MaxTokens,
+		"model_id":   request.ModelId,
+		"max_tokens": request.InferenceConfig.MaxTokens,
 	})
 
 	// Log the final JSON payload for verification

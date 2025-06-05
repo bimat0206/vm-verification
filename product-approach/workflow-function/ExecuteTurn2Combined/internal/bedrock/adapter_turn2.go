@@ -179,10 +179,8 @@ func (a *AdapterTurn2) ConverseWithHistory(ctx context.Context, systemPrompt, tu
 
 	// Log the complete request structure for debugging
 	a.log.Info("bedrock_request_structure", map[string]interface{}{
-		"model_id":            request.ModelId,
-		"reasoning_field":     request.Reasoning,
-		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"max_tokens":          request.InferenceConfig.MaxTokens,
+		"model_id":   request.ModelId,
+		"max_tokens": request.InferenceConfig.MaxTokens,
 	})
 
 	// Validate request before sending to Bedrock

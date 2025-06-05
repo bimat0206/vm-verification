@@ -370,7 +370,7 @@ func (m *s3Manager) StoreTurn2Response(ctx context.Context, verificationID strin
 			map[string]interface{}{"verification_id": verificationID})
 	}
 
-	key := "processing/turn2-processed-response.json"
+	key := "processing/turn2-processed-response.md"
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, response)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
@@ -429,7 +429,7 @@ func (m *s3Manager) StoreTurn2ProcessedResponse(ctx context.Context, verificatio
 			map[string]interface{}{"verification_id": verificationID})
 	}
 
-	key := "processing/turn2-processed-response.json"
+	key := "processing/turn2-processed-response.md"
 	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, processed)
 	if err != nil {
 		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
