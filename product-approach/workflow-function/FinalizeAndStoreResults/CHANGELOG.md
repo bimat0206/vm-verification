@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.4.0] - 2025-01-06 - Enhanced DynamoDB Error Handling & Diagnostics
+
+### Fixed
+- **DynamoDB Storage Failures**: Resolved generic "WRAPPED_ERROR" issues with comprehensive error analysis
+  - Root cause: Generic error wrapping masked specific AWS DynamoDB error details
+  - Added detailed AWS error type detection and classification
+  - Implemented specific error codes for ValidationException, ConditionalCheckFailedException, etc.
+  - Enhanced error context with troubleshooting guidance and retry recommendations
+
+### Enhanced
+- **Advanced Error Diagnostics**: Comprehensive DynamoDB error handling and logging
+  - Added `createEnhancedDynamoDBError()` function with AWS-specific error analysis
+  - Implemented detailed error classification for all major DynamoDB error types
+  - Added sanitized data logging with `sanitizeItemForLogging()` for debugging
+  - Enhanced error context with operation details, table information, and troubleshooting tips
+
+- **Data Validation & Logging**: Proactive validation and detailed operational logging
+  - Added `validateVerificationResultItem()` with comprehensive field validation
+  - Implemented sanitized logging of DynamoDB item structure for debugging
+  - Enhanced logging with operation tracking, AWS error codes, and retry indicators
+  - Added detailed success/failure logging for both verification results and conversation history
+
+- **Error Context & Troubleshooting**: Improved production debugging capabilities
+  - Added specific troubleshooting guidance for each AWS error type
+  - Enhanced error details with operation context and table configuration
+  - Implemented retryability detection for transient AWS service issues
+  - Added comprehensive logging of request parameters and validation results
+
+### Technical Details
+- **AWS Error Types Handled**: ValidationException, ConditionalCheckFailedException, ProvisionedThroughputExceededException, ResourceNotFoundException, InternalServerError, ServiceUnavailable, ThrottlingException
+- **Enhanced Function Signatures**: Updated `StoreVerificationResult()` and `UpdateConversationHistory()` to include logger parameter for detailed diagnostics
+- **Data Sanitization**: Sensitive fields (URLs, personal data) are sanitized in logs while preserving debugging information
+- **Validation Coverage**: Pre-storage validation for verificationId, verificationAt, verificationType, and currentStatus fields
+
+### Breaking Changes
+- **Function Signatures**: `StoreVerificationResult()` and `UpdateConversationHistory()` now require logger parameter
+- **Error Types**: Enhanced error objects with detailed AWS-specific information replace generic wrapped errors
+
 ## [1.3.1] - 2025-06-05
 ### Fixed
 - **Conversation History Update**: `UpdateConversationHistory` now uses both `verificationId` and `conversationAt` keys when updating the `ConversationHistory` table.

@@ -291,30 +291,18 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 		item.LayoutID = nil
 	}
 
-	// Store verification result in DynamoDB
-	err = dynamodbhelper.StoreVerificationResult(ctx, awsClients.DynamoDBClient, appConfig.VerificationResultsTable, item)
+	// Store verification result in DynamoDB with enhanced error handling
+	err = dynamodbhelper.StoreVerificationResult(ctx, awsClients.DynamoDBClient, appConfig.VerificationResultsTable, item, log)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to store verification result", false)
-		wfErr.VerificationID = envelope.VerificationID
-		log.Error("dynamodb_store_failed", map[string]interface{}{
-			"error":          wfErr.Error(),
-			"verificationId": envelope.VerificationID,
-			"table":          appConfig.VerificationResultsTable,
-		})
-		return nil, wfErr
+		// The enhanced helper already provides detailed error information and logging
+		return nil, err
 	}
 
-	// Update conversation history in DynamoDB
-	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID, initData.InitialVerificationAt)
+	// Update conversation history in DynamoDB with enhanced error handling
+	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID, initData.InitialVerificationAt, log)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update conversation history", false)
-		wfErr.VerificationID = envelope.VerificationID
-		log.Error("conversation_update_failed", map[string]interface{}{
-			"error":          wfErr.Error(),
-			"verificationId": envelope.VerificationID,
-			"table":          appConfig.ConversationHistoryTable,
-		})
-		return nil, wfErr
+		// The enhanced helper already provides detailed error information and logging
+		return nil, err
 	}
 
 	// Update envelope status and add summary
