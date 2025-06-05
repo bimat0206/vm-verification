@@ -805,7 +805,10 @@ func (d *dynamoClient) updateTurn2CompletionDetailsInternal(
 
 	update := expression.Set(expression.Name("currentStatus"), expression.Value(statusEntry.Status)).
 		Set(expression.Name("lastUpdatedAt"), expression.Value(statusEntry.Timestamp)).
-		Set(expression.Name("statusHistory"), expression.ListAppend(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}})))
+		Set(expression.Name("statusHistory"), expression.ListAppend(
+			expression.IfNotExists(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{})),
+			expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}}),
+		))
 
 	if turn2Metrics != nil {
 		avMetrics, err := attributevalue.MarshalMap(turn2Metrics)

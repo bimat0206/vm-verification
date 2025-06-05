@@ -39,6 +39,11 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - **Impact**: Prevents FinalizeAndStoreResults from failing to load initialization
   data.
 
+## [2.2.23] - 2025-06-05 - StatusHistory Initialization Fix
+### Fixed
+- `UpdateTurn2CompletionDetails` now initializes `statusHistory` when missing
+  to avoid DynamoDB `ValidationException` errors during update operations.
+
 
 
 ## [2.2.20] - 2025-06-07
