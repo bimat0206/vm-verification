@@ -1,5 +1,75 @@
 # Changelog
 
+## [1.3.0] - 2025-01-04 - Input Structure Support & S3 Error Resolution
+
+### Fixed
+- **S3Exception Resolution**: Fixed "failed to load initialization data" S3Exception error
+  - Root cause: Function couldn't parse the expected nested s3References input structure
+  - Added comprehensive input parsing to handle Step Functions state format correctly
+  - Enhanced reference extraction for both flat and nested s3References structures
+
+- **Input Structure Compatibility**: Complete rewrite of input handling logic
+  - Implemented `parseInputAndExtractReferences()` function for robust input parsing
+  - Added support for multiple input types: map[string]interface{}, JSON string, byte array
+  - Enhanced `extractNestedReference()` to handle `s3References.responses.turn2Processed` structure
+  - Added `extractReferenceFromMap()` helper for top-level reference extraction
+
+### Enhanced
+- **Error Handling & Logging**: Improved debugging capabilities
+  - Added detailed logging of extracted references (bucket, key, size)
+  - Enhanced error messages with expected structure information
+  - Improved validation error reporting for missing references
+  - Added comprehensive input validation before processing
+
+- **Documentation**: Updated README with clear input structure examples
+  - Added JSON example showing expected nested s3References format
+  - Documented processing workflow and input requirements
+  - Provided clear structure documentation for integration
+
+### Technical Details
+- **Expected Input Format**: Now fully supports the standard Step Functions state format:
+  ```json
+  {
+    "s3References": {
+      "processing_initialization": {"bucket": "...", "key": "..."},
+      "responses": {
+        "turn2Processed": {"bucket": "...", "key": "...", "size": 151}
+      }
+    },
+    "verificationId": "verif-20250605025241-3145",
+    "status": "TURN2_COMPLETED"
+  }
+  ```
+- **Backward Compatibility**: Maintains compatibility with existing error handling patterns
+- **Robust Parsing**: Handles edge cases and provides clear error messages for debugging
+
+## [1.2.1] - 2025-06-01 - Reference Lookup Fix
+
+### Fixed
+- **Turn2Processed Reference Lookup**: Fixed "Missing required field: turn2Processed reference" error
+  - Implemented `extractNestedReference()` function to handle nested JSON structures from Step Functions state
+  - Now correctly extracts references from nested `s3References.responses.turn2Processed` structure
+  - Enhanced error logging to show expected structure for better debugging
+
+### Technical Details
+- **Root Cause**: Function was looking for flat `turn2Processed` key but Step Functions provides nested structure `s3References.responses.turn2Processed`
+- **Solution**: Added nested structure extraction to handle standard Step Functions state format
+- **Standard Format**: `{"s3References": {"responses": {"turn2Processed": {...}}}}`
+
+## [1.2.0] - 2025-01-03 - Maintenance & Shared Component Updates
+
+### Changed
+- **Shared Component Compatibility**: Updated to maintain compatibility with latest shared component versions
+- **Dependency Alignment**: Ensured compatibility with updated logger, s3state, and schema packages
+
+### Technical Details
+- **Shared Dependencies**: Compatible with shared components v2.2.0 with enhanced error handling and logging
+- **No Functional Changes**: Core finalization functionality remains unchanged, updates are for compatibility only
+
+### Notes
+- This release maintains backward compatibility while ensuring integration with updated shared components
+- No configuration changes required for existing deployments
+
 ## [1.1.0] - 2025-01-03
 ### Changed
 - **Major Refactoring**: Migrated to shared packages for standardization and consistency

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -22,6 +24,164 @@ var (
 	log         logger.Logger
 	stateManager s3state.Manager
 )
+
+// extractNestedReference extracts a reference from nested JSON structure
+// This handles cases where the input has nested s3References like:
+// {"s3References": {"responses": {"turn2Processed": {...}}}}
+func extractNestedReference(input interface{}, category, refName string) *s3state.Reference {
+	// Convert input to map[string]interface{}
+	var inputMap map[string]interface{}
+
+	switch v := input.(type) {
+	case map[string]interface{}:
+		inputMap = v
+	case []byte:
+		if err := json.Unmarshal(v, &inputMap); err != nil {
+			return nil
+		}
+	case string:
+		if err := json.Unmarshal([]byte(v), &inputMap); err != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	// Navigate to s3References
+	s3Refs, ok := inputMap["s3References"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Navigate to category (e.g., "responses")
+	categoryRefs, ok := s3Refs[category].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Get the specific reference (e.g., "turn2Processed")
+	refData, ok := categoryRefs[refName].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Extract bucket, key, and size
+	bucket, _ := refData["bucket"].(string)
+	key, _ := refData["key"].(string)
+	var size int64
+	if sizeVal, ok := refData["size"]; ok {
+		switch s := sizeVal.(type) {
+		case float64:
+			size = int64(s)
+		case int64:
+			size = s
+		case int:
+			size = int64(s)
+		}
+	}
+
+	if bucket == "" || key == "" {
+		return nil
+	}
+
+	return &s3state.Reference{
+		Bucket: bucket,
+		Key:    key,
+		Size:   size,
+	}
+}
+
+// parseInputAndExtractReferences parses the input and extracts required references
+func parseInputAndExtractReferences(input interface{}) (*s3state.Envelope, *s3state.Reference, *s3state.Reference, error) {
+	// Convert input to map[string]interface{}
+	var inputMap map[string]interface{}
+
+	switch v := input.(type) {
+	case map[string]interface{}:
+		inputMap = v
+	case []byte:
+		if err := json.Unmarshal(v, &inputMap); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal input bytes: %w", err)
+		}
+	case string:
+		if err := json.Unmarshal([]byte(v), &inputMap); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal input string: %w", err)
+		}
+	default:
+		return nil, nil, nil, fmt.Errorf("unsupported input type: %T", input)
+	}
+
+	// Extract basic envelope fields
+	verificationID, _ := inputMap["verificationId"].(string)
+	status, _ := inputMap["status"].(string)
+	if verificationID == "" {
+		return nil, nil, nil, fmt.Errorf("verificationId is required")
+	}
+
+	// Navigate to s3References
+	s3Refs, ok := inputMap["s3References"].(map[string]interface{})
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("s3References not found or invalid")
+	}
+
+	// Extract processing_initialization reference (top-level)
+	initRef := extractReferenceFromMap(s3Refs, "processing_initialization")
+	if initRef == nil {
+		return nil, nil, nil, fmt.Errorf("processing_initialization reference not found")
+	}
+
+	// Extract turn2Processed reference from nested responses structure
+	turn2Ref := extractNestedReference(input, "responses", "turn2Processed")
+	if turn2Ref == nil {
+		return nil, nil, nil, fmt.Errorf("turn2Processed reference not found in responses")
+	}
+
+	// Create envelope with flat references structure for compatibility
+	envelope := &s3state.Envelope{
+		VerificationID: verificationID,
+		Status:         status,
+		References:     make(map[string]*s3state.Reference),
+		Summary:        make(map[string]interface{}),
+	}
+
+	// Add references to envelope for compatibility with existing code
+	envelope.References["processing_initialization"] = initRef
+	envelope.References["turn2Processed"] = turn2Ref
+
+	return envelope, initRef, turn2Ref, nil
+}
+
+// extractReferenceFromMap extracts a reference from a map
+func extractReferenceFromMap(refMap map[string]interface{}, refName string) *s3state.Reference {
+	refData, ok := refMap[refName].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	bucket, _ := refData["bucket"].(string)
+	key, _ := refData["key"].(string)
+	var size int64
+	if sizeVal, ok := refData["size"]; ok {
+		switch s := sizeVal.(type) {
+		case float64:
+			size = int64(s)
+		case int64:
+			size = s
+		case int:
+			size = int64(s)
+		}
+	}
+
+	if bucket == "" || key == "" {
+		return nil
+	}
+
+	return &s3state.Reference{
+		Bucket: bucket,
+		Key:    key,
+		Size:   size,
+	}
+}
 
 func init() {
 	var err error
@@ -47,32 +207,25 @@ func init() {
 }
 
 func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, error) {
-	// Load envelope from Step Functions input
-	envelope, err := s3state.LoadEnvelope(input)
+	// Parse input to extract references and create envelope
+	envelope, initRef, turn2Ref, err := parseInputAndExtractReferences(input)
 	if err != nil {
-		wfErr := errors.NewValidationError("failed to load envelope", map[string]interface{}{
+		wfErr := errors.NewValidationError("failed to parse input", map[string]interface{}{
 			"error": err.Error(),
 		})
-		log.Error("envelope_load_failed", map[string]interface{}{"error": wfErr.Error()})
+		log.Error("input_parse_failed", map[string]interface{}{"error": wfErr.Error()})
 		return nil, wfErr
 	}
 
 	log.LogReceivedEvent(envelope)
 
-	// Validate required references
-	initRef := envelope.GetReference("processing_initialization")
-	if initRef == nil {
-		wfErr := errors.NewMissingFieldError("processing_initialization reference")
-		log.Error("missing_init_ref", map[string]interface{}{"error": wfErr.Error()})
-		return nil, wfErr
-	}
-
-	turn2Ref := envelope.GetReference("turn2Processed")
-	if turn2Ref == nil {
-		wfErr := errors.NewMissingFieldError("turn2Processed reference")
-		log.Error("missing_turn2_ref", map[string]interface{}{"error": wfErr.Error()})
-		return nil, wfErr
-	}
+	log.Info("extracted_references", map[string]interface{}{
+		"init_bucket":   initRef.Bucket,
+		"init_key":      initRef.Key,
+		"turn2_bucket":  turn2Ref.Bucket,
+		"turn2_key":     turn2Ref.Key,
+		"turn2_size":    turn2Ref.Size,
+	})
 
 	// Load initialization data using s3state manager
 	var initData models.InitializationData
