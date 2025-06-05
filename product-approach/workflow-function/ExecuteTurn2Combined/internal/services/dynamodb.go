@@ -226,13 +226,15 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 	}
 
 	item := map[string]types.AttributeValue{
-		"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
-		"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
-		"currentTurn":    &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
-		"maxTurns":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.MaxTurns)},
-		"turnStatus":     &types.AttributeValueMemberS{Value: conversationTracker.TurnStatus},
-		"history":        &types.AttributeValueMemberL{Value: historyItems},
-		"metadata":       &types.AttributeValueMemberM{Value: avMetadata},
+		"verificationId":     &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
+		"conversationAt":     &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
+		"currentTurn":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
+		"maxTurns":           &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.MaxTurns)},
+		"turnStatus":         &types.AttributeValueMemberS{Value: conversationTracker.TurnStatus},
+		"turn1ProcessedPath": &types.AttributeValueMemberS{Value: conversationTracker.Turn1ProcessedPath},
+		"turn2ProcessedPath": &types.AttributeValueMemberS{Value: conversationTracker.Turn2ProcessedPath},
+		"history":            &types.AttributeValueMemberL{Value: historyItems},
+		"metadata":           &types.AttributeValueMemberM{Value: avMetadata},
 	}
 
 	// Use PutItem with condition to prevent overwrites
@@ -257,6 +259,7 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 			"failed to record conversation history", true).
 			WithContext("table", d.conversationTable).
 			WithContext("conversation_id", conversationTracker.ConversationId).
+			WithContext("conversation_at", conversationTracker.ConversationAt).
 			WithContext("operation", "PutItemWithCondition")
 	}
 	return nil
@@ -268,13 +271,15 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	avHistory, err := attributevalue.MarshalList(conversationTracker.History)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to marshal conversation history", true)
+			"failed to marshal conversation history", true).
+			WithContext("conversation_id", conversationTracker.ConversationId)
 	}
 
 	avMetadata, err := attributevalue.MarshalMap(conversationTracker.Metadata)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to marshal conversation metadata", true)
+			"failed to marshal conversation metadata", true).
+			WithContext("conversation_id", conversationTracker.ConversationId)
 	}
 
 	input := &dynamodb.UpdateItemInput{
@@ -283,19 +288,23 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 			"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
 			"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
 		},
-		UpdateExpression: aws.String("SET currentTurn = :turn, turnStatus = :status, history = :history, metadata = :metadata"),
+		UpdateExpression: aws.String("SET currentTurn = :turn, turnStatus = :status, history = :history, metadata = :metadata, turn1ProcessedPath = :turn1Path, turn2ProcessedPath = :turn2Path"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":turn":     &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
-			":status":   &types.AttributeValueMemberS{Value: conversationTracker.TurnStatus},
-			":history":  &types.AttributeValueMemberL{Value: avHistory},
-			":metadata": &types.AttributeValueMemberM{Value: avMetadata},
+			":turn":      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
+			":status":    &types.AttributeValueMemberS{Value: conversationTracker.TurnStatus},
+			":history":   &types.AttributeValueMemberL{Value: avHistory},
+			":metadata":  &types.AttributeValueMemberM{Value: avMetadata},
+			":turn1Path": &types.AttributeValueMemberS{Value: conversationTracker.Turn1ProcessedPath},
+			":turn2Path": &types.AttributeValueMemberS{Value: conversationTracker.Turn2ProcessedPath},
 		},
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update conversation history", true).
-			WithContext("conversation_id", conversationTracker.ConversationId)
+			WithContext("conversation_id", conversationTracker.ConversationId).
+			WithContext("conversation_at", conversationTracker.ConversationAt).
+			WithContext("table", d.conversationTable)
 	}
 	return nil
 }
@@ -805,7 +814,10 @@ func (d *dynamoClient) updateTurn2CompletionDetailsInternal(
 
 	update := expression.Set(expression.Name("currentStatus"), expression.Value(statusEntry.Status)).
 		Set(expression.Name("lastUpdatedAt"), expression.Value(statusEntry.Timestamp)).
-		Set(expression.Name("statusHistory"), expression.ListAppend(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}})))
+		Set(expression.Name("statusHistory"), expression.ListAppend(
+			expression.IfNotExists(expression.Name("statusHistory"), expression.Value([]types.AttributeValue{})),
+			expression.Value([]types.AttributeValue{&types.AttributeValueMemberM{Value: avStatusEntry}}),
+		))
 
 	if turn2Metrics != nil {
 		avMetrics, err := attributevalue.MarshalMap(turn2Metrics)
