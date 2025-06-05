@@ -1,0 +1,11 @@
+{
+  "httpMethod": "GET",
+  "path": "/api/verifications",
+  "queryStringParameters": {
+    "limit": "5"
+  },
+  "pathParameters": null,
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}
