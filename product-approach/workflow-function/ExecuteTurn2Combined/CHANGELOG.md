@@ -32,6 +32,13 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 - Default `THINKING_TYPE` environment variable now set to `enabled` to ensure
   temperature validation passes when `TEMPERATURE=1`.
 
+## [2.2.22] - 2025-06-09
+### Fixed
+- **Initialization Path**: buildTurn2S3RefTree now outputs the correct
+  `processing/initialization.json` path for Step Function responses.
+- **Impact**: Prevents FinalizeAndStoreResults from failing to load initialization
+  data.
+
 
 
 ## [2.2.20] - 2025-06-07

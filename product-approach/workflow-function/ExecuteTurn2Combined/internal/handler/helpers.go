@@ -91,8 +91,8 @@ func buildTurn2S3RefTree(
 		return key
 	}
 
-	// Create initialization reference
-	initRefKey := prefix(fmt.Sprintf("%s/initialization.json", verificationID))
+	// Create initialization reference under processing folder
+	initRefKey := prefix(fmt.Sprintf("%s/processing/initialization.json", verificationID))
 	initRef := models.S3Reference{
 		Bucket: rawRef.Bucket,
 		Key:    initRefKey,

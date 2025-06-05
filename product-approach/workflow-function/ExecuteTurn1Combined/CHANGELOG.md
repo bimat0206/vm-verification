@@ -34,6 +34,13 @@ All notable changes to the ExecuteTurn1Combined function will be documented in t
 - Added missing `anthropic-version` header when invoking Bedrock Converse API.
   Without this header Bedrock returned generic `WRAPPED_ERROR` failures.
 
+## [2.8.9] - 2025-06-09
+### Fixed
+- **Initialization Path**: buildS3RefTree now places `initialization.json` under
+  the `processing` folder when constructing Step Function responses.
+- **Impact**: Ensures FinalizeAndStoreResults can load initialization data
+  successfully.
+
 ## [2.8.7] - 2025-06-05
 ### Changed
 - `NewDynamoDBService` now configures the AWS SDK with adaptive retry mode
