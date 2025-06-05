@@ -52,6 +52,7 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 		AnthropicVersion: cfg.AWS.AnthropicVersion,
 		MaxTokens:        cfg.Processing.MaxTokens,
 		Temperature:      cfg.Processing.Temperature,
+		TopP:             cfg.Processing.TopP,
 		ThinkingType:     "",
 		ThinkingBudget:   0,
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
@@ -62,9 +63,11 @@ func NewBedrockService(ctx context.Context, cfg config.Config) (BedrockService, 
 	localClient := localBedrock.NewClient(sharedClient, localConfig, log)
 
 	log.Info("bedrock_service_initialized", map[string]interface{}{
-		"model_id":   cfg.AWS.BedrockModel,
-		"region":     cfg.AWS.Region,
-		"max_tokens": cfg.Processing.MaxTokens,
+		"model_id":    cfg.AWS.BedrockModel,
+		"region":      cfg.AWS.Region,
+		"max_tokens":  cfg.Processing.MaxTokens,
+		"temperature": cfg.Processing.Temperature,
+		"top_p":       cfg.Processing.TopP,
 	})
 
 	return &bedrockService{

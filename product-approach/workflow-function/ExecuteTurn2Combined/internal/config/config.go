@@ -22,6 +22,7 @@ type Config struct {
 	Processing struct {
 		MaxTokens                int
 		Temperature              float64
+		TopP                     float64
 		MaxRetries               int
 		BedrockConnectTimeoutSec int
 		BedrockCallTimeoutSec    int
@@ -69,8 +70,8 @@ func LoadConfiguration() (*Config, error) {
 
 	cfg.Processing.MaxTokens = getInt("MAX_TOKENS", 24000)
 
-
 	cfg.Processing.Temperature = getFloat("TEMPERATURE", 0.7)
+	cfg.Processing.TopP = getFloat("TOP_P", 0.9)
 	cfg.Processing.MaxRetries = getInt("MAX_RETRIES", 1)
 	cfg.Processing.BedrockConnectTimeoutSec = getInt("BEDROCK_CONNECT_TIMEOUT_SEC", 10)
 	cfg.Processing.BedrockCallTimeoutSec = getInt("BEDROCK_CALL_TIMEOUT_SEC", 30)
@@ -141,4 +142,3 @@ func (c *Config) DatePartitionFromTimestamp(ts string) (string, error) {
 	t = t.In(loc)
 	return fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day()), nil
 }
-

@@ -7,6 +7,7 @@ type Config struct {
 	AnthropicVersion string
 	MaxTokens        int
 	Temperature      float64
+	TopP             float64
 	ThinkingType     string
 	ThinkingBudget   int
 	Timeout          time.Duration

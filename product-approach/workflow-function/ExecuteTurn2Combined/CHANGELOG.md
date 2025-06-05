@@ -2,6 +2,13 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.24] - 2025-06-10 - Environment Variable Alignment
+
+### Changed
+- Added `TOP_P` environment variable support (default `0.9`) to match `ExecuteTurn1Combined`.
+- `BEDROCK_MODEL` continues to map to `modelId` in Bedrock requests.
+- Request construction now uses configurable `Temperature` and `TopP` parameters.
+
 ## [2.2.0] - 2025-01-04 - File Extension Fix & Output Compliance
 
 ### Fixed
