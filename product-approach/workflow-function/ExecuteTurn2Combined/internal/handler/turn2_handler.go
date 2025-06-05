@@ -78,13 +78,36 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		wfErr := errors.WrapError(loadResult.Error, errors.ErrorTypeS3,
 			"failed to load Turn2 context", true).
 			WithContext("verification_id", req.VerificationID).
-			WithContext("stage", "context_loading")
+			WithContext("stage", "context_loading").
+			WithComponent("ContextLoader").
+			WithOperation("LoadContextTurn2").
+			WithCategory(errors.CategoryTransient).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithSuggestions(
+				"Check S3 bucket permissions and connectivity",
+				"Verify that all required S3 objects exist",
+				"Ensure proper IAM roles are configured",
+			).
+			WithRecoveryHints(
+				"Retry the operation after a brief delay",
+				"Check AWS service status for S3 outages",
+				"Validate S3 bucket and key configurations",
+			)
+		
 		h.log.Error("context_loading_failed", map[string]interface{}{
-			"error_type": string(wfErr.Type),
-			"error_code": wfErr.Code,
-			"message":    wfErr.Message,
-			"retryable":  wfErr.Retryable,
-			"severity":   string(wfErr.Severity),
+			"error_type":      string(wfErr.Type),
+			"error_code":      wfErr.Code,
+			"message":         wfErr.Message,
+			"retryable":       wfErr.Retryable,
+			"severity":        string(wfErr.Severity),
+			"category":        string(wfErr.Category),
+			"retry_strategy":  string(wfErr.RetryStrategy),
+			"component":       wfErr.Component,
+			"operation":       wfErr.Operation,
+			"suggestions":     wfErr.Suggestions,
+			"recovery_hints":  wfErr.RecoveryHints,
 		})
 		h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -99,13 +122,38 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 			wfErr := errors.WrapError(err, errors.ErrorTypeS3,
 				"failed to load Turn1 raw response", true).
 				WithContext("verification_id", req.VerificationID).
-				WithContext("stage", "context_loading")
+				WithContext("stage", "context_loading").
+				WithContext("s3_key", req.S3Refs.Turn1.RawResponse.Key).
+				WithComponent("S3StateManager").
+				WithOperation("LoadTurn1SchemaResponse").
+				WithCategory(errors.CategoryTransient).
+				WithRetryStrategy(errors.RetryExponential).
+				SetMaxRetries(3).
+				WithSeverity(errors.ErrorSeverityMedium).
+				WithSuggestions(
+					"Verify Turn1 response was properly stored",
+					"Check S3 object existence and permissions",
+					"Ensure Turn1 processing completed successfully",
+				).
+				WithRecoveryHints(
+					"Re-run Turn1 processing if response is missing",
+					"Check S3 bucket configuration and access policies",
+					"Validate the S3 key format and bucket name",
+				)
+			
 			h.log.Error("turn1_raw_load_failed", map[string]interface{}{
-				"error_type": string(wfErr.Type),
-				"error_code": wfErr.Code,
-				"message":    wfErr.Message,
-				"retryable":  wfErr.Retryable,
-				"severity":   string(wfErr.Severity),
+				"error_type":      string(wfErr.Type),
+				"error_code":      wfErr.Code,
+				"message":         wfErr.Message,
+				"retryable":       wfErr.Retryable,
+				"severity":        string(wfErr.Severity),
+				"category":        string(wfErr.Category),
+				"retry_strategy":  string(wfErr.RetryStrategy),
+				"component":       wfErr.Component,
+				"operation":       wfErr.Operation,
+				"s3_key":          req.S3Refs.Turn1.RawResponse.Key,
+				"suggestions":     wfErr.Suggestions,
+				"recovery_hints":  wfErr.RecoveryHints,
 			})
 			h.persistErrorState(ctx, req, wfErr, "context_loading", startTime)
 			return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -186,16 +234,42 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		layoutMetadata,
 	)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
+		wfErr := errors.WrapError(err, errors.ErrorTypeTemplate,
 			"failed to generate Turn2 prompt", false).
 			WithContext("verification_id", req.VerificationID).
-			WithContext("stage", "prompt_generation")
+			WithContext("stage", "prompt_generation").
+			WithContext("verification_type", string(req.VerificationContext.VerificationType)).
+			WithComponent("PromptServiceTurn2").
+			WithOperation("GenerateTurn2PromptWithMetrics").
+			WithCategory(errors.CategoryPermanent).
+			WithRetryStrategy(errors.RetryNone).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check template syntax and variable bindings",
+				"Verify all required template variables are provided",
+				"Ensure template files exist and are accessible",
+				"Validate Turn1 response format compatibility",
+			).
+			WithRecoveryHints(
+				"Review template configuration and syntax",
+				"Check template variable mappings",
+				"Verify Turn1 response structure matches expectations",
+				"Ensure layout metadata format is correct",
+			)
+		
 		h.log.Error("prompt_generation_failed", map[string]interface{}{
-			"error_type": string(wfErr.Type),
-			"error_code": wfErr.Code,
-			"message":    wfErr.Message,
-			"retryable":  wfErr.Retryable,
-			"severity":   string(wfErr.Severity),
+			"error_type":         string(wfErr.Type),
+			"error_code":         wfErr.Code,
+			"message":            wfErr.Message,
+			"retryable":          wfErr.Retryable,
+			"severity":           string(wfErr.Severity),
+			"category":           string(wfErr.Category),
+			"retry_strategy":     string(wfErr.RetryStrategy),
+			"component":          wfErr.Component,
+			"operation":          wfErr.Operation,
+			"verification_type":  string(req.VerificationContext.VerificationType),
+			"suggestions":        wfErr.Suggestions,
+			"recovery_hints":     wfErr.RecoveryHints,
 		})
 		h.persistErrorState(ctx, req, wfErr, "prompt_generation", startTime)
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -230,16 +304,73 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		loadedTurn1Response,
 	)
 	if err != nil {
+		// Determine error category and retry strategy based on error type
+		category := errors.CategoryServer
+		retryStrategy := errors.RetryExponential
+		severity := errors.ErrorSeverityHigh
+		maxRetries := 3
+		
+		// Check for specific Bedrock error patterns
+		errorStr := err.Error()
+		if strings.Contains(errorStr, "throttling") || strings.Contains(errorStr, "rate limit") {
+			category = errors.CategoryCapacity
+			retryStrategy = errors.RetryJittered
+			severity = errors.ErrorSeverityMedium
+			maxRetries = 5
+		} else if strings.Contains(errorStr, "validation") || strings.Contains(errorStr, "invalid") {
+			category = errors.CategoryClient
+			retryStrategy = errors.RetryNone
+			severity = errors.ErrorSeverityCritical
+			maxRetries = 0
+		} else if strings.Contains(errorStr, "timeout") {
+			category = errors.CategoryNetwork
+			retryStrategy = errors.RetryLinear
+			severity = errors.ErrorSeverityHigh
+			maxRetries = 2
+		}
+		
 		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
-			"failed to invoke Bedrock for Turn2", true).
+			"failed to invoke Bedrock for Turn2", maxRetries > 0).
 			WithContext("verification_id", req.VerificationID).
-			WithContext("stage", "bedrock_invocation")
+			WithContext("stage", "bedrock_invocation").
+			WithContext("model_id", h.cfg.AWS.BedrockModel).
+			WithContext("prompt_size", len(prompt)).
+			WithContext("image_size", len(loadResult.Base64Image)).
+			WithComponent("BedrockServiceTurn2").
+			WithOperation("ConverseWithHistory").
+			WithCategory(category).
+			WithRetryStrategy(retryStrategy).
+			SetMaxRetries(maxRetries).
+			WithSeverity(severity).
+			WithSuggestions(
+				"Check Bedrock service availability and quotas",
+				"Verify model permissions and access policies",
+				"Ensure prompt and image sizes are within limits",
+				"Check for service throttling or rate limits",
+			).
+			WithRecoveryHints(
+				"Retry with exponential backoff for transient errors",
+				"Review and optimize prompt size if too large",
+				"Check AWS service health dashboard",
+				"Verify Bedrock model availability in region",
+			)
+		
 		h.log.Error("bedrock_invocation_failed", map[string]interface{}{
-			"error_type": string(wfErr.Type),
-			"error_code": wfErr.Code,
-			"message":    wfErr.Message,
-			"retryable":  wfErr.Retryable,
-			"severity":   string(wfErr.Severity),
+			"error_type":      string(wfErr.Type),
+			"error_code":      wfErr.Code,
+			"message":         wfErr.Message,
+			"retryable":       wfErr.Retryable,
+			"severity":        string(wfErr.Severity),
+			"category":        string(wfErr.Category),
+			"retry_strategy":  string(wfErr.RetryStrategy),
+			"max_retries":     wfErr.MaxRetries,
+			"component":       wfErr.Component,
+			"operation":       wfErr.Operation,
+			"model_id":        h.cfg.AWS.BedrockModel,
+			"prompt_size":     len(prompt),
+			"image_size":      len(loadResult.Base64Image),
+			"suggestions":     wfErr.Suggestions,
+			"recovery_hints":  wfErr.RecoveryHints,
 		})
 		h.persistErrorState(ctx, req, wfErr, "bedrock_invocation", startTime)
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -291,16 +422,44 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Parse Bedrock response
 	markdownResponse, err := bedrockparser.ParseTurn2BedrockResponseAsMarkdown(bedrockResponse.Content)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
+		wfErr := errors.WrapError(err, errors.ErrorTypeConversion,
 			"failed to parse Bedrock response as markdown", false).
 			WithContext("verification_id", req.VerificationID).
-			WithContext("stage", "response_parsing")
+			WithContext("stage", "response_parsing").
+			WithContext("response_length", len(bedrockResponse.Content)).
+			WithContext("model_id", bedrockResponse.ModelId).
+			WithComponent("BedrockParser").
+			WithOperation("ParseTurn2BedrockResponseAsMarkdown").
+			WithCategory(errors.CategoryPermanent).
+			WithRetryStrategy(errors.RetryNone).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check Bedrock response format and structure",
+				"Verify parser compatibility with model output",
+				"Review response content for unexpected format",
+				"Ensure model is generating expected markdown structure",
+			).
+			WithRecoveryHints(
+				"Review and update parser logic for model changes",
+				"Check if model output format has changed",
+				"Validate response against expected schema",
+				"Consider fallback parsing strategies",
+			)
+		
 		h.log.Error("markdown_parsing_failed", map[string]interface{}{
-			"error_type": string(wfErr.Type),
-			"error_code": wfErr.Code,
-			"message":    wfErr.Message,
-			"retryable":  wfErr.Retryable,
-			"severity":   string(wfErr.Severity),
+			"error_type":       string(wfErr.Type),
+			"error_code":       wfErr.Code,
+			"message":          wfErr.Message,
+			"retryable":        wfErr.Retryable,
+			"severity":         string(wfErr.Severity),
+			"category":         string(wfErr.Category),
+			"retry_strategy":   string(wfErr.RetryStrategy),
+			"component":        wfErr.Component,
+			"operation":        wfErr.Operation,
+			"response_length":  len(bedrockResponse.Content),
+			"model_id":         bedrockResponse.ModelId,
+			"suggestions":      wfErr.Suggestions,
+			"recovery_hints":   wfErr.RecoveryHints,
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -394,16 +553,44 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	// Parse structured data from response
 	parsedData, err := bedrockparser.ParseTurn2Response(bedrockResponse.Content)
 	if err != nil {
-		wfErr := errors.WrapError(err, errors.ErrorTypeInternal,
+		wfErr := errors.WrapError(err, errors.ErrorTypeConversion,
 			"failed to parse Turn2 response", false).
 			WithContext("verification_id", req.VerificationID).
-			WithContext("stage", "response_parsing")
+			WithContext("stage", "response_parsing").
+			WithContext("response_length", len(bedrockResponse.Content)).
+			WithContext("model_id", bedrockResponse.ModelId).
+			WithComponent("BedrockParser").
+			WithOperation("ParseTurn2Response").
+			WithCategory(errors.CategoryPermanent).
+			WithRetryStrategy(errors.RetryNone).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check Bedrock response format and structure",
+				"Verify parser compatibility with model output",
+				"Review response content for unexpected format",
+				"Ensure model is generating expected JSON structure",
+			).
+			WithRecoveryHints(
+				"Review and update parser logic for model changes",
+				"Check if model output format has changed",
+				"Validate response against expected schema",
+				"Consider fallback parsing strategies",
+			)
+		
 		h.log.Error("turn2_parsing_failed", map[string]interface{}{
-			"error_type": string(wfErr.Type),
-			"error_code": wfErr.Code,
-			"message":    wfErr.Message,
-			"retryable":  wfErr.Retryable,
-			"severity":   string(wfErr.Severity),
+			"error_type":       string(wfErr.Type),
+			"error_code":       wfErr.Code,
+			"message":          wfErr.Message,
+			"retryable":        wfErr.Retryable,
+			"severity":         string(wfErr.Severity),
+			"category":         string(wfErr.Category),
+			"retry_strategy":   string(wfErr.RetryStrategy),
+			"component":        wfErr.Component,
+			"operation":        wfErr.Operation,
+			"response_length":  len(bedrockResponse.Content),
+			"model_id":         bedrockResponse.ModelId,
+			"suggestions":      wfErr.Suggestions,
+			"recovery_hints":   wfErr.RecoveryHints,
 		})
 		h.persistErrorState(ctx, req, wfErr, "response_parsing", startTime)
 		return nil, models.S3Reference{}, models.S3Reference{}, wfErr
@@ -718,6 +905,32 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 		Message:   wfErr.Message,
 		Details:   wfErr.Details,
 		Timestamp: schema.FormatISO8601(),
+	}
+	
+	// Add enhanced error information to details if available
+	if wfErr.Component != "" {
+		errorInfo.Details["component"] = wfErr.Component
+	}
+	if wfErr.Operation != "" {
+		errorInfo.Details["operation"] = wfErr.Operation
+	}
+	if wfErr.Category != "" {
+		errorInfo.Details["category"] = string(wfErr.Category)
+	}
+	if wfErr.Severity != "" {
+		errorInfo.Details["severity"] = string(wfErr.Severity)
+	}
+	if wfErr.RetryStrategy != "" {
+		errorInfo.Details["retry_strategy"] = string(wfErr.RetryStrategy)
+	}
+	if wfErr.MaxRetries > 0 {
+		errorInfo.Details["max_retries"] = wfErr.MaxRetries
+	}
+	if len(wfErr.Suggestions) > 0 {
+		errorInfo.Details["suggestions"] = wfErr.Suggestions
+	}
+	if len(wfErr.RecoveryHints) > 0 {
+		errorInfo.Details["recovery_hints"] = wfErr.RecoveryHints
 	}
 
 	tracking := &schema.ErrorTracking{

@@ -76,14 +76,20 @@ func init() {
 		if errors.IsConfigError(err) {
 			if workflowErr, ok := err.(*errors.WorkflowError); ok {
 				errJSON, _ := json.Marshal(map[string]interface{}{
-					"level":        "ERROR",
-					"msg":          "config_load_failed",
-					"errorType":    string(workflowErr.Type),
-					"errorCode":    workflowErr.Code,
-					"error":        workflowErr.Message,
-					"var":          workflowErr.Details["variable"],
-					"severity":     "ERROR",
-					"architecture": "deterministic_control",
+					"level":          "ERROR",
+					"msg":            "config_load_failed",
+					"errorType":      string(workflowErr.Type),
+					"errorCode":      workflowErr.Code,
+					"error":          workflowErr.Message,
+					"var":            workflowErr.Details["variable"],
+					"severity":       string(workflowErr.Severity),
+					"category":       string(workflowErr.Category),
+					"component":      workflowErr.Component,
+					"operation":      workflowErr.Operation,
+					"retryable":      workflowErr.Retryable,
+					"suggestions":    workflowErr.Suggestions,
+					"recovery_hints": workflowErr.RecoveryHints,
+					"architecture":   "deterministic_control",
 				})
 				fmt.Fprintf(os.Stderr, "%s\n", errJSON)
 			}
@@ -92,7 +98,23 @@ func init() {
 
 		criticalErr := errors.NewInternalError("application_bootstrap", err).
 			WithContext("stage", "initialization").
-			WithContext("architecture", "deterministic_control")
+			WithContext("architecture", "deterministic_control").
+			WithComponent("ApplicationContainer").
+			WithOperation("initializeApplicationContainer").
+			WithCategory(errors.CategoryPermanent).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check system dependencies and configurations",
+				"Verify AWS credentials and permissions",
+				"Ensure all required environment variables are set",
+				"Check network connectivity to AWS services",
+			).
+			WithRecoveryHints(
+				"Review application logs for specific initialization failures",
+				"Validate AWS service configurations",
+				"Check Lambda function environment and permissions",
+				"Ensure all required dependencies are available",
+			)
 
 		log.Fatalf("CRITICAL: Application container initialization failed: %v", criticalErr.Error())
 	}
@@ -134,7 +156,21 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 			return nil, err
 		}
 		return nil, errors.WrapError(err, errors.ErrorTypeConfig,
-			"configuration initialization failed", false)
+			"configuration initialization failed", false).
+			WithComponent("ConfigLoader").
+			WithOperation("LoadConfiguration").
+			WithCategory(errors.CategoryPermanent).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check environment variables and configuration files",
+				"Verify configuration file syntax and format",
+				"Ensure all required configuration parameters are provided",
+			).
+			WithRecoveryHints(
+				"Review configuration documentation",
+				"Validate environment variable names and values",
+				"Check for missing or malformed configuration files",
+			)
 	}
 
 	initializationMetrics.ConfigurationLoadTime = time.Since(configStartTime)
@@ -164,7 +200,21 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 			"error": err.Error(),
 		})
 		return nil, errors.WrapError(err, errors.ErrorTypeAPI,
-			"AWS configuration initialization failed", false)
+			"AWS configuration initialization failed", false).
+			WithComponent("AWSConfig").
+			WithOperation("initializeAWSConfiguration").
+			WithCategory(errors.CategoryTransient).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithSuggestions(
+				"Check AWS credentials and permissions",
+				"Verify AWS region configuration",
+				"Ensure network connectivity to AWS services",
+			).
+			WithRecoveryHints(
+				"Review AWS credentials configuration",
+				"Check IAM roles and policies",
+				"Verify network connectivity and security groups",
+			)
 	}
 
 	initializationMetrics.AWSClientSetupTime = time.Since(awsSetupStartTime)
@@ -179,7 +229,21 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 			"architecture": "deterministic_control",
 		})
 		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
-			"service layer initialization failed", false)
+			"service layer initialization failed", false).
+			WithComponent("ServiceLayer").
+			WithOperation("initializeServiceLayerWithLocalBedrock").
+			WithCategory(errors.CategoryPermanent).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check service dependencies and configurations",
+				"Verify AWS service permissions and access",
+				"Ensure all required services are available",
+			).
+			WithRecoveryHints(
+				"Review service initialization logs",
+				"Check AWS service configurations",
+				"Validate service dependencies and versions",
+			)
 	}
 
 	initializationMetrics.ServiceInitializationTime = time.Since(serviceInitStartTime)
@@ -406,8 +470,32 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	} else {
 		if err := json.Unmarshal(event, &directReq); err != nil {
 			wrapped := errors.WrapError(err, errors.ErrorTypeValidation,
-				"failed to parse request", false)
-			contextLogger.Error("request_parse_failed", map[string]interface{}{"error": err.Error()})
+				"failed to parse request", false).
+				WithComponent("RequestParser").
+				WithOperation("json.Unmarshal").
+				WithCategory(errors.CategoryClient).
+				WithSeverity(errors.ErrorSeverityHigh).
+				WithSuggestions(
+					"Check request JSON format and structure",
+					"Verify all required fields are present",
+					"Ensure field types match expected schema",
+				).
+				WithRecoveryHints(
+					"Review request payload format",
+					"Validate JSON syntax and structure",
+					"Check API documentation for correct format",
+				)
+			contextLogger.Error("request_parse_failed", map[string]interface{}{
+				"error_type":     string(wrapped.Type),
+				"error_code":     wrapped.Code,
+				"message":        wrapped.Message,
+				"severity":       string(wrapped.Severity),
+				"category":       string(wrapped.Category),
+				"component":      wrapped.Component,
+				"operation":      wrapped.Operation,
+				"suggestions":    wrapped.Suggestions,
+				"recovery_hints": wrapped.RecoveryHints,
+			})
 			finalErr = wrapped
 		} else {
 			contextLogger.Info("turn2_request_format_detected", nil)
@@ -433,23 +521,53 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 				WithContext("architecture", "deterministic_control")
 
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error_type":   string(enrichedErr.Type),
-				"error_code":   enrichedErr.Code,
-				"retryable":    enrichedErr.Retryable,
-				"severity":     string(enrichedErr.Severity),
-				"api_source":   string(enrichedErr.APISource),
-				"architecture": "deterministic_control",
+				"error_type":      string(enrichedErr.Type),
+				"error_code":      enrichedErr.Code,
+				"message":         enrichedErr.Message,
+				"retryable":       enrichedErr.Retryable,
+				"severity":        string(enrichedErr.Severity),
+				"category":        string(enrichedErr.Category),
+				"retry_strategy":  string(enrichedErr.RetryStrategy),
+				"max_retries":     enrichedErr.MaxRetries,
+				"component":       enrichedErr.Component,
+				"operation":       enrichedErr.Operation,
+				"api_source":      string(enrichedErr.APISource),
+				"suggestions":     enrichedErr.Suggestions,
+				"recovery_hints":  enrichedErr.RecoveryHints,
+				"architecture":    "deterministic_control",
 			})
 			return nil, enrichedErr
 		} else {
 			wrappedErr := errors.WrapError(finalErr, errors.ErrorTypeInternal,
 				"execution failed", false).
 				WithContext("correlation_id", executionContext.CorrelationID).
-				WithContext("architecture", "deterministic_control")
+				WithContext("architecture", "deterministic_control").
+				WithComponent("ExecutionHandler").
+				WithOperation("HandleRequest").
+				WithCategory(errors.CategoryServer).
+				WithSeverity(errors.ErrorSeverityHigh).
+				WithSuggestions(
+					"Check application logs for specific error details",
+					"Verify system resources and dependencies",
+					"Review request format and parameters",
+				).
+				WithRecoveryHints(
+					"Retry the operation if error appears transient",
+					"Check system health and resource availability",
+					"Review error logs for root cause analysis",
+				)
 
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error":        finalErr.Error(),
-				"architecture": "deterministic_control",
+				"error_type":     string(wrappedErr.Type),
+				"error_code":     wrappedErr.Code,
+				"message":        wrappedErr.Message,
+				"severity":       string(wrappedErr.Severity),
+				"category":       string(wrappedErr.Category),
+				"component":      wrappedErr.Component,
+				"operation":      wrappedErr.Operation,
+				"suggestions":    wrappedErr.Suggestions,
+				"recovery_hints": wrappedErr.RecoveryHints,
+				"architecture":   "deterministic_control",
 			})
 			return nil, wrappedErr
 		}

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	localBedrock "workflow-function/ExecuteTurn2Combined/internal/bedrock"
@@ -99,10 +100,75 @@ func (s *bedrockService) Converse(ctx context.Context, systemPrompt, turnPrompt,
 
 	response, err := s.client.ProcessTurn1(ctx, systemPrompt, turnPrompt, base64Image)
 	if err != nil {
+		// Determine error category and retry strategy based on error type
+		category := errors.CategoryServer
+		retryStrategy := errors.RetryExponential
+		severity := errors.ErrorSeverityHigh
+		maxRetries := 3
+		
+		// Check for specific Bedrock error patterns
+		errorStr := err.Error()
+		if strings.Contains(errorStr, "throttling") || strings.Contains(errorStr, "rate limit") {
+			category = errors.CategoryCapacity
+			retryStrategy = errors.RetryJittered
+			severity = errors.ErrorSeverityMedium
+			maxRetries = 5
+		} else if strings.Contains(errorStr, "validation") || strings.Contains(errorStr, "invalid") {
+			category = errors.CategoryClient
+			retryStrategy = errors.RetryNone
+			severity = errors.ErrorSeverityCritical
+			maxRetries = 0
+		} else if strings.Contains(errorStr, "timeout") {
+			category = errors.CategoryNetwork
+			retryStrategy = errors.RetryLinear
+			severity = errors.ErrorSeverityHigh
+			maxRetries = 2
+		}
+		
+		wfErr := errors.WrapError(err, errors.ErrorTypeBedrock,
+			"Bedrock API invocation failed", maxRetries > 0).
+			WithContext("model_id", s.config.AWS.BedrockModel).
+			WithContext("system_prompt_size", len(systemPrompt)).
+			WithContext("turn_prompt_size", len(turnPrompt)).
+			WithContext("image_size", len(base64Image)).
+			WithComponent("BedrockClient").
+			WithOperation("ProcessTurn1").
+			WithCategory(category).
+			WithRetryStrategy(retryStrategy).
+			SetMaxRetries(maxRetries).
+			WithSeverity(severity).
+			WithSuggestions(
+				"Check Bedrock service availability and quotas",
+				"Verify model permissions and access policies",
+				"Ensure prompt and image sizes are within limits",
+				"Check for service throttling or rate limits",
+			).
+			WithRecoveryHints(
+				"Retry with exponential backoff for transient errors",
+				"Review and optimize prompt size if too large",
+				"Check AWS service health dashboard",
+				"Verify Bedrock model availability in region",
+			)
+		
 		s.logger.Error("bedrock_api_error", map[string]interface{}{
-			"error": err.Error(),
+			"error_type":         string(wfErr.Type),
+			"error_code":         wfErr.Code,
+			"message":            wfErr.Message,
+			"retryable":          wfErr.Retryable,
+			"severity":           string(wfErr.Severity),
+			"category":           string(wfErr.Category),
+			"retry_strategy":     string(wfErr.RetryStrategy),
+			"max_retries":        wfErr.MaxRetries,
+			"component":          wfErr.Component,
+			"operation":          wfErr.Operation,
+			"model_id":           s.config.AWS.BedrockModel,
+			"system_prompt_size": len(systemPrompt),
+			"turn_prompt_size":   len(turnPrompt),
+			"image_size":         len(base64Image),
+			"suggestions":        wfErr.Suggestions,
+			"recovery_hints":     wfErr.RecoveryHints,
 		})
-		return nil, err
+		return nil, wfErr
 	}
 
 	// Convert to models.BedrockResponse
