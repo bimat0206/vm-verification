@@ -2,6 +2,33 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.2.0] - 2025-01-04 - AWS Bedrock API Compliance & Configuration Enhancement
+
+### Added
+- **Configurable TopP Parameter**: Added `TOP_P` environment variable support with default value of 0.9
+- **Enhanced Parameter Validation**: Added validation for TopP parameter (0.0-1.0 range)
+- **Improved Configuration Flow**: Temperature and TopP now flow correctly from environment variables through all configuration layers
+- **Enhanced Logging**: Added TopP parameter to all relevant log statements and operational metrics
+
+### Changed
+- **Fixed Hardcoded Temperature**: Replaced hardcoded temperature (0.7) in main.go with configurable value from environment
+- **AWS Bedrock API Compliance**: Ensured complete compliance with AWS Bedrock Converse API structure
+- **Configuration Structure**: Updated Config structs to include TopP field across all layers
+- **Request Structure**: Updated adapter to use configurable TopP instead of hardcoded nil
+
+### Fixed
+- **Environment Variable Mapping**: Confirmed correct mapping of `BEDROCK_MODEL` environment variable to `modelId` in AWS API requests
+- **Parameter Configuration**: Fixed inconsistent temperature and TopP configuration between shared and local bedrock clients
+- **API Structure Compliance**: Verified complete alignment with AWS Bedrock Converse API example structure
+
+### Technical Details
+- **Environment Variables**:
+  - `TEMPERATURE` - Controls model creativity (0.0-1.0, default: 0.7)
+  - `TOP_P` - Controls nucleus sampling (0.0-1.0, default: 0.9)
+  - `BEDROCK_MODEL` - Maps correctly to `modelId` in API requests
+- **Configuration Flow**: Environment → config.Config → bedrock.Config → ConverseRequest → AWS API
+- **Validation**: Added proper range validation for both temperature and TopP parameters
+
 ## [2.8.8] - 2025-06-08
 ### Fixed
 - Added missing `anthropic-version` header when invoking Bedrock Converse API.

@@ -260,7 +260,8 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 	localConfig := &localBedrock.Config{
 		ModelID:          cfg.AWS.BedrockModel,
 		MaxTokens:        cfg.Processing.MaxTokens,
-		Temperature:      0.7, // Strategic default for balanced output
+		Temperature:      cfg.Processing.Temperature, // Use configurable temperature from environment
+		TopP:             cfg.Processing.TopP,        // Use configurable TopP from environment
 		Timeout:          time.Duration(cfg.Processing.BedrockCallTimeoutSec) * time.Second,
 		Region:           cfg.AWS.Region,
 		AnthropicVersion: cfg.AWS.AnthropicVersion,

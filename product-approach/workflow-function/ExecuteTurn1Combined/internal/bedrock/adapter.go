@@ -44,6 +44,7 @@ func (a *Adapter) Converse(ctx context.Context, systemPrompt, turnPrompt, base64
 		"model_id":    config.ModelID,
 		"max_tokens":  config.MaxTokens,
 		"temperature": config.Temperature,
+		"top_p":       config.TopP,
 	})
 
 	request, err := a.buildConverseRequest(systemPrompt, turnPrompt, base64Image, config)
@@ -90,22 +91,24 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 
 	// Build request using shared package constructor
 	temperature := config.Temperature
+	topP := config.TopP
 	request := sharedBedrock.CreateConverseRequest(
 		config.ModelID,
 		[]sharedBedrock.MessageWrapper{userMessage},
 		systemPrompt,
 		config.MaxTokens,
 		&temperature,
-		nil, // TopP - defer to model defaults
-		map[string]string{"type": "ephemeral"},
+		&topP, // Use configurable TopP from environment
 	)
 
 	// Log the complete request structure for debugging
 	a.logger.Info("bedrock_request_structure", map[string]interface{}{
-		"model_id":            request.ModelId,
-		"reasoning_field":     request.Reasoning,
-		"inference_reasoning": request.InferenceConfig.Reasoning,
-		"max_tokens":          request.InferenceConfig.MaxTokens,
+		"model_id":    request.ModelId,
+		"max_tokens":  request.InferenceConfig.MaxTokens,
+		"temperature": request.InferenceConfig.Temperature,
+		"top_p":       request.InferenceConfig.TopP,
+		"messages":    len(request.Messages),
+		"system":      len(request.System),
 	})
 
 	// Log the final JSON payload for verification
