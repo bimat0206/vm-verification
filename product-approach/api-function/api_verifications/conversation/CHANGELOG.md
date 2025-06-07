@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 - **Environment Variables**:
-  - `DYNAMODB_CONVERSATION_TABLE`: DynamoDB table name for conversation records
+  - `DYNAMODB_VERIFICATION_TABLE`: DynamoDB table name for verification records
   - `RESULTS_BUCKET`: S3 bucket name for processed conversation content
   - `LOG_LEVEL`: Configurable logging level for debugging and monitoring
 

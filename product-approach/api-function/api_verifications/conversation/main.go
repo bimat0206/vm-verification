@@ -23,39 +23,49 @@ var (
 	log                     *logrus.Logger
 	dynamoClient           *dynamodb.Client
 	s3Client               *s3.Client
+	verificationTableName  string
 	conversationTableName  string
-	resultsBucketName      string
 )
 
-// MetadataPath represents a path structure in DynamoDB metadata
-type MetadataPath struct {
-	S string `json:"S" dynamodbav:"S"`
+
+
+// VerificationRecord represents a verification record from DynamoDB verification table
+type VerificationRecord struct {
+	VerificationID       string                 `json:"verificationId" dynamodbav:"verificationId"`
+	VerificationAt       string                 `json:"verificationAt" dynamodbav:"verificationAt"`
+	VerificationStatus   string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
+	VerificationType     string                 `json:"verificationType" dynamodbav:"verificationType"`
+	VendingMachineID     string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	ReferenceImageURL    string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
+	CheckingImageURL     string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
+	LayoutID             *int                   `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
+	LayoutPrefix         *string                `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
+	OverallAccuracy      *float64               `json:"overallAccuracy,omitempty" dynamodbav:"overallAccuracy,omitempty"`
+	CorrectPositions     *int                   `json:"correctPositions,omitempty" dynamodbav:"correctPositions,omitempty"`
+	DiscrepantPositions  *int                   `json:"discrepantPositions,omitempty" dynamodbav:"discrepantPositions,omitempty"`
+	Result               map[string]interface{} `json:"result,omitempty" dynamodbav:"result,omitempty"`
+	VerificationSummary  map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
+	CreatedAt            string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
+	UpdatedAt            string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
+	// Processed paths from verification metadata
+	Turn1ProcessedPath   string                 `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
+	Turn2ProcessedPath   string                 `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
 }
 
-// ConversationMetadata represents the metadata field structure from DynamoDB
-type ConversationMetadata struct {
-	Turn1ProcessedPath *MetadataPath `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
-	Turn2ProcessedPath *MetadataPath `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
-}
-
-// ConversationRecord represents a conversation record from DynamoDB
-type ConversationRecord struct {
-	VerificationID     string                `json:"verificationId" dynamodbav:"verificationId"`
-	ConversationID     string                `json:"conversationId" dynamodbav:"conversationId"`
-	Metadata           *ConversationMetadata `json:"metadata,omitempty" dynamodbav:"metadata,omitempty"`
-	Turn2ProcessedPath string                `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"` // Keep for backward compatibility
-	CreatedAt          string                `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
-	UpdatedAt          string                `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
-	// Extracted paths for easier access
-	Turn1ProcessedPathValue string `json:"-" dynamodbav:"-"`
-	Turn2ProcessedPathValue string `json:"-" dynamodbav:"-"`
+// ConversationContent represents content from a single turn
+type ConversationContent struct {
+	Turn        int    `json:"turn"`
+	Content     string `json:"content"`
+	ContentType string `json:"contentType"`
+	S3Path      string `json:"s3Path"`
 }
 
 // ConversationResponse represents the API response structure
 type ConversationResponse struct {
-	VerificationID string `json:"verificationId"`
-	Content        string `json:"content"`
-	ContentType    string `json:"contentType"`
+	VerificationID string                `json:"verificationId"`
+	Turn1Content   *ConversationContent  `json:"turn1Content,omitempty"`
+	Turn2Content   *ConversationContent  `json:"turn2Content,omitempty"`
+	Contents       []ConversationContent `json:"contents"`
 }
 
 // ErrorResponse represents an error response
@@ -77,14 +87,14 @@ func init() {
 	log.SetFormatter(&logrus.JSONFormatter{})
 
 	// Load environment variables
+	verificationTableName = os.Getenv("DYNAMODB_VERIFICATION_TABLE")
+	if verificationTableName == "" {
+		log.Fatal("DYNAMODB_VERIFICATION_TABLE environment variable is required")
+	}
+
 	conversationTableName = os.Getenv("DYNAMODB_CONVERSATION_TABLE")
 	if conversationTableName == "" {
 		log.Fatal("DYNAMODB_CONVERSATION_TABLE environment variable is required")
-	}
-
-	resultsBucketName = os.Getenv("RESULTS_BUCKET")
-	if resultsBucketName == "" {
-		log.Fatal("RESULTS_BUCKET environment variable is required")
 	}
 
 	// Initialize AWS clients
@@ -137,43 +147,63 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		"verificationId": verificationId,
 	}).Info("Processing get conversation request")
 
-	// Query DynamoDB for conversation record
-	conversationRecord, err := getConversationRecord(ctx, verificationId)
+	// Query DynamoDB verification table for processed paths
+	verificationRecord, err := getVerificationRecord(ctx, verificationId)
 	if err != nil {
-		log.WithError(err).Error("Failed to get conversation record")
-		return createErrorResponse(500, "Failed to get conversation record", err.Error(), headers)
+		log.WithError(err).Error("Failed to get verification record")
+		return createErrorResponse(500, "Failed to get verification record", err.Error(), headers)
 	}
 
-	if conversationRecord == nil {
-		return createErrorResponse(404, "Conversation not found", fmt.Sprintf("No conversation found for verificationId: %s", verificationId), headers)
+	if verificationRecord == nil {
+		return createErrorResponse(404, "Verification not found", fmt.Sprintf("No verification found for verificationId: %s", verificationId), headers)
 	}
 
-	// Determine which path to use for S3 content retrieval
-	s3Path := conversationRecord.Turn2ProcessedPathValue
-	if s3Path == "" {
-		// Fallback to the direct field for backward compatibility
-		s3Path = conversationRecord.Turn2ProcessedPath
-	}
-
-	if s3Path == "" {
-		log.WithFields(logrus.Fields{
-			"verificationId": verificationId,
-		}).Error("No turn2ProcessedPath found in conversation record")
-		return createErrorResponse(404, "Content not found", "No processed conversation content path found", headers)
-	}
-
-	// Retrieve content from S3
-	content, err := getS3Content(ctx, s3Path)
-	if err != nil {
-		log.WithError(err).Error("Failed to retrieve S3 content")
-		return createErrorResponse(500, "Failed to retrieve conversation content", err.Error(), headers)
-	}
-
-	// Create response
+	// Prepare response structure
 	response := ConversationResponse{
 		VerificationID: verificationId,
-		Content:        content,
-		ContentType:    "text/markdown",
+		Contents:       []ConversationContent{},
+	}
+
+	// Retrieve Turn1 content if path exists
+	if verificationRecord.Turn1ProcessedPath != "" {
+		turn1Content, err := getS3Content(ctx, verificationRecord.Turn1ProcessedPath)
+		if err != nil {
+			log.WithError(err).Warn("Failed to retrieve Turn1 S3 content")
+		} else {
+			turn1 := ConversationContent{
+				Turn:        1,
+				Content:     turn1Content,
+				ContentType: "text/markdown",
+				S3Path:      verificationRecord.Turn1ProcessedPath,
+			}
+			response.Turn1Content = &turn1
+			response.Contents = append(response.Contents, turn1)
+		}
+	}
+
+	// Retrieve Turn2 content if path exists
+	if verificationRecord.Turn2ProcessedPath != "" {
+		turn2Content, err := getS3Content(ctx, verificationRecord.Turn2ProcessedPath)
+		if err != nil {
+			log.WithError(err).Warn("Failed to retrieve Turn2 S3 content")
+		} else {
+			turn2 := ConversationContent{
+				Turn:        2,
+				Content:     turn2Content,
+				ContentType: "text/markdown",
+				S3Path:      verificationRecord.Turn2ProcessedPath,
+			}
+			response.Turn2Content = &turn2
+			response.Contents = append(response.Contents, turn2)
+		}
+	}
+
+	// Check if we have any content
+	if len(response.Contents) == 0 {
+		log.WithFields(logrus.Fields{
+			"verificationId": verificationId,
+		}).Error("No processed paths found in verification record")
+		return createErrorResponse(404, "Content not found", "No processed conversation content paths found", headers)
 	}
 
 	// Convert response to JSON
@@ -185,7 +215,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	log.WithFields(logrus.Fields{
 		"verificationId": verificationId,
-		"contentLength":  len(content),
+		"turn1Available": response.Turn1Content != nil,
+		"turn2Available": response.Turn2Content != nil,
+		"totalContents":  len(response.Contents),
 	}).Info("Get conversation request completed successfully")
 
 	return events.APIGatewayProxyResponse{
@@ -211,16 +243,17 @@ func createErrorResponse(statusCode int, error, message string, headers map[stri
 	}, nil
 }
 
-func getConversationRecord(ctx context.Context, verificationId string) (*ConversationRecord, error) {
+
+
+func getVerificationRecord(ctx context.Context, verificationId string) (*VerificationRecord, error) {
 	log.WithFields(logrus.Fields{
 		"verificationId": verificationId,
-		"tableName":      conversationTableName,
-	}).Debug("Querying DynamoDB for conversation record")
+		"tableName":      verificationTableName,
+	}).Debug("Querying DynamoDB for verification record")
 
 	// Query DynamoDB using verificationId as the key
-	// Assuming verificationId is the primary key or there's a GSI for it
 	input := &dynamodb.QueryInput{
-		TableName:              aws.String(conversationTableName),
+		TableName:              aws.String(verificationTableName),
 		KeyConditionExpression: aws.String("verificationId = :verificationId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":verificationId": &types.AttributeValueMemberS{Value: verificationId},
@@ -230,41 +263,29 @@ func getConversationRecord(ctx context.Context, verificationId string) (*Convers
 
 	result, err := dynamoClient.Query(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query conversation table: %w", err)
+		return nil, fmt.Errorf("failed to query verification table: %w", err)
 	}
 
 	if len(result.Items) == 0 {
 		log.WithFields(logrus.Fields{
 			"verificationId": verificationId,
-		}).Info("No conversation record found")
+		}).Info("No verification record found")
 		return nil, nil
 	}
 
 	// Unmarshal the first item
-	var record ConversationRecord
+	var record VerificationRecord
 	err = attributevalue.UnmarshalMap(result.Items[0], &record)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal conversation record: %w", err)
-	}
-
-	// Extract paths from metadata if available
-	if record.Metadata != nil {
-		if record.Metadata.Turn1ProcessedPath != nil {
-			record.Turn1ProcessedPathValue = record.Metadata.Turn1ProcessedPath.S
-		}
-		if record.Metadata.Turn2ProcessedPath != nil {
-			record.Turn2ProcessedPathValue = record.Metadata.Turn2ProcessedPath.S
-		}
+		return nil, fmt.Errorf("failed to unmarshal verification record: %w", err)
 	}
 
 	log.WithFields(logrus.Fields{
-		"verificationId":          record.VerificationID,
-		"conversationId":          record.ConversationID,
-		"turn1ProcessedPath":      record.Turn1ProcessedPathValue,
-		"turn2ProcessedPath":      record.Turn2ProcessedPathValue,
-		"legacyTurn2ProcessedPath": record.Turn2ProcessedPath,
-		"hasMetadata":             record.Metadata != nil,
-	}).Debug("Successfully retrieved conversation record")
+		"verificationId":     record.VerificationID,
+		"verificationAt":     record.VerificationAt,
+		"turn1ProcessedPath": record.Turn1ProcessedPath,
+		"turn2ProcessedPath": record.Turn2ProcessedPath,
+	}).Debug("Successfully retrieved verification record")
 
 	return &record, nil
 }
@@ -274,25 +295,30 @@ func getS3Content(ctx context.Context, s3Path string) (string, error) {
 		return "", fmt.Errorf("s3 path is empty")
 	}
 
+	var bucket, key string
+
+	// Parse S3 path to extract bucket and key
+	if strings.HasPrefix(s3Path, "s3://") {
+		// Extract bucket and key from full S3 URI: s3://bucket/key
+		parts := strings.SplitN(strings.TrimPrefix(s3Path, "s3://"), "/", 2)
+		if len(parts) != 2 {
+			return "", fmt.Errorf("invalid S3 path format: %s", s3Path)
+		}
+		bucket = parts[0]
+		key = parts[1]
+	} else {
+		return "", fmt.Errorf("S3 path must start with s3://: %s", s3Path)
+	}
+
 	log.WithFields(logrus.Fields{
 		"s3Path": s3Path,
-		"bucket": resultsBucketName,
+		"bucket": bucket,
+		"key":    key,
 	}).Debug("Retrieving content from S3")
-
-	// Parse S3 path to extract the key
-	// The path might be in format: s3://bucket/key or just the key
-	key := s3Path
-	if strings.HasPrefix(s3Path, "s3://") {
-		// Extract key from full S3 URI
-		parts := strings.SplitN(strings.TrimPrefix(s3Path, "s3://"), "/", 2)
-		if len(parts) == 2 {
-			key = parts[1]
-		}
-	}
 
 	// Get object from S3
 	input := &s3.GetObjectInput{
-		Bucket: aws.String(resultsBucketName),
+		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	}
 

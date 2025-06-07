@@ -41,9 +41,9 @@ This is a Go-based AWS Lambda function that provides a REST API for retrieving c
 
 ### Data Flow
 1. **Request Processing**: Extract verificationId from path parameters
-2. **DynamoDB Query**: Query conversation table using verificationId
-3. **S3 Retrieval**: Fetch markdown content from S3 using turn2ProcessedPath
-4. **Response Formation**: Return structured JSON response with content
+2. **DynamoDB Query**: Query verification table using verificationId
+3. **S3 Retrieval**: Fetch markdown content from S3 using both turn1ProcessedPath and turn2ProcessedPath (bucket and key extracted from full S3 paths)
+4. **Response Formation**: Return structured JSON response with both turn1 and turn2 content
 
 ## Environment Variables
 
@@ -51,22 +51,25 @@ The function requires the following environment variables:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
+| `DYNAMODB_VERIFICATION_TABLE` | Name of the DynamoDB verification table | Yes |
 | `DYNAMODB_CONVERSATION_TABLE` | Name of the DynamoDB conversation table | Yes |
-| `RESULTS_BUCKET` | Name of the S3 bucket containing processed responses | Yes |
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARN, ERROR) | No (default: INFO) |
 
 ## DynamoDB Table Structure
 
-The function expects a DynamoDB conversation table with the following structure:
+The function expects a DynamoDB verification table with the following structure:
 
 ### Primary Key
 - **Hash Key**: `verificationId` (String)
-- **Range Key**: `conversationId` (String) [Optional, depending on table design]
+- **Range Key**: `verificationAt` (String)
 
 ### Required Attributes
 - `verificationId` (String): Unique identifier for the verification
-- `turn2ProcessedPath` (String): S3 path to the processed conversation response file
-- `conversationId` (String): Unique identifier for the conversation
+- `verificationAt` (String): Timestamp of verification
+- `turn1ProcessedPath` (String): S3 path to the turn1 processed conversation response file
+- `turn2ProcessedPath` (String): S3 path to the turn2 processed conversation response file
+- `verificationStatus` (String): Status of the verification
+- `verificationType` (String): Type of verification
 - `createdAt` (String): ISO 8601 timestamp of record creation
 - `updatedAt` (String): ISO 8601 timestamp of last update
 
@@ -74,8 +77,11 @@ The function expects a DynamoDB conversation table with the following structure:
 ```json
 {
   "verificationId": "verification-123",
-  "conversationId": "conv-456",
+  "verificationAt": "2024-01-15T10:30:00Z",
+  "turn1ProcessedPath": "conversations/verification-123/turn1-processed-response.md",
   "turn2ProcessedPath": "conversations/verification-123/turn2-processed-response.md",
+  "verificationStatus": "completed",
+  "verificationType": "conversation",
   "createdAt": "2024-01-15T10:30:00Z",
   "updatedAt": "2024-01-15T10:35:00Z"
 }
@@ -90,9 +96,11 @@ The function expects processed conversation responses to be stored as markdown f
 - **Encoding**: UTF-8
 - **Structure**: Standard markdown format
 
-### Example S3 Path
+### Example S3 Paths
+The function expects full S3 URIs in the format `s3://bucket/key`:
 ```
-s3://results-bucket/conversations/verification-123/turn2-processed-response.md
+s3://kootoro-dev-s3-state-f6d3xl/2025/06/04/verif-20250604082215-c689/responses/turn1-processed-response.md
+s3://kootoro-dev-s3-state-f6d3xl/2025/06/04/verif-20250604082215-c689/responses/turn2-processed-response.md
 ```
 
 ## API Usage Examples
@@ -107,8 +115,32 @@ curl -X GET "https://api.example.com/api/verifications/verification-123/conversa
 ```json
 {
   "verificationId": "verification-123",
-  "content": "# Verification Analysis\n\n## Summary\nThe verification process has been completed...",
-  "contentType": "text/markdown"
+  "turn1Content": {
+    "turn": 1,
+    "content": "# Turn 1 Analysis\n\n## Initial Assessment\nThe first turn analysis...",
+    "contentType": "text/markdown",
+    "s3Path": "conversations/verification-123/turn1-processed-response.md"
+  },
+  "turn2Content": {
+    "turn": 2,
+    "content": "# Turn 2 Analysis\n\n## Follow-up Assessment\nThe second turn analysis...",
+    "contentType": "text/markdown",
+    "s3Path": "conversations/verification-123/turn2-processed-response.md"
+  },
+  "contents": [
+    {
+      "turn": 1,
+      "content": "# Turn 1 Analysis\n\n## Initial Assessment\nThe first turn analysis...",
+      "contentType": "text/markdown",
+      "s3Path": "conversations/verification-123/turn1-processed-response.md"
+    },
+    {
+      "turn": 2,
+      "content": "# Turn 2 Analysis\n\n## Follow-up Assessment\nThe second turn analysis...",
+      "contentType": "text/markdown",
+      "s3Path": "conversations/verification-123/turn2-processed-response.md"
+    }
+  ]
 }
 ```
 

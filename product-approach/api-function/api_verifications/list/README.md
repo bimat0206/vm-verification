@@ -98,7 +98,8 @@ The function requires the following environment variables:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `VERIFICATION_TABLE` | Name of the DynamoDB verification results table | Yes |
+| `DYNAMODB_VERIFICATION_TABLE` | Name of the DynamoDB verification results table | Yes |
+| `DYNAMODB_CONVERSATION_TABLE` | Name of the DynamoDB conversation table | Yes |
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARN, ERROR) | No (default: INFO) |
 
 ## DynamoDB Table Structure
@@ -132,8 +133,10 @@ The Lambda function requires the following IAM permissions:
         "dynamodb:GetItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${VERIFICATION_TABLE}",
-        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${VERIFICATION_TABLE}/index/*"
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMODB_VERIFICATION_TABLE}",
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMODB_VERIFICATION_TABLE}/index/*",
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMODB_CONVERSATION_TABLE}",
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMODB_CONVERSATION_TABLE}/index/*"
       ]
     }
   ]
@@ -169,7 +172,8 @@ go test ./...
 docker build -t api-verifications-list .
 
 # Test locally with Docker
-docker run -e VERIFICATION_TABLE=my-verification-table \
+docker run -e DYNAMODB_VERIFICATION_TABLE=my-verification-table \
+           -e DYNAMODB_CONVERSATION_TABLE=my-conversation-table \
            -e LOG_LEVEL=INFO \
            api-verifications-list
 ```
@@ -255,7 +259,8 @@ docker build -t api-verifications-list .
 
 # Run with Lambda RIE
 docker run -p 9000:8080 \
-  -e VERIFICATION_TABLE=test-verification-table \
+  -e DYNAMODB_VERIFICATION_TABLE=test-verification-table \
+  -e DYNAMODB_CONVERSATION_TABLE=test-conversation-table \
   -e LOG_LEVEL=DEBUG \
   api-verifications-list
 

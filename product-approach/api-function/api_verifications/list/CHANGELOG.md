@@ -5,6 +5,26 @@ All notable changes to the API Verifications List Lambda Function will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-06-05
+
+### Changed
+- **Environment Variables**: Updated to use standardized environment variable names
+  - Changed from `VERIFICATION_TABLE` to `DYNAMODB_VERIFICATION_TABLE`
+  - Added support for `DYNAMODB_CONVERSATION_TABLE` (loaded but not currently used)
+  - Both environment variables are now required and validated at startup
+  - Added comprehensive logging of loaded environment variables for better debugging
+
+### Added
+- **Enhanced Logging**: Added detailed logging of environment variables during initialization
+  - Logs both verification and conversation table names
+  - Improves debugging and monitoring capabilities
+  - Consistent with other functions in the codebase
+
+### Technical
+- **Consistency**: Aligned environment variable naming with other Lambda functions
+- **Future-proofing**: Added conversation table support for potential future features
+- **Validation**: Both DynamoDB table environment variables are now required and validated
+
 ## [1.0.0] - 2025-01-02
 
 ### Added
@@ -54,7 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 - **Environment Variables**:
-  - `VERIFICATION_TABLE`: DynamoDB table name for verification records
+  - `DYNAMODB_VERIFICATION_TABLE`: DynamoDB table name for verification records
+  - `DYNAMODB_CONVERSATION_TABLE`: DynamoDB table name for conversation records (loaded but not used)
   - `LOG_LEVEL`: Configurable logging level for debugging and monitoring
 
 - **IAM Permissions**: Minimal required permissions for DynamoDB operations

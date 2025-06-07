@@ -24,6 +24,7 @@ var (
 	log                    *logrus.Logger
 	dynamoClient          *dynamodb.Client
 	verificationTableName string
+	conversationTableName string
 )
 
 // VerificationRecord represents a verification record from DynamoDB
@@ -90,10 +91,20 @@ func init() {
 	log.SetFormatter(&logrus.JSONFormatter{})
 
 	// Load environment variables
-	verificationTableName = os.Getenv("VERIFICATION_TABLE")
+	verificationTableName = os.Getenv("DYNAMODB_VERIFICATION_TABLE")
 	if verificationTableName == "" {
-		log.Fatal("VERIFICATION_TABLE environment variable is required")
+		log.Fatal("DYNAMODB_VERIFICATION_TABLE environment variable is required")
 	}
+
+	conversationTableName = os.Getenv("DYNAMODB_CONVERSATION_TABLE")
+	if conversationTableName == "" {
+		log.Fatal("DYNAMODB_CONVERSATION_TABLE environment variable is required")
+	}
+
+	log.WithFields(logrus.Fields{
+		"verificationTable": verificationTableName,
+		"conversationTable": conversationTableName,
+	}).Info("Environment variables loaded successfully")
 
 	// Initialize AWS DynamoDB client
 	cfg, err := config.LoadDefaultConfig(context.Background())

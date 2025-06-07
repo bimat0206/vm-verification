@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+
 	//"fmt"
 	"os"
 	"time"
@@ -55,12 +56,21 @@ func init() {
 	log.SetFormatter(&logrus.JSONFormatter{})
 
 	// Load environment variables
-	verificationTable = os.Getenv("VERIFICATION_RESULTS_TABLE")
-	conversationTable = os.Getenv("CONVERSATION_HISTORY_TABLE")
+	verificationTable = os.Getenv("DYNAMODB_VERIFICATION_TABLE")
+	conversationTable = os.Getenv("DYNAMODB_CONVERSATION_TABLE")
 	referenceBucket = os.Getenv("REFERENCE_BUCKET")
 	checkingBucket = os.Getenv("CHECKING_BUCKET")
 	resultsBucket = os.Getenv("RESULTS_BUCKET")
 	bedrockModel = os.Getenv("BEDROCK_MODEL")
+
+	log.WithFields(logrus.Fields{
+		"verificationTable": verificationTable,
+		"conversationTable": conversationTable,
+		"referenceBucket":   referenceBucket,
+		"checkingBucket":    checkingBucket,
+		"resultsBucket":     resultsBucket,
+		"bedrockModel":      bedrockModel,
+	}).Info("Environment variables loaded successfully")
 
 	// Initialize AWS clients
 	cfg, err := config.LoadDefaultConfig(context.Background())

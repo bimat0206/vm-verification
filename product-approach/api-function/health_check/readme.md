@@ -22,8 +22,8 @@ The function requires the following environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `VERIFICATION_RESULTS_TABLE` | Name of the DynamoDB table for verification results |
-| `CONVERSATION_HISTORY_TABLE` | Name of the DynamoDB table for conversation history |
+| `DYNAMODB_VERIFICATION_TABLE` | Name of the DynamoDB table for verification results |
+| `DYNAMODB_CONVERSATION_TABLE` | Name of the DynamoDB table for conversation history |
 | `REFERENCE_BUCKET` | Name of the S3 bucket for reference images |
 | `CHECKING_BUCKET` | Name of the S3 bucket for checking images |
 | `RESULTS_BUCKET` | Name of the S3 bucket for results |
@@ -116,8 +116,8 @@ To run the function locally (for testing):
 
 ```bash
 # Set required environment variables
-export VERIFICATION_RESULTS_TABLE=your-table-name
-export CONVERSATION_HISTORY_TABLE=your-table-name
+export DYNAMODB_VERIFICATION_TABLE=your-table-name
+export DYNAMODB_CONVERSATION_TABLE=your-table-name
 export REFERENCE_BUCKET=your-bucket-name
 export CHECKING_BUCKET=your-bucket-name
 export RESULTS_BUCKET=your-bucket-name

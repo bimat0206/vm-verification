@@ -1,0 +1,13 @@
+{
+  "httpMethod": "POST",
+  "path": "/api/images/upload",
+  "queryStringParameters": {
+    "bucketType": "reference",
+    "fileName": "test.txt"
+  },
+  "pathParameters": null,
+  "headers": {
+    "Content-Type": "text/plain"
+  },
+  "body": "This is a test file content"
+}
