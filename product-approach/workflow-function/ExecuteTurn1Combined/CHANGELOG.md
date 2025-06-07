@@ -2,6 +2,81 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.9.1] - 2025-01-05 - DynamoDB Update Expression Fix
+
+### Fixed
+- **Critical DynamoDB Update Expression Issue**: Fixed "The document path provided in the update expression is invalid for update" error
+  - **Root Cause**: `UpdateTurn1CompletionDetails` was attempting to set nested attribute path `processingMetrics.turn1` when parent attribute `processingMetrics` might not exist
+  - **Impact**: All Turn1 completion updates failing with DynamoDB ValidationException errors
+  - **Resolution**: Modified update expression to create complete `processingMetrics` object instead of using nested path
+  - **Implementation**: Changed from `processingMetrics.turn1` to creating `{"turn1": avMetrics}` object and setting entire `processingMetrics` attribute
+
+### Enhanced
+- **DynamoDB Service Initialization Logging**: Added table name verification logging during service startup
+  - Logs verification table and conversation table names for operational visibility
+  - Helps verify environment variable configuration (`DYNAMODB_VERIFICATION_TABLE`, `DYNAMODB_CONVERSATION_TABLE`)
+  - Added region logging for AWS configuration verification
+
+- **DynamoDB Operation Debugging**: Enhanced logging for `UpdateTurn1CompletionDetails` operations
+  - Added detailed logging before DynamoDB update operations with table names and update expressions
+  - Enhanced error logging with complete context including update expressions and request details
+  - Added verification ID and table context to all error messages for better troubleshooting
+
+### Technical Details
+- **Environment Variables Verified**: Confirmed correct reading of `DYNAMODB_VERIFICATION_TABLE` and `DYNAMODB_CONVERSATION_TABLE`
+- **Table Access Verified**: Both DynamoDB tables exist and are accessible via AWS CLI
+- **Update Expression Fix**: `processingMetrics` object now created atomically instead of nested path updates
+- **Backward Compatibility**: Fix maintains existing data structure while resolving update path issues
+- **Error Context**: Enhanced error reporting includes update expressions and full request context for debugging
+
+## [2.9.0] - 2025-01-05 - Enhanced Error Handling Integration
+
+### Added
+- **Comprehensive Enhanced Error Handling**: Integrated the enhanced errors package throughout the entire ExecuteTurn1Combined function
+  - **Detailed Error Context**: All errors now include component, operation, category, severity, and retry strategy information
+  - **Structured Error Suggestions**: Added specific suggestions and recovery hints for each error type
+  - **Error Categorization**: Implemented proper error categories (Transient, Permanent, Client, Server, Network, Capacity, Auth, Validation)
+  - **Retry Strategy Configuration**: Added retry strategies (None, Immediate, Linear, Exponential, Jittered) with max retry limits
+  - **Correlation ID Tracking**: Enhanced error tracking with correlation IDs for distributed tracing
+
+### Enhanced
+- **Main Function Error Handling**: Comprehensive enhancement of initialization error handling
+  - **Configuration Errors**: Enhanced with detailed suggestions for environment variable issues, AWS credentials, and region configuration
+  - **AWS Configuration**: Added specific guidance for IAM permissions, network connectivity, and service availability
+  - **Service Layer Initialization**: Detailed error context for S3, Bedrock, DynamoDB, and Prompt service failures
+  - **Handler Initialization**: Enhanced error handling with dependency validation and recovery hints
+
+- **Service Layer Error Enhancement**: Improved error handling across all service components
+  - **S3 Service Errors**: Added bucket permissions, connectivity, and region-specific guidance
+  - **Bedrock Service Errors**: Enhanced with model permissions, quota limits, and throttling guidance
+  - **DynamoDB Service Errors**: Added table configuration, permissions, and capacity guidance
+  - **Prompt Service Errors**: Enhanced template validation and loading error handling
+
+- **Handler Layer Error Enhancement**: Comprehensive error handling improvements
+  - **Context Loading Errors**: Enhanced S3 retrieval errors with exponential retry strategy and detailed suggestions
+  - **Prompt Generation Errors**: Added template syntax validation and variable binding guidance
+  - **Bedrock Invocation Errors**: Enhanced with model-specific context, throttling detection, and retry strategies
+  - **Storage Errors**: Improved S3 storage error handling with capacity and connectivity guidance
+  - **Validation Errors**: Enhanced request/response validation with schema compliance guidance
+
+### Improved
+- **Error Severity Levels**: Proper severity classification (Low, Medium, High, Critical) for operational alerting
+- **Error Recovery Guidance**: Specific recovery hints for each error type to improve troubleshooting
+- **Operational Monitoring**: Enhanced error metrics for monitoring and alerting systems
+- **Error Consistency**: Standardized error handling patterns across all components
+
+### Technical Details
+- **Error Structure Enhancement**: All errors now include:
+  - Component and operation identification
+  - Error category and severity classification
+  - Retry strategy and maximum retry configuration
+  - Contextual information (verification ID, correlation ID, AWS region, etc.)
+  - Specific suggestions for resolution
+  - Recovery hints for operational teams
+- **Logging Enhancement**: Structured error logging with all enhanced error fields
+- **Backward Compatibility**: Enhanced error handling maintains existing error interfaces
+- **Performance Impact**: Minimal overhead from enhanced error context
+
 ## [2.2.0] - 2025-01-04 - AWS Bedrock API Compliance & Configuration Enhancement
 
 ### Added

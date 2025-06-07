@@ -305,7 +305,7 @@ func getTransactionTables(items []types.TransactWriteItem) []string {
 }
 
 // Example usage in a Lambda function
-func ExampleLambdaHandler(ctx context.Context, event interface{}) error {
+func ExampleLambdaHandler(ctx context.Context, event interface{}, dynamoClient *dynamodb.Client) error {
 	// Initialize enhanced client
 	client := NewEnhancedDynamoDBClient(dynamoClient, "UserTable", "UserService")
 	client.SetCorrelationID("req-123-456")

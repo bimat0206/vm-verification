@@ -357,30 +357,7 @@ func (m *s3Manager) LoadTurn1SchemaResponse(ctx context.Context, ref models.S3Re
 	return &resp, nil
 }
 
-// StoreTurn2Response stores the Turn2 response
-func (m *s3Manager) StoreTurn2Response(ctx context.Context, verificationID string, response *bedrockparser.ParsedTurn2Data) (models.S3Reference, error) {
-	if verificationID == "" {
-		return models.S3Reference{}, errors.NewValidationError(
-			"verification ID required for storing Turn2 response",
-			map[string]interface{}{"operation": "store_turn2_response"})
-	}
-	if response == nil {
-		return models.S3Reference{}, errors.NewValidationError(
-			"response cannot be nil for storing Turn2 response",
-			map[string]interface{}{"verification_id": verificationID})
-	}
 
-	key := "processing/turn2-processed-response.md"
-	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, response)
-	if err != nil {
-		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
-			"failed to store Turn2 response", true).
-			WithContext("verification_id", verificationID).
-			WithContext("category", "processing")
-	}
-
-	return m.fromStateReference(stateRef), nil
-}
 
 // StoreTurn2RawResponse stores the raw Turn2 Bedrock response
 func (m *s3Manager) StoreTurn2RawResponse(ctx context.Context, verificationID string, raw interface{}) (models.S3Reference, error) {
@@ -416,30 +393,7 @@ func (m *s3Manager) StoreTurn2RawResponse(ctx context.Context, verificationID st
 	return m.fromStateReference(stateRef), nil
 }
 
-// StoreTurn2ProcessedResponse stores the processed Turn2 analysis
-func (m *s3Manager) StoreTurn2ProcessedResponse(ctx context.Context, verificationID string, processed *bedrockparser.ParsedTurn2Data) (models.S3Reference, error) {
-	if verificationID == "" {
-		return models.S3Reference{}, errors.NewValidationError(
-			"verification ID required for storing Turn2 processed response",
-			map[string]interface{}{"operation": "store_turn2_processed"})
-	}
-	if processed == nil {
-		return models.S3Reference{}, errors.NewValidationError(
-			"processed data cannot be nil",
-			map[string]interface{}{"verification_id": verificationID})
-	}
 
-	key := "processing/turn2-processed-response.md"
-	stateRef, err := m.stateManager.StoreJSON(m.datePath(verificationID), key, processed)
-	if err != nil {
-		return models.S3Reference{}, errors.WrapError(err, errors.ErrorTypeS3,
-			"failed to store Turn2 processed response", true).
-			WithContext("verification_id", verificationID).
-			WithContext("category", "processing")
-	}
-
-	return m.fromStateReference(stateRef), nil
-}
 
 // StoreTurn2Markdown stores the Markdown version of the Turn2 analysis
 func (m *s3Manager) StoreTurn2Markdown(ctx context.Context, verificationID string, markdownContent string) (models.S3Reference, error) {

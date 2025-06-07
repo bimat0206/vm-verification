@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/lambda"
 
@@ -130,10 +131,14 @@ func parseInputAndExtractReferences(input interface{}) (*s3state.Envelope, *s3st
 		return nil, nil, nil, fmt.Errorf("processing_initialization reference not found")
 	}
 
-	// Extract turn2Processed reference from nested responses structure
+	// Extract turn2Processed reference - try both nested and flat structures
 	turn2Ref := extractNestedReference(input, "responses", "turn2Processed")
 	if turn2Ref == nil {
-		return nil, nil, nil, fmt.Errorf("turn2Processed reference not found in responses")
+		// Try flat structure for backward compatibility
+		turn2Ref = extractReferenceFromMap(s3Refs, "turn2Processed")
+		if turn2Ref == nil {
+			return nil, nil, nil, fmt.Errorf("turn2Processed reference not found in both nested responses and flat structure")
+		}
 	}
 
 	// Create envelope with flat references structure for compatibility
@@ -242,6 +247,35 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 		return nil, wfErr
 	}
 
+	// Validate that we have the verification context
+	if initData.VerificationContext == nil {
+		wfErr := errors.NewValidationError("verificationContext is missing from initialization data", map[string]interface{}{
+			"schemaVersion": initData.SchemaVersion,
+		})
+		wfErr.VerificationID = envelope.VerificationID
+		log.Error("missing_verification_context", map[string]interface{}{
+			"error":          wfErr.Error(),
+			"verificationId": envelope.VerificationID,
+			"schemaVersion":  initData.SchemaVersion,
+		})
+		return nil, wfErr
+	}
+
+	// Log initialization data for debugging (sanitized)
+	log.Info("initialization_data_loaded", map[string]interface{}{
+		"schemaVersion":          initData.SchemaVersion,
+		"verificationId":         initData.VerificationContext.VerificationID,
+		"verificationType":       initData.VerificationContext.VerificationType,
+		"layoutId":               initData.VerificationContext.LayoutID,
+		"layoutPrefix":           initData.VerificationContext.LayoutPrefix,
+		"vendingMachineId":       initData.VerificationContext.VendingMachineID,
+		"hasReferenceImageUrl":   initData.VerificationContext.ReferenceImageUrl != "",
+		"hasCheckingImageUrl":    initData.VerificationContext.CheckingImageUrl != "",
+		"status":                 initData.VerificationContext.Status,
+		"lastUpdatedAt":          initData.VerificationContext.LastUpdatedAt,
+		"previousVerificationId": initData.VerificationContext.PreviousVerificationID,
+	})
+
 	// Load turn2 processed data using s3state manager
 	turn2Bytes, err := stateManager.Retrieve(turn2Ref)
 	if err != nil {
@@ -270,24 +304,51 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 
 	// Create DynamoDB item using shared schema constants
 	now := schema.FormatISO8601()
+
+	// Ensure verificationType is set - default to LAYOUT_VS_CHECKING if missing
+	verificationType := initData.VerificationContext.VerificationType
+	if verificationType == "" {
+		verificationType = schema.VerificationTypeLayoutVsChecking
+		log.Info("verification_type_defaulted", map[string]interface{}{
+			"verificationId": envelope.VerificationID,
+			"defaultType":    verificationType,
+			"reason":         "verificationType was empty in verification context",
+		})
+	}
+
+	// Ensure verificationStatus is set - this should contain the actual AI verification result (CORRECT/INCORRECT)
+	// parsed from the Turn2 response. If parsing fails, default to SUCCESSED as a fallback.
+	// This is required for the DynamoDB VerificationStatusIndex (cannot be empty string).
+	verificationStatus := parsed.VerificationStatus
+	if verificationStatus == "" {
+		// SUCCESS indicates workflow completed but couldn't determine actual verification result
+		// This is different from CORRECT (AI determined layout was correct) or INCORRECT (AI found issues)
+		verificationStatus = "SUCCESS"
+		log.Warn("verification_status_defaulted", map[string]interface{}{
+			"verificationId": envelope.VerificationID,
+			"defaultStatus":  verificationStatus,
+			"reason":         "Could not parse actual verification status from Turn2 response - using SUCCESS as fallback since workflow completed",
+		})
+	}
+
 	item := models.VerificationResultItem{
 		VerificationID:         envelope.VerificationID,
-		VerificationAt:         now,
-		VerificationType:       initData.VerificationType,
-		LayoutID:               &initData.LayoutID,
-		LayoutPrefix:           initData.LayoutPrefix,
-		VendingMachineID:       initData.VendingMachineID,
-		ReferenceImageUrl:      initData.ReferenceImageUrl,
-		CheckingImageUrl:       initData.CheckingImageUrl,
-		VerificationStatus:     parsed.VerificationStatus,
+		VerificationAt:         initData.VerificationContext.VerificationAt, // Use existing verificationAt to update the correct record
+		VerificationType:       verificationType,
+		LayoutID:               &initData.VerificationContext.LayoutID,
+		LayoutPrefix:           initData.VerificationContext.LayoutPrefix,
+		VendingMachineID:       initData.VerificationContext.VendingMachineID,
+		ReferenceImageUrl:      initData.VerificationContext.ReferenceImageUrl,
+		CheckingImageUrl:       initData.VerificationContext.CheckingImageUrl,
+		VerificationStatus:     verificationStatus,
 		CurrentStatus:          schema.StatusCompleted,
 		LastUpdatedAt:          now,
-		ProcessingStartedAt:    initData.ProcessingStartedAt,
+		ProcessingStartedAt:    initData.VerificationContext.VerificationAt, // Use verificationAt as processing start
 		InitialConfirmation:    parsed.InitialConfirmation,
 		VerificationSummary:    parsed.VerificationSummary,
-		PreviousVerificationID: initData.PreviousVerificationID,
+		PreviousVerificationID: initData.VerificationContext.PreviousVerificationID,
 	}
-	if initData.LayoutID == 0 {
+	if initData.VerificationContext.LayoutID == 0 {
 		item.LayoutID = nil
 	}
 
@@ -299,10 +360,22 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 	}
 
 	// Update conversation history in DynamoDB with enhanced error handling
-	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID, initData.InitialVerificationAt, log)
+	err = dynamodbhelper.UpdateConversationHistory(ctx, awsClients.DynamoDBClient, appConfig.ConversationHistoryTable, envelope.VerificationID, initData.VerificationContext.VerificationAt, log)
 	if err != nil {
 		// The enhanced helper already provides detailed error information and logging
 		return nil, err
+	}
+
+	// Store verificationSummary as JSON file in S3
+	summaryRef, err := storeVerificationSummaryJSON(envelope.VerificationID, parsed.VerificationSummary, log)
+	if err != nil {
+		wfErr := errors.WrapError(err, errors.ErrorTypeS3, "failed to store verification summary JSON", false)
+		wfErr.VerificationID = envelope.VerificationID
+		log.Error("store_summary_json_failed", map[string]interface{}{
+			"error":          wfErr.Error(),
+			"verificationId": envelope.VerificationID,
+		})
+		return nil, wfErr
 	}
 
 	// Update envelope status and add summary
@@ -310,12 +383,74 @@ func HandleRequest(ctx context.Context, input interface{}) (*s3state.Envelope, e
 	if envelope.Summary == nil {
 		envelope.Summary = make(map[string]interface{})
 	}
-	envelope.Summary["verificationStatus"] = parsed.VerificationStatus
+	envelope.Summary["verificationStatus"] = verificationStatus // Use the corrected verificationStatus
 	envelope.Summary["verificationAt"] = now
 	envelope.Summary["message"] = "Verification finalized and stored"
 
+	// Add results reference to envelope
+	if envelope.References == nil {
+		envelope.References = make(map[string]*s3state.Reference)
+	}
+	envelope.References["results"] = summaryRef
+
 	log.LogOutputEvent(envelope)
 	return envelope, nil
+}
+
+// storeVerificationSummaryJSON stores the verification summary as a JSON file in S3
+func storeVerificationSummaryJSON(verificationID string, summary models.OutputVerificationSummary, log logger.Logger) (*s3state.Reference, error) {
+	// Create the date path for the verification ID (e.g., "2025/06/05/verif-20250605074028-f5c4")
+	datePath := extractDatePathFromVerificationID(verificationID)
+
+	// Create the S3 key for the verification summary JSON
+	key := "results/verificationSummary.json"
+
+	log.Info("storing_verification_summary_json", map[string]interface{}{
+		"verificationId": verificationID,
+		"datePath":       datePath,
+		"key":            key,
+	})
+
+	// Store the summary as JSON using the s3state manager
+	stateRef, err := stateManager.StoreJSON(datePath, key, summary)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("verification_summary_json_stored", map[string]interface{}{
+		"verificationId": verificationID,
+		"bucket":         stateRef.Bucket,
+		"key":            stateRef.Key,
+		"size":           stateRef.Size,
+	})
+
+	return stateRef, nil
+}
+
+// extractDatePathFromVerificationID extracts the date path from verification ID
+// e.g., "verif-20250605074028-f5c4" -> "2025/06/05/verif-20250605074028-f5c4"
+func extractDatePathFromVerificationID(verificationID string) string {
+	// Extract date from verification ID format: verif-YYYYMMDDHHMMSS-xxxx
+	if len(verificationID) >= 21 && verificationID[:6] == "verif-" {
+		dateStr := verificationID[6:14] // Extract YYYYMMDD
+		if len(dateStr) == 8 {
+			year := dateStr[:4]
+			month := dateStr[4:6]
+			day := dateStr[6:8]
+			return fmt.Sprintf("%s/%s/%s/%s", year, month, day, verificationID)
+		}
+	}
+
+	// Fallback: use current date if parsing fails
+	now := schema.FormatISO8601()
+	dateStr := now[:10] // Extract YYYY-MM-DD
+	dateParts := strings.Split(dateStr, "-")
+	if len(dateParts) == 3 {
+		return fmt.Sprintf("%s/%s/%s/%s", dateParts[0], dateParts[1], dateParts[2], verificationID)
+	}
+
+	// Final fallback
+	return fmt.Sprintf("unknown/%s", verificationID)
 }
 
 func main() {

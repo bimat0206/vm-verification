@@ -99,6 +99,7 @@ func (a *Adapter) buildConverseRequest(systemPrompt, turnPrompt, base64Image str
 		config.MaxTokens,
 		&temperature,
 		&topP, // Use configurable TopP from environment
+		map[string]string{}, // Provide an empty map or populate as needed
 	)
 
 	// Log the complete request structure for debugging

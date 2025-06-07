@@ -608,20 +608,11 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		refinedSummary = parsedData.ComparisonSummary
 	}
 
-	// Store raw and processed Turn2 outputs
-	var processedRef models.S3Reference
+	// Store raw Turn2 output
 	// Store the raw response as structured JSON without additional encoding
 	rawResponseRef, err = h.s3.StoreTurn2RawResponse(ctx, req.VerificationID, turn2Raw)
 	if err != nil {
 		h.log.Warn("failed_to_store_raw_response", map[string]interface{}{
-			"error":           err.Error(),
-			"verification_id": req.VerificationID,
-		})
-	}
-
-	processedRef, err = h.s3.StoreTurn2ProcessedResponse(ctx, req.VerificationID, parsedData)
-	if err != nil {
-		h.log.Warn("failed_to_store_processed_response", map[string]interface{}{
 			"error":           err.Error(),
 			"verification_id": req.VerificationID,
 		})
@@ -659,7 +650,7 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 	response := &models.Turn2Response{
 		S3Refs: models.Turn2ResponseS3Refs{
 			RawResponse:       rawResponseRef,
-			ProcessedResponse: processedRef,
+			ProcessedResponse: markdownRef,
 		},
 		Status: models.ConvertFromSchemaStatus(schema.StatusTurn2Completed),
 		Summary: models.Summary{
@@ -944,9 +935,10 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 	if err := h.dynamoRetryOperation(ctx, func() error {
 		return h.dynamo.UpdateVerificationStatusEnhanced(ctx, req.VerificationID, req.VerificationContext.VerificationAt, statusEntry)
 	}, "UpdateVerificationStatusEnhanced", req.VerificationID); err != nil {
-		h.log.Warn("dynamodb_status_error_update_failed", map[string]interface{}{
-			"error":           err.Error(),
-			"verification_id": req.VerificationID,
+		h.logEnhancedDynamoDBError(err, "UpdateVerificationStatusEnhanced", req.VerificationID, map[string]interface{}{
+			"verification_at": req.VerificationContext.VerificationAt,
+			"status":          statusEntry.Status,
+			"stage":           stage,
 		})
 	}
 
@@ -954,9 +946,10 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 	if err := h.dynamoRetryOperation(ctx, func() error {
 		return h.dynamo.UpdateErrorTracking(ctx, req.VerificationID, tracking)
 	}, "UpdateErrorTracking", req.VerificationID); err != nil {
-		h.log.Warn("dynamodb_error_tracking_failed", map[string]interface{}{
-			"error":           err.Error(),
-			"verification_id": req.VerificationID,
+		h.logEnhancedDynamoDBError(err, "UpdateErrorTracking", req.VerificationID, map[string]interface{}{
+			"has_errors":     tracking.HasErrors,
+			"error_count":    len(tracking.ErrorHistory),
+			"last_error_at":  tracking.LastErrorAt,
 		})
 	}
 
@@ -1017,4 +1010,80 @@ func (h *Turn2Handler) HandleForStepFunction(ctx context.Context, req *models.Tu
 	})
 
 	return stepFunctionResp, nil
+}
+
+// logEnhancedDynamoDBError provides comprehensive DynamoDB error logging with detailed context
+func (h *Turn2Handler) logEnhancedDynamoDBError(err error, operation string, verificationID string, context map[string]interface{}) {
+	startTime := time.Now()
+
+	// Analyze the error using the shared errors package
+	var enhancedErr *errors.WorkflowError
+	if workflowErr, ok := err.(*errors.WorkflowError); ok {
+		enhancedErr = workflowErr
+	} else {
+		// Use the shared error analysis function
+		enhancedErr = errors.AnalyzeDynamoDBError(operation, h.getTableNameForOperation(operation), err)
+		enhancedErr.VerificationID = verificationID
+	}
+
+	// Create comprehensive logging context
+	logContext := map[string]interface{}{
+		"operation":        operation,
+		"verification_id":  verificationID,
+		"error_type":       string(enhancedErr.Type),
+		"error_code":       enhancedErr.Code,
+		"error_message":    enhancedErr.Message,
+		"severity":         string(enhancedErr.Severity),
+		"category":         string(enhancedErr.Category),
+		"retryable":        enhancedErr.Retryable,
+		"retry_strategy":   string(enhancedErr.RetryStrategy),
+		"api_source":       string(enhancedErr.APISource),
+		"table_name":       enhancedErr.TableName,
+		"component":        "Turn2Handler",
+		"timestamp":        startTime.Format(time.RFC3339),
+	}
+
+	// Add operation-specific context
+	for key, value := range context {
+		logContext[key] = value
+	}
+
+	// Add error details if available
+	if enhancedErr.Details != nil {
+		logContext["error_details"] = enhancedErr.Details
+	}
+
+	// Add suggestions and recovery hints
+	if len(enhancedErr.Suggestions) > 0 {
+		logContext["suggestions"] = enhancedErr.Suggestions
+	}
+	if len(enhancedErr.RecoveryHints) > 0 {
+		logContext["recovery_hints"] = enhancedErr.RecoveryHints
+	}
+
+	// Log with appropriate level based on severity
+	switch enhancedErr.Severity {
+	case errors.ErrorSeverityCritical:
+		h.log.Error("dynamodb_operation_critical_failure", logContext)
+	case errors.ErrorSeverityHigh:
+		h.log.Error("dynamodb_operation_failed", logContext)
+	case errors.ErrorSeverityMedium:
+		h.log.Warn("dynamodb_operation_failed", logContext)
+	case errors.ErrorSeverityLow:
+		h.log.Warn("dynamodb_operation_retryable_failure", logContext)
+	default:
+		h.log.Warn("dynamodb_operation_failed", logContext)
+	}
+}
+
+// getTableNameForOperation returns the appropriate table name for the given operation
+func (h *Turn2Handler) getTableNameForOperation(operation string) string {
+	switch operation {
+	case "UpdateVerificationStatusEnhanced", "UpdateTurn1CompletionDetails", "UpdateTurn2CompletionDetails", "UpdateErrorTracking":
+		return h.cfg.AWS.DynamoDBVerificationTable
+	case "UpdateConversationTurn":
+		return h.cfg.AWS.DynamoDBConversationTable
+	default:
+		return "unknown_table"
+	}
 }

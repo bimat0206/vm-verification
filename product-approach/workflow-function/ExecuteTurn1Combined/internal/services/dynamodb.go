@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -96,6 +96,11 @@ func NewDynamoDBService(cfg *config.Config) (DynamoDBService, error) {
 	if maxRetries <= 0 {
 		maxRetries = 1
 	}
+
+	// Enhanced logging for table configuration verification
+	log.Printf("DynamoDB service initialized with tables: verification=%s, conversation=%s, region=%s",
+		cfg.AWS.DynamoDBVerificationTable, cfg.AWS.DynamoDBConversationTable, cfg.AWS.Region)
+
 	return &dynamoClient{
 		client:            client,
 		verificationTable: cfg.AWS.DynamoDBVerificationTable,
@@ -193,12 +198,11 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 	}
 
 	if _, err := d.client.PutItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to record conversation turn", true).
-			WithContext("table", d.conversationTable).
-			WithContext("turn_id", turn.TurnID).
+		enhancedErr := errors.AnalyzeDynamoDBError("PutItem", d.conversationTable, err)
+		enhancedErr.WithContext("turn_id", turn.TurnID).
 			WithContext("verification_id", turn.VerificationID).
-			WithContext("operation", "PutItem")
+			WithContext("operation", "RecordConversationTurn")
+		return enhancedErr
 	}
 	return nil
 }
@@ -251,11 +255,10 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 			return d.updateExistingConversationHistory(ctx, conversationTracker)
 		}
 
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to record conversation history", true).
-			WithContext("table", d.conversationTable).
-			WithContext("conversation_id", conversationTracker.ConversationId).
-			WithContext("operation", "PutItemWithCondition")
+		enhancedErr := errors.AnalyzeDynamoDBError("PutItemWithCondition", d.conversationTable, err)
+		enhancedErr.WithContext("conversation_id", conversationTracker.ConversationId).
+			WithContext("operation", "RecordConversationHistory")
+		return enhancedErr
 	}
 	return nil
 }
@@ -352,11 +355,11 @@ func (d *dynamoClient) UpdateStatusHistory(ctx context.Context, verificationID s
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to update status history", true).
-			WithContext("table", d.verificationTable).
-			WithContext("verificationId", verificationID).
-			WithContext("history_count", len(statusHistory))
+		enhancedErr := errors.AnalyzeDynamoDBError("UpdateItem", d.verificationTable, err)
+		enhancedErr.WithContext("verificationId", verificationID).
+			WithContext("history_count", len(statusHistory)).
+			WithContext("operation", "UpdateStatusHistory")
+		return enhancedErr
 	}
 	return nil
 }
@@ -383,11 +386,11 @@ func (d *dynamoClient) UpdateErrorTracking(ctx context.Context, verificationID s
 	}
 
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
-		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"failed to update error tracking", true).
-			WithContext("table", d.verificationTable).
-			WithContext("verificationId", verificationID).
-			WithContext("has_errors", errorTracking.HasErrors)
+		enhancedErr := errors.AnalyzeDynamoDBError("UpdateItem", d.verificationTable, err)
+		enhancedErr.WithContext("verificationId", verificationID).
+			WithContext("has_errors", errorTracking.HasErrors).
+			WithContext("operation", "UpdateErrorTracking")
+		return enhancedErr
 	}
 	return nil
 }
@@ -694,6 +697,10 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 		return errors.NewValidationError("VerificationID and VerificationAt are required", nil)
 	}
 
+	// Enhanced logging for debugging
+	log.Printf("UpdateTurn1CompletionDetails: verificationID=%s, verificationAt=%s, table=%s",
+		verificationID, verificationAt, d.verificationTable)
+
 	avStatusEntry, err := attributevalue.MarshalMap(statusEntry)
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
@@ -713,7 +720,11 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				"failed to marshal turn1 metrics", true)
 		}
-		update = update.Set(expression.Name("processingMetrics.turn1"), expression.Value(avMetrics))
+		// Create a complete processingMetrics object with turn1 data
+		processingMetricsMap := map[string]interface{}{
+			"turn1": avMetrics,
+		}
+		update = update.Set(expression.Name("processingMetrics"), expression.Value(processingMetricsMap))
 	}
 
 	if processedMarkdownRef != nil && processedMarkdownRef.Key != "" {
@@ -752,11 +763,19 @@ func (d *dynamoClient) updateTurn1CompletionDetailsInternal(
 		ExpressionAttributeValues: expr.Values(),
 	}
 
+	// Enhanced logging for debugging the update expression
+	log.Printf("DynamoDB UpdateItem request: table=%s, updateExpression=%s",
+		d.verificationTable, *input.UpdateExpression)
+
 	_, err = d.client.UpdateItem(ctx, input)
 	if err != nil {
+		// Enhanced error logging with more context
+		log.Printf("DynamoDB UpdateItem failed: table=%s, error=%v, updateExpression=%s",
+			d.verificationTable, err, *input.UpdateExpression)
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB, "failed to update turn1 completion details", true).
 			WithContext("verificationId", verificationID).
 			WithContext("table", d.verificationTable).
+			WithContext("updateExpression", *input.UpdateExpression).
 			WithContext("request", input)
 	}
 
@@ -880,18 +899,23 @@ func (d *dynamoClient) getVerificationResultsKey(verificationID, verificationAt 
 	}
 }
 
-// retryWithBackoff executes a DynamoDB operation with exponential backoff retry logic
+// retryWithBackoff executes a DynamoDB operation with exponential backoff retry logic and enhanced error analysis
 func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() error, operationName string) error {
 	maxAttempts := d.maxRetries
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
-	log.Printf("DynamoDB operation %s will retry up to %d times", operationName, maxAttempts)
+
+	// Enhanced logging with operation context
+	log.Printf("DynamoDB operation %s starting with max %d attempts (table: %s)",
+		operationName, maxAttempts, d.getTableNameForOperation(operationName))
+
 	baseDelay := 200 * time.Millisecond
 	maxDelay := 5 * time.Second
 	backoffMultiple := 2.0
 
 	var lastErr error
+	var enhancedErr *errors.WorkflowError
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		// Execute the operation
@@ -899,40 +923,43 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 		if err == nil {
 			// Success
 			if attempt > 1 {
-				log.Printf("DynamoDB operation %s succeeded on attempt %d", operationName, attempt)
+				log.Printf("DynamoDB operation %s succeeded on attempt %d after %d retries",
+					operationName, attempt, attempt-1)
 			}
 			return nil
 		}
 
 		lastErr = err
 
-		// Check if error is retryable
-		if !d.isRetryableError(err) {
-			log.Printf("DynamoDB operation %s failed with non-retryable error: %v", operationName, err)
-			return err
+		// Analyze error using enhanced error handling
+		if workflowErr, ok := err.(*errors.WorkflowError); ok {
+			enhancedErr = workflowErr
+		} else {
+			enhancedErr = errors.AnalyzeDynamoDBError(operationName, d.getTableNameForOperation(operationName), err)
+		}
+
+		// Enhanced error logging with detailed context
+		d.logRetryAttempt(operationName, attempt, maxAttempts, enhancedErr)
+
+		// Check if error is retryable using enhanced analysis
+		if !enhancedErr.Retryable && !errors.IsDynamoDBRetryableError(err) {
+			log.Printf("DynamoDB operation %s failed with non-retryable error (code: %s, severity: %s): %v",
+				operationName, enhancedErr.Code, enhancedErr.Severity, err)
+			return enhancedErr
 		}
 
 		// Don't retry on the last attempt
 		if attempt == maxAttempts {
-			log.Printf("DynamoDB operation %s failed after %d attempts: %v", operationName, maxAttempts, err)
+			log.Printf("DynamoDB operation %s failed after %d attempts (final error code: %s): %v",
+				operationName, maxAttempts, enhancedErr.Code, err)
 			break
 		}
 
-		// Calculate delay with exponential backoff
-		delay := time.Duration(float64(baseDelay) * math.Pow(backoffMultiple, float64(attempt-1)))
-		if delay > maxDelay {
-			delay = maxDelay
-		}
+		// Calculate delay using enhanced retry strategy
+		delay := d.calculateRetryDelay(enhancedErr, attempt, baseDelay, maxDelay, backoffMultiple)
 
-		// Add jitter (±25%)
-		jitter := time.Duration(rand.Float64() * float64(delay) * 0.5)
-		if rand.Float64() < 0.5 {
-			delay -= jitter
-		} else {
-			delay += jitter
-		}
-
-		log.Printf("DynamoDB operation %s failed on attempt %d, retrying in %v: %v", operationName, attempt, delay, err)
+		log.Printf("DynamoDB operation %s attempt %d failed (code: %s), retrying in %v: %v",
+			operationName, attempt, enhancedErr.Code, delay, err)
 
 		// Wait before retry
 		select {
@@ -943,6 +970,12 @@ func (d *dynamoClient) retryWithBackoff(ctx context.Context, operation func() er
 		}
 	}
 
+	// Return the enhanced error with retry information
+	if enhancedErr != nil {
+		enhancedErr.RetryCount = maxAttempts - 1
+		enhancedErr.MaxRetries = maxAttempts
+		return enhancedErr
+	}
 	return lastErr
 }
 
@@ -985,4 +1018,98 @@ func (d *dynamoClient) isRetryableError(err error) bool {
 	}
 
 	return false
+}
+
+// getTableNameForOperation returns the appropriate table name for the given operation
+func (d *dynamoClient) getTableNameForOperation(operation string) string {
+	switch operation {
+	case "UpdateVerificationStatusEnhanced", "UpdateTurn1CompletionDetails", "UpdateStatusHistory", "UpdateErrorTracking":
+		return d.verificationTable
+	case "UpdateConversationTurn", "RecordConversationHistory":
+		return d.conversationTable
+	default:
+		return "unknown_table"
+	}
+}
+
+// logRetryAttempt logs detailed information about retry attempts
+func (d *dynamoClient) logRetryAttempt(operationName string, attempt int, maxAttempts int, enhancedErr *errors.WorkflowError) {
+	logContext := map[string]interface{}{
+		"operation":      operationName,
+		"attempt":        attempt,
+		"max_attempts":   maxAttempts,
+		"error_type":     string(enhancedErr.Type),
+		"error_code":     enhancedErr.Code,
+		"error_message":  enhancedErr.Message,
+		"severity":       string(enhancedErr.Severity),
+		"category":       string(enhancedErr.Category),
+		"retryable":      enhancedErr.Retryable,
+		"retry_strategy": string(enhancedErr.RetryStrategy),
+		"table_name":     enhancedErr.TableName,
+	}
+
+	if enhancedErr.Details != nil {
+		logContext["error_details"] = enhancedErr.Details
+	}
+
+	if len(enhancedErr.Suggestions) > 0 {
+		logContext["suggestions"] = enhancedErr.Suggestions
+	}
+
+	// Log with appropriate level based on attempt and severity
+	if attempt == maxAttempts {
+		log.Printf("DynamoDB operation %s final attempt %d failed: %+v", operationName, attempt, logContext)
+	} else if enhancedErr.Severity == errors.ErrorSeverityCritical || enhancedErr.Severity == errors.ErrorSeverityHigh {
+		log.Printf("DynamoDB operation %s attempt %d failed (high severity): %+v", operationName, attempt, logContext)
+	} else {
+		log.Printf("DynamoDB operation %s attempt %d failed: %+v", operationName, attempt, logContext)
+	}
+}
+
+// calculateRetryDelay calculates the retry delay based on error type and retry strategy
+func (d *dynamoClient) calculateRetryDelay(enhancedErr *errors.WorkflowError, attempt int, baseDelay time.Duration, maxDelay time.Duration, backoffMultiple float64) time.Duration {
+	var delay time.Duration
+
+	// Use the error's retry strategy if available
+	switch enhancedErr.RetryStrategy {
+	case errors.RetryImmediate:
+		delay = 0
+	case errors.RetryLinear:
+		delay = baseDelay * time.Duration(attempt)
+	case errors.RetryJittered:
+		// Exponential with jitter
+		multiplier := math.Pow(backoffMultiple, float64(attempt-1))
+		delay = time.Duration(float64(baseDelay) * multiplier)
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+		// Add 25% jitter
+		jitter := time.Duration(rand.Float64() * float64(delay) * 0.25)
+		if rand.Float64() < 0.5 {
+			delay -= jitter
+		} else {
+			delay += jitter
+		}
+	case errors.RetryExponential:
+		// Standard exponential backoff
+		multiplier := math.Pow(backoffMultiple, float64(attempt-1))
+		delay = time.Duration(float64(baseDelay) * multiplier)
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	default:
+		// Default exponential backoff
+		multiplier := math.Pow(backoffMultiple, float64(attempt-1))
+		delay = time.Duration(float64(baseDelay) * multiplier)
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
+
+	// Ensure minimum delay for certain error types
+	if enhancedErr.Code == string(errors.DynamoDBThrottlingException) && delay < 1*time.Second {
+		delay = 1 * time.Second
+	}
+
+	return delay
 }

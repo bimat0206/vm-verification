@@ -74,18 +74,39 @@ func init() {
 	// Initialize application container with enhanced error boundaries
 	container, err := initializeApplicationContainer()
 	if err != nil {
-		// Strategic error categorization for operational visibility
+		// Enhanced error categorization with detailed operational guidance
 		if errors.IsConfigError(err) {
 			if workflowErr, ok := err.(*errors.WorkflowError); ok {
+				enrichedConfigErr := workflowErr.
+					WithComponent("ApplicationBootstrap").
+					WithOperation("ConfigurationLoad").
+					WithCategory(errors.CategoryPermanent).
+					WithSeverity(errors.ErrorSeverityCritical).
+					WithSuggestions(
+						"Check environment variables are properly set",
+						"Verify AWS credentials and region configuration",
+						"Ensure all required configuration parameters are provided",
+					).
+					WithRecoveryHints(
+						"Review Lambda environment variables",
+						"Check CloudFormation template configuration",
+						"Verify IAM role permissions",
+					)
+
 				errJSON, _ := json.Marshal(map[string]interface{}{
-					"level":        "ERROR",
-					"msg":          "config_load_failed",
-					"errorType":    string(workflowErr.Type),
-					"errorCode":    workflowErr.Code,
-					"error":        workflowErr.Message,
-					"var":          workflowErr.Details["variable"],
-					"severity":     "ERROR",
-					"architecture": "deterministic_control",
+					"level":          "ERROR",
+					"msg":            "config_load_failed",
+					"errorType":      string(enrichedConfigErr.Type),
+					"errorCode":      enrichedConfigErr.Code,
+					"error":          enrichedConfigErr.Message,
+					"var":            enrichedConfigErr.Details["variable"],
+					"severity":       string(enrichedConfigErr.Severity),
+					"category":       string(enrichedConfigErr.Category),
+					"component":      enrichedConfigErr.Component,
+					"operation":      enrichedConfigErr.Operation,
+					"suggestions":    enrichedConfigErr.Suggestions,
+					"recovery_hints": enrichedConfigErr.RecoveryHints,
+					"architecture":   "deterministic_control",
 				})
 				fmt.Fprintf(os.Stderr, "%s\n", errJSON)
 			}
@@ -94,7 +115,21 @@ func init() {
 
 		criticalErr := errors.NewInternalError("application_bootstrap", err).
 			WithContext("stage", "initialization").
-			WithContext("architecture", "deterministic_control")
+			WithContext("architecture", "deterministic_control").
+			WithComponent("ApplicationContainer").
+			WithOperation("Initialize").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Check system resources and memory availability",
+				"Verify all AWS service dependencies are accessible",
+				"Review application logs for specific initialization failures",
+			).
+			WithRecoveryHints(
+				"Restart the Lambda function",
+				"Check AWS service health status",
+				"Verify IAM permissions for all required services",
+			)
 
 		log.Fatalf("CRITICAL: Application container initialization failed: %v", criticalErr.Error())
 	}
@@ -162,11 +197,39 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	// Strategic AWS configuration with enhanced resilience
 	awsConfig, err := initializeAWSConfiguration(cfg, logger)
 	if err != nil {
+		// Enhanced AWS configuration error with detailed context
+		enhancedErr := errors.WrapError(err, errors.ErrorTypeAPI,
+			"AWS configuration initialization failed", false).
+			WithComponent("AWSConfiguration").
+			WithOperation("LoadDefaultConfig").
+			WithCategory(errors.CategoryAuth).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithContext("aws_region", cfg.AWS.Region).
+			WithContext("max_retries", cfg.Processing.MaxRetries).
+			WithSuggestions(
+				"Verify AWS credentials are properly configured",
+				"Check IAM role permissions for Lambda execution",
+				"Ensure AWS region is valid and accessible",
+				"Verify network connectivity to AWS services",
+			).
+			WithRecoveryHints(
+				"Check AWS credentials configuration",
+				"Verify Lambda execution role permissions",
+				"Review VPC and security group settings if applicable",
+			)
+
 		logger.Error("aws_configuration_initialization_failed", map[string]interface{}{
-			"error": err.Error(),
+			"error_type":     string(enhancedErr.Type),
+			"error_code":     enhancedErr.Code,
+			"severity":       string(enhancedErr.Severity),
+			"category":       string(enhancedErr.Category),
+			"component":      enhancedErr.Component,
+			"operation":      enhancedErr.Operation,
+			"suggestions":    enhancedErr.Suggestions,
+			"recovery_hints": enhancedErr.RecoveryHints,
+			"aws_region":     cfg.AWS.Region,
 		})
-		return nil, errors.WrapError(err, errors.ErrorTypeAPI,
-			"AWS configuration initialization failed", false)
+		return nil, enhancedErr
 	}
 
 	initializationMetrics.AWSClientSetupTime = time.Since(awsSetupStartTime)
@@ -176,12 +239,42 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 	// Strategic service layer initialization with deterministic architecture
 	services, err := initializeServiceLayerWithLocalBedrock(awsConfig, cfg, logger)
 	if err != nil {
+		// Enhanced service layer error with detailed context
+		enhancedErr := errors.WrapError(err, errors.ErrorTypeInternal,
+			"service layer initialization failed", false).
+			WithComponent("ServiceLayer").
+			WithOperation("InitializeServices").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithContext("architecture", "deterministic_control").
+			WithContext("bedrock_model", cfg.AWS.BedrockModel).
+			WithContext("s3_bucket", cfg.AWS.S3Bucket).
+			WithContext("dynamodb_table", cfg.AWS.DynamoDBVerificationTable).
+			WithSuggestions(
+				"Check individual service configurations",
+				"Verify AWS service permissions and quotas",
+				"Ensure all required AWS services are available in the region",
+				"Review service-specific error details in logs",
+			).
+			WithRecoveryHints(
+				"Check AWS service health dashboard",
+				"Verify IAM permissions for all services",
+				"Review service quotas and limits",
+			)
+
 		logger.Error("service_layer_initialization_failed", map[string]interface{}{
-			"error":        err.Error(),
-			"architecture": "deterministic_control",
+			"error_type":     string(enhancedErr.Type),
+			"error_code":     enhancedErr.Code,
+			"severity":       string(enhancedErr.Severity),
+			"category":       string(enhancedErr.Category),
+			"component":      enhancedErr.Component,
+			"operation":      enhancedErr.Operation,
+			"suggestions":    enhancedErr.Suggestions,
+			"recovery_hints": enhancedErr.RecoveryHints,
+			"architecture":   "deterministic_control",
+			"bedrock_model":  cfg.AWS.BedrockModel,
 		})
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
-			"service layer initialization failed", false)
+		return nil, enhancedErr
 	}
 
 	initializationMetrics.ServiceInitializationTime = time.Since(serviceInitStartTime)
@@ -196,11 +289,36 @@ func initializeApplicationContainer() (*ApplicationContainer, error) {
 		cfg,
 	)
 	if err != nil {
+		// Enhanced handler initialization error
+		enhancedErr := errors.WrapError(err, errors.ErrorTypeInternal,
+			"handler initialization failed", false).
+			WithComponent("HandlerFactory").
+			WithOperation("NewHandler").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("architecture", "deterministic_control").
+			WithSuggestions(
+				"Check service dependencies are properly initialized",
+				"Verify handler configuration parameters",
+				"Review service interface compatibility",
+			).
+			WithRecoveryHints(
+				"Restart the Lambda function",
+				"Check service initialization logs",
+				"Verify dependency injection configuration",
+			)
+
 		logger.Error("handler_initialization_failed", map[string]interface{}{
-			"error": err.Error(),
+			"error_type":     string(enhancedErr.Type),
+			"error_code":     enhancedErr.Code,
+			"severity":       string(enhancedErr.Severity),
+			"category":       string(enhancedErr.Category),
+			"component":      enhancedErr.Component,
+			"operation":      enhancedErr.Operation,
+			"suggestions":    enhancedErr.Suggestions,
+			"recovery_hints": enhancedErr.RecoveryHints,
 		})
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
-			"handler initialization failed", false)
+		return nil, enhancedErr
 	}
 
 	return &ApplicationContainer{
@@ -226,11 +344,28 @@ type ServiceLayerComponents struct {
 // initializeServiceLayerWithLocalBedrock implements strategic service initialization
 // with deterministic local Bedrock control architecture
 func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalConfig.Config, logger logger.Logger) (*ServiceLayerComponents, error) {
-	// S3 service initialization
+	// S3 service initialization with enhanced error handling
 	s3Service, err := services.NewS3StateManager(*cfg, logger)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeS3,
-			"S3 service initialization failed", false)
+			"S3 service initialization failed", false).
+			WithComponent("S3StateManager").
+			WithOperation("NewS3StateManager").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("s3_bucket", cfg.AWS.S3Bucket).
+			WithContext("aws_region", cfg.AWS.Region).
+			WithSuggestions(
+				"Verify S3 bucket exists and is accessible",
+				"Check IAM permissions for S3 operations",
+				"Ensure S3 bucket is in the correct region",
+				"Verify network connectivity to S3 service",
+			).
+			WithRecoveryHints(
+				"Check S3 bucket configuration",
+				"Verify IAM role has S3 permissions",
+				"Review VPC endpoints if using private subnets",
+			)
 	}
 
 	// Strategic Bedrock service initialization with local control pattern
@@ -253,7 +388,25 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
 			"shared Bedrock client initialization failed", false).
-			WithContext("architecture", "shared_infrastructure")
+			WithComponent("SharedBedrockClient").
+			WithOperation("NewBedrockClient").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("architecture", "shared_infrastructure").
+			WithContext("bedrock_model", cfg.AWS.BedrockModel).
+			WithContext("aws_region", cfg.AWS.Region).
+			WithContext("anthropic_version", cfg.AWS.AnthropicVersion).
+			WithSuggestions(
+				"Verify Bedrock service is available in the region",
+				"Check IAM permissions for Bedrock operations",
+				"Ensure the specified model is accessible",
+				"Verify Anthropic version compatibility",
+			).
+			WithRecoveryHints(
+				"Check Bedrock service quotas and limits",
+				"Verify model access permissions",
+				"Review AWS service health status",
+			)
 	}
 
 	// Phase 2: Configure local Bedrock client
@@ -269,11 +422,30 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 
 	localClient := localBedrock.NewClient(sharedClient, localConfig, logger)
 
-	// Phase 3: Validate configuration
+	// Phase 3: Validate configuration with enhanced error handling
 	if err := localClient.ValidateConfiguration(); err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeBedrock,
 			"Bedrock configuration validation failed", false).
-			WithContext("architecture", "local_validation")
+			WithComponent("LocalBedrockClient").
+			WithOperation("ValidateConfiguration").
+			WithCategory(errors.CategoryValidation).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("architecture", "local_validation").
+			WithContext("model_id", cfg.AWS.BedrockModel).
+			WithContext("max_tokens", cfg.Processing.MaxTokens).
+			WithContext("temperature", cfg.Processing.Temperature).
+			WithContext("top_p", cfg.Processing.TopP).
+			WithSuggestions(
+				"Check Bedrock model configuration parameters",
+				"Verify temperature and topP values are within valid ranges",
+				"Ensure max_tokens is within model limits",
+				"Review timeout configuration values",
+			).
+			WithRecoveryHints(
+				"Adjust configuration parameters to valid ranges",
+				"Check model-specific parameter requirements",
+				"Review Bedrock API documentation for limits",
+			)
 	}
 
 	// Phase 4: Create service wrapper with local client
@@ -291,18 +463,52 @@ func initializeServiceLayerWithLocalBedrock(awsConfig aws.Config, cfg *internalC
 		"operational_metrics": localClient.GetOperationalMetrics(),
 	})
 
-	// DynamoDB service initialization
+	// DynamoDB service initialization with enhanced error handling
 	dynamoService, err := services.NewDynamoDBService(cfg)
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ErrorTypeDynamoDB,
-			"DynamoDB service initialization failed", false)
+			"DynamoDB service initialization failed", false).
+			WithComponent("DynamoDBService").
+			WithOperation("NewDynamoDBService").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("verification_table", cfg.AWS.DynamoDBVerificationTable).
+			WithContext("aws_region", cfg.AWS.Region).
+			WithSuggestions(
+				"Verify DynamoDB table exists and is accessible",
+				"Check IAM permissions for DynamoDB operations",
+				"Ensure table is in the correct region",
+				"Verify table is in ACTIVE state",
+			).
+			WithRecoveryHints(
+				"Check DynamoDB table configuration",
+				"Verify IAM role has DynamoDB permissions",
+				"Review table status in AWS console",
+			)
 	}
 
-	// Prompt service initialization
+	// Prompt service initialization with enhanced error handling
 	promptService, err := services.NewPromptService(cfg, logger)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeInternal,
-			"Prompt service initialization failed", false)
+		return nil, errors.WrapError(err, errors.ErrorTypeTemplate,
+			"Prompt service initialization failed", false).
+			WithComponent("PromptService").
+			WithOperation("NewPromptService").
+			WithCategory(errors.CategoryServer).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithContext("template_base_path", cfg.Prompts.TemplateBasePath).
+			WithContext("template_version", cfg.Prompts.TemplateVersion).
+			WithSuggestions(
+				"Verify template files exist and are accessible",
+				"Check template base path configuration",
+				"Ensure template version is valid",
+				"Verify template file permissions",
+			).
+			WithRecoveryHints(
+				"Check template file locations",
+				"Verify template syntax and structure",
+				"Review template loading configuration",
+			)
 	}
 
 	return &ServiceLayerComponents{
@@ -323,15 +529,46 @@ func initializeAWSConfiguration(cfg *internalConfig.Config, logger logger.Logger
 	if err != nil {
 		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI,
 			"AWS configuration loading failed", false).
+			WithComponent("AWSSDKConfig").
+			WithOperation("LoadDefaultConfig").
+			WithCategory(errors.CategoryAuth).
+			WithSeverity(errors.ErrorSeverityCritical).
 			WithContext("region", cfg.AWS.Region).
-			WithContext("max_retries", cfg.Processing.MaxRetries)
+			WithContext("max_retries", cfg.Processing.MaxRetries).
+			WithContext("retry_mode", "adaptive").
+			WithSuggestions(
+				"Verify AWS region is valid and accessible",
+				"Check AWS credentials configuration",
+				"Ensure IAM permissions are properly set",
+				"Verify network connectivity to AWS services",
+			).
+			WithRecoveryHints(
+				"Check AWS credentials in environment or IAM role",
+				"Verify region configuration",
+				"Review network and security group settings",
+			)
 	}
 
 	credentials, err := awsConfig.Credentials.Retrieve(context.Background())
 	if err != nil {
-		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAPI,
+		return aws.Config{}, errors.WrapError(err, errors.ErrorTypeAuth,
 			"AWS credentials validation failed", false).
-			WithContext("region", cfg.AWS.Region)
+			WithComponent("AWSCredentials").
+			WithOperation("RetrieveCredentials").
+			WithCategory(errors.CategoryAuth).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithContext("region", cfg.AWS.Region).
+			WithSuggestions(
+				"Check AWS credentials are properly configured",
+				"Verify IAM role is attached to Lambda function",
+				"Ensure credentials have not expired",
+				"Check AWS STS service availability",
+			).
+			WithRecoveryHints(
+				"Review Lambda execution role configuration",
+				"Check IAM role trust policy",
+				"Verify AWS service health status",
+			)
 	}
 
 	if credentials.AccessKeyID == "" {
@@ -340,7 +577,21 @@ func initializeAWSConfiguration(cfg *internalConfig.Config, logger logger.Logger
 			map[string]interface{}{
 				"component": "aws_config",
 				"region":    cfg.AWS.Region,
-			})
+			}).
+			WithComponent("AWSCredentials").
+			WithOperation("ValidateAccessKey").
+			WithCategory(errors.CategoryAuth).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithSuggestions(
+				"Verify IAM role is properly attached to Lambda",
+				"Check IAM role has necessary permissions",
+				"Ensure AWS credentials are not empty",
+			).
+			WithRecoveryHints(
+				"Review Lambda function configuration",
+				"Check IAM role attachment",
+				"Verify execution role permissions",
+			)
 	}
 
 	return awsConfig, nil
@@ -442,26 +693,60 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 			enrichedErr := workflowErr.
 				WithContext("execution_time_ms", executionContext.ExecutionMetrics.ProcessingDuration.Milliseconds()).
 				WithContext("correlation_id", executionContext.CorrelationID).
-				WithContext("architecture", "deterministic_control")
+				WithContext("architecture", "deterministic_control").
+				WithContext("function_name", executionContext.FunctionName).
+				WithContext("request_id", executionContext.RequestID).
+				WithCorrelationID(executionContext.CorrelationID)
 
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error_type":   string(enrichedErr.Type),
-				"error_code":   enrichedErr.Code,
-				"retryable":    enrichedErr.Retryable,
-				"severity":     string(enrichedErr.Severity),
-				"api_source":   string(enrichedErr.APISource),
-				"architecture": "deterministic_control",
+				"error_type":     string(enrichedErr.Type),
+				"error_code":     enrichedErr.Code,
+				"message":        enrichedErr.Message,
+				"retryable":      enrichedErr.Retryable,
+				"severity":       string(enrichedErr.Severity),
+				"category":       string(enrichedErr.Category),
+				"api_source":     string(enrichedErr.APISource),
+				"component":      enrichedErr.Component,
+				"operation":      enrichedErr.Operation,
+				"suggestions":    enrichedErr.Suggestions,
+				"recovery_hints": enrichedErr.RecoveryHints,
+				"architecture":   "deterministic_control",
 			})
 			return nil, enrichedErr
 		} else {
 			wrappedErr := errors.WrapError(err, errors.ErrorTypeInternal,
 				"execution failed", false).
 				WithContext("correlation_id", executionContext.CorrelationID).
-				WithContext("architecture", "deterministic_control")
+				WithContext("architecture", "deterministic_control").
+				WithContext("function_name", executionContext.FunctionName).
+				WithContext("request_id", executionContext.RequestID).
+				WithComponent("ExecutionHandler").
+				WithOperation("HandleRequest").
+				WithCategory(errors.CategoryServer).
+				WithSeverity(errors.ErrorSeverityHigh).
+				WithCorrelationID(executionContext.CorrelationID).
+				WithSuggestions(
+					"Check application logs for specific error details",
+					"Verify system resources and dependencies",
+					"Review request format and parameters",
+				).
+				WithRecoveryHints(
+					"Retry the operation if error appears transient",
+					"Check system health and resource availability",
+					"Review error logs for root cause analysis",
+				)
 
 			contextLogger.Error("execution_failed", map[string]interface{}{
-				"error":        err.Error(),
-				"architecture": "deterministic_control",
+				"error_type":     string(wrappedErr.Type),
+				"error_code":     wrappedErr.Code,
+				"message":        wrappedErr.Message,
+				"severity":       string(wrappedErr.Severity),
+				"category":       string(wrappedErr.Category),
+				"component":      wrappedErr.Component,
+				"operation":      wrappedErr.Operation,
+				"suggestions":    wrappedErr.Suggestions,
+				"recovery_hints": wrappedErr.RecoveryHints,
+				"architecture":   "deterministic_control",
 			})
 			return nil, wrappedErr
 		}

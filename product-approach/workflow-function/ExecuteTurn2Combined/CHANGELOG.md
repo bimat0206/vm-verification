@@ -2,6 +2,60 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.26] - 2025-01-06 - Turn2 Processed Response Format Fix
+
+### Fixed
+- **Turn2 Processed Response Format**: Fixed ExecuteTurn2Combined to store only markdown content in `.md` files, removing JSON data storage that was incompatible with FinalizeAndStoreResults parser
+- **File Format Consistency**: Ensures `turn2-processed-response.md` contains actual markdown content for proper parsing by downstream functions
+- **Storage Method Cleanup**: Removed redundant `StoreTurn2Response` and `StoreTurn2ProcessedResponse` methods that incorrectly stored JSON data with `.md` extension
+- **Response Reference Fix**: Updated handler to use markdown reference instead of JSON reference in Step Function output
+
+### Technical Details
+- **Root Cause**: ExecuteTurn2Combined was storing JSON data in `.md` files, but FinalizeAndStoreResults parser expects markdown format when processing files with `.md` extension
+- **Solution**: Simplified storage to only use `StoreTurn2Markdown` method for actual markdown content
+- **Impact**: Ensures compatibility between ExecuteTurn2Combined output and FinalizeAndStoreResults input processing
+- **Files Modified**:
+  - `internal/services/s3_turn2.go` - Removed `StoreTurn2Response` and `StoreTurn2ProcessedResponse` methods (lines 360-383, 419-442)
+  - `internal/services/s3.go` - Removed methods from `S3StateManager` interface (lines 160, 163)
+  - `internal/handler/turn2_handler.go` - Updated to use `markdownRef` instead of `processedRef` in response (line 653)
+
+### Breaking Changes
+- Removed `StoreTurn2Response` and `StoreTurn2ProcessedResponse` methods from `S3StateManager` interface
+- Step Function output now uses markdown reference for `ProcessedResponse` field instead of JSON reference
+
+### Migration Notes
+- No migration required for existing workflows as the change only affects internal storage methods
+- FinalizeAndStoreResults will now properly parse Turn2 processed responses in markdown format
+
+## [2.2.25] - 2025-01-05 - DynamoDB Update Expression Fix
+
+### Fixed
+- **Critical DynamoDB Update Expression Issues**: Fixed "The document path provided in the update expression is invalid for update" errors
+  - **Root Cause**: Both `UpdateTurn1CompletionDetails` and `UpdateTurn2CompletionDetails` were attempting to set nested attribute paths (`processingMetrics.turn1` and `processingMetrics.turn2`) when parent attribute `processingMetrics` might not exist
+  - **Impact**: All Turn1 and Turn2 completion updates failing with DynamoDB ValidationException errors
+  - **Resolution**: Modified update expressions to create complete `processingMetrics` objects instead of using nested paths
+  - **Implementation**:
+    - Turn1: Changed from `processingMetrics.turn1` to creating `{"turn1": avMetrics}` object and setting entire `processingMetrics` attribute
+    - Turn2: Changed from `processingMetrics.turn2` to creating `{"turn2": avMetrics}` object and setting entire `processingMetrics` attribute
+
+### Enhanced
+- **DynamoDB Service Initialization Logging**: Added table name verification logging during service startup
+  - Logs verification table and conversation table names for operational visibility
+  - Helps verify environment variable configuration (`DYNAMODB_VERIFICATION_TABLE`, `DYNAMODB_CONVERSATION_TABLE`)
+  - Added region logging for AWS configuration verification
+
+- **DynamoDB Operation Debugging**: Enhanced logging for both `UpdateTurn1CompletionDetails` and `UpdateTurn2CompletionDetails` operations
+  - Added detailed logging before DynamoDB update operations with table names and update expressions
+  - Enhanced error logging with complete context including update expressions and request details
+  - Added verification ID and table context to all error messages for better troubleshooting
+
+### Technical Details
+- **Environment Variables Verified**: Confirmed correct reading of `DYNAMODB_VERIFICATION_TABLE` and `DYNAMODB_CONVERSATION_TABLE`
+- **Table Access Verified**: Both DynamoDB tables exist and are accessible via AWS CLI
+- **Update Expression Fixes**: Both `processingMetrics` objects now created atomically instead of nested path updates
+- **Backward Compatibility**: Fixes maintain existing data structure while resolving update path issues
+- **Error Context**: Enhanced error reporting includes update expressions and full request context for debugging
+
 ## [2.2.24] - 2025-06-10 - Environment Variable Alignment
 
 ### Changed
@@ -24,7 +78,7 @@ All notable changes to the ExecuteTurn2Combined function will be documented in t
 
 ### Technical Details
 - **Before**: `"key": "2025/06/04/verif-20250604172233-d8b2/processing/turn2-processed-response.json"`
-- **After**: `"key": "2025/06/04/verif-20250604172233-d8b2/processing/turn2-processed-response.md"`
+- **After**: `"key": "2025/06/04/verif-20250604172233-d8b2/responses/turn2-processed-response.md"`
 - **Files Modified**:
   - `internal/services/s3_turn2.go` (lines 373, 432)
   - `internal/handler/storage_manager.go` (line 41)

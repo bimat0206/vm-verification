@@ -218,6 +218,14 @@ func validateVerificationResultItem(item models.VerificationResultItem) error {
 		})
 	}
 
+	// Validate verificationStatus - required for VerificationStatusIndex
+	if item.VerificationStatus == "" {
+		return errors.NewValidationError("verificationStatus is required for secondary index", map[string]interface{}{
+			"field": "verificationStatus",
+			"reason": "DynamoDB VerificationStatusIndex does not allow empty string values",
+		})
+	}
+
 	return nil
 }
 
@@ -233,18 +241,20 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 	}
 
 	// Log the operation attempt with sanitized data
-	log.Info("storing_verification_result", map[string]interface{}{
+	log.Info("updating_verification_result", map[string]interface{}{
 		"verificationId": item.VerificationID,
+		"verificationAt": item.VerificationAt,
 		"table":          tableName,
-		"operation":      "PutItem",
+		"operation":      "UpdateItem",
 		"itemSummary":    sanitizeItemForLogging(item),
 	})
 
-	av, err := attributevalue.MarshalMap(item)
+	// Marshal the VerificationSummary struct
+	vsmAV, err := attributevalue.Marshal(item.VerificationSummary)
 	if err != nil {
-		enhancedErr := createEnhancedDynamoDBError("marshal", tableName, err, item)
+		enhancedErr := createEnhancedDynamoDBError("marshal_verification_summary", tableName, err, item)
 		enhancedErr.VerificationID = item.VerificationID
-		log.Error("marshal_failed", map[string]interface{}{
+		log.Error("marshal_verification_summary_failed", map[string]interface{}{
 			"error":          enhancedErr.Error(),
 			"verificationId": item.VerificationID,
 			"table":          tableName,
@@ -253,16 +263,63 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 		return enhancedErr
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+	// Use UpdateItem to update existing record instead of creating new one
+	updateInput := &dynamodb.UpdateItemInput{
 		TableName: &tableName,
-		Item:      av,
-	})
+		Key: map[string]types.AttributeValue{
+			"verificationId": &types.AttributeValueMemberS{Value: item.VerificationID},
+			"verificationAt": &types.AttributeValueMemberS{Value: item.VerificationAt},
+		},
+		UpdateExpression: aws.String(`SET
+			verificationType = :vt,
+			layoutId = :lid,
+			layoutPrefix = :lp,
+			vendingMachineId = :vmid,
+			referenceImageUrl = :riu,
+			checkingImageUrl = :ciu,
+			verificationStatus = :vs,
+			currentStatus = :cs,
+			lastUpdatedAt = :lua,
+			processingStartedAt = :psa,
+			initialConfirmation = :ic,
+			verificationSummary = :vsm,
+			previousVerificationId = :pvid,
+			statusHistory = if_not_exists(statusHistory, :empty_list),
+			processingMetrics = if_not_exists(processingMetrics, :empty_map),
+			errorTracking = if_not_exists(errorTracking, :empty_map)`),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":vt":         &types.AttributeValueMemberS{Value: item.VerificationType},
+			":lp":         &types.AttributeValueMemberS{Value: item.LayoutPrefix},
+			":vmid":       &types.AttributeValueMemberS{Value: item.VendingMachineID},
+			":riu":        &types.AttributeValueMemberS{Value: item.ReferenceImageUrl},
+			":ciu":        &types.AttributeValueMemberS{Value: item.CheckingImageUrl},
+			":vs":         &types.AttributeValueMemberS{Value: item.VerificationStatus},
+			":cs":         &types.AttributeValueMemberS{Value: item.CurrentStatus},
+			":lua":        &types.AttributeValueMemberS{Value: item.LastUpdatedAt},
+			":psa":        &types.AttributeValueMemberS{Value: item.ProcessingStartedAt},
+			":ic":         &types.AttributeValueMemberS{Value: item.InitialConfirmation},
+			":vsm":        vsmAV,
+			":pvid":       &types.AttributeValueMemberS{Value: item.PreviousVerificationID},
+			":empty_list": &types.AttributeValueMemberL{Value: []types.AttributeValue{}},
+			":empty_map":  &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{}},
+		},
+	}
+
+	// Handle optional layoutId
+	if item.LayoutID != nil {
+		updateInput.ExpressionAttributeValues[":lid"] = &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", *item.LayoutID)}
+	} else {
+		updateInput.ExpressionAttributeValues[":lid"] = &types.AttributeValueMemberNULL{Value: true}
+	}
+
+	_, err = client.UpdateItem(ctx, updateInput)
 	if err != nil {
-		enhancedErr := createEnhancedDynamoDBError("PutItem", tableName, err, item)
+		enhancedErr := createEnhancedDynamoDBError("UpdateItem", tableName, err, item)
 		enhancedErr.VerificationID = item.VerificationID
-		log.Error("dynamodb_put_failed", map[string]interface{}{
+		log.Error("dynamodb_update_failed", map[string]interface{}{
 			"error":          enhancedErr.Error(),
 			"verificationId": item.VerificationID,
+			"verificationAt": item.VerificationAt,
 			"table":          tableName,
 			"awsErrorCode":   enhancedErr.Code,
 			"retryable":      enhancedErr.Retryable,
@@ -271,8 +328,9 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 		return enhancedErr
 	}
 
-	log.Info("verification_result_stored", map[string]interface{}{
+	log.Info("verification_result_updated", map[string]interface{}{
 		"verificationId": item.VerificationID,
+		"verificationAt": item.VerificationAt,
 		"table":          tableName,
 		"status":         item.CurrentStatus,
 	})
@@ -280,10 +338,10 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 	return nil
 }
 
-func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tableName, verificationID, conversationAt string, log logger.Logger) error {
-	if conversationAt == "" {
-		validationErr := errors.NewValidationError("conversationAt required", map[string]interface{}{
-			"field": "conversationAt",
+func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tableName, verificationID, expectedConversationAt string, log logger.Logger) error {
+	if verificationID == "" {
+		validationErr := errors.NewValidationError("verificationID required", map[string]interface{}{
+			"field": "verificationID",
 		})
 		log.Error("conversation_update_validation_failed", map[string]interface{}{
 			"error":          validationErr.Error(),
@@ -293,19 +351,86 @@ func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tab
 		return validationErr
 	}
 
+	log.Info("finding_conversation_history", map[string]interface{}{
+		"verificationId":           verificationID,
+		"expectedConversationAt":   expectedConversationAt,
+		"table":                    tableName,
+		"operation":                "Query",
+	})
+
+	// Query to find the actual conversation record for this verificationID
+	queryInput := &dynamodb.QueryInput{
+		TableName:              &tableName,
+		KeyConditionExpression: aws.String("verificationId = :vid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":vid": &types.AttributeValueMemberS{Value: verificationID},
+		},
+		ScanIndexForward: aws.Bool(false), // Get most recent first
+		Limit:            aws.Int32(1),
+		ProjectionExpression: aws.String("verificationId, conversationAt, turnStatus"),
+	}
+
+	queryResult, err := client.Query(ctx, queryInput)
+	if err != nil {
+		enhancedErr := createEnhancedDynamoDBError("Query", tableName, err, map[string]interface{}{
+			"verificationId": verificationID,
+			"operation": "FindConversationRecord",
+		})
+		enhancedErr.VerificationID = verificationID
+		log.Error("conversation_query_failed", map[string]interface{}{
+			"error":          enhancedErr.Error(),
+			"verificationId": verificationID,
+			"table":          tableName,
+			"awsErrorCode":   enhancedErr.Code,
+			"details":        enhancedErr.Details,
+		})
+		return enhancedErr
+	}
+
+	if len(queryResult.Items) == 0 {
+		validationErr := errors.NewValidationError("no conversation record found", map[string]interface{}{
+			"verificationId": verificationID,
+			"table": tableName,
+		})
+		log.Error("conversation_record_not_found", map[string]interface{}{
+			"error":          validationErr.Error(),
+			"verificationId": verificationID,
+			"table":          tableName,
+		})
+		return validationErr
+	}
+
+	// Extract the actual conversationAt from the found record
+	conversationAtAttr, exists := queryResult.Items[0]["conversationAt"]
+	if !exists {
+		validationErr := errors.NewValidationError("conversationAt missing from record", map[string]interface{}{
+			"verificationId": verificationID,
+			"table": tableName,
+		})
+		log.Error("conversation_at_missing", map[string]interface{}{
+			"error":          validationErr.Error(),
+			"verificationId": verificationID,
+			"table":          tableName,
+		})
+		return validationErr
+	}
+
+	actualConversationAt := conversationAtAttr.(*types.AttributeValueMemberS).Value
+
 	log.Info("updating_conversation_history", map[string]interface{}{
-		"verificationId": verificationID,
-		"conversationAt": conversationAt,
-		"table":          tableName,
-		"operation":      "UpdateItem",
-		"newStatus":      "WORKFLOW_COMPLETED",
+		"verificationId":           verificationID,
+		"expectedConversationAt":   expectedConversationAt,
+		"actualConversationAt":     actualConversationAt,
+		"table":                    tableName,
+		"operation":                "UpdateItem",
+		"newStatus":                "WORKFLOW_COMPLETED",
 	})
 
 	updateInput := &dynamodb.UpdateItemInput{
 		TableName: &tableName,
 		Key: map[string]types.AttributeValue{
 			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
-			"conversationAt": &types.AttributeValueMemberS{Value: conversationAt},
+			"conversationAt": &types.AttributeValueMemberS{Value: actualConversationAt},
 		},
 		UpdateExpression: aws.String("SET turnStatus = :ts"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -313,11 +438,11 @@ func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tab
 		},
 	}
 
-	_, err := client.UpdateItem(ctx, updateInput)
+	_, err = client.UpdateItem(ctx, updateInput)
 	if err != nil {
 		enhancedErr := createEnhancedDynamoDBError("UpdateItem", tableName, err, map[string]interface{}{
 			"verificationId": verificationID,
-			"conversationAt": conversationAt,
+			"conversationAt": actualConversationAt,
 			"updateExpression": "SET turnStatus = :ts",
 			"newStatus": "WORKFLOW_COMPLETED",
 		})
@@ -325,7 +450,7 @@ func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tab
 		log.Error("conversation_update_failed", map[string]interface{}{
 			"error":          enhancedErr.Error(),
 			"verificationId": verificationID,
-			"conversationAt": conversationAt,
+			"actualConversationAt": actualConversationAt,
 			"table":          tableName,
 			"awsErrorCode":   enhancedErr.Code,
 			"retryable":      enhancedErr.Retryable,
@@ -336,7 +461,7 @@ func UpdateConversationHistory(ctx context.Context, client *dynamodb.Client, tab
 
 	log.Info("conversation_history_updated", map[string]interface{}{
 		"verificationId": verificationID,
-		"conversationAt": conversationAt,
+		"actualConversationAt": actualConversationAt,
 		"table":          tableName,
 		"newStatus":      "WORKFLOW_COMPLETED",
 	})

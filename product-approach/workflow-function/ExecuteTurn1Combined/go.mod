@@ -13,8 +13,7 @@ require (
 	workflow-function/shared/logger v0.0.0 // NEW
 	workflow-function/shared/s3state v0.0.0-00010101000000-000000000000
 	workflow-function/shared/schema v0.0.0-00010101000000-000000000000
-        workflow-function/shared/templateloader v0.0.0-00010101000000-000000000000
-       golang.org/x/image v0.26.0
+	workflow-function/shared/templateloader v0.0.0-00010101000000-000000000000
 )
 
 require github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.82

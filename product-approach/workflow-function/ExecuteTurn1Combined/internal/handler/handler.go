@@ -189,13 +189,33 @@ func (h *Handler) Handle(ctx context.Context, req *models.Turn1Request) (resp *s
 		})
 	}
 
-	// STAGE 6: Store prompt
+	// STAGE 6: Store prompt with enhanced error handling
 	promptStart := time.Now()
 	promptRef, err := h.storageManager.StorePrompt(ctx, req, 1, promptResult)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+		enhancedErr := errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store prompt", true).
-			WithContext("verification_id", req.VerificationID)
+			WithContext("verification_id", req.VerificationID).
+			WithContext("turn", 1).
+			WithContext("prompt_size", len(promptResult.Prompt)).
+			WithComponent("StorageManager").
+			WithOperation("StorePrompt").
+			WithCategory(errors.CategoryTransient).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityMedium).
+			WithSuggestions(
+				"Check S3 bucket permissions and connectivity",
+				"Verify S3 bucket exists and is accessible",
+				"Ensure sufficient S3 storage capacity",
+				"Check network connectivity to S3 service",
+			).
+			WithRecoveryHints(
+				"Retry the operation with exponential backoff",
+				"Check S3 service health status",
+				"Verify IAM permissions for S3 operations",
+			)
+		return nil, enhancedErr
 	}
 
 	// Record prompt storage success
@@ -382,13 +402,33 @@ func (h *Handler) HandleForStepFunction(ctx context.Context, req *models.Turn1Re
 	}
 	h.recordStorageSuccess(storageResult)
 
-	// STAGE 6: Store prompt
+	// STAGE 6: Store prompt with enhanced error handling
 	promptStart := time.Now()
 	promptRef, err := h.storageManager.StorePrompt(ctx, req, 1, promptResult)
 	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrorTypeS3,
+		enhancedErr := errors.WrapError(err, errors.ErrorTypeS3,
 			"failed to store prompt", true).
-			WithContext("verification_id", req.VerificationID)
+			WithContext("verification_id", req.VerificationID).
+			WithContext("turn", 1).
+			WithContext("prompt_size", len(promptResult.Prompt)).
+			WithComponent("StorageManager").
+			WithOperation("StorePrompt").
+			WithCategory(errors.CategoryTransient).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityMedium).
+			WithSuggestions(
+				"Check S3 bucket permissions and connectivity",
+				"Verify S3 bucket exists and is accessible",
+				"Ensure sufficient S3 storage capacity",
+				"Check network connectivity to S3 service",
+			).
+			WithRecoveryHints(
+				"Retry the operation with exponential backoff",
+				"Check S3 service health status",
+				"Verify IAM permissions for S3 operations",
+			)
+		return nil, enhancedErr
 	}
 
 	// Record prompt storage success

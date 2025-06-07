@@ -44,7 +44,7 @@ func (h *Handler) updateStatus(ctx context.Context, verificationID, status, stag
 	}
 }
 
-// handleContextLoadError handles errors during context loading
+// handleContextLoadError handles errors during context loading with enhanced error details
 func (h *Handler) handleContextLoadError(ctx context.Context, verificationID string, loadResult *LoadResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("context_loading", "failed", loadResult.Duration, map[string]interface{}{
 		"s3_operations": 2,
@@ -55,17 +55,55 @@ func (h *Handler) handleContextLoadError(ctx context.Context, verificationID str
 		"error_details": loadResult.Error.Error(),
 	})
 
+	// Enhanced error handling with detailed context
+	var enhancedErr *errors.WorkflowError
 	if workflowErr, ok := loadResult.Error.(*errors.WorkflowError); ok {
+		enhancedErr = workflowErr.
+			WithVerificationID(verificationID).
+			WithComponent("ContextLoader").
+			WithOperation("LoadContext").
+			WithCategory(errors.CategoryTransient).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithSuggestions(
+				"Check S3 bucket permissions and connectivity",
+				"Verify that all required S3 objects exist",
+				"Ensure proper IAM roles are configured",
+				"Check S3 bucket region configuration",
+			).
+			WithRecoveryHints(
+				"Retry the operation with exponential backoff",
+				"Verify S3 object keys and bucket names",
+				"Check network connectivity to S3",
+			)
+
 		contextLogger.Error("resource loading error", map[string]interface{}{
-			"error_type":    string(workflowErr.Type),
-			"error_code":    workflowErr.Code,
-			"retryable":     workflowErr.Retryable,
-			"severity":      string(workflowErr.Severity),
-			"s3_operations": 2,
+			"error_type":     string(enhancedErr.Type),
+			"error_code":     enhancedErr.Code,
+			"message":        enhancedErr.Message,
+			"retryable":      enhancedErr.Retryable,
+			"severity":       string(enhancedErr.Severity),
+			"category":       string(enhancedErr.Category),
+			"component":      enhancedErr.Component,
+			"operation":      enhancedErr.Operation,
+			"suggestions":    enhancedErr.Suggestions,
+			"recovery_hints": enhancedErr.RecoveryHints,
+			"s3_operations":  2,
 		})
+	} else {
+		enhancedErr = errors.WrapError(loadResult.Error, errors.ErrorTypeS3,
+			"context loading failed", true).
+			WithVerificationID(verificationID).
+			WithComponent("ContextLoader").
+			WithOperation("LoadContext").
+			WithCategory(errors.CategoryTransient).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityHigh)
 	}
 
-	return nil, loadResult.Error
+	return nil, enhancedErr
 }
 
 // recordContextLoadSuccess records successful context loading
@@ -105,7 +143,7 @@ func (h *Handler) generatePrompt(ctx context.Context, req *models.Turn1Request, 
 	}
 }
 
-// handlePromptError handles errors during prompt generation
+// handlePromptError handles errors during prompt generation with enhanced error details
 func (h *Handler) handlePromptError(ctx context.Context, verificationID string, result *PromptResult, contextLogger logger.Logger) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("prompt_generation", "failed", result.Duration, map[string]interface{}{
 		"template_version": h.cfg.Prompts.TemplateVersion,
@@ -116,20 +154,58 @@ func (h *Handler) handlePromptError(ctx context.Context, verificationID string, 
 		"error_details": result.Error.Error(),
 	})
 
-	promptErr := errors.NewInternalError("prompt_service", result.Error).
-		WithContext("template_version", h.cfg.Prompts.TemplateVersion)
-
-	enrichedErr := errors.SetVerificationID(promptErr, verificationID)
+	// Enhanced prompt error with detailed context
+	var enhancedErr *errors.WorkflowError
+	if workflowErr, ok := result.Error.(*errors.WorkflowError); ok {
+		enhancedErr = workflowErr.
+			WithVerificationID(verificationID).
+			WithComponent("PromptService").
+			WithOperation("GenerateTurn1Prompt").
+			WithCategory(errors.CategoryPermanent).
+			WithRetryStrategy(errors.RetryNone).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithContext("template_version", h.cfg.Prompts.TemplateVersion).
+			WithContext("template_base_path", h.cfg.Prompts.TemplateBasePath).
+			WithSuggestions(
+				"Check template syntax and variable bindings",
+				"Verify all required template variables are provided",
+				"Ensure template files exist and are accessible",
+				"Validate template version compatibility",
+			).
+			WithRecoveryHints(
+				"Review template file structure and syntax",
+				"Check template variable mappings",
+				"Verify template loading configuration",
+			)
+	} else {
+		enhancedErr = errors.NewInternalError("prompt_service", result.Error).
+			WithVerificationID(verificationID).
+			WithComponent("PromptService").
+			WithOperation("GenerateTurn1Prompt").
+			WithCategory(errors.CategoryPermanent).
+			WithRetryStrategy(errors.RetryNone).
+			WithSeverity(errors.ErrorSeverityCritical).
+			WithContext("template_version", h.cfg.Prompts.TemplateVersion).
+			WithContext("template_base_path", h.cfg.Prompts.TemplateBasePath)
+	}
 
 	contextLogger.Error("prompt generation error", map[string]interface{}{
+		"error_type":       string(enhancedErr.Type),
+		"error_code":       enhancedErr.Code,
+		"message":          enhancedErr.Message,
+		"severity":         string(enhancedErr.Severity),
+		"category":         string(enhancedErr.Category),
+		"component":        enhancedErr.Component,
+		"operation":        enhancedErr.Operation,
+		"suggestions":      enhancedErr.Suggestions,
+		"recovery_hints":   enhancedErr.RecoveryHints,
 		"template_version": h.cfg.Prompts.TemplateVersion,
-		"error":            result.Error.Error(),
 	})
 
-	return nil, enrichedErr
+	return nil, enhancedErr
 }
 
-// handleBedrockError handles errors during Bedrock invocation
+// handleBedrockError handles errors during Bedrock invocation with enhanced error details
 func (h *Handler) handleBedrockError(ctx context.Context, verificationID string, result *InvokeResult) (*schema.CombinedTurnResponse, error) {
 	h.processingTracker.RecordStage("bedrock_invocation", "failed", result.Duration, map[string]interface{}{
 		"model_id":   h.cfg.AWS.BedrockModel,
@@ -141,7 +217,65 @@ func (h *Handler) handleBedrockError(ctx context.Context, verificationID string,
 		"error_details": result.Error.Error(),
 	})
 
-	return nil, result.Error
+	// Enhanced Bedrock error with detailed context
+	var enhancedErr *errors.WorkflowError
+	if workflowErr, ok := result.Error.(*errors.WorkflowError); ok {
+		// Determine retry strategy and category based on error type
+		category := errors.CategoryServer
+		retryStrategy := errors.RetryExponential
+		maxRetries := 3
+		severity := errors.ErrorSeverityMedium
+
+		if workflowErr.Type == errors.ErrorTypeThrottling {
+			category = errors.CategoryCapacity
+			retryStrategy = errors.RetryJittered
+			maxRetries = 5
+			severity = errors.ErrorSeverityLow
+		} else if workflowErr.Type == errors.ErrorTypeValidation {
+			category = errors.CategoryValidation
+			retryStrategy = errors.RetryNone
+			maxRetries = 0
+			severity = errors.ErrorSeverityHigh
+		}
+
+		enhancedErr = workflowErr.
+			WithVerificationID(verificationID).
+			WithComponent("BedrockService").
+			WithOperation("InvokeBedrock").
+			WithCategory(category).
+			WithRetryStrategy(retryStrategy).
+			SetMaxRetries(maxRetries).
+			WithSeverity(severity).
+			WithContext("model_id", h.cfg.AWS.BedrockModel).
+			WithContext("max_tokens", h.cfg.Processing.MaxTokens).
+			WithContext("temperature", h.cfg.Processing.Temperature).
+			WithContext("top_p", h.cfg.Processing.TopP).
+			WithSuggestions(
+				"Check Bedrock service availability and quotas",
+				"Verify model permissions and access policies",
+				"Ensure prompt and image sizes are within limits",
+				"Check for service throttling or rate limits",
+			).
+			WithRecoveryHints(
+				"Retry with exponential backoff if retryable",
+				"Check AWS service health dashboard",
+				"Review Bedrock quotas and limits",
+			)
+	} else {
+		enhancedErr = errors.WrapError(result.Error, errors.ErrorTypeBedrock,
+			"Bedrock invocation failed", true).
+			WithVerificationID(verificationID).
+			WithComponent("BedrockService").
+			WithOperation("InvokeBedrock").
+			WithCategory(errors.CategoryServer).
+			WithRetryStrategy(errors.RetryExponential).
+			SetMaxRetries(3).
+			WithSeverity(errors.ErrorSeverityMedium).
+			WithContext("model_id", h.cfg.AWS.BedrockModel).
+			WithContext("max_tokens", h.cfg.Processing.MaxTokens)
+	}
+
+	return nil, enhancedErr
 }
 
 // recordBedrockSuccess records successful Bedrock invocation
@@ -277,7 +411,7 @@ func (h *Handler) handleStepFunctionEvent(ctx context.Context, event StepFunctio
 	return stepFunctionResponse, nil
 }
 
-// handleDirectRequest handles direct request format
+// handleDirectRequest handles direct request format with enhanced error handling
 func (h *Handler) handleDirectRequest(ctx context.Context, event json.RawMessage) (interface{}, error) {
 	var req models.Turn1Request
 	if err := json.Unmarshal(event, &req); err != nil {
@@ -286,11 +420,34 @@ func (h *Handler) handleDirectRequest(ctx context.Context, event json.RawMessage
 			map[string]interface{}{
 				"payload_size": len(event),
 				"parse_error":  err.Error(),
-			})
+			}).
+			WithComponent("RequestParser").
+			WithOperation("UnmarshalDirectRequest").
+			WithCategory(errors.CategoryValidation).
+			WithSeverity(errors.ErrorSeverityHigh).
+			WithSuggestions(
+				"Verify request payload format matches Turn1Request schema",
+				"Check JSON syntax and structure",
+				"Ensure all required fields are present",
+				"Validate field data types and values",
+			).
+			WithRecoveryHints(
+				"Review request payload structure",
+				"Check API documentation for correct format",
+				"Validate JSON syntax",
+			)
 
 		h.log.Error("input validation failed", map[string]interface{}{
+			"error_type":         string(validationErr.Type),
+			"error_code":         validationErr.Code,
+			"message":            validationErr.Message,
+			"severity":           string(validationErr.Severity),
+			"category":           string(validationErr.Category),
+			"component":          validationErr.Component,
+			"operation":          validationErr.Operation,
+			"suggestions":        validationErr.Suggestions,
+			"recovery_hints":     validationErr.RecoveryHints,
 			"payload_size_bytes": len(event),
-			"error_details":      err.Error(),
 		})
 
 		return nil, validationErr
@@ -300,6 +457,11 @@ func (h *Handler) handleDirectRequest(ctx context.Context, event json.RawMessage
 
 	response, err := h.Handle(ctx, &req)
 	if err != nil {
+		// Ensure error has proper context for direct requests
+		if workflowErr, ok := err.(*errors.WorkflowError); ok {
+			enrichedErr := workflowErr.WithContext("request_type", "direct")
+			return nil, enrichedErr
+		}
 		return nil, err
 	}
 

@@ -49,19 +49,28 @@ type LambdaOutput struct {
 	Message             string                    `json:"message"`
 }
 
-// InitializationData from initialization.json
+// InitializationData from initialization.json with nested verificationContext structure
 
 type InitializationData struct {
-	VerificationID         string `json:"verificationId"`
-	VerificationType       string `json:"verificationType"`
-	ReferenceImageUrl      string `json:"referenceImageUrl"`
-	CheckingImageUrl       string `json:"checkingImageUrl"`
-	VendingMachineID       string `json:"vendingMachineId,omitempty"`
-	LayoutID               int    `json:"layoutId,omitempty"`
-	LayoutPrefix           string `json:"layoutPrefix,omitempty"`
-	PreviousVerificationID string `json:"previousVerificationId,omitempty"`
-	ProcessingStartedAt    string `json:"processingStartedAt"`
-	InitialVerificationAt  string `json:"verificationAt"`
+	SchemaVersion       string                   `json:"schemaVersion"`
+	VerificationContext *VerificationContextData `json:"verificationContext"`
+	SystemPrompt        map[string]interface{}   `json:"systemPrompt,omitempty"`
+}
+
+// VerificationContextData represents the nested verification context
+type VerificationContextData struct {
+	VerificationID         string                 `json:"verificationId"`
+	VerificationAt         string                 `json:"verificationAt"`
+	Status                 string                 `json:"status"`
+	VerificationType       string                 `json:"verificationType"`
+	LayoutID               int                    `json:"layoutId,omitempty"`
+	LayoutPrefix           string                 `json:"layoutPrefix,omitempty"`
+	ReferenceImageUrl      string                 `json:"referenceImageUrl"`
+	CheckingImageUrl       string                 `json:"checkingImageUrl"`
+	VendingMachineID       string                 `json:"vendingMachineId,omitempty"`
+	PreviousVerificationID string                 `json:"previousVerificationId,omitempty"`
+	ResourceValidation     map[string]interface{} `json:"resourceValidation,omitempty"`
+	LastUpdatedAt          string                 `json:"lastUpdatedAt,omitempty"`
 }
 
 // Parsed Turn2 data

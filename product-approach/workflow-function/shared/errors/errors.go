@@ -177,6 +177,12 @@ func (e *WorkflowError) WithCategory(category ErrorCategory) *WorkflowError {
 	return e
 }
 
+// WithSeverity sets the error severity
+func (e *WorkflowError) WithSeverity(severity ErrorSeverity) *WorkflowError {
+	e.Severity = severity
+	return e
+}
+
 // WithRetryStrategy sets the retry strategy
 func (e *WorkflowError) WithRetryStrategy(strategy RetryStrategy) *WorkflowError {
 	e.RetryStrategy = strategy

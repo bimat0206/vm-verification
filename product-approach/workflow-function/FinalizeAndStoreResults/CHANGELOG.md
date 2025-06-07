@@ -1,5 +1,116 @@
 # Changelog
 
+## [1.4.3] - 2025-06-05 - Verification Summary JSON Storage
+
+### Added
+- **S3 JSON Storage**: Added storage of verificationSummary as JSON file in S3
+  - Stores parsed verification summary as `results/verificationSummary.json`
+  - Adds S3 reference to output envelope under `s3References.results`
+  - Enables downstream systems to access structured verification data
+  - Follows consistent S3 path structure: `YYYY/MM/DD/verificationId/results/verificationSummary.json`
+
+### Enhanced
+- **Output Format**: Updated function output to match expected state format
+  - Added `s3References.results` containing reference to stored JSON file
+  - Maintains existing summary fields for backward compatibility
+  - Enhanced logging for S3 storage operations with detailed context
+
+- **Date Path Extraction**: Robust date path generation from verification IDs
+  - Extracts date from verification ID format: `verif-YYYYMMDDHHMMSS-xxxx`
+  - Fallback to current date if parsing fails
+  - Consistent path structure across all S3 operations
+
+### Technical Details
+- **New Functions**: Added `storeVerificationSummaryJSON()` and `extractDatePathFromVerificationID()`
+- **S3 Integration**: Uses existing s3state manager for consistent storage patterns
+- **Error Handling**: Comprehensive error handling for S3 storage operations
+- **Backward Compatibility**: Maintains existing DynamoDB storage and envelope structure
+
+### Expected Output Format
+```json
+{
+  "verificationId": "verif-20250605074028-f5c4",
+  "verificationAt": "2025-06-05T08:08:18Z",
+  "status": "COMPLETED",
+  "s3References": {
+    "results": {
+      "bucket": "kootoro-dev-s3-state-f6d3xl",
+      "key": "2025/06/05/verif-20250605074028-f5c4/results/verificationSummary.json"
+    }
+  },
+  "summary": {
+    "message": "Verification finalized and stored",
+    "verificationAt": "2025-06-05T08:08:18Z",
+    "verificationStatus": "INCORRECT"
+  }
+}
+```
+
+## [1.4.2] - 2025-06-05 - Turn2 Markdown Parser Fix
+
+### Fixed
+- **Turn2 Response Parsing**: Fixed critical issue where Turn2 verification data was not being parsed correctly
+  - Root cause: Parser expected simple text format but Turn2 responses use markdown bullet points with bold formatting
+  - Updated parser to handle markdown format: `* **Total Positions Checked:** 42`
+  - Fixed verificationStatus being incorrectly set to "SUCCESSED" instead of actual AI result ("INCORRECT")
+  - Fixed verificationSummary fields being empty/zero instead of actual values from AI analysis
+
+### Enhanced
+- **Markdown Format Support**: Comprehensive support for Turn2 response markdown format
+  - Added regex patterns for bullet point format: `* **Key:** Value`
+  - Enhanced `parseKeyValue()` function to handle both plain text and markdown formats
+  - Added `extractIndividualFields()` fallback extraction using specific field patterns
+  - Improved regex patterns for case-insensitive field matching
+
+- **Parser Robustness**: Enhanced parsing reliability and error handling
+  - Added fallback parsing when main summary section extraction fails
+  - Enhanced regex patterns to handle various markdown formatting variations
+  - Improved field extraction for nested discrepancy details (missing products, incorrect types, etc.)
+  - Added comprehensive test coverage for actual Turn2 response format
+
+### Technical Details
+- **Actual Issue**: Turn2 responses contain detailed verification data but parser was failing to extract it
+  - Expected: `verificationStatus: "INCORRECT"`, `totalPositionsChecked: 42`, etc.
+  - Actual before fix: `verificationStatus: "SUCCESSED"`, `totalPositionsChecked: 0`, etc.
+- **Parser Enhancement**: Updated `ParseTurn2ResponseData()` to handle markdown bullet points
+- **Test Coverage**: Added `TestParseActualTurn2Format()` with real Turn2 response format
+- **Backward Compatibility**: Maintains support for both old plain text and new markdown formats
+
+### Verification
+- ✅ All existing tests pass
+- ✅ New test with actual Turn2 format passes
+- ✅ Manual verification shows correct parsing of all fields
+- ✅ verificationStatus now correctly reflects AI analysis result ("INCORRECT" vs "SUCCESSED")
+
+## [1.4.1] - 2025-06-05 - DynamoDB VerificationStatusIndex Fix
+
+### Fixed
+- **DynamoDB ValidationException**: Resolved "empty string value not supported for secondary index key" error
+  - Root cause: `verificationStatus` field was empty, violating DynamoDB VerificationStatusIndex constraint
+  - Added validation in `validateVerificationResultItem()` to ensure verificationStatus is not empty
+  - Implemented default value logic: uses "SUCCESSED" when Turn2 parsing fails but workflow completes
+  - Enhanced Turn2 parser to handle multiple verification status formats including markdown bullet points
+
+### Enhanced
+- **Turn2 Response Parser Robustness**: Improved extraction of verification status from AI responses
+  - Added support for markdown bullet point format: `* **VERIFICATION STATUS:** CORRECT/INCORRECT`
+  - Enhanced regex patterns for case-insensitive matching of verification status
+  - Added fallback parsing for various status formats (status, outcome, verification outcome)
+  - Comprehensive test coverage for all supported parsing formats
+
+- **Verification Status Semantics**: Clear distinction between AI results and workflow status
+  - `CORRECT`/`INCORRECT`: Actual AI verification results from Turn2 analysis
+  - `SUCCESSED`: Workflow completion fallback when AI result cannot be parsed
+  - Enhanced logging to distinguish between parsed AI results and fallback values
+  - Updated comments and documentation to clarify semantic differences
+
+### Technical Details
+- **DynamoDB Constraint**: VerificationStatusIndex requires non-empty string values for hash key
+- **Default Value Logic**: "SUCCESSED" indicates successful workflow completion when AI result unavailable
+- **Parser Patterns**: Added regex support for `* **VERIFICATION STATUS:** VALUE` markdown format
+- **Validation Enhancement**: Pre-storage validation prevents DynamoDB errors at source
+- **Test Coverage**: Comprehensive unit tests for parser and validation functions
+
 ## [1.4.0] - 2025-01-06 - Enhanced DynamoDB Error Handling & Diagnostics
 
 ### Fixed
