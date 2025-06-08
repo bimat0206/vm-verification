@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.2] - 2025-06-09
+
+### Fixed
+- **Compatibility**: Added fallback handling for `previousVerificationID` field
+  name variant to ensure `previousVerificationId` is always recognized
+
+
 ## [4.4.1] - 2025-06-08
 
 ### Fixed
