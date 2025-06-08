@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.4.3] - 2025-06-10
+
+### Changed
+- Removed fallback support for `previousVerificationID` field name. Only
+  `previousVerificationId` is now recognised.
+
 ## [4.4.2] - 2025-06-09
 
 ### Fixed
