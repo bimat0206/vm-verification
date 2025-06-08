@@ -1,5 +1,44 @@
 # Changelog
 
+## [4.4.4] - 2025-06-08
+
+### Fixed
+- **CRITICAL**: Fixed "PreviousVerificationId is required for PREVIOUS_VS_CURRENT verification type: missing previousVerificationId" error when previousVerificationId is present in state input
+- **Root Cause**: Enhanced `getStringValue` helper function was not properly handling all data types during manual field extraction from `map[string]interface{}` to `schema.VerificationContext`
+- **Solution**: Improved type handling in `getStringValue` function to properly handle pointer types and edge cases
+- Enhanced JSON marshaling/unmarshaling debugging with detailed logging to track conversion process
+- Added comprehensive logging of raw field values and conversion attempts to identify type conversion issues
+
+### Added
+- **Enhanced Type Handling**: Improved `getStringValue` function to handle `*string` pointer types and other edge cases
+- **Detailed Conversion Logging**: Added JSON string logging during marshaling/unmarshaling process for better debugging
+- **Error Context**: Enhanced error logging to include JSON strings and conversion details when JSON unmarshaling fails
+- **Comprehensive Debug Logging**: Added extensive debugging throughout the data loading and validation pipeline:
+  - Raw S3 data inspection with type information
+  - Verification context extraction tracking
+  - Field-by-field validation debugging
+  - Complete data flow tracing from S3 → map → struct → validation
+
+### Changed
+- **Field Extraction**: Improved reliability of manual field extraction as fallback when JSON conversion fails
+- **Debugging Output**: Enhanced logging to include both successful and failed conversion attempts with detailed context
+- **Type Safety**: Better handling of nil values and edge cases in string conversion
+- **Validation Debugging**: Added comprehensive pre-validation logging to track exact field values and types
+
+### Technical Details
+- **Issue**: The `getStringValue` function was not handling all possible data types correctly, particularly pointer types
+- **Fix**: Added support for `*string` pointer types and improved edge case handling in type conversion
+- **Architecture**: Maintained JSON marshaling as primary conversion method while improving fallback reliability
+- **Debugging**: Added comprehensive logging to track the entire conversion process from map to struct
+- **Data Flow Tracing**: Enhanced logging covers complete data pipeline from S3 storage through validation
+
+### Impact
+- Eliminates false positive validation errors when `previousVerificationId` is present in the state input
+- Provides more reliable field extraction from complex nested data structures
+- Improves debugging capabilities for field conversion issues
+- Maintains backward compatibility while enhancing type safety
+- Enables rapid diagnosis of data conversion and validation issues through comprehensive logging
+
 ## [4.4.3] - 2025-06-10
 
 ### Changed

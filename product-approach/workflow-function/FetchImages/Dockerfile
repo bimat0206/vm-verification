@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.5
 FROM golang:1.24-alpine AS builder
 
 # Install necessary packages
@@ -10,34 +11,17 @@ RUN apk add --no-cache \
 # Set up working directory
 WORKDIR /build
 
-# Copy the entire build context (includes FetchImages and shared modules)
-COPY . .
-
-# Verify the structure (for debugging)
-RUN echo "Build context contents:" && ls -la
-RUN echo "Shared modules:" && ls -la ./shared/ || echo "Shared modules not found"
-
-# Set Go environment variables for proper module resolution
-ENV GO111MODULE=on
-ENV GOPROXY=direct
-ENV GOSUMDB=off
-
-# Download dependencies first (this will use the modified go.mod with correct paths)
-RUN go mod download
-
-# Verify go.mod content
-RUN echo "Current go.mod content:" && cat go.mod
-
 # Build the application for AWS Lambda ARM64 (Graviton)
-RUN --mount=type=cache,target=/root/.cache \
+RUN --mount=type=bind,target=. \
+    --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg/mod \
-    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o main ./cmd/fetchimages
+    GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags="-s -w" -o /main ./cmd/fetchimages
 
 # Use AWS Lambda provided base image for ARM64
 FROM public.ecr.aws/lambda/provided:al2-arm64
 
 # Copy compiled binary from builder stage
-COPY --from=builder /build/main /var/task/main
+COPY --from=builder /main /var/task/main
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Set the binary as the Lambda handler
