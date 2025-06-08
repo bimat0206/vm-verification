@@ -71,8 +71,8 @@ func (s *FetchService) ProcessRequest(
 	case map[string]interface{}:
 		// Try to extract key fields from map
 		s.logger.Info("Extracting verification context from map", map[string]interface{}{
-			"mapKeys": getMapKeys(v),
-			"previousVerificationId": getStringValue(v, "previousVerificationId"),
+			"mapKeys":                   getMapKeys(v),
+			"previousVerificationId":    getStringValue(v, "previousVerificationId", "previousVerificationID"),
 			"rawPreviousVerificationId": v["previousVerificationId"],
 		})
 
@@ -99,7 +99,7 @@ func (s *FetchService) ProcessRequest(
 					CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
 					LayoutId:               getIntValue(v, "layoutId"),
 					LayoutPrefix:           getStringValue(v, "layoutPrefix"),
-					PreviousVerificationId: getStringValue(v, "previousVerificationId"),
+					PreviousVerificationId: getStringValue(v, "previousVerificationId", "previousVerificationID"),
 					VendingMachineId:       getStringValue(v, "vendingMachineId"),
 				}
 			}
@@ -115,7 +115,7 @@ func (s *FetchService) ProcessRequest(
 				CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
 				LayoutId:               getIntValue(v, "layoutId"),
 				LayoutPrefix:           getStringValue(v, "layoutPrefix"),
-				PreviousVerificationId: getStringValue(v, "previousVerificationId"),
+				PreviousVerificationId: getStringValue(v, "previousVerificationId", "previousVerificationID"),
 				VendingMachineId:       getStringValue(v, "vendingMachineId"),
 			}
 		}
@@ -124,7 +124,7 @@ func (s *FetchService) ProcessRequest(
 			"verificationId":         verificationContext.VerificationId,
 			"verificationType":       verificationContext.VerificationType,
 			"previousVerificationId": verificationContext.PreviousVerificationId,
-			"isEmpty": verificationContext.PreviousVerificationId == "",
+			"isEmpty":                verificationContext.PreviousVerificationId == "",
 		})
 	default:
 		return nil, models.NewProcessingError(
@@ -259,7 +259,7 @@ func (s *FetchService) loadVerificationContext(
 				s.logger.Info("Found InitializationData with schema version", map[string]interface{}{
 					"schemaVersion": schemaVersion,
 				})
-				
+
 				// Extract verificationContext from InitializationData
 				if vcData, hasVC := dataMap["verificationContext"]; hasVC {
 					return vcData, nil
@@ -509,9 +509,22 @@ func (s *FetchService) fetchAllDataInParallel(
 
 // Helper functions for working with map values
 
-// getStringValue extracts a string value from a map
-func getStringValue(m map[string]interface{}, key string) string {
+// getStringValue retrieves a string value from the map. If the exact key does
+// not exist, additional fallback keys can be supplied. The first matching key
+// will be used. This is helpful when dealing with inconsistent field
+// capitalisation such as previousVerificationId vs previousVerificationID.
+func getStringValue(m map[string]interface{}, key string, fallbacks ...string) string {
 	val, exists := m[key]
+	if !exists {
+		for _, fb := range fallbacks {
+			if v, ok := m[fb]; ok {
+				val = v
+				exists = true
+				break
+			}
+		}
+	}
+
 	if !exists {
 		return ""
 	}
