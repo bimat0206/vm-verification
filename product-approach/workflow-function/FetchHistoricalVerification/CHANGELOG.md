@@ -2,6 +2,29 @@
 
 All notable changes to the FetchHistoricalVerification Lambda function will be documented in this file.
 
+## [1.2.2] - 2025-06-07
+
+### Added
+- **VerificationContext Output**: Added `verificationContext` field to the function output to support Step Function integration
+  - Includes complete verification context with `verificationId`, `verificationAt`, `status`, `verificationType`
+  - Contains `referenceImageUrl` and `checkingImageUrl` for downstream processing
+  - Provides `resourceValidation` with validation timestamp and image existence flags
+  - Maintains compatibility with existing S3 state management while providing direct context access
+
+### Changed
+- **OutputEvent Structure**: Enhanced `OutputEvent` type to include optional `VerificationContext` field
+- **Response Building**: Modified main handler to construct and include verification context in output
+- **Status Management**: Verification context status is set to `HISTORICAL_CONTEXT_LOADED` upon successful processing
+
+### Fixed
+- **Step Function Integration**: Resolved JSONPath error where `$.verificationContext` was not found in function output
+- **FetchImages Compatibility**: Ensured downstream FetchImages function receives expected verification context structure
+
+### Technical Details
+- Added `createVerificationContext()` function to build standardized verification context from input
+- Resource validation assumes images exist during processing (validation performed by upstream functions)
+- Maintains backward compatibility with existing S3 state-based context loading
+
 ## [1.2.1] - 2025-06-05
 
 ### Fixed

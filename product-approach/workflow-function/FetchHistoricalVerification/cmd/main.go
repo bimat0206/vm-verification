@@ -53,7 +53,6 @@ func handler(ctx context.Context, event map[string]interface{}) (internal.Output
 	}
 
 	service := internal.NewHistoricalVerificationService(deps.GetDynamoRepo(), logger)
-	start := time.Now()
 	result, err := service.FetchHistoricalVerification(ctx, vCtx)
 	if err != nil {
 		logger.Error("Error fetching historical verification", map[string]interface{}{"error": err.Error()})
@@ -66,20 +65,15 @@ func handler(ctx context.Context, event map[string]interface{}) (internal.Output
 	}
 
 	envelope.SetStatus(schema.StatusHistoricalContextLoaded)
-	if envelope.Summary == nil {
-		envelope.Summary = make(map[string]interface{})
-	}
-	envelope.Summary["historicalDataFound"] = true
-	envelope.Summary["previousVerificationId"] = result.PreviousVerificationID
-	envelope.Summary["previousVerificationAt"] = result.PreviousVerificationAt
-	envelope.Summary["previousStatus"] = result.PreviousVerificationStatus
-	envelope.Summary["processingTimeMs"] = time.Since(start).Milliseconds()
+
+	// Create verification context for output
+	verificationContext := createVerificationContext(vCtx, result)
 
 	return internal.OutputEvent{
-		VerificationID: envelope.VerificationID,
-		S3References:   envelope.References,
-		Status:         envelope.Status,
-		Summary:        envelope.Summary,
+		VerificationID:      envelope.VerificationID,
+		S3References:        envelope.References,
+		Status:              envelope.Status,
+		VerificationContext: verificationContext,
 	}, nil
 }
 
@@ -118,6 +112,51 @@ func validateInput(ctx schema.VerificationContext) error {
 		return errors.NewMissingFieldError("checkingImageUrl")
 	}
 	return nil
+}
+
+// createVerificationContext creates an enhanced verification context for the output
+func createVerificationContext(inputCtx schema.VerificationContext, historicalResult internal.HistoricalContext) *internal.EnhancedVerificationContext {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Create the base verification context
+	baseVerificationContext := &schema.VerificationContext{
+		VerificationId:    inputCtx.VerificationId,
+		VerificationAt:    inputCtx.VerificationAt,
+		Status:            schema.StatusHistoricalContextLoaded,
+		VerificationType:  inputCtx.VerificationType,
+		ReferenceImageUrl: inputCtx.ReferenceImageUrl,
+		CheckingImageUrl:  inputCtx.CheckingImageUrl,
+		VendingMachineId:  inputCtx.VendingMachineId,
+		LayoutId:          inputCtx.LayoutId,
+		LayoutPrefix:      inputCtx.LayoutPrefix,
+		PreviousVerificationId: inputCtx.PreviousVerificationId,
+		ResourceValidation: &schema.ResourceValidation{
+			ReferenceImageExists: true, // Assume true since we're processing
+			CheckingImageExists:  true, // Assume true since we're processing
+			ValidationTimestamp:  now,
+		},
+		RequestMetadata: inputCtx.RequestMetadata,
+		TurnConfig:      inputCtx.TurnConfig,
+		TurnTimestamps:  inputCtx.TurnTimestamps,
+		Error:           inputCtx.Error,
+	}
+
+	// Create enhanced verification context with historical data
+	enhancedContext := &internal.EnhancedVerificationContext{
+		VerificationContext: baseVerificationContext,
+		HistoricalDataFound: historicalResult.HistoricalDataFound,
+		SourceType:          historicalResult.SourceType,
+		Turn2Processed:      historicalResult.Turn2Processed,
+	}
+
+	// Add previous verification data if available
+	if historicalResult.PreviousVerification != nil {
+		enhancedContext.PreviousVerificationId = historicalResult.PreviousVerification.VerificationID
+		enhancedContext.PreviousVerificationAt = historicalResult.PreviousVerification.VerificationAt
+		enhancedContext.PreviousStatus = historicalResult.PreviousVerification.VerificationStatus
+	}
+
+	return enhancedContext
 }
 
 func main() {

@@ -4,18 +4,20 @@ import (
 	"os"
 	"workflow-function/shared/logger"
 
+	"workflow-function/shared/s3state"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"workflow-function/shared/s3state"
 )
 
 // ConfigVars contains environment configuration values
 type ConfigVars struct {
-	VerificationTable string
-	CheckingBucket    string
-	StateBucket       string
-	Region            string
-	LogLevel          string
+	VerificationTable   string
+	ConversationTable   string
+	CheckingBucket      string
+	StateBucket         string
+	Region              string
+	LogLevel            string
 }
 
 // Dependencies contains all external dependencies required by the service
@@ -35,7 +37,7 @@ func NewDependencies(awsConfig aws.Config, config ConfigVars) (*Dependencies, er
 	log := logger.New("kootoro-verification", "FetchHistoricalVerification")
 
 	// Create DynamoDB repository
-	dynamoRepo := NewDynamoDBRepository(dbClient, config.VerificationTable, log)
+	dynamoRepo := NewDynamoDBRepository(dbClient, config.VerificationTable, config.ConversationTable, log)
 
 	// Initialize S3 state manager
 	mgr, err := s3state.New(config.StateBucket)
@@ -75,6 +77,7 @@ func (d *Dependencies) GetDBClient() *dynamodb.Client {
 func LoadConfig() ConfigVars {
 	return ConfigVars{
 		VerificationTable: getEnvWithDefault("DYNAMODB_VERIFICATION_TABLE", "VerificationResults"),
+		ConversationTable: getEnvWithDefault("DYNAMODB_CONVERSATION_TABLE", "ConversationHistory"),
 		CheckingBucket:    getEnvWithDefault("CHECKING_BUCKET", "kootoro-checking-bucket"),
 		StateBucket:       getEnvWithDefault("STATE_BUCKET", ""),
 		Region:            getEnvWithDefault("AWS_REGION", "us-east-1"),
