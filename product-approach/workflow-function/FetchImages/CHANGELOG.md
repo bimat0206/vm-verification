@@ -1,5 +1,37 @@
 # Changelog
 
+## [4.4.1] - 2025-06-08
+
+### Fixed
+- **CRITICAL**: Fixed "PreviousVerificationId is required for PREVIOUS_VS_CURRENT verification type: missing previousVerificationId" error
+- **Root Cause**: Manual field extraction from `map[string]interface{}` to `schema.VerificationContext` was not properly handling the `previousVerificationId` field
+- **Solution**: Implemented JSON marshaling/unmarshaling approach for reliable type conversion from map to struct
+- Enhanced field extraction logic with comprehensive debugging and fallback mechanisms
+- Fixed verification context loading to properly preserve all fields including `previousVerificationId` when converting from map format
+
+### Added
+- **JSON-based Conversion**: Added primary conversion method using `json.Marshal` and `json.Unmarshal` for reliable map-to-struct conversion
+- **Enhanced Debugging**: Added comprehensive logging to track field extraction process and identify conversion issues
+- **Fallback Mechanism**: Added fallback to manual field extraction if JSON conversion fails
+- **Raw Value Logging**: Added logging of raw field values to help diagnose type conversion issues
+
+### Changed
+- **Field Extraction Strategy**: Modified verification context loading to use JSON marshaling as primary method instead of manual field extraction
+- **Error Handling**: Enhanced error handling with detailed logging of conversion attempts and failures
+- **Type Conversion**: Improved type safety by leveraging Go's JSON marshaling for automatic field mapping
+
+### Technical Details
+- **Issue**: The `getStringValue` function was working correctly, but the manual field extraction approach was less reliable than JSON conversion
+- **Architecture**: Maintained backward compatibility while improving conversion reliability through JSON marshaling
+- **Performance**: Minimal performance impact as JSON conversion is efficient and only used when processing map[string]interface{} types
+- **Debugging**: Added extensive logging to track the conversion process and identify any remaining issues
+
+### Impact
+- Eliminates validation errors for PREVIOUS_VS_CURRENT verification type when `previousVerificationId` is present in the state
+- Provides more reliable field extraction from initialization data loaded from S3
+- Improves overall robustness of verification context processing
+- Maintains full backward compatibility with existing workflows
+
 ## [4.4.0] - 2025-06-02
 
 ### Fixed

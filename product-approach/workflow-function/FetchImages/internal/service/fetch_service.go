@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -69,16 +70,62 @@ func (s *FetchService) ProcessRequest(
 		verificationContext = &v
 	case map[string]interface{}:
 		// Try to extract key fields from map
-		verificationContext = &schema.VerificationContext{
-			VerificationId:         getStringValue(v, "verificationId"),
-			VerificationType:       getStringValue(v, "verificationType"),
-			ReferenceImageUrl:      getStringValue(v, "referenceImageUrl"),
-			CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
-			LayoutId:               getIntValue(v, "layoutId"),
-			LayoutPrefix:           getStringValue(v, "layoutPrefix"),
-			PreviousVerificationId: getStringValue(v, "previousVerificationId"),
-			VendingMachineId:       getStringValue(v, "vendingMachineId"),
+		s.logger.Info("Extracting verification context from map", map[string]interface{}{
+			"mapKeys": getMapKeys(v),
+			"previousVerificationId": getStringValue(v, "previousVerificationId"),
+			"rawPreviousVerificationId": v["previousVerificationId"],
+		})
+
+		// Try JSON marshaling/unmarshaling approach first for better type conversion
+		jsonBytes, err := json.Marshal(v)
+		if err == nil {
+			var tempVC schema.VerificationContext
+			if err := json.Unmarshal(jsonBytes, &tempVC); err == nil {
+				verificationContext = &tempVC
+				s.logger.Info("Successfully converted via JSON marshaling", map[string]interface{}{
+					"verificationId":         verificationContext.VerificationId,
+					"verificationType":       verificationContext.VerificationType,
+					"previousVerificationId": verificationContext.PreviousVerificationId,
+				})
+			} else {
+				s.logger.Warn("JSON unmarshaling failed, falling back to manual extraction", map[string]interface{}{
+					"error": err.Error(),
+				})
+				// Fall back to manual extraction
+				verificationContext = &schema.VerificationContext{
+					VerificationId:         getStringValue(v, "verificationId"),
+					VerificationType:       getStringValue(v, "verificationType"),
+					ReferenceImageUrl:      getStringValue(v, "referenceImageUrl"),
+					CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
+					LayoutId:               getIntValue(v, "layoutId"),
+					LayoutPrefix:           getStringValue(v, "layoutPrefix"),
+					PreviousVerificationId: getStringValue(v, "previousVerificationId"),
+					VendingMachineId:       getStringValue(v, "vendingMachineId"),
+				}
+			}
+		} else {
+			s.logger.Warn("JSON marshaling failed, using manual extraction", map[string]interface{}{
+				"error": err.Error(),
+			})
+			// Fall back to manual extraction
+			verificationContext = &schema.VerificationContext{
+				VerificationId:         getStringValue(v, "verificationId"),
+				VerificationType:       getStringValue(v, "verificationType"),
+				ReferenceImageUrl:      getStringValue(v, "referenceImageUrl"),
+				CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
+				LayoutId:               getIntValue(v, "layoutId"),
+				LayoutPrefix:           getStringValue(v, "layoutPrefix"),
+				PreviousVerificationId: getStringValue(v, "previousVerificationId"),
+				VendingMachineId:       getStringValue(v, "vendingMachineId"),
+			}
 		}
+
+		s.logger.Info("Final extracted verification context", map[string]interface{}{
+			"verificationId":         verificationContext.VerificationId,
+			"verificationType":       verificationContext.VerificationType,
+			"previousVerificationId": verificationContext.PreviousVerificationId,
+			"isEmpty": verificationContext.PreviousVerificationId == "",
+		})
 	default:
 		return nil, models.NewProcessingError(
 			"unsupported verification context type",
@@ -464,10 +511,21 @@ func (s *FetchService) fetchAllDataInParallel(
 
 // getStringValue extracts a string value from a map
 func getStringValue(m map[string]interface{}, key string) string {
-	if val, ok := m[key].(string); ok {
-		return val
+	val, exists := m[key]
+	if !exists {
+		return ""
 	}
-	return ""
+
+	// Handle different types that might be stored as strings
+	switch v := val.(type) {
+	case string:
+		return v
+	case nil:
+		return ""
+	default:
+		// Try to convert to string for debugging
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // getIntValue extracts an int value from a map
