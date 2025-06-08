@@ -66,14 +66,20 @@ func handler(ctx context.Context, event map[string]interface{}) (internal.Output
 
 	envelope.SetStatus(schema.StatusHistoricalContextLoaded)
 
-	// Create verification context for output
-	verificationContext := createVerificationContext(vCtx, result)
+	// Create enhanced verification context with historical data
+	enhancedVerificationContext := createEnhancedVerificationContext(vCtx, result)
+
+	// Update the initialization.json file with the enhanced verification context
+	if err := updateInitializationFile(deps.GetStateManager(), initRef, enhancedVerificationContext, logger); err != nil {
+		logger.Error("Failed to update initialization file", map[string]interface{}{"error": err.Error()})
+		return internal.OutputEvent{}, fmt.Errorf("failed to update initialization file: %w", err)
+	}
 
 	return internal.OutputEvent{
 		VerificationID:      envelope.VerificationID,
 		S3References:        envelope.References,
 		Status:              envelope.Status,
-		VerificationContext: verificationContext,
+		VerificationContext: enhancedVerificationContext,
 	}, nil
 }
 
@@ -114,31 +120,43 @@ func validateInput(ctx schema.VerificationContext) error {
 	return nil
 }
 
-// createVerificationContext creates an enhanced verification context for the output
-func createVerificationContext(inputCtx schema.VerificationContext, historicalResult internal.HistoricalContext) *internal.EnhancedVerificationContext {
+// createEnhancedVerificationContext creates an enhanced verification context for updating initialization.json
+func createEnhancedVerificationContext(inputCtx schema.VerificationContext, historicalResult internal.HistoricalContext) *internal.EnhancedVerificationContext {
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	// Create the base verification context
+	// Create the base verification context with all original fields preserved
 	baseVerificationContext := &schema.VerificationContext{
-		VerificationId:    inputCtx.VerificationId,
-		VerificationAt:    inputCtx.VerificationAt,
-		Status:            schema.StatusHistoricalContextLoaded,
-		VerificationType:  inputCtx.VerificationType,
-		ReferenceImageUrl: inputCtx.ReferenceImageUrl,
-		CheckingImageUrl:  inputCtx.CheckingImageUrl,
-		VendingMachineId:  inputCtx.VendingMachineId,
-		LayoutId:          inputCtx.LayoutId,
-		LayoutPrefix:      inputCtx.LayoutPrefix,
+		VerificationId:         inputCtx.VerificationId,
+		VerificationAt:         inputCtx.VerificationAt,
+		Status:                 schema.StatusHistoricalContextLoaded,
+		VerificationType:       inputCtx.VerificationType,
+		ConversationType:       inputCtx.ConversationType,
+		VendingMachineId:       inputCtx.VendingMachineId,
+		LayoutId:               inputCtx.LayoutId,
+		LayoutPrefix:           inputCtx.LayoutPrefix,
+		ReferenceImageUrl:      inputCtx.ReferenceImageUrl,
+		CheckingImageUrl:       inputCtx.CheckingImageUrl,
 		PreviousVerificationId: inputCtx.PreviousVerificationId,
-		ResourceValidation: &schema.ResourceValidation{
+		ResourceValidation:     inputCtx.ResourceValidation,
+		RequestMetadata:        inputCtx.RequestMetadata,
+		TurnConfig:             inputCtx.TurnConfig,
+		TurnTimestamps:         inputCtx.TurnTimestamps,
+		LastUpdatedAt:          now,
+		Error:                  inputCtx.Error,
+		// Copy enhanced fields if they exist
+		CurrentStatus:     inputCtx.CurrentStatus,
+		StatusHistory:     inputCtx.StatusHistory,
+		ProcessingMetrics: inputCtx.ProcessingMetrics,
+		ErrorTracking:     inputCtx.ErrorTracking,
+	}
+
+	// Ensure ResourceValidation exists
+	if baseVerificationContext.ResourceValidation == nil {
+		baseVerificationContext.ResourceValidation = &schema.ResourceValidation{
 			ReferenceImageExists: true, // Assume true since we're processing
 			CheckingImageExists:  true, // Assume true since we're processing
 			ValidationTimestamp:  now,
-		},
-		RequestMetadata: inputCtx.RequestMetadata,
-		TurnConfig:      inputCtx.TurnConfig,
-		TurnTimestamps:  inputCtx.TurnTimestamps,
-		Error:           inputCtx.Error,
+		}
 	}
 
 	// Create enhanced verification context with historical data
@@ -157,6 +175,78 @@ func createVerificationContext(inputCtx schema.VerificationContext, historicalRe
 	}
 
 	return enhancedContext
+}
+
+// updateInitializationFile updates the initialization.json file with enhanced verification context
+func updateInitializationFile(stateManager s3state.Manager, initRef *s3state.Reference, enhancedCtx *internal.EnhancedVerificationContext, logger interface{}) error {
+	// Load the current initialization data
+	var initData struct {
+		SchemaVersion       string                      `json:"schemaVersion"`
+		VerificationContext *schema.VerificationContext `json:"verificationContext"`
+		SystemPrompt        map[string]interface{}      `json:"systemPrompt,omitempty"`
+		LayoutMetadata      interface{}                 `json:"layoutMetadata,omitempty"`
+	}
+
+	if err := stateManager.RetrieveJSON(initRef, &initData); err != nil {
+		return fmt.Errorf("failed to load initialization data: %w", err)
+	}
+
+	// Update the verification context with enhanced data
+	// First, preserve the original verification context fields
+	originalCtx := initData.VerificationContext
+	if originalCtx != nil {
+		// Update the status and timestamp
+		originalCtx.Status = schema.StatusHistoricalContextLoaded
+		originalCtx.LastUpdatedAt = enhancedCtx.VerificationContext.LastUpdatedAt
+
+		// Add the enhanced fields as custom fields in the verification context
+		// Since we can't modify the schema.VerificationContext directly, we'll create a custom structure
+	}
+
+	// Create a new structure that includes both the original verification context and the enhanced fields
+	enhancedInitData := map[string]interface{}{
+		"schemaVersion": initData.SchemaVersion,
+		"verificationContext": map[string]interface{}{
+			// Copy all original fields
+			"verificationId":         enhancedCtx.VerificationContext.VerificationId,
+			"verificationAt":         enhancedCtx.VerificationContext.VerificationAt,
+			"status":                 enhancedCtx.VerificationContext.Status,
+			"verificationType":       enhancedCtx.VerificationContext.VerificationType,
+			"conversationType":       enhancedCtx.VerificationContext.ConversationType,
+			"vendingMachineId":       enhancedCtx.VerificationContext.VendingMachineId,
+			"layoutId":               enhancedCtx.VerificationContext.LayoutId,
+			"layoutPrefix":           enhancedCtx.VerificationContext.LayoutPrefix,
+			"referenceImageUrl":      enhancedCtx.VerificationContext.ReferenceImageUrl,
+			"checkingImageUrl":       enhancedCtx.VerificationContext.CheckingImageUrl,
+			"previousVerificationId": enhancedCtx.VerificationContext.PreviousVerificationId,
+			"resourceValidation":     enhancedCtx.VerificationContext.ResourceValidation,
+			"requestMetadata":        enhancedCtx.VerificationContext.RequestMetadata,
+			"turnConfig":             enhancedCtx.VerificationContext.TurnConfig,
+			"turnTimestamps":         enhancedCtx.VerificationContext.TurnTimestamps,
+			"lastUpdatedAt":          enhancedCtx.VerificationContext.LastUpdatedAt,
+			"error":                  enhancedCtx.VerificationContext.Error,
+			"currentStatus":          enhancedCtx.VerificationContext.CurrentStatus,
+			"statusHistory":          enhancedCtx.VerificationContext.StatusHistory,
+			"processingMetrics":      enhancedCtx.VerificationContext.ProcessingMetrics,
+			"errorTracking":          enhancedCtx.VerificationContext.ErrorTracking,
+			// Add the enhanced historical fields
+			"previousVerificationAt": enhancedCtx.PreviousVerificationAt,
+			"turn2Processed":         enhancedCtx.Turn2Processed,
+			"historicalDataFound":    enhancedCtx.HistoricalDataFound,
+			"sourceType":             enhancedCtx.SourceType,
+			"previousStatus":         enhancedCtx.PreviousStatus,
+		},
+		"systemPrompt":   initData.SystemPrompt,
+		"layoutMetadata": initData.LayoutMetadata,
+	}
+
+	// Save the updated initialization data back to S3
+	_, err := stateManager.StoreJSON("", initRef.Key, enhancedInitData)
+	if err != nil {
+		return fmt.Errorf("failed to save updated initialization data: %w", err)
+	}
+
+	return nil
 }
 
 func main() {
