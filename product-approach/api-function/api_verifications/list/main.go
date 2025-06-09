@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	log                    *logrus.Logger
+	log                   *logrus.Logger
 	dynamoClient          *dynamodb.Client
 	verificationTableName string
 	conversationTableName string
@@ -29,22 +29,23 @@ var (
 
 // VerificationRecord represents a verification record from DynamoDB
 type VerificationRecord struct {
-	VerificationID       string                 `json:"verificationId" dynamodbav:"verificationId"`
-	VerificationAt       string                 `json:"verificationAt" dynamodbav:"verificationAt"`
-	VerificationStatus   string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
-	VerificationType     string                 `json:"verificationType" dynamodbav:"verificationType"`
-	VendingMachineID     string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
-	ReferenceImageURL    string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
-	CheckingImageURL     string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
-	LayoutID             *int                   `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
-	LayoutPrefix         *string                `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
-	OverallAccuracy      *float64               `json:"overallAccuracy,omitempty" dynamodbav:"overallAccuracy,omitempty"`
-	CorrectPositions     *int                   `json:"correctPositions,omitempty" dynamodbav:"correctPositions,omitempty"`
-	DiscrepantPositions  *int                   `json:"discrepantPositions,omitempty" dynamodbav:"discrepantPositions,omitempty"`
-	Result               map[string]interface{} `json:"result,omitempty" dynamodbav:"result,omitempty"`
-	VerificationSummary  map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
-	CreatedAt            string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
-	UpdatedAt            string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
+	VerificationID         string                 `json:"verificationId" dynamodbav:"verificationId"`
+	VerificationAt         string                 `json:"verificationAt" dynamodbav:"verificationAt"`
+	VerificationStatus     string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
+	VerificationType       string                 `json:"verificationType" dynamodbav:"verificationType"`
+	VendingMachineID       string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	ReferenceImageURL      string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
+	CheckingImageURL       string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
+	LayoutID               *int                   `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
+	LayoutPrefix           *string                `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
+	OverallAccuracy        *float64               `json:"overallAccuracy,omitempty" dynamodbav:"overallAccuracy,omitempty"`
+	CorrectPositions       *int                   `json:"correctPositions,omitempty" dynamodbav:"correctPositions,omitempty"`
+	DiscrepantPositions    *int                   `json:"discrepantPositions,omitempty" dynamodbav:"discrepantPositions,omitempty"`
+	Result                 map[string]interface{} `json:"result,omitempty" dynamodbav:"result,omitempty"`
+	VerificationSummary    map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
+	CreatedAt              string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
+	UpdatedAt              string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
+	PreviousVerificationID *string                `json:"previousVerificationId,omitempty" dynamodbav:"previousVerificationId,omitempty"`
 }
 
 // ListVerificationsResponse represents the API response structure
@@ -184,8 +185,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 func parseQueryParams(params map[string]string) (*QueryParams, error) {
 	queryParams := &QueryParams{
-		Limit:  20, // default limit
-		Offset: 0,  // default offset
+		Limit:  20,                    // default limit
+		Offset: 0,                     // default offset
 		SortBy: "verificationAt:desc", // default sort
 	}
 
@@ -242,10 +243,10 @@ func parseQueryParams(params map[string]string) (*QueryParams, error) {
 	// Parse sort by
 	if sortBy := params["sortBy"]; sortBy != "" {
 		validSorts := map[string]bool{
-			"verificationAt:desc":     true,
-			"verificationAt:asc":      true,
-			"overallAccuracy:desc":    true,
-			"overallAccuracy:asc":     true,
+			"verificationAt:desc":  true,
+			"verificationAt:asc":   true,
+			"overallAccuracy:desc": true,
+			"overallAccuracy:asc":  true,
 		}
 		if !validSorts[sortBy] {
 			return nil, fmt.Errorf("invalid sortBy: must be one of verificationAt:desc, verificationAt:asc, overallAccuracy:desc, overallAccuracy:asc")
@@ -378,9 +379,9 @@ func queryByStatus(ctx context.Context, params *QueryParams) ([]map[string]types
 	}
 
 	log.WithFields(logrus.Fields{
-		"indexName":     "VerificationStatusIndex",
-		"keyCondition":  keyCondition,
-		"filterExpr":    input.FilterExpression,
+		"indexName":    "VerificationStatusIndex",
+		"keyCondition": keyCondition,
+		"filterExpr":   input.FilterExpression,
 	}).Debug("Querying DynamoDB with GSI")
 
 	result, err := dynamoClient.Query(ctx, input)

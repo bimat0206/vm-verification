@@ -131,8 +131,8 @@ func init() {
 		"stepFunctionsStateMachine": stepFunctionsStateMachineArn,
 	}).Info("Environment variables loaded")
 
-	// Initialize AWS clients
-	cfg, err := config.LoadDefaultConfig(context.Background())
+	// Initialize AWS clients with explicit region
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"))
 	if err != nil {
 		log.WithError(err).Fatal("unable to load AWS SDK config")
 	}
@@ -172,10 +172,14 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return createErrorResponse(405, "Method not allowed", "Only GET requests are supported", headers)
 	}
 
-	// Extract verificationId from path parameters
+	// Extract verificationId from path parameters or query parameters
 	verificationId := request.PathParameters["verificationId"]
 	if verificationId == "" {
-		return createErrorResponse(400, "Missing parameter", "verificationId path parameter is required", headers)
+		// Fallback to query parameters if path parameter is not available
+		verificationId = request.QueryStringParameters["verificationId"]
+	}
+	if verificationId == "" {
+		return createErrorResponse(400, "Missing parameter", "verificationId path or query parameter is required", headers)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -243,14 +247,17 @@ func getVerificationRecord(ctx context.Context, verificationId string) (*Verific
 		"tableName":      verificationTableName,
 	}).Debug("Querying DynamoDB for verification record")
 
-	// Query DynamoDB using verificationId as the key
+	// Query DynamoDB using verificationId as the hash key (will return all items with this verificationId)
+	// Since the table has a composite key (verificationId + verificationAt), we query by verificationId
+	// and get the most recent record
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(verificationTableName),
 		KeyConditionExpression: aws.String("verificationId = :verificationId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":verificationId": &types.AttributeValueMemberS{Value: verificationId},
 		},
-		Limit: aws.Int32(1), // We only need one record
+		ScanIndexForward: aws.Bool(false), // Sort by verificationAt in descending order (most recent first)
+		Limit:           aws.Int32(1),     // Only get the most recent record
 	}
 
 	result, err := dynamoClient.Query(ctx, input)

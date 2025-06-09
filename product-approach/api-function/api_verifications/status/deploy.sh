@@ -6,8 +6,8 @@
 set -e
 
 # Configuration
-LAMBDA_FUNCTION_NAME="api-verifications-status"
-ECR_REPO_NAME="api-verifications-status"
+LAMBDA_FUNCTION_NAME="kootoro-dev-lambda-api-verifications-status-f6d3xl"
+ECR_REPO_NAME="879654127886.dkr.ecr.us-east-1.amazonaws.com/kootoro-dev-ecr-api-verifications-status-f6d3xl"
 IMAGE_TAG="latest"
 AWS_REGION="us-east-1"
 

@@ -20,36 +20,35 @@ import (
 )
 
 var (
-	log                     *logrus.Logger
-	dynamoClient           *dynamodb.Client
-	s3Client               *s3.Client
-	verificationTableName  string
-	conversationTableName  string
+	log                   *logrus.Logger
+	dynamoClient          *dynamodb.Client
+	s3Client              *s3.Client
+	verificationTableName string
+	conversationTableName string
 )
-
-
 
 // VerificationRecord represents a verification record from DynamoDB verification table
 type VerificationRecord struct {
-	VerificationID       string                 `json:"verificationId" dynamodbav:"verificationId"`
-	VerificationAt       string                 `json:"verificationAt" dynamodbav:"verificationAt"`
-	VerificationStatus   string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
-	VerificationType     string                 `json:"verificationType" dynamodbav:"verificationType"`
-	VendingMachineID     string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
-	ReferenceImageURL    string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
-	CheckingImageURL     string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
-	LayoutID             *int                   `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
-	LayoutPrefix         *string                `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
-	OverallAccuracy      *float64               `json:"overallAccuracy,omitempty" dynamodbav:"overallAccuracy,omitempty"`
-	CorrectPositions     *int                   `json:"correctPositions,omitempty" dynamodbav:"correctPositions,omitempty"`
-	DiscrepantPositions  *int                   `json:"discrepantPositions,omitempty" dynamodbav:"discrepantPositions,omitempty"`
-	Result               map[string]interface{} `json:"result,omitempty" dynamodbav:"result,omitempty"`
-	VerificationSummary  map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
-	CreatedAt            string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
-	UpdatedAt            string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
+	VerificationID         string                 `json:"verificationId" dynamodbav:"verificationId"`
+	VerificationAt         string                 `json:"verificationAt" dynamodbav:"verificationAt"`
+	VerificationStatus     string                 `json:"verificationStatus" dynamodbav:"verificationStatus"`
+	VerificationType       string                 `json:"verificationType" dynamodbav:"verificationType"`
+	VendingMachineID       string                 `json:"vendingMachineId" dynamodbav:"vendingMachineId"`
+	ReferenceImageURL      string                 `json:"referenceImageUrl" dynamodbav:"referenceImageUrl"`
+	CheckingImageURL       string                 `json:"checkingImageUrl" dynamodbav:"checkingImageUrl"`
+	LayoutID               *int                   `json:"layoutId,omitempty" dynamodbav:"layoutId,omitempty"`
+	LayoutPrefix           *string                `json:"layoutPrefix,omitempty" dynamodbav:"layoutPrefix,omitempty"`
+	OverallAccuracy        *float64               `json:"overallAccuracy,omitempty" dynamodbav:"overallAccuracy,omitempty"`
+	CorrectPositions       *int                   `json:"correctPositions,omitempty" dynamodbav:"correctPositions,omitempty"`
+	DiscrepantPositions    *int                   `json:"discrepantPositions,omitempty" dynamodbav:"discrepantPositions,omitempty"`
+	Result                 map[string]interface{} `json:"result,omitempty" dynamodbav:"result,omitempty"`
+	VerificationSummary    map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
+	CreatedAt              string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
+	UpdatedAt              string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
+	PreviousVerificationID *string                `json:"previousVerificationId,omitempty" dynamodbav:"previousVerificationId,omitempty"`
 	// Processed paths from verification metadata
-	Turn1ProcessedPath   string                 `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
-	Turn2ProcessedPath   string                 `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
+	Turn1ProcessedPath string `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
+	Turn2ProcessedPath string `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
 }
 
 // ConversationContent represents content from a single turn
@@ -242,8 +241,6 @@ func createErrorResponse(statusCode int, error, message string, headers map[stri
 		Body:       string(body),
 	}, nil
 }
-
-
 
 func getVerificationRecord(ctx context.Context, verificationId string) (*VerificationRecord, error) {
 	log.WithFields(logrus.Fields{
