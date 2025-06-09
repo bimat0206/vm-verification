@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 	"workflow-function/shared/s3state"
 	"workflow-function/shared/schema"
@@ -39,26 +40,50 @@ func NewFetchService(
 	}
 }
 
-// ProcessRequest orchestrates the fetching of image metadata and related data
+// ProcessRequest orchestrates the fetching of image metadata and related data with comprehensive error logging
 func (s *FetchService) ProcessRequest(
 	ctx context.Context,
 	request *models.FetchImagesRequest,
 ) (*models.FetchImagesResponse, error) {
 	processingStartTime := time.Now()
+	correlationID := fmt.Sprintf("fetch-service-%d", processingStartTime.UnixNano())
+
 	s.logger.Info("Processing FetchImages request", map[string]interface{}{
 		"verificationId": request.VerificationId,
+		"correlationId":  correlationID,
+		"timestamp":      processingStartTime.Format(time.RFC3339),
 	})
 
-	// Load or create envelope
+	// Load or create envelope with enhanced error handling
 	envelope, err := s.stateManager.LoadEnvelope(request)
 	if err != nil {
-		return nil, models.NewProcessingError("failed to load state envelope", err)
+		enhancedErr := errors.NewInternalError("FetchService", err).
+			WithCorrelationID(correlationID).
+			WithContext("operation", "LoadEnvelope").
+			WithContext("verificationId", request.VerificationId)
+
+		s.logger.Error("Failed to load state envelope", map[string]interface{}{
+			"error":          err.Error(),
+			"correlationId":  correlationID,
+			"verificationId": request.VerificationId,
+		})
+		return nil, enhancedErr
 	}
 
-	// Load verification context
+	// Load verification context with enhanced error handling
 	context, err := s.loadVerificationContext(ctx, envelope, request)
 	if err != nil {
-		return nil, models.NewProcessingError("failed to load verification context", err)
+		enhancedErr := errors.NewInternalError("FetchService", err).
+			WithCorrelationID(correlationID).
+			WithContext("operation", "LoadVerificationContext").
+			WithContext("verificationId", request.VerificationId)
+
+		s.logger.Error("Failed to load verification context", map[string]interface{}{
+			"error":          err.Error(),
+			"correlationId":  correlationID,
+			"verificationId": request.VerificationId,
+		})
+		return nil, enhancedErr
 	}
 
 	// Convert to the expected type
@@ -132,48 +157,99 @@ func (s *FetchService) ProcessRequest(
 			"isEmpty":                verificationContext.PreviousVerificationId == "",
 		})
 	default:
-		return nil, models.NewProcessingError(
-			"unsupported verification context type",
-			fmt.Errorf("got type %T, expected schema.VerificationContext", context),
-		)
+		enhancedErr := errors.NewValidationError("Unsupported verification context type", map[string]interface{}{
+			"correlationId":    correlationID,
+			"verificationId":   request.VerificationId,
+			"receivedType":     fmt.Sprintf("%T", context),
+			"expectedType":     "schema.VerificationContext",
+		}).WithCorrelationID(correlationID).WithComponent("FetchService")
+
+		s.logger.Error("Unsupported verification context type", map[string]interface{}{
+			"correlationId":  correlationID,
+			"receivedType":   fmt.Sprintf("%T", context),
+			"expectedType":   "schema.VerificationContext",
+		})
+		return nil, enhancedErr
 	}
 
 	// Set status to IMAGES_FETCHED
 	verificationContext.Status = schema.StatusImagesFetched
 
+	// Extract sourceType and historicalDataFound from raw verification context data
+	var sourceType string
+	var historicalDataFound bool
+
+	// Try to extract these fields from the raw verification context data
+	if rawVCData, ok := context.(map[string]interface{}); ok {
+		if st, exists := rawVCData["sourceType"]; exists {
+			if stStr, ok := st.(string); ok {
+				sourceType = stStr
+			}
+		}
+		if hdf, exists := rawVCData["historicalDataFound"]; exists {
+			if hdfBool, ok := hdf.(bool); ok {
+				historicalDataFound = hdfBool
+			}
+		}
+	}
+
 	// Determine if we need layout or historical data based on verification type
 	var prevVerificationId string
 	if verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		// Add comprehensive debugging before validation
-		s.logger.Error("DEBUGGING: About to validate previousVerificationId", map[string]interface{}{
+		s.logger.Info("DEBUGGING: About to validate previousVerificationId", map[string]interface{}{
 			"verificationType":                    verificationContext.VerificationType,
 			"expectedType":                       schema.VerificationTypePreviousVsCurrent,
 			"typesMatch":                         verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent,
 			"previousVerificationId":             verificationContext.PreviousVerificationId,
 			"previousVerificationIdLength":       len(verificationContext.PreviousVerificationId),
 			"previousVerificationIdIsEmpty":      verificationContext.PreviousVerificationId == "",
-			"previousVerificationIdBytes":        []byte(verificationContext.PreviousVerificationId),
-			"verificationContextPointer":         fmt.Sprintf("%p", verificationContext),
+			"sourceType":                         sourceType,
+			"historicalDataFound":                historicalDataFound,
 			"fullVerificationContext":            fmt.Sprintf("%+v", verificationContext),
 		})
-		
-		// Make sure previousVerificationId exists for PREVIOUS_VS_CURRENT
-		if verificationContext.PreviousVerificationId == "" {
-			s.logger.Error("VALIDATION FAILED: previousVerificationId is empty", map[string]interface{}{
-				"verificationType":           verificationContext.VerificationType,
-				"previousVerificationId":     verificationContext.PreviousVerificationId,
-				"previousVerificationIdLen":  len(verificationContext.PreviousVerificationId),
-				"allFields":                  fmt.Sprintf("%+v", verificationContext),
+
+		// Check if we should bypass previousVerificationId requirement
+		// Allow bypass when sourceType is "NO_HISTORICAL_DATA" or historicalDataFound is false
+		shouldBypassPreviousVerificationId := sourceType == "NO_HISTORICAL_DATA" || !historicalDataFound
+
+		if shouldBypassPreviousVerificationId {
+			s.logger.Info("BYPASSING previousVerificationId validation", map[string]interface{}{
+				"reason":               "No historical data available",
+				"sourceType":           sourceType,
+				"historicalDataFound":  historicalDataFound,
+				"verificationId":       verificationContext.VerificationId,
 			})
-			return nil, models.NewValidationError(
-				"PreviousVerificationId is required for PREVIOUS_VS_CURRENT verification type",
-				fmt.Errorf("missing previousVerificationId"),
-			)
+			// Set empty string to indicate no historical verification needed
+			prevVerificationId = ""
+		} else {
+			// Make sure previousVerificationId exists for PREVIOUS_VS_CURRENT when historical data is expected
+			if verificationContext.PreviousVerificationId == "" {
+				enhancedErr := errors.NewMissingFieldError("previousVerificationId").
+					WithCorrelationID(correlationID).
+					WithComponent("FetchService").
+					WithContext("verificationType", verificationContext.VerificationType).
+					WithContext("verificationId", verificationContext.VerificationId).
+					WithContext("sourceType", sourceType).
+					WithContext("historicalDataFound", historicalDataFound)
+
+				s.logger.Error("VALIDATION FAILED: previousVerificationId is empty", map[string]interface{}{
+					"correlationId":              correlationID,
+					"verificationType":           verificationContext.VerificationType,
+					"verificationId":             verificationContext.VerificationId,
+					"previousVerificationId":     verificationContext.PreviousVerificationId,
+					"previousVerificationIdLen":  len(verificationContext.PreviousVerificationId),
+					"sourceType":                 sourceType,
+					"historicalDataFound":        historicalDataFound,
+					"allFields":                  fmt.Sprintf("%+v", verificationContext),
+				})
+				return nil, enhancedErr
+			}
+			prevVerificationId = verificationContext.PreviousVerificationId
+			s.logger.Info("VALIDATION PASSED: previousVerificationId found", map[string]interface{}{
+				"previousVerificationId": prevVerificationId,
+			})
 		}
-		prevVerificationId = verificationContext.PreviousVerificationId
-		s.logger.Info("VALIDATION PASSED: previousVerificationId found", map[string]interface{}{
-			"previousVerificationId": prevVerificationId,
-		})
 	}
 
 	// Execute parallel operations to fetch everything we need
@@ -185,9 +261,22 @@ func (s *FetchService) ProcessRequest(
 		verificationContext.LayoutId,
 		verificationContext.LayoutPrefix,
 		prevVerificationId,
+
 	)
 	if err != nil {
-		return nil, models.NewProcessingError("failed to fetch required data", err)
+		enhancedErr := errors.NewInternalError("FetchService", err).
+			WithCorrelationID(correlationID).
+			WithContext("operation", "FetchAllDataInParallel").
+			WithContext("verificationId", verificationContext.VerificationId).
+			WithContext("verificationType", verificationContext.VerificationType)
+
+		s.logger.Error("Failed to fetch required data", map[string]interface{}{
+			"error":            err.Error(),
+			"correlationId":    correlationID,
+			"verificationId":   verificationContext.VerificationId,
+			"verificationType": verificationContext.VerificationType,
+		})
+		return nil, enhancedErr
 	}
 
 	// Update envelope status
@@ -209,20 +298,50 @@ func (s *FetchService) ProcessRequest(
 
 	// Store the enhanced metadata instead of the flat structure
 	if err := s.stateManager.StoreImageMetadata(envelope, enhancedMetadata); err != nil {
-		return nil, models.NewProcessingError("failed to store image metadata", err)
+		enhancedErr := errors.NewInternalError("FetchService", err).
+			WithCorrelationID(correlationID).
+			WithContext("operation", "StoreImageMetadata").
+			WithContext("verificationId", verificationContext.VerificationId)
+
+		s.logger.Error("Failed to store image metadata", map[string]interface{}{
+			"error":          err.Error(),
+			"correlationId":  correlationID,
+			"verificationId": verificationContext.VerificationId,
+		})
+		return nil, enhancedErr
 	}
 
 	// Store layout metadata if available
 	if len(results.LayoutMeta) > 0 {
 		if err := s.stateManager.StoreLayoutMetadata(envelope, results.LayoutMeta); err != nil {
-			return nil, models.NewProcessingError("failed to store layout metadata", err)
+			enhancedErr := errors.NewInternalError("FetchService", err).
+				WithCorrelationID(correlationID).
+				WithContext("operation", "StoreLayoutMetadata").
+				WithContext("verificationId", verificationContext.VerificationId)
+
+			s.logger.Error("Failed to store layout metadata", map[string]interface{}{
+				"error":          err.Error(),
+				"correlationId":  correlationID,
+				"verificationId": verificationContext.VerificationId,
+			})
+			return nil, enhancedErr
 		}
 	}
 
 	// Store historical context if available
 	if len(results.HistoricalContext) > 0 {
 		if err := s.stateManager.StoreHistoricalContext(envelope, results.HistoricalContext); err != nil {
-			return nil, models.NewProcessingError("failed to store historical context", err)
+			enhancedErr := errors.NewInternalError("FetchService", err).
+				WithCorrelationID(correlationID).
+				WithContext("operation", "StoreHistoricalContext").
+				WithContext("verificationId", verificationContext.VerificationId)
+
+			s.logger.Error("Failed to store historical context", map[string]interface{}{
+				"error":          err.Error(),
+				"correlationId":  correlationID,
+				"verificationId": verificationContext.VerificationId,
+			})
+			return nil, enhancedErr
 		}
 	}
 
@@ -240,7 +359,17 @@ func (s *FetchService) ProcessRequest(
 		delete(envelope.References, "images_checking_base64")
 	}
 
-	// Create and return response
+	// Create and return response with success metrics
+	processingTime := time.Since(processingStartTime)
+	s.logger.Info("Successfully completed FetchImages processing", map[string]interface{}{
+		"verificationId":   verificationContext.VerificationId,
+		"correlationId":    correlationID,
+		"processingTimeMs": processingTime.Milliseconds(),
+		"status":           schema.StatusImagesFetched,
+		"referenceCount":   len(envelope.References),
+		"timestamp":        time.Now().Format(time.RFC3339),
+	})
+
 	return &models.FetchImagesResponse{
 		VerificationId: verificationContext.VerificationId,
 		S3References:   envelope.References,
@@ -511,20 +640,39 @@ func (s *FetchService) fetchAllDataInParallel(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			
+			// Add extensive debugging before the fetch
+			s.logger.Info("Starting historical verification fetch", map[string]interface{}{
+				"previousVerificationId": prevVerificationId,
+				"previousVerificationIdType": fmt.Sprintf("%T", prevVerificationId),
+				"previousVerificationIdLength": len(prevVerificationId),
+				"tableName": s.dynamoDBRepo.GetTableName(),
+			})
+			
+			// Perform the fetch with enhanced error diagnostics
 			historicalContext, err := s.dynamoDBRepo.FetchHistoricalVerification(ctx, prevVerificationId)
 			mu.Lock()
 			defer mu.Unlock()
+			
 			if err != nil {
-				results.Errors = append(results.Errors, fmt.Errorf("failed to fetch historical verification data: %w", err))
-				s.logger.Error("Failed to fetch historical verification", map[string]interface{}{
+				// Enhanced error logging with more context
+				errorDetails := map[string]interface{}{
 					"previousVerificationId": prevVerificationId,
 					"error":                  err.Error(),
-				})
+					"errorType":              fmt.Sprintf("%T", err),
+				}
+				
+				results.Errors = append(results.Errors, fmt.Errorf("failed to fetch historical verification data: %w", err))
+				s.logger.Error("Failed to fetch historical verification", errorDetails)
 			} else {
-				results.HistoricalContext = historicalContext
+				// Add more details about the fetched data
 				s.logger.Info("Successfully fetched historical verification", map[string]interface{}{
 					"previousVerificationId": prevVerificationId,
+					"dataKeys": getMapKeys(historicalContext),
+					"verificationAt": historicalContext["verificationAt"],
+					"dataSize": len(fmt.Sprintf("%v", historicalContext)),
 				})
+				results.HistoricalContext = historicalContext
 			}
 		}()
 	} else {

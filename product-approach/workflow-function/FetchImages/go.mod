@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	golang.org/x/image v0.27.0
+	workflow-function/shared/errors v0.0.0
 	workflow-function/shared/logger v0.0.0
 	workflow-function/shared/s3state v0.0.0
 	workflow-function/shared/schema v0.0.0
@@ -40,3 +41,5 @@ replace workflow-function/shared/schema => ../shared/schema
 replace workflow-function/shared/logger => ../shared/logger
 
 replace workflow-function/shared/s3state => ../shared/s3state
+
+replace workflow-function/shared/errors => ../shared/errors

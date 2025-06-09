@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-	
+
+	"workflow-function/shared/logger"
+	"workflow-function/shared/schema"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"workflow-function/shared/logger"
-	"workflow-function/shared/schema"
 )
 
 // DynamoDBRepository handles DynamoDB operations
@@ -36,6 +37,11 @@ func NewDynamoDBRepository(
 		verificationTable: verificationTable,
 		logger:           log.WithFields(map[string]interface{}{"component": "DynamoDBRepository"}),
 	}
+}
+
+// GetTableName returns the verification table name used for debugging
+func (r *DynamoDBRepository) GetTableName() string {
+	return r.verificationTable
 }
 
 // ValidateLayoutExists checks if a layout exists before attempting to fetch it
@@ -143,36 +149,35 @@ func (r *DynamoDBRepository) FetchHistoricalVerification(
 	ctx context.Context, 
 	verificationId string,
 ) (map[string]interface{}, error) {
-	// Create the key for the DynamoDB query
-	key := map[string]types.AttributeValue{
-		"verificationId": &types.AttributeValueMemberS{
-			Value: verificationId,
-		},
-	}
-	
 	r.logger.Info("Fetching historical verification", map[string]interface{}{
 		"verificationId": verificationId,
 		"table":          r.verificationTable,
 	})
 	
-	// Get the item from DynamoDB
-	getItemOutput, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(r.verificationTable),
-		Key:       key,
-	})
+	// Use a Query operation instead of GetItem to handle composite key tables
+	queryInput := &dynamodb.QueryInput{
+		TableName:              aws.String(r.verificationTable),
+		KeyConditionExpression: aws.String("verificationId = :vid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":vid": &types.AttributeValueMemberS{Value: verificationId},
+		},
+		Limit: aws.Int32(1), // We only need the most recent record
+	}
 	
+	// Execute the query
+	queryOutput, err := r.client.Query(ctx, queryInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch historical verification: %w", err)
 	}
 	
-	// Check if the item exists
-	if getItemOutput.Item == nil {
+	// Check if any items were returned
+	if len(queryOutput.Items) == 0 {
 		return nil, fmt.Errorf("verification not found: verificationId=%s", verificationId)
 	}
-
-	// Create a map to unmarshal the DynamoDB item
+	
+	// Create a map to unmarshal the first (and should be only) DynamoDB item
 	var result map[string]interface{}
-	err = attributevalue.UnmarshalMap(getItemOutput.Item, &result)
+	err = attributevalue.UnmarshalMap(queryOutput.Items[0], &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal verification record: %w", err)
 	}
@@ -190,6 +195,7 @@ func (r *DynamoDBRepository) FetchHistoricalVerification(
 	r.logger.Info("Successfully fetched historical verification", map[string]interface{}{
 		"verificationId": verificationId,
 		"status":         result["status"],
+		"recordCount":    len(queryOutput.Items),
 	})
 	
 	return result, nil

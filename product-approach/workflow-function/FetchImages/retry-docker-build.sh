@@ -67,6 +67,13 @@ else
     echo -e "${RED}Warning: ../shared/s3state not found${NC}"
 fi
 
+if [ -d "../shared/errors" ]; then
+    cp -r ../shared/errors "$BUILD_CONTEXT/shared/"
+    echo "✓ Copied shared/errors"
+else
+    echo -e "${RED}Warning: ../shared/errors not found${NC}"
+fi
+
 # Create a modified go.mod file for Docker build with updated replace paths
 echo -e "${YELLOW}Creating modified go.mod for Docker build...${NC}"
 # Copy the original go.mod and modify the replace paths for Docker context
@@ -77,6 +84,7 @@ sed -i.bak \
     -e 's|replace workflow-function/shared/schema => ../shared/schema|replace workflow-function/shared/schema => ./shared/schema|' \
     -e 's|replace workflow-function/shared/logger => ../shared/logger|replace workflow-function/shared/logger => ./shared/logger|' \
     -e 's|replace workflow-function/shared/s3state => ../shared/s3state|replace workflow-function/shared/s3state => ./shared/s3state|' \
+    -e 's|replace workflow-function/shared/errors => ../shared/errors|replace workflow-function/shared/errors => ./shared/errors|' \
     "$BUILD_CONTEXT/go.mod"
 
 # Clean up backup file
