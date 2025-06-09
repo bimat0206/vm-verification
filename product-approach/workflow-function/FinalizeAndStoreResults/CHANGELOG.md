@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.4.4] - 2025-06-08 - DynamoDB LayoutIndex GSI Validation Fix
+
+### Fixed
+- **DynamoDB ValidationException for PREVIOUS_VS_CURRENT**: Resolved "Type mismatch for Index Key layoutId Expected: N Actual: NULL" error
+  - Root cause: LayoutIndex GSI requires non-null `layoutId` values, but PREVIOUS_VS_CURRENT verification type has null `layoutId`
+  - Solution: Conditionally exclude `layoutId` from UpdateExpression when null or zero to avoid GSI validation errors
+  - Enhanced UpdateExpression logic to dynamically build field list based on data availability
+  - Added comprehensive logging to track when `layoutId` is included vs excluded from updates
+
+### Enhanced
+- **Dynamic UpdateExpression Building**: Improved DynamoDB update logic for better data handling
+  - Implemented conditional field inclusion based on data validity (`layoutId` only included when non-null and > 0)
+  - Enhanced logging with detailed context about field inclusion decisions
+  - Added specific handling for PREVIOUS_VS_CURRENT verification type which doesn't use layout-based validation
+  - Maintained backward compatibility for LAYOUT_VS_CHECKING verification type with valid `layoutId` values
+
+- **Error Prevention**: Proactive validation to prevent GSI constraint violations
+  - Added validation logic to check `layoutId` value before including in DynamoDB operations
+  - Enhanced error messages with clear indication of GSI constraint handling
+  - Improved debugging capabilities with detailed field inclusion/exclusion logging
+  - Prevents ValidationException errors at the source rather than handling them after occurrence
+
+### Technical Details
+- **DynamoDB GSI Constraint**: LayoutIndex GSI requires all key attributes to have non-null values
+- **Verification Type Differences**:
+  - `LAYOUT_VS_CHECKING`: Uses valid `layoutId` for layout-based verification
+  - `PREVIOUS_VS_CURRENT`: Uses null `layoutId` as it compares against previous verification results
+- **UpdateExpression Logic**: Dynamically builds SET clause to include only valid fields
+- **Backward Compatibility**: Existing LAYOUT_VS_CHECKING workflows continue to work unchanged
+
+### Error Context
+```
+ValidationException: One or more parameter values were invalid:
+Type mismatch for Index Key layoutId Expected: N Actual: NULL
+IndexName: LayoutIndex
+```
+
+### Solution Implementation
+- Modified `StoreVerificationResult()` in `dynamodbhelper.go`
+- Added conditional logic: `if item.LayoutID != nil && *item.LayoutID > 0`
+- Enhanced logging for transparency in field inclusion decisions
+- Comprehensive test coverage for both verification types
+
 ## [1.4.3] - 2025-06-05 - Verification Summary JSON Storage
 
 ### Added

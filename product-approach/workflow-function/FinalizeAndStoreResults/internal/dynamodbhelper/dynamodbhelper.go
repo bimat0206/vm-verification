@@ -263,6 +263,67 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 		return enhancedErr
 	}
 
+	// Build UpdateExpression dynamically based on whether layoutId should be included
+	// For PREVIOUS_VS_CURRENT verification type, layoutId is typically null and should be excluded
+	// to avoid DynamoDB GSI validation errors (LayoutIndex requires non-null layoutId)
+	var updateExpressionParts []string
+	expressionAttributeValues := map[string]types.AttributeValue{
+		":vt":         &types.AttributeValueMemberS{Value: item.VerificationType},
+		":lp":         &types.AttributeValueMemberS{Value: item.LayoutPrefix},
+		":vmid":       &types.AttributeValueMemberS{Value: item.VendingMachineID},
+		":riu":        &types.AttributeValueMemberS{Value: item.ReferenceImageUrl},
+		":ciu":        &types.AttributeValueMemberS{Value: item.CheckingImageUrl},
+		":vs":         &types.AttributeValueMemberS{Value: item.VerificationStatus},
+		":cs":         &types.AttributeValueMemberS{Value: item.CurrentStatus},
+		":lua":        &types.AttributeValueMemberS{Value: item.LastUpdatedAt},
+		":psa":        &types.AttributeValueMemberS{Value: item.ProcessingStartedAt},
+		":ic":         &types.AttributeValueMemberS{Value: item.InitialConfirmation},
+		":vsm":        vsmAV,
+		":pvid":       &types.AttributeValueMemberS{Value: item.PreviousVerificationID},
+		":empty_list": &types.AttributeValueMemberL{Value: []types.AttributeValue{}},
+		":empty_map":  &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{}},
+	}
+
+	// Always include these fields
+	updateExpressionParts = append(updateExpressionParts,
+		"verificationType = :vt",
+		"layoutPrefix = :lp",
+		"vendingMachineId = :vmid",
+		"referenceImageUrl = :riu",
+		"checkingImageUrl = :ciu",
+		"verificationStatus = :vs",
+		"currentStatus = :cs",
+		"lastUpdatedAt = :lua",
+		"processingStartedAt = :psa",
+		"initialConfirmation = :ic",
+		"verificationSummary = :vsm",
+		"previousVerificationId = :pvid",
+		"statusHistory = if_not_exists(statusHistory, :empty_list)",
+		"processingMetrics = if_not_exists(processingMetrics, :empty_map)",
+		"errorTracking = if_not_exists(errorTracking, :empty_map)",
+	)
+
+	// Conditionally include layoutId only if it has a valid value
+	// This prevents DynamoDB GSI validation errors for LayoutIndex when layoutId is null
+	if item.LayoutID != nil && *item.LayoutID > 0 {
+		updateExpressionParts = append(updateExpressionParts, "layoutId = :lid")
+		expressionAttributeValues[":lid"] = &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", *item.LayoutID)}
+
+		log.Info("including_layout_id_in_update", map[string]interface{}{
+			"verificationId": item.VerificationID,
+			"layoutId":       *item.LayoutID,
+			"verificationType": item.VerificationType,
+		})
+	} else {
+		log.Info("excluding_layout_id_from_update", map[string]interface{}{
+			"verificationId": item.VerificationID,
+			"verificationType": item.VerificationType,
+			"reason": "layoutId is null or zero - avoiding GSI validation error",
+		})
+	}
+
+	updateExpression := "SET " + strings.Join(updateExpressionParts, ", ")
+
 	// Use UpdateItem to update existing record instead of creating new one
 	updateInput := &dynamodb.UpdateItemInput{
 		TableName: &tableName,
@@ -270,46 +331,8 @@ func StoreVerificationResult(ctx context.Context, client *dynamodb.Client, table
 			"verificationId": &types.AttributeValueMemberS{Value: item.VerificationID},
 			"verificationAt": &types.AttributeValueMemberS{Value: item.VerificationAt},
 		},
-		UpdateExpression: aws.String(`SET
-			verificationType = :vt,
-			layoutId = :lid,
-			layoutPrefix = :lp,
-			vendingMachineId = :vmid,
-			referenceImageUrl = :riu,
-			checkingImageUrl = :ciu,
-			verificationStatus = :vs,
-			currentStatus = :cs,
-			lastUpdatedAt = :lua,
-			processingStartedAt = :psa,
-			initialConfirmation = :ic,
-			verificationSummary = :vsm,
-			previousVerificationId = :pvid,
-			statusHistory = if_not_exists(statusHistory, :empty_list),
-			processingMetrics = if_not_exists(processingMetrics, :empty_map),
-			errorTracking = if_not_exists(errorTracking, :empty_map)`),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":vt":         &types.AttributeValueMemberS{Value: item.VerificationType},
-			":lp":         &types.AttributeValueMemberS{Value: item.LayoutPrefix},
-			":vmid":       &types.AttributeValueMemberS{Value: item.VendingMachineID},
-			":riu":        &types.AttributeValueMemberS{Value: item.ReferenceImageUrl},
-			":ciu":        &types.AttributeValueMemberS{Value: item.CheckingImageUrl},
-			":vs":         &types.AttributeValueMemberS{Value: item.VerificationStatus},
-			":cs":         &types.AttributeValueMemberS{Value: item.CurrentStatus},
-			":lua":        &types.AttributeValueMemberS{Value: item.LastUpdatedAt},
-			":psa":        &types.AttributeValueMemberS{Value: item.ProcessingStartedAt},
-			":ic":         &types.AttributeValueMemberS{Value: item.InitialConfirmation},
-			":vsm":        vsmAV,
-			":pvid":       &types.AttributeValueMemberS{Value: item.PreviousVerificationID},
-			":empty_list": &types.AttributeValueMemberL{Value: []types.AttributeValue{}},
-			":empty_map":  &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{}},
-		},
-	}
-
-	// Handle optional layoutId
-	if item.LayoutID != nil {
-		updateInput.ExpressionAttributeValues[":lid"] = &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", *item.LayoutID)}
-	} else {
-		updateInput.ExpressionAttributeValues[":lid"] = &types.AttributeValueMemberNULL{Value: true}
+		UpdateExpression:          aws.String(updateExpression),
+		ExpressionAttributeValues: expressionAttributeValues,
 	}
 
 	_, err = client.UpdateItem(ctx, updateInput)
