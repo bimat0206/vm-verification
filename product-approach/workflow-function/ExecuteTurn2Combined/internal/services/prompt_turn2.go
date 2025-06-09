@@ -167,10 +167,11 @@ func (p *promptServiceTurn2) buildTemplateContext(vCtx *schema.VerificationConte
 	}
 
 	// Extract layout dimensions from layoutMetadata when available
+	// For PREVIOUS_VS_CURRENT, layout dimensions should not be injected - AI should detect them dynamically
 	rowCount := -1
 	colCount := -1
 
-	if layoutMetadata != nil {
+	if vCtx.VerificationType != schema.VerificationTypePreviousVsCurrent && layoutMetadata != nil {
 		if rc, ok := layoutMetadata["RowCount"]; ok {
 			switch v := rc.(type) {
 			case int:
@@ -193,14 +194,17 @@ func (p *promptServiceTurn2) buildTemplateContext(vCtx *schema.VerificationConte
 		}
 	}
 
-	context["RowCount"] = rowCount
-	context["ColumnCount"] = colCount
+	// Only inject layout dimensions for LAYOUT_VS_CHECKING verification type
+	if vCtx.VerificationType == schema.VerificationTypeLayoutVsChecking {
+		context["RowCount"] = rowCount
+		context["ColumnCount"] = colCount
 
-	// Row labels only generated when row count is valid
-	if rowCount > 0 {
-		context["RowLabels"] = p.ensureRowLabels(layoutMetadata, rowCount)
-	} else {
-		context["RowLabels"] = []string{}
+		// Row labels only generated when row count is valid
+		if rowCount > 0 {
+			context["RowLabels"] = p.ensureRowLabels(layoutMetadata, rowCount)
+		} else {
+			context["RowLabels"] = []string{}
+		}
 	}
 
 	// Add layout-specific context

@@ -1,34 +1,32 @@
-The SECOND image provided shows the Current State of the vending machine.
+The SECOND image provided ALWAYS depicts the **Current Layout** of the vending machine.
 
-This image shows how the vending machine {{if .VendingMachineID}}{{.VendingMachineID}}{{if .Location}} at {{.Location}}{{end}}{{end}} appears now during this verification check.
-
-Your task is to compare this Current State image with the Previous State that you analyzed in Turn 1. Identify any changes or discrepancies between the Previous State and the Current State.
+Your task is to compare this Current Layout image with the **Previous Layout** that you analyzed in Turn 1. Identify **all** discrepancies between the two states.
 
 Important reminders:
 
-1. Row identification is CRITICAL - Row {{index .RowLabels 0}} is ALWAYS the topmost physical shelf, Row {{index .RowLabels (add .RowCount -1)}} is ALWAYS the bottommost physical shelf.
+1. **Row & Slot Identification Is CRITICAL**  
+   - Use the exact same row labels and slot numbers you confirmed in Turn 1.
+   - Do **not** re-detect structure here—reuse the detected grid.
 
-2. Be thorough and descriptive in your comparison, focusing on:
-   - Products that have been removed since the Previous State
-   - Products that have been added since the Previous State
-   - Products that have been moved to different positions
-   - Changes in fill levels or product arrangements
+2. **Be Thorough and Descriptive**  
+   - **Missing Products**: present in Previous but absent in Current  
+   - **Unexpected Products**: absent in Previous but present in Current  
+   - **Incorrect Product Types**: product in Current differs from Previous at the same position  
+   - **Empty Slots**: slots that should have products but now show coils
 
-3. For each discrepancy, clearly state:
-   - The product name
-   - Where it was in the Previous State
-   - Where it is now (or if it's been removed)
+3. **For Each Discrepancy, Clearly State:**  
+   - **Position:** e.g. A01  
+   - **Expected (Previous):** product name or “Empty (coils visible)”  
+   - **Found (Current):** product name or “Empty (coils visible)”  
+   - **Issue:** Missing / Unexpected / Incorrect Product  
+   - **Confidence:** e.g. 92%  
+   - **Evidence:** brief visual cue or detail  
+   - **Verification Result:** **INCORRECT**
 
-4. At the end of your analysis, provide a verification outcome:
-   - CORRECT: If the Current State shows expected changes (e.g., restocking, planned reorganization)
-   - INCORRECT: If there are unexpected or concerning changes
+4. **Verification Outcome**  
+   - **CORRECT** – if Current Layout matches Previous exactly  
+   - **INCORRECT** – if there is **any** discrepancy
 
-5. If INCORRECT, list all discrepancies in a structured format for easy tracking.
+5. **If INCORRECT**, list each discrepancy in a numbered, structured format for easy tracking.
 
-{{if .VerificationSummary}}
-PREVIOUS VERIFICATION STATUS: {{.PreviousVerificationStatus}}
-- Overall Accuracy: {{.VerificationSummary.OverallAccuracy}}%
-- Missing Products: {{.VerificationSummary.MissingProducts}}
-- Incorrect Product Types: {{.VerificationSummary.IncorrectProductTypes}}
-- Empty Positions: {{.VerificationSummary.EmptyPositionsCount}}
-{{end}}
+We will then generate the **VERIFICATION SUMMARY** based on your findings.  
