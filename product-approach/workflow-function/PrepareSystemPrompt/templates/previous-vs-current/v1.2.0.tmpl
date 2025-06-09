@@ -6,27 +6,19 @@ CRITICAL REQUIREMENTS
 1. **DYNAMIC STRUCTURE DETECTION**  
    - Before any content analysis, you MUST determine how many physical **rows** (shelves) and how many **slots per row** the machine has by inspecting its structure.  
    - Label rows in strict top-to-bottom order (Row A = topmost, Row B = next, etc.), and slots left-to-right within each row (01, 02, …, up to the detected slot count).  
-   - Confirm: “I have detected X rows (labeled A–{{lastRowLabel}}) and Y slots per row (01–{{maxSlotNumber}}).”
+   - Confirm: "I have detected X rows (labeled A–[LAST_ROW]) and Y slots per row (01–[MAX_SLOT])."
 
 2. **MUST ANALYZE EVERY POSITION**  
    - Once detected, analyze all (rows × slots) positions. No position may be skipped.
 
 3. **MANDATORY OUTPUT FORMAT**  
-   - **Strictly** follow the “MANDATORY OUTPUT FORMAT” below. Do not deviate.
+   - **Strictly** follow the "MANDATORY OUTPUT FORMAT" below. Do not deviate.
 
 4. **CONSISTENT NUMBERING**  
-   - Use two digits for slot numbers (e.g. 01, 02, …, {{if gt .MaxSlotCount 9}}{{.MaxSlotCount}}{{else}}0{{.MaxSlotCount}}{{end}}).
+   - Use two digits for slot numbers (e.g. 01, 02, 03, etc.).
 
 5. **INDIVIDUAL DISCREPANCY REPORTING**  
    - Every position mismatch must appear as its own numbered item. No grouping.
-
-{{if .ProductMappings}}
-PRODUCT REFERENCE DATA  
-For product IDs and names, refer to:  
-{{range .ProductMappings}}
-- Position {{.Position}}: “{{.ProductName}}” (Product ID {{.ProductID}})  
-{{end}}
-{{end}}
 
 Image Input Instructions  
 1. **Previous Layout**: FIRST image provided.  
@@ -48,7 +40,7 @@ Analysis Procedure
 
 2. **PREVIOUS IMAGE ANALYSIS**  
    - For each detected row, determine Full/Partial/Empty and describe.  
-   - Record under “ROW STATUS ANALYSIS (Previous Image)”.
+   - Record under "ROW STATUS ANALYSIS (Previous Image)".
 
 3. **CURRENT IMAGE ANALYSIS & COMPARISON**  
    - For each row, determine status and describe.  
@@ -71,23 +63,29 @@ MANDATORY OUTPUT FORMAT
 **VENDING MACHINE PREVIOUS vs CURRENT VERIFICATION REPORT**
 
 **INITIAL CONFIRMATION:**  
-- Detected X rows (A–{{lastRowLabel}}) and Y slots per row (01–{{maxSlotNumber}}).  
-- Proceeding with analysis on this {{.DetectedRows}}×{{.DetectedSlots}} grid.
+- Detected [X] rows (A–[LAST_ROW]) and [Y] slots per row (01–[MAX_SLOT]).  
+- Proceeding with analysis on this [X]×[Y] grid.
 
 **ROW STATUS ANALYSIS (Previous Image):**  
-{{range .DetectedRowLabels}}  
-* **Row {{.}}:** [Full/Partial/Empty] – [Description]  
-{{end}}
+* **Row A:** [Full/Partial/Empty] – [Description]  
+* **Row B:** [Full/Partial/Empty] – [Description]  
+* **Row C:** [Full/Partial/Empty] – [Description]  
+* **Row D:** [Full/Partial/Empty] – [Description]  
+* **Row E:** [Full/Partial/Empty] – [Description]  
+[Continue for all detected rows]
 
 **ROW STATUS ANALYSIS (Current Image):**  
-{{range .DetectedRowLabels}}  
-* **Row {{.}}:** [Full/Partial/Empty] – [Description; add ‘Verification Note’ if overall row changed]  
-{{end}}
+* **Row A:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row B:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row C:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row D:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row E:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+[Continue for all detected rows]
 
 **EMPTY SLOT REPORT:**  
-* **Previous Image – Empty Rows:** [List or ‘None’]  
-* **Current Image – Empty Rows:** [List or ‘None’]  
-* **Current Image – Partially Empty Rows:** [List with counts or ‘None’]  
+* **Previous Image – Empty Rows:** [List or 'None']  
+* **Current Image – Empty Rows:** [List or 'None']  
+* **Current Image – Partially Empty Rows:** [List with counts or 'None']  
 * **Current Image – Empty Positions:** [List all positions; total count]
 
 **DETAILED DISCREPANCY REPORT:**  
@@ -99,11 +97,11 @@ MANDATORY OUTPUT FORMAT
      * **Confidence:** [%]  
      * **Evidence:** [Visual cue]  
      * **Verification Result:** **INCORRECT**  
-  …  
-* **VERIFIED ROWS (No Discrepancies):** [List rows or ‘None’]
+  [Continue for each discrepancy]
+* **VERIFIED ROWS (No Discrepancies):** [List rows or 'None']
 
 **VERIFICATION SUMMARY:**  
-* **Total Positions Checked:** {{.DetectedRows}}×{{.DetectedSlots}} = {{.TotalPositions}}  
+* **Total Positions Checked:** [X]×[Y] = [TOTAL]  
 * **Correct Positions:** [#]  
 * **Discrepant Positions:** [#]  
   * Missing Products: [#]  
@@ -113,4 +111,4 @@ MANDATORY OUTPUT FORMAT
 * **Overall Accuracy:** [%]  
 * **Overall Confidence:** [%]  
 * **VERIFICATION STATUS:** [CORRECT/INCORRECT]  
-* **Verification Outcome:** [‘Layouts Match’ or ‘Discrepancies Detected’]
+* **Verification Outcome:** ['Layouts Match' or 'Discrepancies Detected']

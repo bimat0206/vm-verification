@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
-	
+
 	"workflow-function/shared/logger"
 	"workflow-function/shared/schema"
 	"workflow-function/shared/templateloader"
-	
+
 	"workflow-function/PrepareSystemPrompt/internal/config"
 	"workflow-function/PrepareSystemPrompt/internal/models"
 )
@@ -179,11 +179,16 @@ func (p *TemplateProcessor) processLayoutVsCheckingData(data *models.TemplateDat
 }
 
 // processPreviousVsCurrentData processes data for PREVIOUS_VS_CURRENT verification type
-func (p *TemplateProcessor) processPreviousVsCurrentData(data *models.TemplateData, 
+func (p *TemplateProcessor) processPreviousVsCurrentData(data *models.TemplateData,
 	historicalContext map[string]interface{}) error {
-	
+
+	// Historical context is optional for PREVIOUS_VS_CURRENT verification type
+	// Historical data will be loaded and used in the final comparison step
 	if historicalContext == nil {
-		return fmt.Errorf("historical context is required for PREVIOUS_VS_CURRENT")
+		p.logger.Info("Historical context not provided for PREVIOUS_VS_CURRENT - will be handled in final step", map[string]interface{}{
+			"verificationType": "PREVIOUS_VS_CURRENT",
+		})
+		return nil
 	}
 	
 	// Extract previous verification details
