@@ -1,23 +1,22 @@
-The FIRST image provided ALWAYS depicts the Previous State of the vending machine.
+The FIRST image provided ALWAYS depicts the **Previous Layout** of the vending machine.
 
-This image shows how the vending machine {{if .VendingMachineID}}{{.VendingMachineID}}{{if .Location}} at {{.Location}}{{end}}{{end}} appeared during the last verification check ({{.PreviousVerificationAt}}, {{printf "%.1f" .HoursSinceLastVerification}} hours ago).
+This image shows the actual state of the machine before any changes.
 
-Focus exclusively on analyzing this previous state image in detail. Your goal is to identify the exact contents of all {{.RowCount}} rows ({{.RowLabels}}) and {{.ColumnCount}} slots per row.
+Focus exclusively on analyzing this Previous Layout image in detail. Your goals are to:
 
-Important reminders:
+1. **STRUCTURE DETECTION**  
+   - Detect how many physical **rows** (shelves) the machine has and how many **slots per row**.  
+   - Label rows in strict top-to-bottom order (Row A = topmost, Row B = second from top, etc.) and slots left-to-right (01, 02, 03, etc.).
+   - Confirm by stating:  
+     “I have detected **X rows** (A–[LAST_ROW]) and **Y slots per row** (01–[MAX_SLOT]).”
 
-1. Row identification is CRITICAL - Row {{index .RowLabels 0}} is ALWAYS the topmost physical shelf, Row {{index .RowLabels (add .RowCount -1)}} is ALWAYS the bottommost physical shelf.
+2. **CONTENT ANALYSIS**  
+   - For each detected row, determine its status (**Full/Partial/Empty**).  
+   - For every slot, describe the exact contents (product type, color, packaging, brand if legible) or note “Empty (coils visible).”
 
-2. Be thorough and descriptive in your analysis of each row status (Full/Partial/Empty).
+3. **IMPORTANT REMINDERS**  
+   - Row labels are based **only** on physical shelf order, not on product appearance.  
+   - Use two-digit slot numbers (01, 02, 03, etc.).
+   - **DO NOT** compare to any other image at this stage—focus solely on the Previous Layout.
 
-3. DO NOT compare with any other image at this stage - just analyze this Previous State Image.
-
-{{if .VerificationSummary}}
-PREVIOUS VERIFICATION STATUS: {{.PreviousVerificationStatus}}
-- Overall Accuracy: {{.VerificationSummary.OverallAccuracy}}%
-- Missing Products: {{.VerificationSummary.MissingProducts}}
-- Incorrect Product Types: {{.VerificationSummary.IncorrectProductTypes}}
-- Empty Positions: {{.VerificationSummary.EmptyPositionsCount}}
-{{end}}
-
-We will perform comparison with the current state in the next step.
+We will analyze the Current Layout image and perform the comparison in the next step.  
