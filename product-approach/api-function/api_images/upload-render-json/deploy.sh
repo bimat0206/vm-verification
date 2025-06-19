@@ -111,8 +111,8 @@ build_docker_image() {
     log_info "Building Docker image..."
 
     IMAGE_TAG="${ECR_REPO}:latest"
-    docker build -t $FUNCTION_NAME . > /dev/null 2>&1
-    docker tag $FUNCTION_NAME:latest $IMAGE_TAG > /dev/null 2>&1
+    docker build -t $FUNCTION_NAME . 
+    docker tag $FUNCTION_NAME:latest $IMAGE_TAG 
 
     log_success "Docker image built: $IMAGE_TAG"
 }
@@ -122,7 +122,7 @@ push_to_ecr() {
     log_info "Pushing image to ECR..."
 
     IMAGE_TAG="${ECR_REPO}:latest"
-    docker push $IMAGE_TAG > /dev/null 2>&1
+    docker push $IMAGE_TAG 
 
     log_success "Image pushed to ECR: $IMAGE_TAG"
 }

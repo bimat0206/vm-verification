@@ -77,6 +77,64 @@ const (
 	MaxFileSize = 10 * 1024 * 1024 // 10MB limit for Lambda
 )
 
+// isBinaryFile determines if a file is likely binary based on its extension
+func isBinaryFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	binaryExtensions := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".gif":  true,
+		".bmp":  true,
+		".webp": true,
+		".tiff": true,
+		".tif":  true,
+		".pdf":  true,
+	}
+	return binaryExtensions[ext]
+}
+
+// validateBinaryFileIntegrity checks if binary file data appears to be corrupted
+func validateBinaryFileIntegrity(filename string, fileBytes []byte) error {
+	if !isBinaryFile(filename) {
+		return nil // Not a binary file, skip validation
+	}
+
+	// Check for common binary file signatures
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg":
+		// JPEG files should start with FF D8 FF
+		if len(fileBytes) < 3 || fileBytes[0] != 0xFF || fileBytes[1] != 0xD8 || fileBytes[2] != 0xFF {
+			return fmt.Errorf("JPEG file signature missing or corrupted - expected FF D8 FF, got %02X %02X %02X",
+				fileBytes[0], fileBytes[1], fileBytes[2])
+		}
+	case ".png":
+		// PNG files should start with 89 50 4E 47 0D 0A 1A 0A
+		pngSignature := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+		if len(fileBytes) < len(pngSignature) || !bytes.Equal(fileBytes[:len(pngSignature)], pngSignature) {
+			return fmt.Errorf("PNG file signature missing or corrupted")
+		}
+	case ".gif":
+		// GIF files should start with "GIF87a" or "GIF89a"
+		if len(fileBytes) < 6 || (!bytes.Equal(fileBytes[:6], []byte("GIF87a")) && !bytes.Equal(fileBytes[:6], []byte("GIF89a"))) {
+			return fmt.Errorf("GIF file signature missing or corrupted")
+		}
+	case ".pdf":
+		// PDF files should start with "%PDF"
+		if len(fileBytes) < 4 || !bytes.Equal(fileBytes[:4], []byte("%PDF")) {
+			return fmt.Errorf("PDF file signature missing or corrupted")
+		}
+	}
+
+	// Check for UTF-8 replacement characters which indicate binary corruption
+	if bytes.Contains(fileBytes, []byte{0xEF, 0xBF, 0xBD}) {
+		return fmt.Errorf("binary file contains UTF-8 replacement characters - data is corrupted")
+	}
+
+	return nil
+}
+
 // cleanJSONContent removes multipart form data boundaries from JSON file content
 func cleanJSONContent(content []byte) ([]byte, bool) {
 	contentStr := string(content)
@@ -333,8 +391,19 @@ func parseMultipartForm(request events.APIGatewayProxyRequest) ([]byte, string, 
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to decode base64 body: %v", err)
 		}
+		log.WithField("bodySize", len(bodyBytes)).Info("Decoded base64 encoded body")
 	} else {
+		// For non-base64 encoded bodies, we need to be careful with binary data
+		// API Gateway should base64 encode binary data, but if it doesn't,
+		// converting string to bytes can corrupt binary data
 		bodyBytes = []byte(body)
+		log.WithField("bodySize", len(bodyBytes)).Warn("Processing non-base64 encoded body - binary data may be corrupted")
+
+		// Check if the body contains potential binary corruption indicators
+		if strings.Contains(body, "\ufffd") {
+			log.Error("Detected UTF-8 replacement characters in request body - binary data is corrupted")
+			return nil, "", fmt.Errorf("binary data corruption detected - ensure API Gateway is configured for base64 encoding")
+		}
 	}
 
 	// Parse the content type to get the boundary
@@ -375,6 +444,14 @@ func parseMultipartForm(request events.APIGatewayProxyRequest) ([]byte, string, 
 				return nil, "", fmt.Errorf("no filename provided")
 			}
 
+			// Log file information for debugging
+			log.WithFields(logrus.Fields{
+				"fileName":     fileName,
+				"fileSize":     len(fileBytes),
+				"isBase64":     request.IsBase64Encoded,
+				"contentType":  part.Header.Get("Content-Type"),
+			}).Info("Successfully parsed file from multipart form")
+
 			return fileBytes, fileName, nil
 		}
 	}
@@ -412,6 +489,16 @@ func processFileUpload(ctx context.Context, request events.APIGatewayProxyReques
 			Success: false,
 			Message: "File type not allowed",
 			Errors:  []string{fmt.Sprintf("File type not allowed: %s", filepath.Ext(fileName))},
+		}, nil
+	}
+
+	// Validate binary file integrity
+	if err := validateBinaryFileIntegrity(fileName, fileBytes); err != nil {
+		log.WithError(err).Error("Binary file integrity validation failed")
+		return &UploadResponse{
+			Success: false,
+			Message: "File data is corrupted",
+			Errors:  []string{fmt.Sprintf("Binary file validation failed: %v", err)},
 		}, nil
 	}
 

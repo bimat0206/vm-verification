@@ -31,7 +31,7 @@ var config = Config{
 	BoldFontPath:     "fonts/arialbd.ttf",
 	ImageLoadTimeout: 20,
 	CanvasScale:      4.0,
-	NumColumns:       7,
+	NumColumns:       20,
 	CellWidth:        150.0,
 	CellHeight:       180.0,
 	RowSpacing:       60.0,

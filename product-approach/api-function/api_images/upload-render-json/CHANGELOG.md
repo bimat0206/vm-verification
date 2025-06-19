@@ -5,6 +5,23 @@ All notable changes to the API Images Upload Render JSON Lambda function will be
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Binary File Corruption Detection**: Added comprehensive binary file integrity validation
+  - Added `isBinaryFile()` function to detect binary files by extension
+  - Added `validateBinaryFileIntegrity()` function to check file signatures and detect corruption
+  - Added validation for JPEG, PNG, GIF, and PDF file signatures
+  - Added detection of UTF-8 replacement characters indicating binary corruption
+  - Enhanced `parseMultipartForm()` with better logging and corruption detection
+  - This prevents corrupted binary files from being uploaded to S3
+
+### Enhanced
+- **Improved Error Handling**: Enhanced multipart form parsing with better error messages
+  - Added detailed logging for file parsing operations
+  - Added warnings for non-base64 encoded bodies that may contain binary data
+  - Added file information logging including size, encoding status, and content type
+
 ## [1.1.0] - 2025-01-03
 
 ### Fixed
