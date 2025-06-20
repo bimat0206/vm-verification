@@ -36,8 +36,17 @@ func (s *HistoricalVerificationService) FetchHistoricalVerification(ctx context.
 	// Exclude the current verification to find genuinely previous verification
 	verification, err := s.repo.FindPreviousVerification(ctx, verificationCtx.ReferenceImageUrl, verificationCtx.VerificationId, verificationCtx.VerificationAt)
 	if err != nil {
-		s.logger.Warn("No previous verification found, creating fallback context", map[string]interface{}{
+		s.logger.Error("Error querying for previous verification", map[string]interface{}{
 			"error": err.Error(),
+		})
+		return HistoricalContext{}, fmt.Errorf("error querying for previous verification: %w", err)
+	}
+
+	// Handle case where no previous verification is found (normal for fresh verifications)
+	if verification == nil {
+		s.logger.Info("No previous verification found - creating fallback context for fresh verification", map[string]interface{}{
+			"verificationId":    verificationCtx.VerificationId,
+			"referenceImageUrl": verificationCtx.ReferenceImageUrl,
 		})
 		// Return fallback context when no historical data is found
 		return s.createFallbackContext(verificationCtx), nil
@@ -53,13 +62,20 @@ func (s *HistoricalVerificationService) FetchHistoricalVerification(ctx context.
 
 // createFallbackContext creates a fallback context when no historical data is found
 func (s *HistoricalVerificationService) createFallbackContext(verificationCtx schema.VerificationContext) HistoricalContext {
+	s.logger.Info("Creating fallback context for fresh verification", map[string]interface{}{
+		"verificationId":    verificationCtx.VerificationId,
+		"verificationType":  verificationCtx.VerificationType,
+		"referenceImageUrl": verificationCtx.ReferenceImageUrl,
+	})
+
 	return HistoricalContext{
 		VerificationID:              verificationCtx.VerificationId,
 		VerificationType:            verificationCtx.VerificationType,
 		ReferenceImageUrl:           verificationCtx.ReferenceImageUrl,
 		CheckingImageUrl:            verificationCtx.CheckingImageUrl,
 		HistoricalDataFound:         false,
-		SourceType:                  "NO_HISTORICAL_DATA",
+		Turn2Processed:              "", // Empty for fresh verifications
+		SourceType:                  "FRESH_VERIFICATION",
 		PreviousVerification:        nil,
 		TemporalContext:             nil,
 		MachineStructure:            nil,

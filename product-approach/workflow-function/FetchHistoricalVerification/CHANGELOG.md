@@ -2,6 +2,29 @@
 
 All notable changes to the FetchHistoricalVerification Lambda function will be documented in this file.
 
+## [1.2.3] - 2025-06-20
+
+### Fixed
+- **Fresh Verification Error Handling**: Resolved ValidationException error for fresh verifications (verifications without previous historical data)
+  - Modified `FindPreviousVerification` to return `(nil, nil)` instead of ValidationError when no previous verification is found
+  - Updated service logic to handle `nil` verification as a normal case rather than an error condition
+  - Changed logging level from WARN to INFO for fresh verifications to reduce noise in logs
+  - Updated `SourceType` from `"NO_HISTORICAL_DATA"` to `"FRESH_VERIFICATION"` for better clarity
+  - Removed unused `workflow-function/shared/errors` import from dynamodb.go
+
+### Changed
+- **Error Classification**: Fresh verifications (no previous data) are now treated as normal operations instead of error conditions
+- **Logging Improvements**: 
+  - Fresh verifications now log as INFO: "No previous verification found - this is normal for fresh verifications"
+  - Fallback context creation logs as INFO: "Creating fallback context for fresh verification"
+  - Only actual DynamoDB query errors are logged as ERROR level
+
+### Technical Details
+- Enhanced `createFallbackContext()` function with better logging and clearer field values
+- Improved error handling in `FetchHistoricalVerification()` to distinguish between query errors and no-data scenarios
+- Maintained backward compatibility for historical verifications (verifications with previous data)
+- Function now properly supports both fresh and historical verification workflows without generating false error warnings
+
 ## [1.2.2] - 2025-06-07
 
 ### Added

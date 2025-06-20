@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"workflow-function/shared/errors"
 	"workflow-function/shared/logger"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -69,18 +68,12 @@ func (repo *DynamoDBRepository) FindPreviousVerification(ctx context.Context, im
 
 	// Check if any items returned
 	if len(result.Items) == 0 {
-		repo.logger.Warn("No previous verification found", map[string]interface{}{
+		repo.logger.Info("No previous verification found - this is normal for fresh verifications", map[string]interface{}{
 			"imageURL":                imageURL,
 			"currentVerificationID":   currentVerificationID,
 			"currentVerificationTime": currentVerificationTime,
 		})
-		return nil, errors.NewValidationError("No previous verification found for image",
-			map[string]interface{}{
-				"imageURL":                imageURL,
-				"currentVerificationID":   currentVerificationID,
-				"currentVerificationTime": currentVerificationTime,
-				"resource":                "Verification",
-			})
+		return nil, nil // Return nil, nil to indicate no previous verification found (not an error)
 	}
 
 	// Unmarshal the first (most recent) item

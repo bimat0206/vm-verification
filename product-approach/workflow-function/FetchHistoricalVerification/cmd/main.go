@@ -172,6 +172,11 @@ func createEnhancedVerificationContext(inputCtx schema.VerificationContext, hist
 		enhancedContext.PreviousVerificationId = historicalResult.PreviousVerification.VerificationID
 		enhancedContext.PreviousVerificationAt = historicalResult.PreviousVerification.VerificationAt
 		enhancedContext.PreviousStatus = historicalResult.PreviousVerification.VerificationStatus
+	} else {
+		// For fresh verifications, set empty values
+		enhancedContext.PreviousVerificationId = ""
+		enhancedContext.PreviousVerificationAt = ""
+		enhancedContext.PreviousStatus = ""
 	}
 
 	return enhancedContext
