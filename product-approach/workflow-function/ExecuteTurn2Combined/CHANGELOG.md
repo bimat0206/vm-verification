@@ -2,6 +2,76 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.28] - 2025-06-20 - DynamoDB Validation Error Fix
+
+### Fixed
+- **CRITICAL**: Fixed DynamoDB ValidationException for empty verificationId in conversation history updates
+  - **Root Cause**: `UpdateConversationTurn` operation was receiving empty string for `verificationId` key attribute
+  - **Error**: `ValidationException: One or more parameter values are not valid. The AttributeValue for a key attribute cannot contain an empty string value. Key: verificationId`
+  - **Impact**: Turn2 processing was completing successfully but failing to update conversation history in DynamoDB
+  - **Solution**: Added comprehensive validation for `verificationID` parameter before DynamoDB operations
+
+### Enhanced
+- **DynamoDB Input Validation**: Added robust parameter validation for conversation history operations
+  - Added validation in `UpdateConversationTurn` method to check for empty `verificationID` before processing
+  - Added validation in `updateConversationTurnInternal` method as additional safety check
+  - Added validation for `turnData` parameter to prevent nil pointer issues
+  - Enhanced error messages with detailed context for debugging
+
+### Technical Details
+- **Validation Points**: 
+  - `UpdateConversationTurn`: Primary validation before retry logic
+  - `updateConversationTurnInternal`: Secondary validation before DynamoDB operations
+- **Error Handling**: Returns `ValidationError` with detailed context when validation fails
+- **Debug Logging**: Added debug logging to track `verificationID` values during conversation turn updates
+- **Files Modified**:
+  - `internal/services/dynamodb.go` - Added validation logic (lines 531-550, 554-561)
+  - `internal/handler/turn2_handler.go` - Added debug logging (lines 966-973)
+
+### Impact
+- ✅ Prevents DynamoDB ValidationException errors for empty key attributes
+- ✅ Provides clear error messages for debugging validation issues
+- ✅ Maintains Turn2 processing flow while ensuring data integrity
+- ✅ Improves error visibility with enhanced logging
+
+### Validation Logic Added
+```go
+// Validate verificationID before proceeding
+if verificationID == "" {
+    return errors.NewValidationError("verificationID cannot be empty", map[string]interface{}{
+        "operation": "UpdateConversationTurn",
+        "table":     d.conversationTable,
+    })
+}
+```
+
+## [2.2.27] - 2025-01-10 - Conversation History Fix
+
+### Fixed
+- **Turn1 Conversation History Missing**: Fixed missing Turn1 context in Turn2 Bedrock API calls
+  - **Root Cause**: Turn1 prompt was stored as `null` in raw response, causing `CreateTurn2ConversationHistory` to skip Turn1 user message
+  - **Impact**: Turn2 conversations were missing Turn1 context, making them appear as separate API calls instead of combined conversations
+  - **Solution**: Fixed Turn1 prompt storage in ExecuteTurn1Combined to ensure proper conversation history building
+  - **Verification**: Turn2 now correctly includes full conversation history (Turn1 + Turn2) in single Bedrock API call
+
+### Enhanced
+- **Conversation Flow**: Improved two-turn conversation architecture
+  - Turn2 conversations now properly include Turn1 user message and assistant response
+  - Bedrock API receives complete conversation context: System prompt → Turn1 user → Turn1 assistant → Turn2 user → Turn2 assistant
+  - Eliminates appearance of separate API calls by ensuring proper conversation history
+
+### Technical Details
+- **Issue Location**: `CreateTurn2ConversationHistory` function was skipping Turn1 user message due to empty prompt
+- **Dependency Fix**: Required ExecuteTurn1Combined fix to properly store Turn1 prompt in raw response
+- **Conversation Structure**: Turn2 now builds complete conversation history as intended by the architecture
+- **API Efficiency**: Single combined Bedrock API call instead of appearing as separate calls
+
+### Impact
+- ✅ Resolves missing Turn1 context in Turn2 conversations
+- ✅ Ensures proper two-turn conversation flow with full context
+- ✅ Maintains intended single API call architecture for Turn2
+- ✅ Improves AI model performance with complete conversation history
+
 ## [2.2.26] - 2025-01-06 - Turn2 Processed Response Format Fix
 
 ### Fixed

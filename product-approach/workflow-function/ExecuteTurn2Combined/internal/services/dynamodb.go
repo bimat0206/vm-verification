@@ -528,12 +528,38 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
 func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
+	// Validate verificationID before proceeding
+	if verificationID == "" {
+		return errors.NewValidationError("verificationID cannot be empty", map[string]interface{}{
+			"operation": "UpdateConversationTurn",
+			"table":     d.conversationTable,
+		})
+	}
+	
+	// Validate turnData
+	if turnData == nil {
+		return errors.NewValidationError("turnData cannot be nil", map[string]interface{}{
+			"operation":       "UpdateConversationTurn",
+			"table":           d.conversationTable,
+			"verificationID":  verificationID,
+		})
+	}
+	
 	return d.retryWithBackoff(ctx, func() error {
 		return d.updateConversationTurnInternal(ctx, verificationID, turnData)
 	}, "UpdateConversationTurn")
 }
 
 func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
+	// Additional validation to ensure verificationID is not empty at this point
+	if verificationID == "" {
+		return errors.NewValidationError("verificationID is empty in updateConversationTurnInternal", map[string]interface{}{
+			"operation": "updateConversationTurnInternal",
+			"table":     d.conversationTable,
+			"turnData":  turnData,
+		})
+	}
+	
 	// Query to find the most recent conversation record for this verificationID
 	queryInput := &dynamodb.QueryInput{
 		TableName:              &d.conversationTable,

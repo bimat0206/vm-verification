@@ -962,6 +962,16 @@ func (h *Turn2Handler) persistErrorState(ctx context.Context, req *models.Turn2R
 			"error": wfErr.Message,
 		},
 	}
+	
+	// Debug logging to track verificationID
+	h.log.Debug("attempting_conversation_turn_update", map[string]interface{}{
+		"verification_id":        req.VerificationID,
+		"verification_id_empty":  req.VerificationID == "",
+		"verification_id_length": len(req.VerificationID),
+		"turn_id":               turnEntry.TurnId,
+		"stage":                 turnEntry.Stage,
+	})
+	
 	if err := h.dynamoRetryOperation(ctx, func() error {
 		return h.dynamo.UpdateConversationTurn(ctx, req.VerificationID, turnEntry)
 	}, "UpdateConversationTurn", req.VerificationID); err != nil {
