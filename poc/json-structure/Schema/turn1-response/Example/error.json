@@ -1,0 +1,43 @@
+//Error Response
+{
+    "verificationId": "verif-2025042115302500",
+    "turnId": 1,
+    "analysisStage": "REFERENCE_ANALYSIS",
+    "verificationType": "LAYOUT_VS_CHECKING", 
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "I apologize, but I'm unable to complete the analysis of this image due to processing limitations."
+        }
+      ]
+    },
+    "tokenUsage": {
+      "input": 4252,
+      "output": 25,
+      "thinking": 0,
+      "total": 4277
+    },
+    "latencyMs": 1200,
+    "bedrockMetadata": {
+      "modelId": "anthropic.claude-3-7-sonnet-20250219",
+      "requestId": "req-error-123",
+      "stopReason": "end_turn"
+    },
+    "promptMetadata": {
+      "imageType": "reference",
+      "promptTokenEstimate": 4200,
+      "imageSize": 3456789
+    },
+    "timestamp": "2025-04-21T15:30:31Z",
+    "status": "ERROR",
+    "processingMetadata": {
+      "executionTimeMs": 1500,
+      "retryAttempts": 2,
+      "errorDetails": {
+        "errorType": "BedrockProcessingException",
+        "errorMessage": "Model failed to process image content", 
+        "errorCode": "BEDROCK_PROCESSING_FAILED"
+      }
+    }
+  }

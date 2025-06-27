@@ -1,0 +1,40 @@
+//Use Case 1 (LAYOUT_VS_CHECKING) - Successful Response
+{
+    "verificationId": "verif-2025042115302500",
+    "turnId": 2,
+    "analysisStage": "CHECKING_ANALYSIS",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "**VENDING MACHINE LAYOUT VERIFICATION REPORT**\n\n**INITIAL CONFIRMATION:**\n- Successfully identified 6 physical rows based on shelf structure (A-Top to F-Bottom).\n- Successfully identified 10 slots per row (01-Left to 10-Right).\n- Proceeding with analysis based on this strict 6x10 physical structure.\n\n**ROW STATUS ANALYSIS (Reference Image):**\n- **A:** Full - 10 pink \"Mì Hảo Hảo\" cup noodles visible across all positions\n- **B:** Full - 10 pink \"Mì Hảo Hảo\" cup noodles visible across all positions\n- **C:** Full - 10 red/white \"Mì modern Lẩu thái\" cup noodles visible across all positions\n- **D:** Full - 10 red/white \"Mì modern Lẩu thái\" cup noodles visible across all positions\n- **E:** Full - 10 green \"Mì Cung Đình\" cup noodles visible across all positions\n- **F:** Full - 10 green \"Mì Cung Đình\" cup noodles visible across all positions\n\n**ROW STATUS ANALYSIS (Checking Image):**\n- **A:** Partial - 7 pink \"Mì Hảo Hảo\" products visible. Verification Note: 3 missing products (A08-A10)\n- **B:** Partial - 7 pink \"Mì Hảo Hảo\" products visible. Verification Note: 3 missing products (B08-B10)\n- **C:** Partial - 7 red/white \"Mì modern Lẩu thái\" products visible. Verification Note: 3 missing products (C08-C10)\n- **D:** Partial - 7 red/white \"Mì modern Lẩu thái\" products visible. Verification Note: 3 missing products (D08-D10)\n- **E:** Partial - 7 green \"Mì Cung Đình\" products visible. Verification Note: 3 missing products (E08-E10)\n- **F:** Empty - No products visible, all coils exposed.\n\n**DETAILED DISCREPANCY REPORT:**\n- **Discrepancies Found:** 28\n\n1. **Position:** A08\n   - **Expected (Reference):** Pink \"Mì Hảo Hảo\" cup noodle\n   - **Found (Checking):** Empty (Coils Visible)\n   - **Issue:** Missing Product\n   - **Confidence:** 98%\n   - **Evidence:** Clear view of dispensing coils\n   - **Verification Result:** INCORRECT\n\n[... continues for all 28 discrepancies ...]\n\n**VERIFICATION SUMMARY:**\n- **Total Positions Checked:** 60\n- **Correct Positions:** 32\n- **Discrepant Positions:** 28\n  - Missing Products: 28\n  - Incorrect Product Types: 0\n  - Unexpected Products: 0\n- **Empty Positions in Checking Image:** 28\n- **Overall Accuracy:** 53.3%\n- **Overall Confidence:** 96%\n- **VERIFICATION STATUS:** INCORRECT\n- **Verification Outcome:** Discrepancies Detected - Multiple missing products across all rows and Row F completely empty"
+        }
+      ],
+      "thinking": "Now I need to analyze the checking image and compare it with the reference layout I analyzed in Turn 1. The reference showed all rows were completely full with specific product arrangements.\n\nLooking at the checking image:\n- Row A: I can see pink products but only about 7 of them, not the full 10\n- Row B: Same, about 7 pink products\n- Row C: About 7 red/white products\n- Row D: About 7 red/white products\n- Row E: About 7 green products\n- Row F: This row appears completely empty - I can see the dispensing coils\n\nSo compared to the reference where all rows were full (10 products each), the checking image shows:\n- All rows A-E are partially filled with about 7 products each\n- Row F is completely empty\n- This means 28 products are missing total\n\nThe product types seem correct in their respective rows, but the quantities are significantly different."
+    },
+    "tokenUsage": {
+      "input": 5120,
+      "output": 2856,
+      "thinking": 1234,
+      "total": 9210
+    },
+    "latencyMs": 3450,
+    "bedrockMetadata": {
+      "modelId": "anthropic.claude-3-7-sonnet-20250219",
+      "requestId": "req-turn2-789xyz",
+      "stopReason": "end_turn"
+    },
+    "promptMetadata": {
+      "imageType": "checking",
+      "promptTokenEstimate": 5000,
+      "imageSize": 2987654,
+      "turn1ContextIncluded": true
+    },
+    "timestamp": "2025-04-21T15:30:45Z",
+    "status": "SUCCESS",
+    "processingMetadata": {
+      "executionTimeMs": 3800,
+      "retryAttempts": 0
+    }
+  }

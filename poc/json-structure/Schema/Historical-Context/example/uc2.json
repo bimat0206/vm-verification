@@ -1,0 +1,48 @@
+//Historical Data Found (Complete Context)
+{
+    "verificationId": "verif-20250421-153025000",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "referenceImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 1.png",
+    "checkingImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 3.png",
+    "historicalDataFound": true,
+    "turn2Processed": "s3://kootoro-dev-s3-state-f6d3xl/2025/06/07/verif-20250607102410-6d8a/responses/turn2-processed-response.md",
+    "sourceType": "DYNAMODB_QUERY_RESULT",
+    "previousVerification": {
+      "verificationId": "verif-20250420-100000000",
+      "verificationAt": "2025-04-20T10:00:00Z",
+      "verificationStatus": "INCORRECT",
+      "vendingMachineId": "VM-3245|null",
+      "location": "Office Building A, Floor 3",
+      "layoutId": "23591|null",
+      "layoutPrefix": "1q2w3e|null"
+    },
+    "temporalContext": {
+      "hoursSinceLastVerification": 29.5,
+      "daysSinceLastVerification": 1.23,
+      "businessDaysSince": 1
+    },
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+        "totalPositions": 60
+      }, 
+    "previousVerificationSummary": {
+      "total_positions_checked":42,"correct_positions":42,"discrepant_positions":0,"discrepancy_details":{"missing_products":0,"incorrect_product_types":0,"unexpected_products":0},"empty_positions_in_checking_image":0,"overall_accuracy":"100% (42/42)","overall_confidence":"95%","verification_outcome":"Layout Verified - All Positions Match"
+    }
+  }
+
+
+//No Historical Data Found (Fallback Context)
+{
+    "verificationId": "verif-20250421-153025000",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "referenceImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 1.png",
+    "checkingImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 3.png",
+    "historicalDataFound": false,
+    "sourceType": "NO_HISTORICAL_DATA",
+    "previousVerification": null,
+    "temporalContext": null,
+    "previousVerificationSummary": null,
+}

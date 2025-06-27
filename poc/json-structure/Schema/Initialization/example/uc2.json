@@ -1,0 +1,54 @@
+//Use Case 2: PREVIOUS_VS_CURRENT
+{
+    "verificationId": "verif-20250421-153025000",
+    "verificationAt": "2025-04-21T15:30:25Z", 
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "status": "INITIALIZED",
+    "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "vendingMachineId": "VM-3245",
+    "location": "Office Building A, Floor 3",
+    "layoutId": null,
+    "layoutPrefix": null,
+    "previousVerificationId": "verif-20250420-100000000",
+    "notificationEnabled": false,
+    "resourceValidation": {
+      "referenceImageExists": true,
+      "checkingImageExists": true,
+      "layoutMetadataExists": null,
+      "referenceImageMetadata": {
+        "size": 3234567,
+        "contentType": "image/jpeg",
+        "lastModified": "2025-04-20T10:00:05Z",
+        "etag": "\"ghi789jkl012\""
+      },
+      "checkingImageMetadata": {
+        "size": 3567890,
+        "contentType": "image/jpeg", 
+        "lastModified": "2025-04-21T15:30:20Z",
+        "etag": "\"jkl012mno345\""
+      }
+    },
+    "processingParameters": {
+      "maxTokens": 24000,
+      "budgetTokens": 16000,
+      "modelId": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+      "anthropicVersion": "bedrock-2023-05-31",
+      "thinkingEnabled": true
+    },
+    "workflowConfiguration": {
+      "maxRetries": 3,
+      "timeoutSeconds": 300,
+      "enableHistoricalLookup": true,
+      "enableNotifications": false
+    },
+    "sourceInformation": {
+      "apiVersion": "v1",
+      "clientInfo": "Web/1.0.0",
+      "requestId": "req-23456789-01bc-def0",
+      "userAgent": "Mozilla/5.0 (compatible; KootoroClient/1.0)"
+    },
+    "createdAt": "2025-04-21T15:30:25Z",
+    "createdBy": "InitializeFunction", 
+    "version": "1.0"
+  }

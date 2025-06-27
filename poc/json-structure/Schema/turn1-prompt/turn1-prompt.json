@@ -1,0 +1,171 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "Turn 1 Prompt Configuration Schema",
+    "description": "Schema for Turn 1 prompt data stored in S3 prompts category",
+    "required": [
+      "verificationId",
+      "promptType",
+      "verificationType", 
+      "messageStructure",
+      "createdAt"
+    ],
+    "properties": {
+      "verificationId": {
+        "type": "string",
+        "pattern": "^verif-[0-9]{13}[0-9]{3}$",
+        "description": "Unique verification identifier"
+      },
+      "promptType": {
+        "type": "string",
+        "enum": ["TURN1"],
+        "description": "Identifies this as a Turn 1 prompt"
+      },
+      "verificationType": {
+        "type": "string", 
+        "enum": ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
+        "description": "Type of verification being performed"
+      },
+      "messageStructure": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user"],
+            "description": "Message role for Bedrock API"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "required": ["type", "text"],
+                  "properties": {
+                    "type": { "const": "text" },
+                    "text": { 
+                      "type": "string",
+                      "description": "Turn 1 prompt text instructions"
+                    }
+                  }
+                },
+                {
+                  "required": ["type", "source"],
+                  "properties": {
+                    "type": { "const": "image" },
+                    "source": {
+                      "type": "object",
+                      "required": ["type", "media_type"],
+                      "properties": {
+                        "type": { "const": "base64" },
+                        "media_type": {
+                          "type": "string",
+                          "enum": ["image/jpeg", "image/png", "image/jpg"]
+                        },
+                        "data": {
+                          "type": "string",
+                          "description": "Placeholder for Base64 image data - populated during execution"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "description": "Bedrock-compatible message content array"
+          }
+        },
+        "description": "Complete message structure for Bedrock API"
+      },
+      "contextualInstructions": {
+        "type": "object",
+        "properties": {
+          "analysisObjective": {
+            "type": "string",
+            "description": "Primary objective for Turn 1 analysis"
+          },
+          "machineStructure": {
+            "type": "object",
+            "properties": {
+              "rowCount": { "type": "integer" },
+              "columnsPerRow": { "type": "integer" },
+              "rowOrder": { 
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "columnOrder": {
+                "type": "array", 
+                "items": { "type": "string" }
+              }
+            },
+            "description": "Machine structure information for context"
+          },
+          "useCaseSpecificGuidance": {
+            "type": "string",
+            "description": "Use case specific instructions (UC1: layout validation, UC2: baseline establishment)"
+          }
+        },
+        "description": "Contextual information and instructions"
+      },
+      "imageReference": {
+        "type": "object",
+        "required": ["imageType", "sourceUrl"],
+        "properties": {
+          "imageType": {
+            "type": "string", 
+            "enum": ["reference", "previous_checking"],
+            "description": "Type of image being analyzed in Turn 1"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Original S3 URL of the image"
+          },
+          "base64StorageReference": {
+            "type": "object",
+            "properties": {
+              "bucket": { "type": "string" },
+              "key": { "type": "string" }
+            },
+            "description": "S3 reference to stored Base64 data"
+          }
+        },
+        "description": "Reference information for the image to be analyzed"
+      },
+      "templateVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+$",
+        "description": "Version of the prompt template used"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Timestamp when prompt was generated"
+      },
+      "generationMetadata": {
+        "type": "object",
+        "properties": {
+          "processingTimeMs": {
+            "type": "integer",
+            "description": "Time taken to generate this prompt in milliseconds"
+          },
+          "promptSource": {
+            "type": "string",
+            "enum": ["TEMPLATE_BASED", "DYNAMIC_GENERATION"],
+            "description": "How this prompt was generated"
+          },
+          "contextSources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["INITIALIZATION", "LAYOUT_METADATA", "HISTORICAL_CONTEXT", "IMAGE_METADATA"]
+            },
+            "description": "Sources of context data used in prompt generation"
+          }
+        },
+        "description": "Metadata about prompt generation process"
+      }
+    },
+    "additionalProperties": false
+  }

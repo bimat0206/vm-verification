@@ -1,0 +1,507 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kootoro.com/schemas/vending-machine-verification/v1.0.0",
+  "title": "Vending Machine Verification Schema",
+  "description": "Standardized schema for vending machine verification workflow",
+  "type": "object",
+  "definitions": {
+    "VerificationContext": {
+      "type": "object",
+      "required": [
+        "verificationId",
+        "verificationType",
+        "status",
+        "vendingMachineId"
+      ],
+      "properties": {
+        "verificationId": {
+          "type": "string",
+          "description": "Unique identifier for the verification process"
+        },
+        "verificationType": {
+          "type": "string",
+          "enum": ["LAYOUT_VS_CHECKING", "PREVIOUS_VS_CURRENT"],
+          "description": "Type of verification being performed"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "VERIFICATION_REQUESTED",
+            "VERIFICATION_INITIALIZED",
+            "IMAGES_FETCHED",
+            "PROMPT_PREPARED",
+            "TURN1_COMPLETED",
+            "TURN1_PROCESSED",
+            "TURN2_COMPLETED",
+            "TURN2_PROCESSED",
+            "RESULTS_FINALIZED",
+            "RESULTS_STORED",
+            "NOTIFICATION_SENT",
+            "COMPLETED",
+            "INITIALIZATION_FAILED",
+            "HISTORICAL_FETCH_FAILED",
+            "IMAGE_FETCH_FAILED",
+            "BEDROCK_PROCESSING_FAILED",
+            "VERIFICATION_FAILED"
+          ],
+          "description": "Current status of the verification process"
+        },
+        "referenceImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the reference image"
+        },
+        "checkingImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the checking image"
+        },
+        "vendingMachineId": {
+          "type": "string",
+          "description": "Identifier for the vending machine"
+        },
+        "layoutId": {
+          "type": "string",
+          "description": "Identifier for the layout (for LAYOUT_VS_CHECKING)"
+        },
+        "layoutPrefix": {
+          "type": "string",
+          "description": "Prefix for the layout (for LAYOUT_VS_CHECKING)"
+        },
+        "previousVerificationId": {
+          "type": "string",
+          "description": "ID of previous verification (for PREVIOUS_VS_CURRENT)"
+        },
+        "verificationAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO8601 timestamp when verification was initiated"
+        },
+        "notificationEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether notifications should be sent"
+        },
+        "turnConfig": {
+          "type": "object",
+          "properties": {
+            "maxTurns": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Maximum number of conversation turns"
+            },
+            "referenceImageTurn": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Turn number for reference image analysis"
+            },
+            "checkingImageTurn": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Turn number for checking image analysis"
+            }
+          }
+        },
+        "turnTimestamps": {
+          "type": "object",
+          "properties": {
+            "initialized": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When verification was initialized"
+            },
+            "imagesFetched": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When images were fetched"
+            },
+            "turn1Started": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When turn 1 started"
+            },
+            "turn1Completed": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When turn 1 completed"
+            },
+            "turn2Started": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When turn 2 started"
+            },
+            "turn2Completed": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When turn 2 completed"
+            },
+            "completed": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When verification completed"
+            }
+          }
+        },
+        "requestMetadata": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "description": "Unique request identifier"
+            },
+            "requestTimestamp": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Timestamp of the initial request"
+            },
+            "processingStarted": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When processing started"
+            }
+          }
+        },
+        "resourceValidation": {
+          "type": "object",
+          "description": "Information about resource validation"
+        }
+      }
+    },
+    "ImageData": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public URL of the reference image"
+            },
+            "s3Key": {
+              "type": "string",
+              "description": "S3 key of the reference image"
+            },
+            "s3Bucket": {
+              "type": "string",
+              "description": "S3 bucket containing the reference image"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Additional metadata for the reference image"
+            },
+            "width": {
+              "type": "integer",
+              "description": "Width of the image in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "description": "Height of the image in pixels"
+            },
+            "format": {
+              "type": "string",
+              "description": "Format of the image (e.g., PNG, JPEG)"
+            }
+          },
+          "required": ["url", "s3Key", "s3Bucket"]
+        },
+        "checking": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public URL of the checking image"
+            },
+            "s3Key": {
+              "type": "string",
+              "description": "S3 key of the checking image"
+            },
+            "s3Bucket": {
+              "type": "string",
+              "description": "S3 bucket containing the checking image"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Additional metadata for the checking image"
+            },
+            "width": {
+              "type": "integer",
+              "description": "Width of the image in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "description": "Height of the image in pixels"
+            },
+            "format": {
+              "type": "string",
+              "description": "Format of the image (e.g., PNG, JPEG)"
+            }
+          },
+          "required": ["url", "s3Key", "s3Bucket"]
+        }
+      },
+      "required": ["reference", "checking"]
+    },
+    "ConversationState": {
+      "type": "object",
+      "properties": {
+        "currentTurn": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Current turn number (0-based)"
+        },
+        "maxTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "Maximum number of turns"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Turn response from Bedrock"
+          },
+          "description": "History of all conversation turns"
+        },
+        "referenceAnalysis": {
+          "type": "object",
+          "description": "Analysis of the reference image"
+        },
+        "checkingAnalysis": {
+          "type": "object",
+          "description": "Analysis of the checking image"
+        }
+      },
+      "required": ["currentTurn", "maxTurns", "history"]
+    },
+    "BedrockConfig": {
+      "type": "object",
+      "properties": {
+        "anthropic_version": {
+          "type": "string",
+          "description": "Version of Anthropic model to use"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "Maximum tokens for response"
+        },
+        "thinking": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["enabled", "disabled"],
+              "default": "enabled",
+              "description": "Whether thinking is enabled"
+            },
+            "budget_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Token budget for thinking"
+            }
+          },
+          "required": ["type"]
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Temperature parameter for model generation"
+        },
+        "top_p": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.9,
+          "description": "Top-p parameter for model generation"
+        }
+      },
+      "required": ["anthropic_version", "max_tokens"]
+    },
+    "SystemPrompt": {
+      "type": "object",
+      "properties": {
+        "systemPrompt": {
+          "type": "string",
+          "description": "The system prompt for Bedrock"
+        },
+        "bedrockConfig": {
+          "$ref": "#/definitions/BedrockConfig"
+        }
+      },
+      "required": ["systemPrompt", "bedrockConfig"]
+    },
+    "CurrentPrompt": {
+      "type": "object",
+      "properties": {
+        "currentPrompt": {
+          "type": "string",
+          "description": "The current user prompt for Bedrock"
+        },
+        "turnNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Turn number this prompt is for"
+        },
+        "includeImage": {
+          "type": "string",
+          "enum": ["reference", "checking", "both", "none"],
+          "description": "Which images to include with this prompt"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional metadata for this prompt"
+        }
+      },
+      "required": ["currentPrompt", "turnNumber", "includeImage"]
+    },
+    "FinalResults": {
+      "type": "object",
+      "properties": {
+        "verificationStatus": {
+          "type": "string",
+          "enum": ["VERIFIED", "DISCREPANCIES_FOUND", "UNVERIFIABLE", "ERROR"],
+          "description": "Overall verification status"
+        },
+        "confidenceScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score of the verification"
+        },
+        "discrepanciesCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of discrepancies found"
+        },
+        "discrepancies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Type of discrepancy"
+              },
+              "description": {
+                "type": "string",
+                "description": "Description of the discrepancy"
+              },
+              "location": {
+                "type": "object",
+                "description": "Location information for the discrepancy"
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                "description": "Severity of the discrepancy"
+              }
+            }
+          },
+          "description": "List of identified discrepancies"
+        },
+        "resultImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the result image"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Textual summary of verification results"
+        },
+        "comparisonDetails": {
+          "type": "object",
+          "description": "Detailed comparison information"
+        }
+      },
+      "required": ["verificationStatus", "confidenceScore", "discrepanciesCount"]
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Version of the schema",
+      "default": "1.0.0"
+    },
+    "verificationContext": {
+      "$ref": "#/definitions/VerificationContext"
+    },
+    "images": {
+      "$ref": "#/definitions/ImageData"
+    },
+    "systemPrompt": {
+      "$ref": "#/definitions/SystemPrompt"
+    },
+    "currentPrompt": {
+      "$ref": "#/definitions/CurrentPrompt"
+    },
+    "conversationState": {
+      "$ref": "#/definitions/ConversationState"
+    },
+    "historicalContext": {
+      "type": "object",
+      "description": "Historical verification data"
+    },
+    "layoutMetadata": {
+      "type": "object",
+      "description": "Metadata about the vending machine layout"
+    },
+    "turn1Response": {
+      "type": "object",
+      "description": "Response from the first turn"
+    },
+    "turn2Response": {
+      "type": "object",
+      "description": "Response from the second turn"
+    },
+    "referenceAnalysis": {
+      "type": "object",
+      "description": "Analysis of the reference image"
+    },
+    "checkingAnalysis": {
+      "type": "object",
+      "description": "Analysis of the checking image"
+    },
+    "finalResults": {
+      "$ref": "#/definitions/FinalResults"
+    },
+    "storageResult": {
+      "type": "object",
+      "description": "Result of storing the verification results"
+    },
+    "notificationResult": {
+      "type": "object",
+      "description": "Result of sending notifications"
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Error code"
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message"
+        },
+        "details": {
+          "type": "object",
+          "description": "Additional error details"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the error occurred"
+        }
+      }
+    }
+  },
+  "required": ["verificationContext"]
+}

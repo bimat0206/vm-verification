@@ -1,0 +1,11 @@
+{
+  "httpMethod": "GET",
+  "path": "/api/images/browser",
+  "queryStringParameters": {
+    "bucketType": "reference"
+  },
+  "pathParameters": {},
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "httpMethod": "GET",
+  "path": "/api/verifications/status/test-verification-id",
+  "pathParameters": {
+    "verificationId": "test-verification-id"
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}

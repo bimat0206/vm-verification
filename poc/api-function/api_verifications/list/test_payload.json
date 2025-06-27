@@ -1,0 +1,8 @@
+{
+  "httpMethod": "GET",
+  "path": "/verifications",
+  "queryStringParameters": {
+    "verificationId": "verif-20250609064311-6cb8",
+    "limit": "1"
+  }
+}

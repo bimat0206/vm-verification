@@ -1,0 +1,46 @@
+// Input:
+{
+  "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationType": "previous_vs_current",
+      "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+      "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+      "vendingMachineId": "VM-3245"
+}
+}
+  
+  // Output:
+{
+    "historicalContext": {
+      "previousVerificationId": "verif-2025042010000000",
+      "previousVerificationAt": "2025-04-20T10:00:00Z",
+      "previousVerificationStatus": "CORRECT",
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      },
+      "checkingStatus": { // Describes state of CURRENT check image
+      "A": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+      "B": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+      "C": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+      "D": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+      "E": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Changed Product.", // Example change
+      "F": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Filled." // Example change
+    },
+      "verificationSummary": {
+        "totalPositionsChecked": 42,
+        "correctPositions": 28,
+        "discrepantPositions": 14,
+        "missingProducts": 7,
+        "incorrectProductTypes": 7,
+        "unexpectedProducts": 0,
+        "emptyPositionsCount": 7,
+        "overallAccuracy": 66.7,
+        "overallConfidence": 97,
+        "verificationStatus": "INCORRECT",
+        "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+      },
+    }
+}

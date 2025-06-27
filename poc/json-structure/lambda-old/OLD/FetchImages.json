@@ -1,0 +1,127 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+//Input
+{
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "INITIALIZED",
+      "verificationType": "LAYOUT_VS_CHECKING",
+      "vendingMachineId": "VM-3245",
+      "layoutId": 23591,
+      "layoutPrefix": "1q2w3e",
+      "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+      "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+    }
+  }
+
+//Output (Small Image - Inline Storage)
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "status": "IMAGES_FETCHED",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/image.png",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/check_15-30-25.jpg"
+  },
+  "images": {
+    "referenceImage": {
+      "referenceImageBase64": "<inline-base64-encoded-string>",
+      "format": "png",
+      "contentType": "image/png",
+      "size": 245678,
+      "lastModified": "2025-04-21T14:25:15Z",
+      "etag": "\"abc123def456\"",
+      "storageMethod": "inline"
+    },
+    "checkingImage": {
+      "base64S3Bucket": "s3://kootoro-temp-base64",
+      "checkingImageBase64S3Key": "temp-base64/verif-2025042115302500/checking-20250421-153025.base64",
+      "format": "jpeg",
+      "contentType": "image/jpeg",
+      "size": 356789,
+      "lastModified": "2025-04-21T15:30:20Z",
+      "etag": "\"def456ghi789\"",
+      "storageMethod": "s3-temporary"
+    }
+  },
+"layoutMetadata": { ... }
+}
+
+//Use Case 2: PREVIOUS_VS_CURRENT
+//Input
+{
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "INITIALIZED",
+      "verificationType": "PREVIOUS_VS_CURRENT",
+      "vendingMachineId": "VM-3245",
+      "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+      "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+    },
+  }
+
+//Output (Both Images Small - Inline Storage)
+{
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "IMAGES_FETCHED",
+      "verificationType": "PREVIOUS_VS_CURRENT",
+      "vendingMachineId": "VM-3245",
+      "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+      "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+    },
+    "images": {
+      "referenceImage": {
+        "referenceImageBase64": "<inline-base64-string>",
+        "format": "png",
+        "contentType": "image/png",
+        "size": 245678,
+        "lastModified": "2025-04-21T14:25:15Z",
+        "etag": "\"abc123def456\"",
+        "storageMethod": "inline"
+      },
+      "checkingImage": {
+        "checkingImageBase64": "<base64-encoded-string>",
+        "format": "jpeg",
+        "contentType": "image/jpeg",
+        "size": 356789,
+        "lastModified": "2025-04-21T15:30:20Z",
+        "etag": "\"def456ghi789\"",
+        "storageMethod": "inline"
+      }
+    },
+    "historicalContext": {
+        "previousVerificationId": "verif-2025042010000000",
+        "previousVerificationAt": "2025-04-20T10:00:00Z",
+        "previousVerificationStatus": "CORRECT",
+        "machineStructure": {
+          "rowCount": 6,
+          "columnsPerRow": 10,
+          "rowOrder": ["A", "B", "C", "D", "E", "F"],
+          "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        },
+        "checkingStatus": { // Describes state of CURRENT check image
+        "A": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+        "B": "Current: 7 pink 'Mi Hảo Hảo' cup noodles visible. Status: No Change.",
+        "C": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+        "D": "Current: 7 red/white 'Mi modern Lẩu thái' cup noodles visible. Status: No Change.",
+        "E": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Changed Product.", // Example change
+        "F": "Current: 7 **GREEN 'Mi Cung Đình'** cup noodles visible. Status: Filled." // Example change
+      },
+        "verificationSummary": {
+          "totalPositionsChecked": 42,
+          "correctPositions": 28,
+          "discrepantPositions": 14,
+          "missingProducts": 7,
+          "incorrectProductTypes": 7,
+          "unexpectedProducts": 0,
+          "emptyPositionsCount": 7,
+          "overallAccuracy": 66.7,
+          "overallConfidence": 97,
+          "verificationStatus": "INCORRECT",
+          "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+        },
+      }
+  }

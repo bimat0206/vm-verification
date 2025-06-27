@@ -1,0 +1,51 @@
+//Use Case 2 (PREVIOUS_VS_CURRENT) - Fresh Analysis
+{
+    "verificationId": "verif-2025042115302500",
+    "promptType": "TURN2",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "messageStructure": {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Now please analyze the SECOND image (Current State Image)\n\nThis image represents the CURRENT state of vending machine VM-3245.\n\n**EXTRACTED BASELINE STATE (from previous image analysis):**\n- Machine Structure: 6 rows (A-F), 10 columns per row\n- Row A: PARTIAL - 7 pink \"Mì Hảo Hảo\" products in positions A01-A07\n- Row B: PARTIAL - 7 pink \"Mì Hảo Hảo\" products in positions B01-B07\n- Row C: PARTIAL - 7 red/white \"Mì modern Lẩu thái\" products in positions C01-C07\n- Row D: PARTIAL - 7 red/white \"Mì modern Lẩu thái\" products in positions D01-D07\n- Row E: PARTIAL - 7 red/white \"Mì modern Lẩu thái\" products in positions E01-E07\n- Row F: PARTIAL - 7 green \"Mì Cung Đình\" products in positions F01-F07\n- Total filled: 42 positions, Empty: 18 positions (positions 08-10 in all rows)\n\nYour task:\n1. Analyze the Current State Image completely\n2. Compare with the extracted baseline above\n3. Identify ALL CHANGES between previous and current state\n4. Document: additions, removals, movements, quantity changes\n\nTrack how the machine state has evolved since the previous image.\n\nComplete the verification report with emphasis on change detection."
+        },
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "${BASE64_CURRENT_IMAGE}"
+          }
+        }
+      ]
+    },
+    "referenceAnalysis": {
+      "analysisType": "FRESH_EXTRACTION",
+      "summary": "Complete state extracted from previous image through fresh visual analysis. Machine shows 6x10 structure with 42 filled positions, 18 empty positions.",
+      "baselineEstablished": true,
+      "keyObservations": [
+        "Machine structure: 6 rows, 10 columns each",
+        "All rows partially filled (7 products each)",
+        "Positions 08-10 empty in all rows",
+        "Three product types: pink (A-B), red/white (C-E), green (F)",
+        "Total occupancy: 70% (42/60 positions)"
+      ]
+    },
+    "imageReference": {
+      "imageType": "current",
+      "sourceUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+      "base64StorageReference": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-2025042115302500/images/checking-base64.json"
+      }
+    },
+    "estimatedTokens": 3180,
+    "templateVersion": "1.1.0",
+    "createdAt": "2025-04-21T15:30:38Z",
+    "generationMetadata": {
+      "processingTimeMs": 820,
+      "promptSource": "TEMPLATE_BASED",
+      "contextSources": ["TURN1_ANALYSIS", "IMAGE_METADATA"]
+    }
+  }

@@ -1,0 +1,101 @@
+// For Use Case 1
+//input
+{
+  "verificationType": "LAYOUT_VS_CHECKING",
+  "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+  "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+  "vendingMachineId": "VM-3245", // Optional
+  "layoutId": 23591,
+  "layoutPrefix": "1q2w3e",
+  "notificationEnabled": false,
+  "requestId": "req-8a72b936-d1c5-4f4a-9b7e-fb2c75e93d1b",
+  "requestTimestamp": "2025-04-21T15:30:20Z"
+}
+
+//output
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "INITIALIZED",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM-3245",
+    "layoutId": 23591,
+    "layoutPrefix": "1q2w3e",
+    "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "turnConfig": {
+      "maxTurns": 2,
+      "referenceImageTurn": 1,
+      "checkingImageTurn": 2
+    },
+    "turnTimestamps": {
+      "initialized": "2025-04-21T15:30:25Z",
+      "turn1": null,
+      "turn2": null,
+      "completed": null
+    },
+    "requestMetadata": {
+      "requestId": "req-8a72b936-d1c5-4f4a-9b7e-fb2c75e93d1b",
+      "requestTimestamp": "2025-04-21T15:30:20Z",
+      "processingStarted": "2025-04-21T15:30:25Z"
+    },
+    "notificationEnabled": false,
+    "resourceValidation": {
+      "layoutExists": true,
+      "referenceImageExists": true,
+      "checkingImageExists": true,
+      "validationTimestamp": "2025-04-21T15:30:25Z"
+    }
+  },
+  "message": "Verification initialized successfully. Will perform layout vs checking verification with two-turn approach."
+}
+  
+  // For Use Case 2
+//input
+{
+  "verificationType": "PREVIOUS_VS_CURRENT",
+  "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+  "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+  "vendingMachineId": "VM-3245",
+  "notificationEnabled": false,
+  "previousVerificationId": "verif-2025041514302500", // Optional
+  "requestId": "req-9c83a047-e2d6-5g5b-8c8f-gc3d86f04e2c",
+  "requestTimestamp": "2025-04-21T15:30:20Z"
+}
+
+//output
+{
+  "verificationContext": {
+    "verificationId": "verif-2025042115302500",
+    "verificationAt": "2025-04-21T15:30:25Z",
+    "status": "INITIALIZED",
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "vendingMachineId": "VM-3245",
+    "referenceImageUrl": "s3://kootoro-checking-bucket/2025-04-20/VM-3245/check_10-00-00.jpg",
+    "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+    "turnConfig": {
+      "maxTurns": 2,
+      "referenceImageTurn": 1,
+      "checkingImageTurn": 2
+    },
+    "turnTimestamps": {
+      "initialized": "2025-04-21T15:30:25Z",
+      "turn1": null,
+      "turn2": null,
+      "completed": null
+    },
+    "requestMetadata": {
+      "requestId": "req-9c83a047-e2d6-5g5b-8c8f-gc3d86f04e2c",
+      "requestTimestamp": "2025-04-21T15:30:20Z",
+      "processingStarted": "2025-04-21T15:30:25Z"
+    },
+    "notificationEnabled": false,
+    "resourceValidation": {
+      "referenceImageExists": true,
+      "checkingImageExists": true,
+      "validationTimestamp": "2025-04-21T15:30:25Z"
+    }
+  },
+  "message": "Verification initialized successfully. Will perform previous vs current verification with two-turn approach."
+}

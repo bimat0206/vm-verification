@@ -1,0 +1,114 @@
+Objective  
+Execute a precise visual comparison between a Previous Layout image and a Current Layout image of a vending machine{{if .VendingMachineID}} (ID: {{.VendingMachineID}}){{end}}{{if .Location}} at location: {{.Location}}{{end}}.  
+Your primary goal is to identify **all** differences between the two states with high accuracy, reporting each discrepancy individually.
+
+CRITICAL REQUIREMENTS  
+1. **DYNAMIC STRUCTURE DETECTION**  
+   - Before any content analysis, you MUST determine how many physical **rows** (shelves) and how many **slots per row** the machine has by inspecting its structure.  
+   - Label rows in strict top-to-bottom order (Row A = topmost, Row B = next, etc.), and slots left-to-right within each row (01, 02, …, up to the detected slot count).  
+   - Confirm: "I have detected X rows (labeled A–[LAST_ROW]) and Y slots per row (01–[MAX_SLOT])."
+
+2. **MUST ANALYZE EVERY POSITION**  
+   - Once detected, analyze all (rows × slots) positions. No position may be skipped.
+
+3. **MANDATORY OUTPUT FORMAT**  
+   - **Strictly** follow the "MANDATORY OUTPUT FORMAT" below. Do not deviate.
+
+4. **CONSISTENT NUMBERING**  
+   - Use two digits for slot numbers (e.g. 01, 02, 03, etc.).
+
+5. **INDIVIDUAL DISCREPANCY REPORTING**  
+   - Every position mismatch must appear as its own numbered item. No grouping.
+
+Image Input Instructions  
+1. **Previous Layout**: FIRST image provided.  
+2. **Current Layout**: SECOND image provided.  
+3. **Do Not Swap** roles.
+
+Slot Status Classification  
+- **Empty Slot**: Coils visible, no product.  
+- **Filled Slot**: Product present—describe key visual features (type, color, packaging, brand if legible).  
+- **Row Status**  
+  - **Full**: all slots filled  
+  - **Partial**: at least one empty, at least one filled  
+  - **Empty**: all slots empty
+
+Analysis Procedure  
+1. **STRUCTURAL PRE-CHECK**  
+   - Detect and confirm number of rows and slots per row.  
+   - Establish labels (e.g. Row A–Row E, slots 01–08).  
+
+2. **PREVIOUS IMAGE ANALYSIS**  
+   - For each detected row, determine Full/Partial/Empty and describe.  
+   - Record under "ROW STATUS ANALYSIS (Previous Image)".
+
+3. **CURRENT IMAGE ANALYSIS & COMPARISON**  
+   - For each row, determine status and describe.  
+   - Compare each position: Previous vs Current.  
+
+4. **DISCREPANCY IDENTIFICATION & REPORTING**  
+   - For every mismatch, note:  
+     - **Position** (e.g. Row A 03)  
+     - **Expected** (Previous): product or Empty  
+     - **Found** (Current): product or Empty  
+     - **Issue** (Missing, Unexpected, Wrong Product)  
+     - **Confidence** (%)  
+     - **Evidence** (brief)  
+     - **Verification Result**: **INCORRECT**
+
+5. **FINAL STRUCTURAL CHECK**  
+   - Re-confirm that your detected rows and slots align physically in both images.
+
+MANDATORY OUTPUT FORMAT  
+**VENDING MACHINE PREVIOUS vs CURRENT VERIFICATION REPORT**
+
+**INITIAL CONFIRMATION:**  
+- Detected [X] rows (A–[LAST_ROW]) and [Y] slots per row (01–[MAX_SLOT]).  
+- Proceeding with analysis on this [X]×[Y] grid.
+
+**ROW STATUS ANALYSIS (Previous Image):**  
+* **Row A:** [Full/Partial/Empty] – [Description]  
+* **Row B:** [Full/Partial/Empty] – [Description]  
+* **Row C:** [Full/Partial/Empty] – [Description]  
+* **Row D:** [Full/Partial/Empty] – [Description]  
+* **Row E:** [Full/Partial/Empty] – [Description]  
+[Continue for all detected rows]
+
+**ROW STATUS ANALYSIS (Current Image):**  
+* **Row A:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row B:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row C:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row D:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+* **Row E:** [Full/Partial/Empty] – [Description; add 'Verification Note' if overall row changed]  
+[Continue for all detected rows]
+
+**EMPTY SLOT REPORT:**  
+* **Previous Image – Empty Rows:** [List or 'None']  
+* **Current Image – Empty Rows:** [List or 'None']  
+* **Current Image – Partially Empty Rows:** [List with counts or 'None']  
+* **Current Image – Empty Positions:** [List all positions; total count]
+
+**DETAILED DISCREPANCY REPORT:**  
+* **Discrepancies Found:** [Total #]  
+  1. **Position:** [e.g. A01]  
+     * **Expected (Previous):** [Product / Empty]  
+     * **Found (Current):** [Product / Empty]  
+     * **Issue:** [Missing / Unexpected / Incorrect Type]  
+     * **Confidence:** [%]  
+     * **Evidence:** [Visual cue]  
+     * **Verification Result:** **INCORRECT**  
+  [Continue for each discrepancy]
+* **VERIFIED ROWS (No Discrepancies):** [List rows or 'None']
+
+**VERIFICATION SUMMARY:**  
+* **Total Positions Checked:** [X]×[Y] = [TOTAL]  
+* **Correct Positions:** [#]  
+* **Discrepant Positions:** [#]  
+  * Missing Products: [#]  
+  * Incorrect Product Types: [#]  
+  * Unexpected Products: [#]  
+* **Empty Positions in Current Image:** [#]  
+* **Overall Accuracy:** [%]  
+* **Overall Confidence:** [%]  
+* **VERIFICATION STATUS:** [CORRECT/INCORRECT]  
+* **Verification Outcome:** ['Layouts Match' or 'Discrepancies Detected']

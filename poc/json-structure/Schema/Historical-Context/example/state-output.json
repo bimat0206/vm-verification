@@ -1,0 +1,27 @@
+{
+    "verificationId": "verif-20250607144407-8a32",
+    "s3References": {
+      "processing_historical-context": {
+        "bucket": "kootoro-dev-s3-state-f6d3xl",
+        "key": "2025/06/07/verif-20250607144407-8a32/processing/historical-context.json.json",
+        "size": 1069
+      },
+      "processing_initialization": {
+        "bucket": "kootoro-dev-s3-state-f6d3xl",
+        "key": "2025/06/07/verif-20250607144407-8a32/processing/initialization.json",
+        "size": 617
+      }
+    },
+    "status": "HISTORICAL_CONTEXT_LOADED",
+    "summary": {
+      "checkingImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 3.png",
+      "historicalDataFound": true,
+      "previousStatus": "",
+      "previousVerificationAt": "2025-06-07T14:35:13Z",
+      "previousVerificationId": "verif-20250607143513-104a",
+      "processingTimeMs": 52,
+      "referenceImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 1.png",
+      "sourceType": "DYNAMODB_QUERY_RESULT",
+      "verificationType": "PREVIOUS_VS_CURRENT"
+    }
+  }

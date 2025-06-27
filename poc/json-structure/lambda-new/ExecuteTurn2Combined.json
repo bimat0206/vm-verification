@@ -1,0 +1,141 @@
+//input
+{
+    "verificationId": "verif-2025042115302500-2d9a",
+    "s3References": {
+      "processing_initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "2025/04/21/verif-2025042115302500/initialization.json"
+      },
+      "images_metadata": {
+          "bucket": "kootoro-state-management-bucket", 
+          "key": "2025/04/21/verif-2025042115302500/images/metadata.json"
+        }
+      },
+      "processing_layout-metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/processing/layout-metadata.json"
+      },
+      "prompts_system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/prompts/system-prompt.json"
+        },
+      "prompts_turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/prompts/turn1-prompt.json"
+      },
+      "conversation": {
+        "turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-conversation.json",
+        },
+  }
+      "responses": {
+        "turn1Raw": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-raw-response.json",
+          "etag": "\"def456ghi789\"",
+          "size": 8934
+        },
+        "turn1Processed": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-processed-response.json",
+          "etag": "\"abc123def456\"",
+          "size": 3456
+        },
+      }
+    },
+    "status": "TURN1_COMPLETED"
+  }
+  
+
+  //output:
+  {
+    "verificationId": "verif-20250528075910-231a",
+    "s3References": {
+      "processing_initialization": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "2025/04/21/verif-2025042115302500/initialization.json"
+      },
+      "images_metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/images/metadata.json"
+      },
+      "processing_historicalContext": {// for use case 2
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/processing/historical-context.json" // for use case 2
+        }
+        "processing_layout-metadata": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/processing/layout-metadata.json"
+        },
+      "prompts_system": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/prompts/system-prompt.json"
+      },
+      "prompts_turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/prompts/turn1-prompt.json"
+      },
+      "prompts_turn2": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/prompts/turn2-prompt.json"
+      },
+      "conversation": {
+        "turn1": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-conversation.json",
+        },
+        "turn2": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn2-conversation.json",
+        },
+  }
+      "responses": {
+        "turn1Raw": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-raw-response.json"
+          "etag": "\"jkl012mno345\"",
+          "size": 12456
+        },
+        "turn1Processed": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn1-processed-response.md",
+          "etag": "\"abc123def456\"",
+          "size": 3456
+        }
+        "turn2Raw": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn2-raw-response.json",
+          "etag": "\"jkl012mno345\"",
+          "size": 12456
+        },
+        "turn2Processed": {
+          "bucket": "kootoro-state-management-bucket",
+          "key": "2025/04/21/verif-2025042115302500/responses/turn2-processed-response.md",
+          "etag": "\"abc123def456\"",
+          "size": 3456
+        }
+      }
+    },
+    "status": "TURN2_COMPLETED",
+    "summary": {
+      "analysisStage": "CHECKING_ANALYSIS",
+      "verificationType": "LAYOUT_VS_CHECKING",
+      "processingTimeMs": 28000,
+      "tokenUsage": {
+        "input": 5120,
+        "output": 2312,
+        "thinking": 945,
+        "total": 8377
+      },
+      "bedrockLatencyMs": 2500,
+      "bedrockRequestId": "req-456ghj-789klm-012nop",
+      "discrepanciesFound": 15,
+      "verificationOutcome": "INCORRECT",
+      "dynamodbUpdated": true,
+      "conversationCompleted": true,
+      "s3StorageCompleted": true,
+      "comparisonCompleted": true
+    }
+  }
+  

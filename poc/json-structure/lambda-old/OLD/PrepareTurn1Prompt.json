@@ -1,0 +1,255 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+//input
+{
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "SYSTEM_PROMPT_READY",
+      "verificationType": "LAYOUT_VS_CHECKING",
+      "vendingMachineId": "VM-3245",
+      "layoutId": 23591,
+      "layoutPrefix": "1q2w3e"
+    },
+    "images": {
+      "referenceImage": {
+        "referenceImageBase64": "<inline-base64-string>",
+        "format": "png",
+        "contentType": "image/png",
+        "size": 245678,
+        "lastModified": "2025-04-21T14:25:15Z",
+        "etag": "\"abc123def456\"",
+        "storageMethod": "inline"
+      }
+    },
+    "layoutMetadata": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      },
+      "location": "Office Building A, Floor 3"
+    },
+    "bedrockConfig": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 16000
+      }
+    },
+    "turnNumber": 1,
+    "includeImage": "reference"
+  }
+
+  //output
+  {
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "TURN1_PROMPT_READY",
+      "verificationType": "LAYOUT_VS_CHECKING",
+      "vendingMachineId": "VM-3245",
+      "layoutId": 23591,
+      "layoutPrefix": "1q2w3e",
+    },
+    "layoutMetadata": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      },
+      "location": "Office Building A, Floor 3"
+    },
+    "bedrockConfig": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 16000
+      }
+    },
+    {
+      "currentPrompt": {
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "text": "The FIRST image provided ALWAYS depicts the Reference Layout..."
+              },
+              {
+                {
+                  "image": {
+                      "format": "png",
+                      "source": {
+                          "bytes": "image in bytes"
+                      }
+                  }
+              }
+              }
+            ]
+          }
+        ],
+        "turnNumber": 1,
+        "promptId": "prompt-verif-2025042115302500-turn1",
+        "createdAt": "2025-04-21T15:30:30Z",
+        "promptVersion": "1.1.0",
+        "imageIncluded": "reference"
+      }
+    }
+}
+
+//Use Case 2: PREVIOUS_VS_CURRENT
+//Input
+  {
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "SYSTEM_PROMPT_READY",
+      "verificationType": "PREVIOUS_VS_CURRENT",
+      "vendingMachineId": "VM-3245",
+      "referenceImageUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+     "checkingImageUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg"
+    },
+    "layoutMetadata": {
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      },
+      "location": "Office Building A, Floor 3"
+    },
+    "referenceImage": {
+      "referenceImageBase64": "<base64-encoded-string>",
+      "format": "png",
+      "contentType": "image/png",
+      "size": 245678,
+      "lastModified": "2025-04-21T14:25:15Z",
+      "etag": "\"abc123def456\"",
+      "storageMethod": "s3-temporary",
+    },
+    "checkingImage": {
+      "base64S3Bucket": "s3://kootoro-temp-base64",
+      "checkingImageBase64S3Key": "temp-base64/verif-2025042115302500/checking-20250421-153025.base64",
+      "format": "jpeg",
+      "contentType": "image/jpeg",
+      "size": 356789,
+      "lastModified": "2025-04-21T15:30:20Z",
+      "etag": "\"def456ghi789\"",
+      "storageMethod": "s3-temporary"
+    }
+  },
+    "historicalContext": {
+        "previousVerificationId": "verif-2025042010000000",
+        "previousVerificationAt": "2025-04-20T10:00:00Z",
+        "previousVerificationStatus": "CORRECT",
+        "machineStructure": {
+          "rowCount": 6,
+          "columnsPerRow": 10,
+          "rowOrder": ["A", "B", "C", "D", "E", "F"],
+          "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        },
+        "verificationSummary": {
+            "totalPositionsChecked": 42,
+            "correctPositions": 28,
+            "discrepantPositions": 14,
+            "missingProducts": 7,
+            "incorrectProductTypes": 7,
+            "unexpectedProducts": 0,
+            "emptyPositionsCount": 7,
+            "overallAccuracy": 66.7,
+            "overallConfidence": 97,
+            "verificationStatus": "INCORRECT",
+            "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+          }
+      },
+    "bedrockConfig": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 16000
+      }
+    },
+    "turnNumber": 1,
+    "includeImage": "reference"
+  }
+
+//Output
+{
+    "verificationContext": {
+      "verificationId": "verif-2025042115302500",
+      "verificationAt": "2025-04-21T15:30:25Z",
+      "status": "TURN1_PROMPT_READY",
+      "verificationType": "PREVIOUS_VS_CURRENT",
+      "vendingMachineId": "VM-3245",
+
+    },
+    "images": {
+      "referenceImageBase64": "base64_encoded_image_data...",
+      "checkingImageBase64": "base64_encoded_image_data...",
+    },
+    "historicalContext": {
+      "previousVerificationId": "verif-2025042010000000",
+      "previousVerificationAt": "2025-04-20T10:00:00Z",
+      "previousVerificationStatus": "CORRECT",
+      "hoursSinceLastVerification": 29.5,
+      "machineStructure": {
+        "rowCount": 6,
+        "columnsPerRow": 10,
+        "rowOrder": ["A", "B", "C", "D", "E", "F"],
+        "columnOrder": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      },
+      "verificationSummary": {
+        "totalPositionsChecked": 42,
+        "correctPositions": 28,
+        "discrepantPositions": 14,
+        "missingProducts": 7,
+        "incorrectProductTypes": 7,
+        "unexpectedProducts": 0,
+        "emptyPositionsCount": 7,
+        "overallAccuracy": 66.7,
+        "overallConfidence": 97,
+        "verificationStatus": "INCORRECT",
+        "verificationOutcome": "Discrepancies Detected - Row E contains incorrect product types and Row F is completely empty"
+      }
+    },
+    "bedrockConfig": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 24000,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 16000
+      }
+    },
+    "currentPrompt": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "The FIRST image provided ALWAYS depicts the Reference Layout..."
+            },
+            {
+              {
+                "image": {
+                    "format": "png",
+                    "source": {
+                        "bytes": "image in bytes"
+                    }
+                }
+            }
+            }
+          ]
+        }
+      ],
+      "turnNumber": 1,
+      "promptId": "prompt-verif-2025042115302500-turn1",
+      "createdAt": "2025-04-21T15:30:30Z",
+      "promptVersion": "1.1.0",
+      "imageIncluded": "reference"
+    }
+  }

@@ -1,0 +1,794 @@
+{
+    "Items": [
+        {
+            "location": {
+                "S": "Default Location"
+            },
+            "productPositionMap": {
+                "M": {
+                    "A01": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B01": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A02": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A03": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B02": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C02": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D01": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C01": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B03": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A04": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C04": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F01": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A05": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B04": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E02": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D03": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D02": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B05": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A06": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C03": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E01": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "A07": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C06": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E04": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B06": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D05": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F03": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D04": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F02": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "B07": {
+                        "M": {
+                            "productId": {
+                                "N": "3486"
+                            },
+                            "productName": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4290978898647_29109e24880d150f6c90814233b5cd3e-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C05": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E03": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D07": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E06": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F05": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "C07": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E05": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F04": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "D06": {
+                        "M": {
+                            "productId": {
+                                "N": "3485"
+                            },
+                            "productName": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/b8cd9b802eed23e400947365d79bdbbe-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F07": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "F06": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    },
+                    "E07": {
+                        "M": {
+                            "productId": {
+                                "N": "3487"
+                            },
+                            "productName": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "productImage": {
+                                "S": "https://vending-cdn.kootoro.com/Content/Upload/Company3/MasterProduct/z4260658836449_c4c9c6bfaa1dd7b1c78f1300a08fa4d3-removebg-preview.png"
+                            }
+                        }
+                    }
+                }
+            },
+            "rowProductMapping": {
+                "M": {
+                    "A": {
+                        "M": {
+                            "1": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "2": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "3": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "4": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "5": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "6": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "7": {
+                                "S": "Mì Hảo Hảo"
+                            }
+                        }
+                    },
+                    "B": {
+                        "M": {
+                            "1": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "2": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "3": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "4": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "5": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "6": {
+                                "S": "Mì Hảo Hảo"
+                            },
+                            "7": {
+                                "S": "Mì Hảo Hảo"
+                            }
+                        }
+                    },
+                    "C": {
+                        "M": {
+                            "1": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "2": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "3": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "4": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "5": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "6": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "7": {
+                                "S": "Mì modern Lẩu thái"
+                            }
+                        }
+                    },
+                    "D": {
+                        "M": {
+                            "1": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "2": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "3": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "4": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "5": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "6": {
+                                "S": "Mì modern Lẩu thái"
+                            },
+                            "7": {
+                                "S": "Mì modern Lẩu thái"
+                            }
+                        }
+                    },
+                    "E": {
+                        "M": {
+                            "1": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "2": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "3": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "4": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "5": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "6": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "7": {
+                                "S": "Mì Cung Đình"
+                            }
+                        }
+                    },
+                    "F": {
+                        "M": {
+                            "1": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "2": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "3": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "4": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "5": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "6": {
+                                "S": "Mì Cung Đình"
+                            },
+                            "7": {
+                                "S": "Mì Cung Đình"
+                            }
+                        }
+                    }
+                }
+            },
+            "vendingMachineId": {
+                "S": "VM-23591"
+            },
+            "referenceImageUrl": {
+                "S": "s3://kootoro-dev-s3-reference-f6d3xl/processed/2025/05/06/23591_5560c9c9_reference_image.png"
+            },
+            "updatedAt": {
+                "S": "2025-05-06T05:00:03Z"
+            },
+            "layoutPrefix": {
+                "S": "5560c9c9"
+            },
+            "createdAt": {
+                "S": "2025-05-06T05:00:03Z"
+            },
+            "sourceJsonUrl": {
+                "S": "s3://kootoro-dev-s3-reference-f6d3xl/raw/DataInput.json"
+            },
+            "layoutId": {
+                "N": "23591"
+            },
+            "machineStructure": {
+                "M": {
+                    "rowCount": {
+                        "N": "6"
+                    },
+                    "columnOrder": {
+                        "L": [
+                            {
+                                "S": "1"
+                            },
+                            {
+                                "S": "2"
+                            },
+                            {
+                                "S": "3"
+                            },
+                            {
+                                "S": "4"
+                            },
+                            {
+                                "S": "5"
+                            },
+                            {
+                                "S": "6"
+                            },
+                            {
+                                "S": "7"
+                            }
+                        ]
+                    },
+                    "rowOrder": {
+                        "L": [
+                            {
+                                "S": "A"
+                            },
+                            {
+                                "S": "B"
+                            },
+                            {
+                                "S": "C"
+                            },
+                            {
+                                "S": "D"
+                            },
+                            {
+                                "S": "E"
+                            },
+                            {
+                                "S": "F"
+                            }
+                        ]
+                    },
+                    "columnsPerRow": {
+                        "N": "7"
+                    }
+                }
+            }
+        }
+    ],
+    "Count": 1,
+    "ScannedCount": 1,
+    "ConsumedCapacity": null
+}

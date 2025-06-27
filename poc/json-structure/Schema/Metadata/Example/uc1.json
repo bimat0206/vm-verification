@@ -1,0 +1,112 @@
+//Use Case 1: LAYOUT_VS_CHECKING
+
+{
+    "verificationId": "verif-20250421-153025000",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "referenceImage": {
+      "originalMetadata": {
+        "sourceUrl": "s3://kootoro-reference-bucket/processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+        "sourceBucket": "kootoro-reference-bucket",
+        "sourceKey": "processed/2025-04-21/14-25-10/23591_v1_abc_1q2w3e/image.png",
+        "contentType": "image/png",
+        "originalSize": 2456789,
+        "lastModified": "2025-04-21T14:25:15Z",
+        "etag": "\"abc123def456\"",
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1080,
+          "aspectRatio": 1.778
+        }
+      },
+      "base64Metadata": {
+        "encodedSize": 3275719,
+        "compressionRatio": 0.85,
+        "encodingTimestamp": "2025-04-21T15:30:26Z",
+        "encodingMethod": "standard_base64",
+        "qualitySettings": {
+          "pngCompression": 6,
+          "optimized": true
+        }
+      },
+      "storageMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-20250421-153025000/images/reference-base64.json",
+        "etag": "\"def456ghi789\"",
+        "storedSize": 3275719,
+        "storageClass": "STANDARD",
+        "encryption": {
+          "method": "SSE-S3",
+          "keyId": null
+        }
+      },
+      "imageType": "layout_reference",
+      "validation": {
+        "isValid": true,
+        "validationErrors": [],
+        "bedrockCompatible": true,
+        "sizeWithinLimits": true
+      }
+    },
+    "checkingImage": {
+      "originalMetadata": {
+        "sourceUrl": "s3://kootoro-checking-bucket/2025-04-21/VM-3245/check_15-30-25.jpg",
+        "sourceBucket": "kootoro-checking-bucket",
+        "sourceKey": "2025-04-21/VM-3245/check_15-30-25.jpg",
+        "contentType": "image/jpeg",
+        "originalSize": 3567890,
+        "lastModified": "2025-04-21T15:30:20Z",
+        "etag": "\"ghi789jkl012\"",
+        "imageDimensions": {
+          "width": 2048,
+          "height": 1536,
+          "aspectRatio": 1.333
+        }
+      },
+      "base64Metadata": {
+        "encodedSize": 4757187,
+        "compressionRatio": 0.75,
+        "encodingTimestamp": "2025-04-21T15:30:26Z",
+        "encodingMethod": "standard_base64",
+        "qualitySettings": {
+          "jpegQuality": 85,
+          "optimized": true
+        }
+      },
+      "storageMetadata": {
+        "bucket": "kootoro-state-management-bucket",
+        "key": "verif-20250421-153025000/images/checking-base64.json",
+        "etag": "\"jkl012mno345\"",
+        "storedSize": 4757187,
+        "storageClass": "STANDARD",
+        "encryption": {
+          "method": "SSE-S3",
+          "keyId": null
+        }
+      },
+      "imageType": "current_checking",
+      "validation": {
+        "isValid": true,
+        "validationErrors": [],
+        "bedrockCompatible": true,
+        "sizeWithinLimits": true
+      }
+    },
+    "processingMetadata": {
+      "processedAt": "2025-04-21T15:30:26Z",
+      "processingTimeMs": 4250,
+      "totalImagesProcessed": 2,
+      "processingSteps": [
+        "IMAGE_DOWNLOAD",
+        "IMAGE_VALIDATION",
+        "BASE64_ENCODING",
+        "S3_STORAGE",
+        "METADATA_EXTRACTION"
+      ],
+      "parallelProcessing": true,
+      "processingErrors": [],
+      "processingWarnings": [
+        "Reference image resolution higher than checking image"
+      ]
+    },
+    "version": "1.0"
+  }

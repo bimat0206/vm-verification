@@ -1,0 +1,11 @@
+{
+  "requestTimestamp": "2025-05-11T13:53:27.370Z",
+  "requestId": "eedb89ef-3489-4164-86b7-0701e9db6978",
+  "verificationContext": {
+    "verificationType": "PREVIOUS_VS_CURRENT",
+    "referenceImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 1.png",
+    "checkingImageUrl": "s3://kootoro-dev-s3-checking-f6d3xl/AACZ 3.png",
+    "vendingMachineId": "VM-1003",
+    "notificationEnabled": false
+  }
+}
