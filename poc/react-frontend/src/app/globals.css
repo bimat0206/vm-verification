@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Gradient Shift Theme Variables - derived from user spec */
+    --gradient-blue-hsl: 217 91% 60%; /* #3B82F6 */
+    --gradient-purple-hsl: 257 90% 66%; /* #8B5CF6 */
+    --gradient-magenta-hsl: 327 82% 61%; /* #EC4899 */
+
+    --background: 0 0% 7%; /* #111111 - Near Black */
+    --foreground: 0 0% 96%; /* #F5F5F5 - Off-White */
+
+    --card: 0 0% 12%; /* #1E1E1E - Dark Gray */
+    --card-foreground: 0 0% 96%; /* #F5F5F5 */
+
+    --popover: 0 0% 12%; /* #1E1E1E */
+    --popover-foreground: 0 0% 96%; /* #F5F5F5 */
+
+    /* Primary uses the start of the gradient for consistency */
+    --primary: var(--gradient-blue-hsl); 
+    --primary-foreground: 0 0% 100%; /* White */
+
+    /* Secondary for less important text or elements */
+    --secondary: 0 0% 12%; /* Dark Gray, can be same as card */
+    --secondary-foreground: 0 0% 63%; /* #A0A0A0 - Light Gray */
+
+    --muted:  0 0% 12%; /* Dark Gray */
+    --muted-foreground: 0 0% 63%; /* #A0A0A0 - Light Gray */
+
+    /* Accent can use another color from the gradient or a distinct accent */
+    --accent: var(--gradient-purple-hsl);
+    --accent-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 84% 60%; /* Standard red */
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 122 39% 49%; /* Standard green */
+    --success-foreground: 0 0% 100%;
+
+    --border: 0 0% 18%; /* #2F2F2F - Medium Gray */
+    --input: 0 0% 12%; /* #1E1E1E - Dark Gray for input backgrounds */
+    --ring: var(--gradient-blue-hsl); /* Ring uses primary gradient color */
+
+    --radius: 1rem; /* 16px - For cards, as per user spec for "Gradient Shift" */
+
+    /* Sidebar variables - retain from original template, theme if necessary */
+    --sidebar-background: 0 0% 5%; 
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: var(--ring);
+  }
+
+  .dark {
+    /* Ensure dark theme variables are identical for forced dark mode */
+    --gradient-blue-hsl: 217 91% 60%;
+    --gradient-purple-hsl: 257 90% 66%;
+    --gradient-magenta-hsl: 327 82% 61%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 96%;
+    --primary: var(--gradient-blue-hsl);
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 63%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 63%;
+    --accent: var(--gradient-purple-hsl);
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 122 39% 49%;
+    --success-foreground: 0 0% 100%;
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: var(--gradient-blue-hsl);
+    
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: var(--ring);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Gradient text utility for Gradient Shift Theme */
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-gradient-blue via-gradient-purple to-gradient-magenta;
+  }
+}
+
+@layer components {
+  .btn-gradient { /* Gradient Shift buttons */
+    @apply text-primary-foreground py-2 px-4 transition-transform duration-200 ease-in-out font-semibold;
+    background-image: linear-gradient(to right, hsl(var(--gradient-blue-hsl)), hsl(var(--gradient-purple-hsl)), hsl(var(--gradient-magenta-hsl)));
+    border-radius: 0.5rem; /* 8px for buttons as per "Gradient Shift" spec */
+  }
+  .btn-gradient:hover {
+    @apply scale-105 shadow-lg shadow-[hsl(var(--gradient-magenta-hsl))]/30;
+  }
+}
