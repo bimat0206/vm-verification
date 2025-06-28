@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.3.2] - 2025-06-28
+
+### Changed
+- **BREAKING**: Removed `ConversationId` field from `ConversationTracker` struct
+  - **Rationale**: Field was redundant and caused DynamoDB mapping issues since `verificationId` is passed as parameter
+  - **Impact**: Eliminates confusion between struct field names and DynamoDB table schema
+  - **Migration**: All consumers now pass `verificationID` explicitly as function parameter
+
+### Enhanced
+- **DynamoDB Attribute Mapping**: Added proper `dynamodbav` tags to remaining ConversationTracker fields
+  - `CurrentTurn`, `MaxTurns`, `TurnStatus`, `ConversationAt`, etc. now have correct DynamoDB mapping
+  - Improved marshalling/unmarshalling consistency with DynamoDB operations
+- **Validation Cleanup**: Removed redundant ConversationId validation since verification ID is validated at function level
+
+### Technical Details
+- **Files Modified**:
+  - `types.go` - Removed ConversationId field from ConversationTracker struct
+  - `validation.go` - Removed ConversationId validation logic
+- **Field Mapping**: ConversationTracker fields now properly map to DynamoDB table schema without intermediate struct fields
+- **Backward Compatibility**: Breaking change - consumers must update to pass verificationID as parameter
+
+### Impact
+- ✅ Eliminates DynamoDB ValidationException errors for empty key attributes
+- ✅ Simplifies data model by removing redundant field
+- ✅ Makes verification ID handling explicit and clear
+- ✅ Improves code maintainability across all consumers
+
 ## [2.3.1] - 2025-06-28
 
 ### Added

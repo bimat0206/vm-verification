@@ -66,13 +66,12 @@ type TemplateProcessor struct {
 
 // ConversationTracker tracks conversation progress
 type ConversationTracker struct {
-	ConversationId     string                 `json:"conversationId"`
-	CurrentTurn        int                    `json:"currentTurn"`
-	MaxTurns           int                    `json:"maxTurns"`
-	TurnStatus         string                 `json:"turnStatus"`
-	ConversationAt     string                 `json:"conversationAt"`
-	Turn1ProcessedPath string                 `json:"turn1ProcessedPath,omitempty"`
-	Turn2ProcessedPath string                 `json:"turn2ProcessedPath,omitempty"`
-	History            []interface{}          `json:"history"`
-	Metadata           map[string]interface{} `json:"metadata,omitempty"`
+	CurrentTurn        int                    `json:"currentTurn" dynamodbav:"currentTurn"`
+	MaxTurns           int                    `json:"maxTurns" dynamodbav:"maxTurns"`
+	TurnStatus         string                 `json:"turnStatus" dynamodbav:"turnStatus"`
+	ConversationAt     string                 `json:"conversationAt" dynamodbav:"conversationAt"`
+	Turn1ProcessedPath string                 `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
+	Turn2ProcessedPath string                 `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
+	History            []interface{}          `json:"history" dynamodbav:"history"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty" dynamodbav:"metadata,omitempty"`
 }

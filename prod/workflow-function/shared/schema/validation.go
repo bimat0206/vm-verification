@@ -585,9 +585,7 @@ func ValidateConversationTracker(tracker *ConversationTracker) Errors {
 		return errors // Optional field
 	}
 
-	if tracker.ConversationId == "" {
-		errors = append(errors, ValidationError{Field: "conversationId", Message: "required"})
-	}
+	// Note: ConversationId field removed - verification ID is now passed separately as a parameter
 
 	if tracker.CurrentTurn < 0 {
 		errors = append(errors, ValidationError{Field: "currentTurn", Message: "cannot be negative"})
