@@ -168,7 +168,7 @@ const (
 	Turn2ResponseFile     = "turn2-raw-response"
 	
 	// Processing category files
-	InitializationFile    = "initialization"
+	InitializationFile    = "initialization.json"
 	LayoutMetadataFile    = "layout-metadata"
 	HistoricalContextFile = "historical-context"
 	Turn1AnalysisFile     = "turn1-processed-response"
