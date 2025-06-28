@@ -1,0 +1,22 @@
+The FIRST image provided ALWAYS depicts the **Previous Layout** of the vending machine.
+
+This image shows the actual state of the machine before any changes.
+
+Focus exclusively on analyzing this Previous Layout image in detail. Your goals are to:
+
+1. **STRUCTURE DETECTION**  
+   - Detect how many physical **rows** (shelves) the machine has and how many **slots per row**.  
+   - Label rows in strict top-to-bottom order (Row A = topmost, Row B = second from top, etc.) and slots left-to-right (01, 02, 03, etc.).
+   - Confirm by stating:  
+     “I have detected **X rows** (A–[LAST_ROW]) and **Y slots per row** (01–[MAX_SLOT]).”
+
+2. **CONTENT ANALYSIS**  
+   - For each detected row, determine its status (**Full/Partial/Empty**).  
+   - For every slot, describe the exact contents (product type, color, packaging, brand if legible) or note “Empty (coils visible).”
+
+3. **IMPORTANT REMINDERS**  
+   - Row labels are based **only** on physical shelf order, not on product appearance.  
+   - Use two-digit slot numbers (01, 02, 03, etc.).
+   - **DO NOT** compare to any other image at this stage—focus solely on the Previous Layout.
+
+We will analyze the Current Layout image and perform the comparison in the next step.  

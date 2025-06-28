@@ -32,15 +32,6 @@ s3_buckets = {
         abort_incomplete_multipart_upload_days = 7
       }
     ],
-    results = [
-      {
-        id                                     = "expire-after-12-months"
-        enabled                                = true
-        expiration_days                        = 365
-        noncurrent_version_expiration_days     = 90
-        abort_incomplete_multipart_upload_days = 7
-      }
-    ]
     temp_base64 = [
       {
         id                                     = "cleanup-temp-base64"
@@ -194,41 +185,6 @@ step_functions = {
   enable_x_ray_tracing  = true
 }
 
-# ECS Streamlit Configuration
-streamlit_frontend = {
-  create_streamlit                 = true
-  service_name                     = "vm-fe"
-  image_uri                        = "879654127886.dkr.ecr.us-east-1.amazonaws.com/vending-verification-streamlit-app:latest" # Replace with your image
-  image_repository_type            = "ECR"
-  cpu                              = 1024 # 1 vCPU = 1024 CPU units
-  memory                           = 2048 # 2 GB = 2048 MB
-  port                             = 8501
-  auto_deployments_enabled         = false
-  enable_auto_scaling              = true
-  min_size                         = 1
-  max_size                         = 3
-  max_capacity                     = 10
-  cpu_threshold                    = 70
-  memory_threshold                 = 70
-  theme_mode                       = "dark"
-  log_retention_days               = 30
-  health_check_path                = "/_stcore/health"
-  health_check_interval            = 30
-  health_check_timeout             = 5
-  health_check_healthy_threshold   = 2
-  health_check_unhealthy_threshold = 3
-  enable_https                     = false
-  internal_alb                     = false
-  enable_container_insights        = true
-  enable_execute_command           = true
-  environment_variables = {
-    STREAMLIT_THEME_PRIMARY_COLOR              = "#FF4B4B"
-    STREAMLIT_THEME_BACKGROUND_COLOR           = "#0E1117"
-    STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR = "#262730"
-    STREAMLIT_THEME_TEXT_COLOR                 = "#FAFAFA"
-    STREAMLIT_THEME_FONT                       = "sans serif"
-  }
-}
 
 # ECS React Configuration
 react_frontend = {
@@ -281,7 +237,6 @@ bedrock = {
 
 # Monitoring Configuration
 monitoring = {
-  create_dashboard      = true
-  log_retention_days    = 12
-  alarm_email_endpoints = ["manh.hoang@renovacloud.com"]
+  create_dashboard   = true
+  log_retention_days = 12
 }

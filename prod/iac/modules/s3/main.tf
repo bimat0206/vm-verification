@@ -24,18 +24,6 @@ resource "aws_s3_bucket" "checking" {
   )
 }
 
-# Results Bucket for verification results and visualizations
-resource "aws_s3_bucket" "results" {
-  bucket        = var.results_bucket_name
-  force_destroy = var.force_destroy
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = var.results_bucket_name
-    }
-  )
-}
 
 # Server-side encryption for all buckets
 resource "aws_s3_bucket_server_side_encryption_configuration" "reference" {
@@ -58,15 +46,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "checking" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "results" {
-  bucket = aws_s3_bucket.results.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
 
 # Versioning configuration
 resource "aws_s3_bucket_versioning" "reference" {
@@ -83,12 +62,6 @@ resource "aws_s3_bucket_versioning" "checking" {
   }
 }
 
-resource "aws_s3_bucket_versioning" "results" {
-  bucket = aws_s3_bucket.results.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
 
 # Public access block for all buckets
 resource "aws_s3_bucket_public_access_block" "reference" {
@@ -107,13 +80,6 @@ resource "aws_s3_bucket_public_access_block" "checking" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_public_access_block" "results" {
-  bucket                  = aws_s3_bucket.results.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
 
 # CORS configuration for reference bucket
 resource "aws_s3_bucket_cors_configuration" "reference" {
@@ -141,18 +107,6 @@ resource "aws_s3_bucket_cors_configuration" "checking" {
   }
 }
 
-# CORS configuration for results bucket
-resource "aws_s3_bucket_cors_configuration" "results" {
-  bucket = aws_s3_bucket.results.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "HEAD"]
-    allowed_origins = ["*"] # In production, this should be restricted to specific domains
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3000
-  }
-}
 
 # Reference bucket lifecycle configuration
 resource "aws_s3_bucket_lifecycle_configuration" "reference" {
@@ -249,30 +203,6 @@ resource "aws_s3_object" "reference_processed_folder" {
   content      = ""
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "results" {
-  bucket = aws_s3_bucket.results.id
-
-  rule {
-    id     = "expire-after-12-months"
-    status = "Enabled"
-
-    filter {
-      prefix = ""
-    }
-
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 7
-    }
-
-    expiration {
-      days = 365
-    }
-
-    noncurrent_version_expiration {
-      noncurrent_days = 90
-    }
-  }
-}
 # Create temporary Base64 bucket
 resource "aws_s3_bucket" "state" {
   bucket        = var.state_bucket_name

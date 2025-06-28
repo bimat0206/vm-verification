@@ -154,50 +154,5 @@ resource "aws_iam_policy" "lambda_to_sfn_policy" {
   })
 }
 
-# IAM Role for API Gateway to invoke Step Functions
-resource "aws_iam_role" "api_gateway_step_functions_role" {
-  count = var.create_api_gateway_integration ? 1 : 0
-  name  = "${var.state_machine_name}-api-gateway-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "apigateway.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = var.common_tags
-}
-
-# IAM Policy for API Gateway to invoke Step Functions
-resource "aws_iam_policy" "api_gateway_step_functions_policy" {
-  count       = var.create_api_gateway_integration ? 1 : 0
-  name        = "${var.state_machine_name}-api-gateway-policy"
-  description = "Allows API Gateway to start Step Functions executions"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = "states:StartExecution"
-        Effect   = "Allow"
-        Resource = aws_sfn_state_machine.verification_workflow.arn
-      }
-    ]
-  })
-}
-
-# Attach policy to API Gateway role
-resource "aws_iam_role_policy_attachment" "api_gateway_step_functions_attachment" {
-  count      = var.create_api_gateway_integration ? 1 : 0
-  role       = aws_iam_role.api_gateway_step_functions_role[0].name
-  policy_arn = aws_iam_policy.api_gateway_step_functions_policy[0].arn
-}
 
 

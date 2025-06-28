@@ -200,7 +200,7 @@ resource "aws_api_gateway_integration" "verifications_post" {
   integration_http_method = "POST"
   type                    = "AWS"
   uri                     = "arn:aws:apigateway:${var.region}:states:action/StartExecution"
-  credentials             = var.step_functions_role_arn
+  credentials             = aws_iam_role.api_gateway_step_functions_role.arn
   passthrough_behavior    = "WHEN_NO_TEMPLATES"
 
   # Add request templates for Step Functions integration

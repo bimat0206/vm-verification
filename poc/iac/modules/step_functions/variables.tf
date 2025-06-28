@@ -45,23 +45,6 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "create_api_gateway_integration" {
-  description = "Whether to create API Gateway integration for the state machine"
-  type        = bool
-  default     = false
-}
-
-variable "api_gateway_id" {
-  description = "ID of the API Gateway to integrate with"
-  type        = string
-  default     = ""
-}
-
-variable "api_gateway_root_resource_id" {
-  description = "ID of the API Gateway root resource"
-  type        = string
-  default     = ""
-}
 
 variable "region" {
   description = "AWS region"
@@ -88,8 +71,3 @@ variable "dynamodb_conversation_table" {
   default     = ""
 }
 
-variable "api_gateway_endpoint" {
-  description = "API Gateway endpoint URL"
-  type        = string
-  default     = ""
-}

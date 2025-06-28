@@ -88,11 +88,6 @@ variable "log_retention_days" {
   default     = 14
 }
 
-variable "alarm_email_endpoints" {
-  description = "List of email addresses to send alarm notifications to"
-  type        = list(string)
-  default     = []
-}
 
 variable "common_tags" {
   description = "Tags to apply to all resources"

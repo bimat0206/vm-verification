@@ -177,36 +177,6 @@ resource "aws_security_group" "alb" {
   )
 }
 
-# Security Group for Streamlit ECS Tasks
-resource "aws_security_group" "ecs_streamlit" {
-  name        = "${var.name_prefix}-ecs-streamlit-sg"
-  description = "Security group for Streamlit ECS tasks"
-  vpc_id      = aws_vpc.main.id
-
-  # Allow traffic from ALB on Streamlit port (8501)
-  ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-    description     = "Allow traffic from ALB on Streamlit port"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "${var.name_prefix}-ecs-streamlit-sg"
-    }
-  )
-}
 
 # Security Group for React ECS Tasks
 resource "aws_security_group" "ecs_react" {

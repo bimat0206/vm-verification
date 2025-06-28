@@ -36,7 +36,6 @@ variable "s3_buckets" {
     lifecycle_rules = object({
       reference = list(any)
       checking  = list(any)
-      results   = list(any)
     })
   })
   default = {
@@ -45,7 +44,6 @@ variable "s3_buckets" {
     lifecycle_rules = {
       reference = []
       checking  = []
-      results   = []
     }
   }
 }
@@ -132,14 +130,12 @@ variable "api_gateway" {
 variable "monitoring" {
   description = "Configuration for monitoring resources"
   type = object({
-    create_dashboard      = bool
-    log_retention_days    = number
-    alarm_email_endpoints = list(string)
+    create_dashboard   = bool
+    log_retention_days = number
   })
   default = {
-    create_dashboard      = true
-    log_retention_days    = 7
-    alarm_email_endpoints = []
+    create_dashboard   = true
+    log_retention_days = 7
   }
 }
 
@@ -171,67 +167,6 @@ variable "vpc" {
   */
 }
 
-variable "streamlit_frontend" {
-  description = "Configuration for Streamlit frontend application"
-  type = object({
-    create_streamlit               = bool
-    service_name                   = string
-    image_uri                      = string
-    image_repository_type          = string
-    cpu                            = number
-    memory                         = number
-    port                           = number
-    auto_deployments_enabled       = bool
-    enable_auto_scaling            = bool
-    min_size                       = number
-    max_capacity                   = number
-    max_size                       = number
-    cpu_threshold                  = number
-    memory_threshold               = number
-    theme_mode                     = string
-    log_retention_days             = number
-    health_check_path              = string
-    health_check_interval          = number
-    health_check_timeout           = number
-    health_check_healthy_threshold = number
-    health_check_unhealthy_threshold = number
-    enable_https                   = bool
-    internal_alb                   = bool
-    enable_container_insights      = bool
-    enable_execute_command         = bool
-    environment_variables          = map(string)
-  })
-  /*
-  default = {
-    create_streamlit               = true
-    service_name                   = "streamlit-frontend"
-    image_uri                      = ""
-    image_repository_type          = "ECR"
-    cpu                            = 256
-    memory                         = 512
-    port                           = 8501
-    auto_deployments_enabled       = true
-    enable_auto_scaling            = true
-    min_size                       = 1
-    max_capacity                   = 10
-    max_size                       = 3
-    cpu_threshold                  = 70
-    memory_threshold               = 70
-    theme_mode                     = "dark"
-    log_retention_days             = 30
-    health_check_path              = "/_stcore/health"
-    health_check_interval          = 30
-    health_check_timeout           = 5
-    health_check_healthy_threshold = 2
-    health_check_unhealthy_threshold = 3
-    enable_https                   = false
-    internal_alb                   = false
-    enable_container_insights      = false
-    enable_execute_command         = true
-    environment_variables          = {}
-  }
-  */
-}
 
 variable "react_frontend" {
   description = "Configuration for React frontend application"

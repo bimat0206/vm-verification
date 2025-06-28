@@ -18,7 +18,6 @@ locals {
   s3_buckets = {
     reference = lower(join("-", compact([local.name_prefix, "s3", "reference", local.name_suffix]))),
     checking  = lower(join("-", compact([local.name_prefix, "s3", "checking", local.name_suffix]))),
-    results   = lower(join("-", compact([local.name_prefix, "s3", "results", local.name_suffix]))),
     state     = lower(join("-", compact([local.name_prefix, "s3", "state", local.name_suffix])))
   }
 
@@ -219,17 +218,6 @@ locals {
       lifecycle_policy     = null
       repository_policy    = null
     },
-    # ECR repository for Streamlit frontend
-    streamlit_frontend = {
-      name                 = lower(join("-", compact([local.name_prefix, "ecr", "streamlit-frontend", local.name_suffix])))
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      force_delete         = false
-      encryption_type      = "AES256"
-      kms_key              = null
-      lifecycle_policy     = null
-      repository_policy    = null
-    },
   }
 
   # Lambda Functions Configuration
@@ -247,7 +235,6 @@ locals {
         DYNAMODB_LAYOUT_TABLE            = local.dynamodb_tables.layout_metadata
         REFERENCE_BUCKET                 = local.s3_buckets.reference
         CHECKING_BUCKET                  = local.s3_buckets.checking
-        RESULTS_BUCKET                   = local.s3_buckets.results
         STATE_BUCKET                     = local.s3_buckets.state
       }
     },
@@ -424,7 +411,6 @@ locals {
         DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
         REFERENCE_BUCKET            = local.s3_buckets.reference
         CHECKING_BUCKET             = local.s3_buckets.checking
-        RESULTS_BUCKET              = local.s3_buckets.results
         BEDROCK_MODEL               = var.bedrock.model_id
         LOG_LEVEL                   = "INFO"
       }
@@ -437,7 +423,6 @@ locals {
       environment_variables = {
         REFERENCE_BUCKET = local.s3_buckets.reference
         CHECKING_BUCKET  = local.s3_buckets.checking
-        RESULTS_BUCKET   = local.s3_buckets.results
         STATE_BUCKET     = local.s3_buckets.state
         LOG_LEVEL        = "INFO"
       }
@@ -503,11 +488,6 @@ locals {
   # VPC name
   vpc_name = lower(join("-", compact([local.name_prefix, "vpc", local.name_suffix])))
 
-  # ECS service name
-  ecs_service_name = lower(join("-", compact([local.name_prefix, "ecs", "streamlit", local.name_suffix])))
-
-  # ALB name
-  alb_name = lower(join("-", compact([local.name_prefix, "alb", "streamlit", local.name_suffix])))
 
   # Cloudwatch dashboard name
   dashboard_name = lower(join("-", compact([local.name_prefix, "dashboard", "verification", local.name_suffix])))

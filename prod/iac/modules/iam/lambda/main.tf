@@ -160,33 +160,6 @@ resource "aws_iam_role_policy_attachment" "bedrock_access" {
   policy_arn = aws_iam_policy.bedrock_access[0].arn
 }
 
-# SNS publish policy
-resource "aws_iam_policy" "sns_publish" {
-  count = var.sns_topic_arns != null ? 1 : 0
-
-  name        = "${var.project_name}-${var.environment}-lambda-sns-publish-${var.name_suffix}"
-  description = "Policy for Lambda to publish messages to SNS topics"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "sns:Publish"
-        ]
-        Effect   = "Allow"
-        Resource = var.sns_topic_arns
-      }
-    ]
-  })
-}
-
-# Attach SNS policy to Lambda role
-resource "aws_iam_role_policy_attachment" "sns_publish" {
-  count      = var.sns_topic_arns != null ? 1 : 0
-  role       = aws_iam_role.lambda_execution_role.name
-  policy_arn = aws_iam_policy.sns_publish[0].arn
-}
 
 # Step Functions access policy
 resource "aws_iam_policy" "step_functions_access" {

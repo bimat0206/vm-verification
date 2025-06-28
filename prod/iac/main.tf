@@ -5,12 +5,10 @@ module "s3_buckets" {
 
   reference_bucket_name = local.s3_buckets.reference
   checking_bucket_name  = local.s3_buckets.checking
-  results_bucket_name   = local.s3_buckets.results
   state_bucket_name     = local.s3_buckets.state
 
   reference_lifecycle_rules = var.s3_buckets.lifecycle_rules.reference
   checking_lifecycle_rules  = var.s3_buckets.lifecycle_rules.checking
-  results_lifecycle_rules   = var.s3_buckets.lifecycle_rules.results
 
   force_destroy = var.s3_buckets.force_destroy
 
@@ -57,7 +55,6 @@ module "lambda_iam" {
   s3_bucket_arns = var.s3_buckets.create_buckets ? [
     module.s3_buckets[0].reference_bucket_arn,
     module.s3_buckets[0].checking_bucket_arn,
-    module.s3_buckets[0].results_bucket_arn,
     module.s3_buckets[0].state_bucket_arn
   ] : []
 
@@ -107,7 +104,6 @@ module "lambda_functions" {
 }
 
 # Step Functions State Machine
-# Module update in main.tf to enable API Gateway integration
 
 module "step_functions" {
   source = "./modules/step_functions"
@@ -117,12 +113,7 @@ module "step_functions" {
   log_level            = var.step_functions.log_level
   enable_x_ray_tracing = var.step_functions.enable_x_ray_tracing
 
-  # Enable API Gateway integration
-  create_api_gateway_integration = var.api_gateway.create_api_gateway
-  api_gateway_id                 = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_id : ""
-  api_gateway_root_resource_id   = var.api_gateway.create_api_gateway ? module.api_gateway[0].root_resource_id : ""
-  api_gateway_endpoint           = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_endpoint : ""
-  region                         = var.aws_region
+  region = var.aws_region
 
   lambda_function_arns = {
     initialize                    = module.lambda_functions[0].function_arns["initialize"]
@@ -170,7 +161,6 @@ module "api_gateway" {
   cors_enabled           = var.api_gateway.cors_enabled
   metrics_enabled        = var.api_gateway.metrics_enabled
   use_api_key            = var.api_gateway.use_api_key
-  # Removed streamlit_service_url to avoid dependency cycle
   lambda_function_arns = {
     for k, v in module.lambda_functions[0].function_arns : k => v
   }
@@ -180,7 +170,6 @@ module "api_gateway" {
   }
 
   # Add Step Functions integration parameters
-  step_functions_role_arn          = var.step_functions.create_step_functions ? module.step_functions[0].api_gateway_role_arn : ""
   step_functions_state_machine_arn = var.step_functions.create_step_functions ? module.step_functions[0].state_machine_arn : ""
 
   region = var.aws_region
@@ -203,32 +192,6 @@ module "secretsmanager" {
   common_tags = local.common_tags
 }
 
-# Secrets Manager for ECS Streamlit Configuration
-module "ecs_config_secret" {
-  source = "./modules/secretsmanager"
-  count  = var.streamlit_frontend.create_streamlit ? 1 : 0
-
-  project_name       = var.project_name
-  environment        = var.environment
-  name_suffix        = local.name_suffix
-  secret_base_name   = "ecs-streamlit-config"
-  secret_description = "Configuration settings for ECS Streamlit application"
-  secret_value = jsonencode({
-    REGION                      = var.aws_region
-    DYNAMODB_VERIFICATION_TABLE = local.dynamodb_tables.verification_results
-    DYNAMODB_CONVERSATION_TABLE = local.dynamodb_tables.conversation_history
-    API_ENDPOINT                = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_endpoint : ""
-    REFERENCE_BUCKET            = local.s3_buckets.reference
-    CHECKING_BUCKET             = local.s3_buckets.checking
-  })
-
-  common_tags = local.common_tags
-
-  depends_on = [
-    module.api_gateway,
-    module.secretsmanager
-  ]
-}
 
 # Secrets Manager for ECS React Configuration
 module "ecs_react_config_secret" {
@@ -283,14 +246,13 @@ module "monitoring" {
   ecr_repository_names = var.ecr.create_repositories && var.lambda_functions.use_ecr ? module.ecr_repositories[0].repository_names : {}
 
   # ECS and ALB monitoring
-  ecs_cluster_name      = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_cluster_id : ""
-  ecs_service_name      = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].ecs_service_name : ""
-  enable_ecs_monitoring = var.streamlit_frontend.create_streamlit
+  ecs_cluster_name      = ""
+  ecs_service_name      = ""
+  enable_ecs_monitoring = false
 
-  alb_name              = var.streamlit_frontend.create_streamlit ? module.ecs_streamlit[0].alb_dns_name : ""
-  enable_alb_monitoring = var.streamlit_frontend.create_streamlit
+  alb_name              = ""
+  enable_alb_monitoring = false
 
-  alarm_email_endpoints = var.monitoring.alarm_email_endpoints
 
   common_tags = local.common_tags
 }
@@ -298,132 +260,17 @@ module "monitoring" {
 # VPC for ALB and ECS
 module "vpc" {
   source = "./modules/vpc"
-  count  = var.vpc.create_vpc && (var.streamlit_frontend.create_streamlit || var.react_frontend.create_react) ? 1 : 0
+  count  = var.vpc.create_vpc && var.react_frontend.create_react ? 1 : 0
 
   vpc_cidr           = var.vpc.vpc_cidr
   availability_zones = var.vpc.availability_zones
   create_nat_gateway = var.vpc.create_nat_gateway
   name_prefix        = local.vpc_name
-  container_port     = var.streamlit_frontend.port
+  container_port     = 3000
 
   common_tags = local.common_tags
 }
 
-# Streamlit Frontend Service using ECS and ALB
-module "ecs_streamlit" {
-  source = "./modules/ecs-streamlit"
-  count  = var.streamlit_frontend.create_streamlit ? 1 : 0
-
-  service_name = var.streamlit_frontend.service_name
-  environment  = var.environment
-  name_suffix  = local.name_suffix
-
-  # Container configuration
-  image_uri             = var.streamlit_frontend.image_uri
-  image_repository_type = var.streamlit_frontend.image_repository_type
-  cpu                   = var.streamlit_frontend.cpu
-  memory                = var.streamlit_frontend.memory
-  port                  = var.streamlit_frontend.port
-  theme_mode            = var.streamlit_frontend.theme_mode
-
-  # ECS configuration
-  enable_container_insights = var.streamlit_frontend.enable_container_insights
-  enable_execute_command    = var.streamlit_frontend.enable_execute_command
-  min_capacity              = var.streamlit_frontend.min_size
-  max_capacity              = var.streamlit_frontend.max_capacity
-  enable_auto_scaling       = var.streamlit_frontend.enable_auto_scaling
-  cpu_threshold             = var.streamlit_frontend.cpu_threshold
-  memory_threshold          = var.streamlit_frontend.memory_threshold
-  auto_deployments_enabled  = var.streamlit_frontend.auto_deployments_enabled
-
-  # VPC and networking
-  vpc_id                = module.vpc[0].vpc_id
-  public_subnet_ids     = module.vpc[0].public_subnet_ids
-  private_subnet_ids    = module.vpc[0].private_subnet_ids
-  alb_security_group_id = module.vpc[0].alb_security_group_id
-  ecs_security_group_id = module.vpc[0].ecs_streamlit_security_group_id
-
-  # ALB configuration
-  internal_alb               = var.streamlit_frontend.internal_alb
-  enable_deletion_protection = false
-  enable_https               = var.streamlit_frontend.enable_https
-
-  # Health check configuration
-  health_check_path                = var.streamlit_frontend.health_check_path
-  health_check_interval            = var.streamlit_frontend.health_check_interval
-  health_check_timeout             = var.streamlit_frontend.health_check_timeout
-  health_check_healthy_threshold   = var.streamlit_frontend.health_check_healthy_threshold
-  health_check_unhealthy_threshold = var.streamlit_frontend.health_check_unhealthy_threshold
-
-  # Logging
-  log_retention_days = var.streamlit_frontend.log_retention_days
-
-  # Access permissions
-  enable_api_gateway_access = true
-  enable_s3_access          = true
-  enable_dynamodb_access    = true
-  enable_ecr_full_access    = true
-
-  api_gateway_arn = var.api_gateway.create_api_gateway ? module.api_gateway[0].api_arn : ""
-
-  s3_bucket_arns = var.s3_buckets.create_buckets ? [
-    module.s3_buckets[0].reference_bucket_arn,
-    module.s3_buckets[0].checking_bucket_arn,
-    module.s3_buckets[0].results_bucket_arn
-  ] : []
-
-  dynamodb_table_arns = var.dynamodb_tables.create_tables ? [
-    module.dynamodb_tables[0].verification_results_table_arn,
-    module.dynamodb_tables[0].layout_metadata_table_arn,
-    module.dynamodb_tables[0].conversation_history_table_arn
-  ] : []
-
-  environment_variables = merge(
-    var.streamlit_frontend.environment_variables,
-    {
-      CONFIG_SECRET       = var.streamlit_frontend.create_streamlit ? module.ecs_config_secret[0].secret_name : ""
-      API_KEY_SECRET_NAME = var.api_gateway.create_api_gateway && var.api_gateway.use_api_key ? module.secretsmanager[0].secret_name : ""
-    }
-  )
-
-  common_tags = local.common_tags
-
-  depends_on = [
-    module.api_gateway,
-    module.vpc,
-    module.secretsmanager,
-    module.ecs_config_secret
-  ]
-}
-/*
-# Update ECS task definition with API Gateway endpoint after both resources are created
-# This breaks the dependency cycle while ensuring the ECS task has the correct API Gateway endpoint
-resource "null_resource" "update_ecs_task_with_api_endpoint" {
-  count = var.streamlit_frontend.create_streamlit && var.api_gateway.create_api_gateway ? 1 : 0
-
-  triggers = {
-    api_endpoint        = module.api_gateway[0].api_endpoint
-    ecs_task_definition = module.ecs_streamlit[0].task_definition_arn
-  }
-
-  provisioner "local-exec" {
-    command = <<EOF
-      aws ecs describe-task-definition --task-definition ${module.ecs_streamlit[0].task_definition_family} --region ${var.aws_region} > task-def.json
-      jq '.taskDefinition.containerDefinitions[0].environment += [{"name": "API_ENDPOINT", "value": "${module.api_gateway[0].api_endpoint}"}]' task-def.json > updated-task-def.json
-      aws ecs register-task-definition --family ${module.ecs_streamlit[0].task_definition_family} --container-definitions "$(jq '.taskDefinition.containerDefinitions' updated-task-def.json)" --execution-role-arn "$(jq -r '.taskDefinition.executionRoleArn' task-def.json)" --task-role-arn "$(jq -r '.taskDefinition.taskRoleArn' task-def.json)" --network-mode "$(jq -r '.taskDefinition.networkMode' task-def.json)" --cpu "$(jq -r '.taskDefinition.cpu' task-def.json)" --memory "$(jq -r '.taskDefinition.memory' task-def.json)" --requires-compatibilities "$(jq -r '.taskDefinition.requiresCompatibilities[]' task-def.json)" --region ${var.aws_region}
-      aws ecs update-service --cluster ${module.ecs_streamlit[0].ecs_cluster_id} --service ${module.ecs_streamlit[0].ecs_service_name} --task-definition ${module.ecs_streamlit[0].task_definition_family} --force-new-deployment --region ${var.aws_region}
-      rm task-def.json updated-task-def.json
-    EOF
-  }
-
-  depends_on = [
-    module.api_gateway,
-    module.ecs_streamlit
-  ]
-}
-*/
-# This commented-out section is no longer needed as we're using ECS and ALB instead of App Runner
-# The environment variables are now set directly in the ECS task definition
 
 # React Frontend Service using ECS and ALB
 module "ecs_react" {
@@ -484,8 +331,7 @@ module "ecs_react" {
 
   s3_bucket_arns = var.s3_buckets.create_buckets ? [
     module.s3_buckets[0].reference_bucket_arn,
-    module.s3_buckets[0].checking_bucket_arn,
-    module.s3_buckets[0].results_bucket_arn
+    module.s3_buckets[0].checking_bucket_arn
   ] : []
 
   dynamodb_table_arns = var.dynamodb_tables.create_tables ? [

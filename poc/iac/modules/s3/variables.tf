@@ -8,10 +8,6 @@ variable "checking_bucket_name" {
   type        = string
 }
 
-variable "results_bucket_name" {
-  description = "Name of the S3 bucket for verification results"
-  type        = string
-}
 
 variable "force_destroy" {
   description = "Boolean that indicates all objects should be deleted from the bucket when the bucket is destroyed"
@@ -45,18 +41,6 @@ variable "checking_lifecycle_rules" {
   default = []
 }
 
-variable "results_lifecycle_rules" {
-  description = "Lifecycle rules for the results bucket"
-  type = list(object({
-    id                                     = string
-    enabled                                = bool
-    prefix                                 = optional(string)
-    expiration_days                        = optional(number)
-    noncurrent_version_expiration_days     = optional(number)
-    abort_incomplete_multipart_upload_days = optional(number)
-  }))
-  default = []
-}
 
 variable "common_tags" {
   description = "Tags to apply to all resources"

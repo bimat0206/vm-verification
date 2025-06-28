@@ -1,5 +1,74 @@
 # Changelog
 
+## [2.5.0] - 2025-06-27
+
+### Removed
+- **BREAKING CHANGE**: Completely removed ECS Streamlit frontend module and all related AWS components
+  - **Streamlit ECS Module**: Removed `modules/ecs-streamlit/` directory and all associated Terraform configurations
+  - **Module References**: Removed `ecs_streamlit` module block from main.tf and all dependencies
+  - **Variables**: Removed `streamlit_frontend` variable block from variables.tf and terraform.tfvars
+  - **Outputs**: Removed all Streamlit frontend outputs (URLs, ECS cluster/service names, ALB DNS)
+  - **VPC Security Groups**: Removed `ecs_streamlit` security group and updated outputs
+  - **ECR Repository**: Removed Streamlit frontend ECR repository configuration from locals.tf
+  - **Secrets Management**: Removed `ecs_config_secret` module for Streamlit configuration
+  - **Monitoring**: Updated monitoring module to remove ECS and ALB monitoring for Streamlit
+
+- **SNS Email Alerts**: Completely removed SNS email notification system and all related components
+  - **SNS Resources**: Removed `aws_sns_topic.alarms` and `aws_sns_topic_subscription.email_alerts` resources
+  - **CloudWatch Alarms**: Updated all alarms to disable SNS notifications (`actions_enabled = false`)
+  - **Variables**: Removed `alarm_email_endpoints` variable from monitoring module and main variables
+  - **Outputs**: Removed `alarm_sns_topic_arn` output from monitoring module
+  - **IAM Policies**: Removed SNS publish permissions from Lambda execution role
+  - **Configuration**: Removed email alert configuration from terraform.tfvars
+
+### Changed
+- **VPC Module**: Updated VPC configuration to support only React frontend
+  - Changed VPC creation condition from dual frontend support to React-only
+  - Updated container port default from 8501 (Streamlit) to 3000 (React)
+  - Updated legacy ECS security group output to reference React security group
+  - Removed Streamlit-specific security group and associated outputs
+
+- **Monitoring Module**: Simplified CloudWatch alarm configuration
+  - All alarms now use `actions_enabled = false` with empty action arrays
+  - Removed email endpoint conditional logic from all alarm resources
+  - Updated alarm creation conditions to remove email endpoint dependencies
+  - Streamlined monitoring configuration without notification requirements
+
+- **API Gateway Module**: Cleaned up unused variables
+  - Removed `streamlit_service_url` variable that was no longer referenced
+  - Simplified CORS configuration by removing Streamlit frontend URL references
+
+### Infrastructure Impact
+- **Resource Cleanup**: Significant AWS resource reduction with removal of Streamlit infrastructure
+  - ECS cluster, service, task definition, and related networking components for Streamlit
+  - Application Load Balancer and target groups for Streamlit frontend
+  - SNS topic and email subscriptions for alarm notifications
+  - Secrets Manager secret for Streamlit configuration
+  - CloudWatch alarms continue to function but without email notifications
+
+- **Simplified Architecture**: Infrastructure now supports single React frontend approach
+  - Reduced complexity with single frontend service
+  - Streamlined VPC configuration for React-only deployment
+  - Simplified monitoring without notification requirements
+
+### Benefits
+- **Cost Optimization**: Significant cost reduction by removing duplicate frontend infrastructure
+- **Simplified Maintenance**: Single frontend reduces operational complexity
+- **Security Enhancement**: Reduced attack surface with fewer running services
+- **Infrastructure Efficiency**: Streamlined resource usage and management
+
+### Migration Notes
+- **Automatic Cleanup**: All Streamlit and SNS resources will be automatically removed during terraform apply
+- **React Frontend Preserved**: React frontend infrastructure remains fully functional
+- **No API Changes**: Backend API functionality and verification workflows unchanged
+- **Monitoring Continues**: CloudWatch alarms continue monitoring without email notifications
+
+### Technical Details
+- **Terraform Validation**: ✅ All configurations validated successfully
+- **Dependency Check**: ✅ No broken dependencies after resource removal
+- **File Cleanup**: Comprehensive removal of references across all Terraform files
+- **Configuration Consistency**: ✅ Updated terraform.tfvars and all variable references
+
 ## [2.4.0] - 2025-06-09
 
 ### Added

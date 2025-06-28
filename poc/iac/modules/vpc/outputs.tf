@@ -55,12 +55,7 @@ output "alb_security_group_id" {
 
 output "ecs_security_group_id" {
   description = "ID of the legacy security group for ECS tasks (deprecated - use service-specific security groups)"
-  value       = aws_security_group.ecs_streamlit.id
-}
-
-output "ecs_streamlit_security_group_id" {
-  description = "ID of the security group for Streamlit ECS tasks"
-  value       = aws_security_group.ecs_streamlit.id
+  value       = aws_security_group.ecs_react.id
 }
 
 output "ecs_react_security_group_id" {

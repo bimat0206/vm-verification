@@ -1,0 +1,28 @@
+{
+  "verificationContext": {
+    "verificationId": "verif-20250519150000",
+    "verificationType": "LAYOUT_VS_CHECKING",
+    "vendingMachineId": "VM12345",
+    "layoutId": 26404,
+    "layoutPrefix": "layout",
+    "verificationAt": "2025-05-19T15:00:00Z",
+    "referenceImageUrl": "s3://reference-bucket/layout_26404.png",
+    "checkingImageUrl": "s3://checking-bucket/checking_20250519.png",
+    "status": "INITIALIZED"
+  },
+  "layoutMetadata": {
+    "machineStructure": {
+      "rowCount": 5,
+      "columnsPerRow": 8,
+      "rowOrder": ["A", "B", "C", "D", "E"],
+      "columnOrder": ["01", "02", "03", "04", "05", "06", "07", "08"]
+    },
+    "productPositionMap": {
+      "A01": { "productId": 1001, "productName": "Cola Classic" },
+      "A02": { "productId": 1002, "productName": "Diet Cola" },
+      "B01": { "productId": 1003, "productName": "Lemon Soda" },
+      "C05": { "productId": 1004, "productName": "Mineral Water" }
+    },
+    "location": "Building 4, Floor 2"
+  }
+}

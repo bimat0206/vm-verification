@@ -42,11 +42,6 @@ variable "use_api_key" {
 
 
 
-variable "streamlit_service_url" {
-  description = "URL of the Streamlit frontend service for CORS configuration"
-  type        = string
-  default     = ""
-}
 
 variable "lambda_function_arns" {
   description = "Map of Lambda function ARNs"
@@ -69,10 +64,6 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "step_functions_role_arn" {
-  description = "ARN of the IAM role for API Gateway to invoke Step Functions"
-  type        = string
-}
 
 variable "step_functions_state_machine_arn" {
   description = "ARN of the Step Functions state machine"

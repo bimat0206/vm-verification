@@ -8,10 +8,6 @@ output "dashboard_arn" {
   value       = aws_cloudwatch_dashboard.this.dashboard_arn
 }
 
-output "alarm_sns_topic_arn" {
-  description = "ARN of the SNS topic for CloudWatch alarms"
-  value       = length(var.alarm_email_endpoints) > 0 ? aws_sns_topic.alarms[0].arn : ""
-}
 
 output "lambda_alarms" {
   description = "Map of Lambda function alarm names"

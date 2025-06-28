@@ -156,21 +156,6 @@ resource "aws_cloudwatch_dashboard" "this" {
   }
 }
 
-# SNS Topic for Alarms
-resource "aws_sns_topic" "alarms" {
-  count = length(var.alarm_email_endpoints) > 0 ? 1 : 0
-  name  = "${var.dashboard_name}-alarms"
-
-  # Don't add tags here as they're provided by default_tags in the provider
-}
-
-# SNS Subscriptions for Email Endpoints
-resource "aws_sns_topic_subscription" "email_alerts" {
-  count     = length(var.alarm_email_endpoints)
-  topic_arn = aws_sns_topic.alarms[0].arn
-  protocol  = "email"
-  endpoint  = var.alarm_email_endpoints[count.index]
-}
 
 # Lambda Error Rate Alarms
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
@@ -185,9 +170,9 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   statistic           = "Sum"
   threshold           = 3
   alarm_description   = "Alarm for ${each.value} function error rate exceeding threshold"
-  actions_enabled     = length(var.alarm_email_endpoints) > 0 ? true : false
-  alarm_actions       = length(var.alarm_email_endpoints) > 0 ? [aws_sns_topic.alarms[0].arn] : []
-  ok_actions          = length(var.alarm_email_endpoints) > 0 ? [aws_sns_topic.alarms[0].arn] : []
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     FunctionName = each.value
@@ -196,7 +181,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
 
 # Step Functions Execution Failed Alarm
 resource "aws_cloudwatch_metric_alarm" "step_functions_failed" {
-  count = var.enable_step_function_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_step_function_monitoring ? 1 : 0
 
   alarm_name          = "${var.step_function_name}-failed-executions-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -207,9 +192,9 @@ resource "aws_cloudwatch_metric_alarm" "step_functions_failed" {
   statistic           = "Sum"
   threshold           = 1
   alarm_description   = "Alarm for ${var.step_function_name} state machine failed executions"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.alarms[0].arn]
-  ok_actions          = [aws_sns_topic.alarms[0].arn]
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     StateMachineArn = var.step_function_name
@@ -229,9 +214,9 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttles" {
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "Alarm for ${each.value} DynamoDB table throttled requests"
-  actions_enabled     = length(var.alarm_email_endpoints) > 0 ? true : false
-  alarm_actions       = length(var.alarm_email_endpoints) > 0 ? [aws_sns_topic.alarms[0].arn] : []
-  ok_actions          = length(var.alarm_email_endpoints) > 0 ? [aws_sns_topic.alarms[0].arn] : []
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     TableName = each.value
@@ -240,7 +225,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttles" {
 
 # API Gateway 5XX Error Alarm
 resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
-  count = var.enable_api_gateway_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_api_gateway_monitoring ? 1 : 0
 
   alarm_name          = "${var.api_gateway_name}-5xx-errors-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -251,9 +236,9 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
   statistic           = "Sum"
   threshold           = 5
   alarm_description   = "Alarm for ${var.api_gateway_name} API Gateway 5XX errors"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.alarms[0].arn]
-  ok_actions          = [aws_sns_topic.alarms[0].arn]
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     ApiName = var.api_gateway_name
@@ -262,7 +247,7 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
 
 # ECS CPU Utilization Alarm
 resource "aws_cloudwatch_metric_alarm" "ecs_cpu_utilization" {
-  count = var.enable_ecs_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_ecs_monitoring ? 1 : 0
 
   alarm_name          = "${var.ecs_service_name}-cpu-utilization-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -273,9 +258,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu_utilization" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "Alarm for ${var.ecs_service_name} ECS service CPU utilization exceeding threshold"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.alarms[0].arn]
-  ok_actions          = [aws_sns_topic.alarms[0].arn]
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -285,7 +270,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu_utilization" {
 
 # ECS Memory Utilization Alarm
 resource "aws_cloudwatch_metric_alarm" "ecs_memory_utilization" {
-  count = var.enable_ecs_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_ecs_monitoring ? 1 : 0
 
   alarm_name          = "${var.ecs_service_name}-memory-utilization-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -296,9 +281,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_utilization" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "Alarm for ${var.ecs_service_name} ECS service memory utilization exceeding threshold"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.alarms[0].arn]
-  ok_actions          = [aws_sns_topic.alarms[0].arn]
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -308,7 +293,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_utilization" {
 
 # ALB 5XX Error Alarm
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
-  count = var.enable_alb_monitoring && length(var.alarm_email_endpoints) > 0 ? 1 : 0
+  count = var.enable_alb_monitoring ? 1 : 0
 
   alarm_name          = "${var.alb_name}-5xx-errors-alarm"
   comparison_operator = "GreaterThanThreshold"
@@ -319,9 +304,9 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   statistic           = "Sum"
   threshold           = 5
   alarm_description   = "Alarm for ${var.alb_name} ALB 5XX errors"
-  actions_enabled     = true
-  alarm_actions       = [aws_sns_topic.alarms[0].arn]
-  ok_actions          = [aws_sns_topic.alarms[0].arn]
+  actions_enabled     = false
+  alarm_actions       = []
+  ok_actions          = []
 
   dimensions = {
     LoadBalancer = var.alb_name
@@ -332,4 +317,3 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
 # - Lambda log groups are created in the lambda module
 # - Step Functions log groups are created in the step_functions module
 # - API Gateway log groups are created in the api_gateway module
-# - App Runner log groups are created in the streamlit-frontend module

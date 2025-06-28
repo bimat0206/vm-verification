@@ -37,11 +37,6 @@ variable "bedrock_model_arn" {
   default     = ""
 }
 
-variable "sns_topic_arns" {
-  description = "List of ARNs of SNS topics Lambda functions need to publish to"
-  type        = list(string)
-  default     = null
-}
 
 variable "step_functions_arns" {
   description = "List of ARNs of Step Functions state machines Lambda functions need to interact with"

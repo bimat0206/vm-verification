@@ -40,3 +40,8 @@ output "root_resource_id" {
   description = "ID of the API Gateway root resource"
   value       = aws_api_gateway_rest_api.api.root_resource_id
 }
+
+output "step_functions_role_arn" {
+  description = "ARN of the IAM role for API Gateway to invoke Step Functions"
+  value       = aws_iam_role.api_gateway_step_functions_role.arn
+}

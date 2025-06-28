@@ -1,0 +1,14 @@
+{
+  "httpMethod": "POST",
+  "path": "/api/images/upload",
+  "queryStringParameters": {
+    "bucketType": "reference",
+    "fileName": "test-layout.json",
+    "path": "raw"
+  },
+  "pathParameters": null,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"layoutId\":12345,\"subLayoutList\":[{\"trayList\":[{\"trayCode\":\"A\",\"trayNo\":1,\"slotList\":[{\"vmLayoutSlotId\":1,\"productId\":100,\"productTemplateId\":200,\"maxQuantity\":10,\"slotNo\":1,\"status\":1,\"position\":\"A1\",\"slotIndexCode\":1,\"cellNumber\":1,\"productTemplateName\":\"Test Product\",\"productTemplateImage\":\"https://via.placeholder.com/100x100\"}]}]}]}"
+}

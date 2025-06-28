@@ -20,7 +20,11 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_method.verifications_post.id,
       aws_api_gateway_integration.verifications_post.id,
       aws_api_gateway_method_response.verifications_post.id,
-      var.cors_enabled ? aws_api_gateway_integration_response.verifications_post[0].id : "",
+      aws_api_gateway_method_response.verifications_post_400.id,
+      aws_api_gateway_method_response.verifications_post_404.id,
+      aws_api_gateway_integration_response.verifications_post_success.id,
+      aws_api_gateway_integration_response.verifications_post_bad_request.id,
+      aws_api_gateway_integration_response.verifications_post_not_found.id,
 
       aws_api_gateway_method.verifications_options.id,
       aws_api_gateway_integration.verifications_options.id,
@@ -113,6 +117,8 @@ resource "aws_api_gateway_deployment" "deployment" {
     # Method responses
     aws_api_gateway_method_response.verifications_lookup_get,
     aws_api_gateway_method_response.verifications_post,
+    aws_api_gateway_method_response.verifications_post_400,
+    aws_api_gateway_method_response.verifications_post_404,
     aws_api_gateway_method_response.verifications_get,
     aws_api_gateway_method_response.verification_id_get,
     aws_api_gateway_method_response.verification_conversation_get,
@@ -123,7 +129,9 @@ resource "aws_api_gateway_deployment" "deployment" {
 
     # Integration responses for CORS
     aws_api_gateway_integration_response.verifications_lookup_get,
-    aws_api_gateway_integration_response.verifications_post,
+    aws_api_gateway_integration_response.verifications_post_success,
+    aws_api_gateway_integration_response.verifications_post_bad_request,
+    aws_api_gateway_integration_response.verifications_post_not_found,
     aws_api_gateway_integration_response.verifications_get,
     aws_api_gateway_integration_response.verification_id_get,
     aws_api_gateway_integration_response.verification_conversation_get,

@@ -50,7 +50,6 @@ The API Gateway exposes the following endpoints:
 - `GET /api/health`: Health check endpoint
 - `GET /api/images/{key}/view`: View a specific image
 - `GET /api/images/browser`: Browse available images
-- `POST /api/workflow`: Direct access to the Step Functions workflow (if enabled)
 
 ## Step Functions Integration
 
@@ -71,7 +70,6 @@ module "api_gateway" {
   
   # Other variables...
   
-  step_functions_role_arn = module.step_functions.api_gateway_role_arn
   step_functions_state_machine_arn = module.step_functions.state_machine_arn
 }
 ```

@@ -38,25 +38,9 @@ output "checking_bucket_regional_domain_name" {
   value       = aws_s3_bucket.checking.bucket_regional_domain_name
 }
 
-output "results_bucket_name" {
-  description = "Name of the verification results S3 bucket"
-  value       = aws_s3_bucket.results.id
-}
 
-output "results_bucket_arn" {
-  description = "ARN of the verification results S3 bucket"
-  value       = aws_s3_bucket.results.arn
-}
 
-output "results_bucket_domain_name" {
-  description = "Domain name of the verification results S3 bucket"
-  value       = aws_s3_bucket.results.bucket_domain_name
-}
 
-output "results_bucket_regional_domain_name" {
-  description = "Regional domain name of the verification results S3 bucket"
-  value       = aws_s3_bucket.results.bucket_regional_domain_name
-}
 output "state_bucket_name" {
   description = "Name of the temporary Base64 S3 bucket"
   value       = aws_s3_bucket.state.id

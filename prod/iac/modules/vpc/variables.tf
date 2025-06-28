@@ -29,7 +29,7 @@ variable "create_nat_gateway" {
 variable "container_port" {
   description = "Port on which the container is listening"
   type        = number
-  default     = 8501  # Default Streamlit port
+  default     = 3000  # Default React port
 }
 
 variable "environment" {
