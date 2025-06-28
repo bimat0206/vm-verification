@@ -76,6 +76,7 @@ func (s *HistoricalVerificationService) createFallbackContext(verificationCtx sc
 		HistoricalDataFound:         false,
 		Turn2Processed:              "", // Empty for fresh verifications
 		SourceType:                  "FRESH_VERIFICATION",
+		Status:                      schema.StatusHistoricalContextNotFound,
 		PreviousVerification:        nil,
 		TemporalContext:             nil,
 		MachineStructure:            nil,
@@ -135,6 +136,7 @@ func (s *HistoricalVerificationService) createHistoricalContext(ctx context.Cont
 		HistoricalDataFound:         true,
 		Turn2Processed:              turn2ProcessedUrl,
 		SourceType:                  "DYNAMODB_QUERY_RESULT",
+		Status:                      schema.StatusHistoricalContextLoaded,
 		PreviousVerification:        prevVerification,
 		TemporalContext:             temporalCtx,
 		MachineStructure:            enhancedMachineStructure,

@@ -1,5 +1,40 @@
 # Changelog
 
+## [4.5.2] - 2025-06-28
+
+### Fixed
+- **Type Assertion Safety**: Fixed unsafe type assertions that could cause panics when extracting verification context from map data
+  - Added `safeExtractVerificationContext` helper function with safe type assertions using comma-ok idiom
+  - Handles missing or incorrectly typed fields gracefully without panicking
+  - Properly handles both int and float64 types for layoutId field
+
+- **Historical Context Status Handling**: Enhanced logic to properly handle new `HISTORICAL_CONTEXT_NOT_FOUND` status
+  - Updated bypass logic to check for multiple conditions including the new status
+  - Added support for `FRESH_VERIFICATION` sourceType in bypass conditions
+  - Enhanced logging to include contextStatus in bypass decision tracking
+
+### Changed
+- **Verification Context Extraction**: Improved reliability of field extraction from map[string]interface{} data
+  - Primary method remains JSON marshaling/unmarshaling for type safety
+  - Fallback manual extraction now uses safe type assertions to prevent panics
+  - Better handling of nil values and type mismatches
+
+- **Historical Context Loading**: Updated to load historical context from S3 state instead of DynamoDB
+  - Now loads historical-context.json created by FetchHistoricalVerification function
+  - Added `LoadHistoricalContext` method to S3StateManager
+  - Properly handles cases where no historical context exists (fresh verifications)
+  - Reads the new `status` field from historical context to understand data availability
+
+### Technical Details
+- Added extraction of `status` field from raw verification context data
+- Enhanced bypass conditions for previousVerificationId validation to include:
+  - `sourceType == "NO_HISTORICAL_DATA"` or `"FRESH_VERIFICATION"`
+  - `historicalDataFound == false`
+  - `contextStatus == "HISTORICAL_CONTEXT_NOT_FOUND"`
+- Updated `fetchAllDataInParallel` to load historical context from S3 state via `s.stateManager.LoadHistoricalContext(envelope)`
+- Removed dependency on DynamoDB for historical context fetching in favor of S3 state consistency
+- Maintains backward compatibility while improving error resilience and workflow consistency
+
 ## [4.5.1] - 2025-06-28
 
 ### Fixed

@@ -109,33 +109,15 @@ func (s *FetchService) ProcessRequest(
 					"error":      err.Error(),
 					"jsonString": string(jsonBytes),
 				})
-				// Fall back to manual extraction
-				verificationContext = &schema.VerificationContext{
-					VerificationId:         v["verificationId"].(string),
-					VerificationType:       v["verificationType"].(string),
-					ReferenceImageUrl:      v["referenceImageUrl"].(string),
-					CheckingImageUrl:       v["checkingImageUrl"].(string),
-					LayoutId:               v["layoutId"].(int),
-					LayoutPrefix:           v["layoutPrefix"].(string),
-					PreviousVerificationId: v["previousVerificationId"].(string),
-					VendingMachineId:       v["vendingMachineId"].(string),
-				}
+				// Fall back to safe manual extraction
+				verificationContext = s.safeExtractVerificationContext(v)
 			}
 		} else {
 			s.logger.Error("JSON marshaling failed, using manual extraction", map[string]interface{}{
 				"error": err.Error(),
 			})
-			// Fall back to manual extraction
-			verificationContext = &schema.VerificationContext{
-				VerificationId:         v["verificationId"].(string),
-				VerificationType:       v["verificationType"].(string),
-				ReferenceImageUrl:      v["referenceImageUrl"].(string),
-				CheckingImageUrl:       v["checkingImageUrl"].(string),
-				LayoutId:               v["layoutId"].(int),
-				LayoutPrefix:           v["layoutPrefix"].(string),
-				PreviousVerificationId: v["previousVerificationId"].(string),
-				VendingMachineId:       v["vendingMachineId"].(string),
-			}
+			// Fall back to safe manual extraction
+			verificationContext = s.safeExtractVerificationContext(v)
 		}
 
 	default:
@@ -157,9 +139,10 @@ func (s *FetchService) ProcessRequest(
 	// Set status to IMAGES_FETCHED
 	verificationContext.Status = schema.StatusImagesFetched
 
-	// Extract sourceType and historicalDataFound from raw verification context data
+	// Extract sourceType, historicalDataFound, and status from raw verification context data
 	var sourceType string
 	var historicalDataFound bool
+	var contextStatus string
 
 	// Try to extract these fields from the raw verification context data
 	if rawVCData, ok := context.(map[string]interface{}); ok {
@@ -173,20 +156,32 @@ func (s *FetchService) ProcessRequest(
 				historicalDataFound = hdfBool
 			}
 		}
+		if status, exists := rawVCData["status"]; exists {
+			if statusStr, ok := status.(string); ok {
+				contextStatus = statusStr
+			}
+		}
 	}
 
 	// Determine if we need layout or historical data based on verification type
 	var prevVerificationId string
 	if verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
 		// Check if we should bypass previousVerificationId requirement
-		// Allow bypass when sourceType is "NO_HISTORICAL_DATA" or historicalDataFound is false
-		shouldBypassPreviousVerificationId := sourceType == "NO_HISTORICAL_DATA" || !historicalDataFound
+		// Allow bypass when:
+		// 1. sourceType is "NO_HISTORICAL_DATA" or "FRESH_VERIFICATION"
+		// 2. historicalDataFound is false
+		// 3. status is HISTORICAL_CONTEXT_NOT_FOUND
+		shouldBypassPreviousVerificationId := sourceType == "NO_HISTORICAL_DATA" || 
+			sourceType == "FRESH_VERIFICATION" || 
+			!historicalDataFound || 
+			contextStatus == schema.StatusHistoricalContextNotFound
 
 		if shouldBypassPreviousVerificationId {
 			s.logger.Info("BYPASSING previousVerificationId validation", map[string]interface{}{
 				"reason":              "No historical data available",
 				"sourceType":          sourceType,
 				"historicalDataFound": historicalDataFound,
+				"contextStatus":       contextStatus,
 				"verificationId":      verificationContext.VerificationId,
 			})
 			// Set empty string to indicate no historical verification needed
@@ -597,12 +592,12 @@ func (s *FetchService) fetchAllDataInParallel(
 			defer wg.Done()
 			
 			// Add extensive debugging before the fetch
-			s.logger.Info("Starting historical verification fetch", map[string]interface{}{
+			s.logger.Info("Starting historical verification fetch from S3 state", map[string]interface{}{
 				"previousVerificationId": prevVerificationId,
 			})
 			
-			// Perform the fetch with enhanced error diagnostics
-			historicalContext, err := s.dynamoDBRepo.FetchHistoricalVerification(ctx, prevVerificationId)
+			// Load historical context from S3 state (created by FetchHistoricalVerification)
+			historicalContext, err := s.stateManager.LoadHistoricalContext(envelope)
 			mu.Lock()
 			defer mu.Unlock()
 			
@@ -613,11 +608,22 @@ func (s *FetchService) fetchAllDataInParallel(
 					"error":                  err.Error(),
 				}
 				
-				results.Errors = append(results.Errors, fmt.Errorf("failed to fetch historical verification data: %w", err))
-				s.logger.Error("Failed to fetch historical verification", errorDetails)
+				results.Errors = append(results.Errors, fmt.Errorf("failed to load historical context from S3 state: %w", err))
+				s.logger.Error("Failed to load historical context", errorDetails)
+			} else if historicalContext == nil {
+				// No historical context found (fresh verification)
+				s.logger.Info("No historical context found in S3 state - fresh verification", map[string]interface{}{
+					"previousVerificationId": prevVerificationId,
+				})
+				// Don't treat this as an error - it's expected for fresh verifications
 			} else {
 				// Add more details about the fetched data
-				s.logger.Info("Successfully fetched historical verification", map[string]interface{}{})
+				s.logger.Info("Successfully loaded historical context from S3 state", map[string]interface{}{
+					"previousVerificationId": prevVerificationId,
+					"hasStatus":              historicalContext["status"] != nil,
+					"status":                 historicalContext["status"],
+					"historicalDataFound":    historicalContext["historicalDataFound"],
+				})
 				results.HistoricalContext = historicalContext
 			}
 		}()
@@ -656,12 +662,61 @@ func (s *FetchService) fetchAllDataInParallel(
 		return nil, fmt.Errorf("failed to fetch required layout metadata")
 	}
 
-	// For PREVIOUS_VS_CURRENT, ensure we have historical context
+	// For PREVIOUS_VS_CURRENT, check if historical context is required based on status
 	if prevVerificationId != "" && len(results.HistoricalContext) == 0 {
-		return nil, fmt.Errorf("failed to fetch required historical verification data")
+		// Check if this is expected (fresh verification with no historical data)
+		// This is OK if the status from FetchHistoricalVerification was HISTORICAL_CONTEXT_NOT_FOUND
+		s.logger.Warn("No historical context data available", map[string]interface{}{
+			"previousVerificationId": prevVerificationId,
+			"note": "This is expected for fresh verifications",
+		})
+		// Don't return error - this is expected for fresh verifications
 	}
 
 	return results, nil
+}
+
+// safeExtractVerificationContext safely extracts verification context from a map
+func (s *FetchService) safeExtractVerificationContext(data map[string]interface{}) *schema.VerificationContext {
+	vc := &schema.VerificationContext{}
+	
+	// Safe string extraction
+	if val, ok := data["verificationId"].(string); ok {
+		vc.VerificationId = val
+	}
+	if val, ok := data["verificationType"].(string); ok {
+		vc.VerificationType = val
+	}
+	if val, ok := data["referenceImageUrl"].(string); ok {
+		vc.ReferenceImageUrl = val
+	}
+	if val, ok := data["checkingImageUrl"].(string); ok {
+		vc.CheckingImageUrl = val
+	}
+	if val, ok := data["layoutPrefix"].(string); ok {
+		vc.LayoutPrefix = val
+	}
+	if val, ok := data["previousVerificationId"].(string); ok {
+		vc.PreviousVerificationId = val
+	}
+	if val, ok := data["vendingMachineId"].(string); ok {
+		vc.VendingMachineId = val
+	}
+	if val, ok := data["verificationAt"].(string); ok {
+		vc.VerificationAt = val
+	}
+	if val, ok := data["status"].(string); ok {
+		vc.Status = val
+	}
+	
+	// Safe int extraction
+	if val, ok := data["layoutId"].(float64); ok {
+		vc.LayoutId = int(val)
+	} else if val, ok := data["layoutId"].(int); ok {
+		vc.LayoutId = val
+	}
+	
+	return vc
 }
 
 

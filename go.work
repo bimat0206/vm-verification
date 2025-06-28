@@ -1,20 +1,20 @@
 go 1.24.0
 
 use (
-	./product-approach/api-function/api_images/upload
-	./product-approach/api-function/api_images/upload-render-json
-	./product-approach/workflow-function/ExecuteTurn1Combined
-	./product-approach/workflow-function/ExecuteTurn2Combined
-	./product-approach/workflow-function/FetchHistoricalVerification
-	./product-approach/workflow-function/FetchImages
-	./product-approach/workflow-function/FinalizeAndStoreResults
-	./product-approach/workflow-function/Initialize
-	./product-approach/workflow-function/PrepareSystemPrompt
+	./prod/api-function/api_images/upload
+	./prod/api-function/api_images/upload-render-json
+	./prod/workflow-function/ExecuteTurn1Combined
+	./prod/workflow-function/ExecuteTurn2Combined
+	./prod/workflow-function/FetchHistoricalVerification
+	./prod/workflow-function/FetchImages
+	./prod/workflow-function/FinalizeAndStoreResults
+	./prod/workflow-function/Initialize
+	./prod/workflow-function/PrepareSystemPrompt
 
-	./product-approach/workflow-function/shared/bedrock
-	./product-approach/workflow-function/shared/errors
-	./product-approach/workflow-function/shared/logger
-	./product-approach/workflow-function/shared/schema
-	./product-approach/workflow-function/shared/templateloader
+	./prod/workflow-function/shared/bedrock
+	./prod/workflow-function/shared/errors
+	./prod/workflow-function/shared/logger
+	./prod/workflow-function/shared/schema
+	./prod/workflow-function/shared/templateloader
 
 )

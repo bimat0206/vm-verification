@@ -237,6 +237,39 @@ func (s *S3StateManager) GetTimeBasedKey(baseName string) string {
 	return fmt.Sprintf("%s-%s", baseName, timestamp)
 }
 
+// LoadHistoricalContext loads historical context from the processing category
+func (s *S3StateManager) LoadHistoricalContext(envelope *s3state.Envelope) (map[string]interface{}, error) {
+	if envelope == nil {
+		return nil, fmt.Errorf("envelope is nil")
+	}
+
+	// Find the historical context reference in the envelope
+	histRef := envelope.GetReference("processing_historical_context")
+	if histRef == nil {
+		// No historical context available (this is normal for fresh verifications)
+		s.logger.Info("No historical context reference found in envelope", map[string]interface{}{
+			"verificationId": envelope.VerificationID,
+		})
+		return nil, nil
+	}
+
+	// Create a map to hold the loaded context
+	var historicalContext map[string]interface{}
+
+	// Load the context from S3
+	err := s.manager.RetrieveJSON(histRef, &historicalContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load historical context: %w", err)
+	}
+
+	s.logger.Info("Successfully loaded historical context from S3", map[string]interface{}{
+		"verificationId": envelope.VerificationID,
+		"hasData":        len(historicalContext) > 0,
+	})
+
+	return historicalContext, nil
+}
+
 // Manager returns the underlying s3state.Manager
 func (s *S3StateManager) Manager() s3state.Manager {
 	return s.manager

@@ -39,6 +39,7 @@ type HistoricalContext struct {
 	HistoricalDataFound         bool                        `json:"historicalDataFound"`
 	Turn2Processed              string                      `json:"turn2Processed,omitempty"`
 	SourceType                  string                      `json:"sourceType"`
+	Status                      string                      `json:"status"`
 	PreviousVerification        *PreviousVerification       `json:"previousVerification"`
 	TemporalContext             *TemporalContext            `json:"temporalContext"`
 	MachineStructure            *EnhancedMachineStructure   `json:"machineStructure,omitempty"`

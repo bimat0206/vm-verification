@@ -64,7 +64,12 @@ func handler(ctx context.Context, event map[string]interface{}) (internal.Output
 		return internal.OutputEvent{}, fmt.Errorf("failed to store historical context: %w", err)
 	}
 
-	envelope.SetStatus(schema.StatusHistoricalContextLoaded)
+	// Set status based on whether historical data was found
+	if result.HistoricalDataFound {
+		envelope.SetStatus(schema.StatusHistoricalContextLoaded)
+	} else {
+		envelope.SetStatus(schema.StatusHistoricalContextNotFound)
+	}
 
 	// Create enhanced verification context with historical data
 	enhancedVerificationContext := createEnhancedVerificationContext(vCtx, result)
@@ -124,11 +129,17 @@ func validateInput(ctx schema.VerificationContext) error {
 func createEnhancedVerificationContext(inputCtx schema.VerificationContext, historicalResult internal.HistoricalContext) *internal.EnhancedVerificationContext {
 	now := time.Now().UTC().Format(time.RFC3339)
 
+	// Determine the appropriate status based on historical data availability
+	status := schema.StatusHistoricalContextLoaded
+	if !historicalResult.HistoricalDataFound {
+		status = schema.StatusHistoricalContextNotFound
+	}
+
 	// Create the base verification context with all original fields preserved
 	baseVerificationContext := &schema.VerificationContext{
 		VerificationId:         inputCtx.VerificationId,
 		VerificationAt:         inputCtx.VerificationAt,
-		Status:                 schema.StatusHistoricalContextLoaded,
+		Status:                 status,
 		VerificationType:       inputCtx.VerificationType,
 		ConversationType:       inputCtx.ConversationType,
 		VendingMachineId:       inputCtx.VendingMachineId,

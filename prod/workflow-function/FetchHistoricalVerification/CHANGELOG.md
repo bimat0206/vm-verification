@@ -2,6 +2,29 @@
 
 All notable changes to the FetchHistoricalVerification Lambda function will be documented in this file.
 
+## [1.2.4] - 2025-06-28
+
+### Fixed
+- **Status Handling for Fresh Verifications**: Fixed logical contradiction where `StatusHistoricalContextLoaded` was set even when no historical data was found
+  - Now sets `StatusHistoricalContextNotFound` when `historicalDataFound` is false
+  - Sets `StatusHistoricalContextLoaded` only when historical data actually exists
+  - Status is properly propagated through the enhanced verification context
+  - Ensures consistent workflow state with downstream FetchImages function
+
+### Changed
+- **Status Management**: Enhanced status setting logic to differentiate between historical data found vs not found scenarios
+- **Enhanced Verification Context**: Updated `createEnhancedVerificationContext` to set appropriate status based on `historicalDataFound` flag
+- **Historical Context JSON**: Added `status` field to HistoricalContext struct to include status in historical-context.json file
+  - Sets `StatusHistoricalContextNotFound` in fallback context for fresh verifications
+  - Sets `StatusHistoricalContextLoaded` when historical data is successfully retrieved
+
+### Technical Details
+- Added conditional status setting based on `result.HistoricalDataFound` in main handler
+- Modified `createEnhancedVerificationContext` to determine status dynamically
+- Added `Status` field to `HistoricalContext` struct in types.go
+- Updated both `createFallbackContext` and `createHistoricalContext` functions to set appropriate status
+- Maintains backward compatibility while improving workflow state consistency
+
 ## [1.2.3] - 2025-06-20
 
 ### Fixed
