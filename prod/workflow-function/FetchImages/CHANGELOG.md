@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.1] - 2025-06-28
+
+### Fixed
+- **Logging**: Corrected several debugging messages that were incorrectly logged as `ERROR` to `INFO` level.
+- **Code Cleanup**: Removed superfluous logging and unused helper functions (`getStringValue`, `getIntValue`, `getMapKeys`) to improve code clarity and maintainability.
+- **Build**: Resolved build failures caused by a `go.work` file referencing non-existent modules by using the `GOWORK=off` environment variable during the build process.
+
 ## [4.5.0] - 2025-01-15
 
 ### Added

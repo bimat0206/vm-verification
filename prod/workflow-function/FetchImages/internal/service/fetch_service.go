@@ -95,27 +95,15 @@ func (s *FetchService) ProcessRequest(
 		verificationContext = &v
 	case map[string]interface{}:
 		// Try to extract key fields from map
-		s.logger.Info("Extracting verification context from map", map[string]interface{}{
-			"mapKeys":                   getMapKeys(v),
-			"previousVerificationId":    getStringValue(v, "previousVerificationId"),
-			"rawPreviousVerificationId": v["previousVerificationId"],
-		})
+		s.logger.Info("Extracting verification context from map", map[string]interface{}{})
 
 		// Try JSON marshaling/unmarshaling approach first for better type conversion
 		jsonBytes, err := json.Marshal(v)
 		if err == nil {
-			s.logger.Info("JSON marshaling successful", map[string]interface{}{
-				"jsonString": string(jsonBytes),
-			})
-			
 			var tempVC schema.VerificationContext
 			if err := json.Unmarshal(jsonBytes, &tempVC); err == nil {
 				verificationContext = &tempVC
-				s.logger.Info("Successfully converted via JSON marshaling", map[string]interface{}{
-					"verificationId":         verificationContext.VerificationId,
-					"verificationType":       verificationContext.VerificationType,
-					"previousVerificationId": verificationContext.PreviousVerificationId,
-				})
+				s.logger.Info("Successfully converted via JSON marshaling", map[string]interface{}{})
 			} else {
 				s.logger.Error("JSON unmarshaling failed, falling back to manual extraction", map[string]interface{}{
 					"error":      err.Error(),
@@ -123,14 +111,14 @@ func (s *FetchService) ProcessRequest(
 				})
 				// Fall back to manual extraction
 				verificationContext = &schema.VerificationContext{
-					VerificationId:         getStringValue(v, "verificationId"),
-					VerificationType:       getStringValue(v, "verificationType"),
-					ReferenceImageUrl:      getStringValue(v, "referenceImageUrl"),
-					CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
-					LayoutId:               getIntValue(v, "layoutId"),
-					LayoutPrefix:           getStringValue(v, "layoutPrefix"),
-					PreviousVerificationId: getStringValue(v, "previousVerificationId"),
-					VendingMachineId:       getStringValue(v, "vendingMachineId"),
+					VerificationId:         v["verificationId"].(string),
+					VerificationType:       v["verificationType"].(string),
+					ReferenceImageUrl:      v["referenceImageUrl"].(string),
+					CheckingImageUrl:       v["checkingImageUrl"].(string),
+					LayoutId:               v["layoutId"].(int),
+					LayoutPrefix:           v["layoutPrefix"].(string),
+					PreviousVerificationId: v["previousVerificationId"].(string),
+					VendingMachineId:       v["vendingMachineId"].(string),
 				}
 			}
 		} else {
@@ -139,23 +127,17 @@ func (s *FetchService) ProcessRequest(
 			})
 			// Fall back to manual extraction
 			verificationContext = &schema.VerificationContext{
-				VerificationId:         getStringValue(v, "verificationId"),
-				VerificationType:       getStringValue(v, "verificationType"),
-				ReferenceImageUrl:      getStringValue(v, "referenceImageUrl"),
-				CheckingImageUrl:       getStringValue(v, "checkingImageUrl"),
-				LayoutId:               getIntValue(v, "layoutId"),
-				LayoutPrefix:           getStringValue(v, "layoutPrefix"),
-				PreviousVerificationId: getStringValue(v, "previousVerificationId"),
-				VendingMachineId:       getStringValue(v, "vendingMachineId"),
+				VerificationId:         v["verificationId"].(string),
+				VerificationType:       v["verificationType"].(string),
+				ReferenceImageUrl:      v["referenceImageUrl"].(string),
+				CheckingImageUrl:       v["checkingImageUrl"].(string),
+				LayoutId:               v["layoutId"].(int),
+				LayoutPrefix:           v["layoutPrefix"].(string),
+				PreviousVerificationId: v["previousVerificationId"].(string),
+				VendingMachineId:       v["vendingMachineId"].(string),
 			}
 		}
 
-		s.logger.Info("Final extracted verification context", map[string]interface{}{
-			"verificationId":         verificationContext.VerificationId,
-			"verificationType":       verificationContext.VerificationType,
-			"previousVerificationId": verificationContext.PreviousVerificationId,
-			"isEmpty":                verificationContext.PreviousVerificationId == "",
-		})
 	default:
 		enhancedErr := errors.NewValidationError("Unsupported verification context type", map[string]interface{}{
 			"correlationId":    correlationID,
@@ -196,29 +178,16 @@ func (s *FetchService) ProcessRequest(
 	// Determine if we need layout or historical data based on verification type
 	var prevVerificationId string
 	if verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent {
-		// Add comprehensive debugging before validation
-		s.logger.Info("DEBUGGING: About to validate previousVerificationId", map[string]interface{}{
-			"verificationType":                    verificationContext.VerificationType,
-			"expectedType":                       schema.VerificationTypePreviousVsCurrent,
-			"typesMatch":                         verificationContext.VerificationType == schema.VerificationTypePreviousVsCurrent,
-			"previousVerificationId":             verificationContext.PreviousVerificationId,
-			"previousVerificationIdLength":       len(verificationContext.PreviousVerificationId),
-			"previousVerificationIdIsEmpty":      verificationContext.PreviousVerificationId == "",
-			"sourceType":                         sourceType,
-			"historicalDataFound":                historicalDataFound,
-			"fullVerificationContext":            fmt.Sprintf("%+v", verificationContext),
-		})
-
 		// Check if we should bypass previousVerificationId requirement
 		// Allow bypass when sourceType is "NO_HISTORICAL_DATA" or historicalDataFound is false
 		shouldBypassPreviousVerificationId := sourceType == "NO_HISTORICAL_DATA" || !historicalDataFound
 
 		if shouldBypassPreviousVerificationId {
 			s.logger.Info("BYPASSING previousVerificationId validation", map[string]interface{}{
-				"reason":               "No historical data available",
-				"sourceType":           sourceType,
-				"historicalDataFound":  historicalDataFound,
-				"verificationId":       verificationContext.VerificationId,
+				"reason":              "No historical data available",
+				"sourceType":          sourceType,
+				"historicalDataFound": historicalDataFound,
+				"verificationId":      verificationContext.VerificationId,
 			})
 			// Set empty string to indicate no historical verification needed
 			prevVerificationId = ""
@@ -234,14 +203,14 @@ func (s *FetchService) ProcessRequest(
 					WithContext("historicalDataFound", historicalDataFound)
 
 				s.logger.Error("VALIDATION FAILED: previousVerificationId is empty", map[string]interface{}{
-					"correlationId":              correlationID,
-					"verificationType":           verificationContext.VerificationType,
-					"verificationId":             verificationContext.VerificationId,
-					"previousVerificationId":     verificationContext.PreviousVerificationId,
-					"previousVerificationIdLen":  len(verificationContext.PreviousVerificationId),
-					"sourceType":                 sourceType,
-					"historicalDataFound":        historicalDataFound,
-					"allFields":                  fmt.Sprintf("%+v", verificationContext),
+					"correlationId":             correlationID,
+					"verificationType":          verificationContext.VerificationType,
+					"verificationId":            verificationContext.VerificationId,
+					"previousVerificationId":    verificationContext.PreviousVerificationId,
+					"previousVerificationIdLen": len(verificationContext.PreviousVerificationId),
+					"sourceType":                sourceType,
+					"historicalDataFound":       historicalDataFound,
+					"allFields":                 fmt.Sprintf("%+v", verificationContext),
 				})
 				return nil, enhancedErr
 			}
@@ -408,17 +377,14 @@ func (s *FetchService) loadVerificationContext(
 			return nil, err
 		}
 
-		s.logger.Error("DEBUGGING: Raw data loaded from S3", map[string]interface{}{
+		s.logger.Info("DEBUGGING: Raw data loaded from S3", map[string]interface{}{
 			"rawDataType": fmt.Sprintf("%T", rawData),
 			"rawData":     fmt.Sprintf("%+v", rawData),
 		})
 
 		// Try to parse as InitializationData structure first
 		if dataMap, ok := rawData.(map[string]interface{}); ok {
-			s.logger.Error("DEBUGGING: Data is a map", map[string]interface{}{
-				"mapKeys": getMapKeys(dataMap),
-				"mapSize": len(dataMap),
-			})
+			s.logger.Info("DEBUGGING: Data is a map", map[string]interface{}{})
 
 			// Check if this is the new InitializationData format
 			if schemaVersion, hasSchema := dataMap["schemaVersion"]; hasSchema {
@@ -428,18 +394,14 @@ func (s *FetchService) loadVerificationContext(
 
 				// Extract verificationContext from InitializationData
 				if vcData, hasVC := dataMap["verificationContext"]; hasVC {
-					s.logger.Error("DEBUGGING: Found verificationContext in InitializationData", map[string]interface{}{
+					s.logger.Info("DEBUGGING: Found verificationContext in InitializationData", map[string]interface{}{
 						"vcDataType": fmt.Sprintf("%T", vcData),
 						"vcData":     fmt.Sprintf("%+v", vcData),
 					})
 					
 					// If vcData is a map, check for previousVerificationId
-					if vcMap, isMap := vcData.(map[string]interface{}); isMap {
-						s.logger.Error("DEBUGGING: verificationContext is a map", map[string]interface{}{
-							"vcMapKeys":                  getMapKeys(vcMap),
-							"previousVerificationId":     vcMap["previousVerificationId"],
-							"previousVerificationIdType": fmt.Sprintf("%T", vcMap["previousVerificationId"]),
-						})
+					if _, isMap := vcData.(map[string]interface{}); isMap {
+						s.logger.Info("DEBUGGING: verificationContext is a map", map[string]interface{}{})
 					}
 					
 					return vcData, nil
@@ -448,26 +410,19 @@ func (s *FetchService) loadVerificationContext(
 				}
 			} else {
 				// This might be legacy format - return as is
-				s.logger.Info("Found legacy format initialization data", map[string]interface{}{
-					"dataKeys": getMapKeys(dataMap),
-				})
-				
+				s.logger.Info("Found legacy format initialization data", map[string]interface{}{})
+
 				// Check if this legacy format has previousVerificationId
-				if prevId, hasPrevId := dataMap["previousVerificationId"]; hasPrevId {
-					s.logger.Error("DEBUGGING: Found previousVerificationId in legacy format", map[string]interface{}{
-						"previousVerificationId":     prevId,
-						"previousVerificationIdType": fmt.Sprintf("%T", prevId),
-					})
+				if _, hasPrevId := dataMap["previousVerificationId"]; hasPrevId {
+					s.logger.Info("DEBUGGING: Found previousVerificationId in legacy format", map[string]interface{}{})
 				}
-				
+
 				return rawData, nil
 			}
 		}
 
 		// If not a map, return as is (might be direct VerificationContext)
-		s.logger.Error("DEBUGGING: Raw data is not a map", map[string]interface{}{
-			"rawDataType": fmt.Sprintf("%T", rawData),
-		})
+		s.logger.Info("DEBUGGING: Raw data is not a map", map[string]interface{}{})
 		return rawData, nil
 	}
 
@@ -644,9 +599,6 @@ func (s *FetchService) fetchAllDataInParallel(
 			// Add extensive debugging before the fetch
 			s.logger.Info("Starting historical verification fetch", map[string]interface{}{
 				"previousVerificationId": prevVerificationId,
-				"previousVerificationIdType": fmt.Sprintf("%T", prevVerificationId),
-				"previousVerificationIdLength": len(prevVerificationId),
-				"tableName": s.dynamoDBRepo.GetTableName(),
 			})
 			
 			// Perform the fetch with enhanced error diagnostics
@@ -659,19 +611,13 @@ func (s *FetchService) fetchAllDataInParallel(
 				errorDetails := map[string]interface{}{
 					"previousVerificationId": prevVerificationId,
 					"error":                  err.Error(),
-					"errorType":              fmt.Sprintf("%T", err),
 				}
 				
 				results.Errors = append(results.Errors, fmt.Errorf("failed to fetch historical verification data: %w", err))
 				s.logger.Error("Failed to fetch historical verification", errorDetails)
 			} else {
 				// Add more details about the fetched data
-				s.logger.Info("Successfully fetched historical verification", map[string]interface{}{
-					"previousVerificationId": prevVerificationId,
-					"dataKeys": getMapKeys(historicalContext),
-					"verificationAt": historicalContext["verificationAt"],
-					"dataSize": len(fmt.Sprintf("%v", historicalContext)),
-				})
+				s.logger.Info("Successfully fetched historical verification", map[string]interface{}{})
 				results.HistoricalContext = historicalContext
 			}
 		}()
@@ -718,58 +664,4 @@ func (s *FetchService) fetchAllDataInParallel(
 	return results, nil
 }
 
-// Helper functions for working with map values
 
-// getStringValue extracts a string value from a map
-func getStringValue(m map[string]interface{}, key string) string {
-	val, exists := m[key]
-	if !exists {
-		return ""
-	}
-
-	// Handle different types that might be stored as strings
-	switch v := val.(type) {
-	case string:
-		return v
-	case nil:
-		return ""
-	case *string:
-		if v != nil {
-			return *v
-		}
-		return ""
-	default:
-		// Try to convert to string - this should preserve the actual value
-		str := fmt.Sprintf("%v", v)
-		// Don't return empty representations like "<nil>" or "0"
-		if str == "<nil>" {
-			return ""
-		}
-		return str
-	}
-}
-
-// getIntValue extracts an int value from a map
-func getIntValue(m map[string]interface{}, key string) int {
-	switch v := m[key].(type) {
-	case int:
-		return v
-	case float64:
-		return int(v)
-	case string:
-		var i int
-		if _, err := fmt.Sscanf(v, "%d", &i); err == nil {
-			return i
-		}
-	}
-	return 0
-}
-
-// getMapKeys returns the keys of a map as a slice of strings
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
