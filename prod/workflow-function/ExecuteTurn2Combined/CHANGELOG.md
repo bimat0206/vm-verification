@@ -2,6 +2,122 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.32] - 2025-06-28 - Remove Redundant ConversationId Field
+
+### Changed
+- **BREAKING**: Removed `ConversationId` field from `ConversationTracker` struct
+  - **Rationale**: Field was redundant and caused confusion since `verificationId` is passed as a parameter
+  - **Impact**: Eliminates field mapping issues between Go struct and DynamoDB table schema
+  - **Solution**: All functions now explicitly use `verificationID` parameter instead of struct field
+
+### Enhanced
+- **Function Signatures Updated**: Modified functions to explicitly accept `verificationID` parameter
+  - `RecordConversationHistory(ctx, verificationID, conversationTracker)`
+  - `updateExistingConversationHistory(ctx, verificationID, conversationTracker)`
+  - Updated all callers and interface definitions
+- **Error Context Improved**: Replaced `conversation_id` with `verification_id` in error contexts for consistency
+- **Validation Cleanup**: Removed redundant ConversationId validation since verification ID is validated separately
+
+### Technical Details
+- **Files Modified**: 
+  - `shared/schema/types.go` - Removed ConversationId field (line 69)
+  - `shared/schema/validation.go` - Removed ConversationId validation (line 588)
+  - `internal/services/dynamodb.go` - Updated function signatures and error contexts
+  - `internal/models/shared_types.go` - Updated CreateConversationTracker function
+- **Interface Changes**:
+  - Added `verificationID` parameter to `RecordConversationHistory` interface method
+  - Updated all implementations to use explicit `verificationID` parameter
+
+### Impact
+- ✅ Eliminates struct field mapping confusion
+- ✅ Makes verification ID handling explicit and clear
+- ✅ Reduces potential for empty ID errors
+- ✅ Improves code maintainability and clarity
+
+## [2.2.31] - 2025-06-28 - Fix DynamoDB Key Mapping in updateExistingConversationHistory
+
+### Fixed
+- **CRITICAL**: Fixed DynamoDB ValidationException in `updateExistingConversationHistory` method
+  - **Root Cause**: Method was using `conversationTracker.ConversationId` (which could be empty from unmarshalled records) instead of the verified `verificationID` parameter for DynamoDB key
+  - **Error**: `ValidationException: One or more parameter values are not valid. The AttributeValue for a key attribute cannot contain an empty string value. Key: verificationId`
+  - **Impact**: Turn2 processing failed when updating existing conversation history records
+  - **Solution**: Updated method to use the `verificationID` parameter directly instead of relying on the tracker's ConversationId field
+
+### Enhanced
+- **Method Signature Update**: Modified `updateExistingConversationHistory` to accept `verificationID` parameter
+  - Updated function signature: `func updateExistingConversationHistory(ctx context.Context, verificationID string, conversationTracker *schema.ConversationTracker)`
+  - Updated DynamoDB key mapping to use `verificationID` parameter instead of `conversationTracker.ConversationId`
+  - Updated all callers to pass the correct verificationID
+- **Struct Mapping Fix**: Added missing DynamoDB attribute tags to `ConversationTracker` struct
+  - Fixed field mapping between Go struct and DynamoDB table schema
+  - Added `dynamodbav:"verificationId"` tag to `ConversationId` field to match DynamoDB table
+  - Added proper DynamoDB tags to all fields for consistent marshalling/unmarshalling
+
+### Technical Details
+- **Files Modified**: 
+  - `internal/services/dynamodb.go`
+  - `shared/schema/types.go`
+- **Key Changes**:
+  - Line 274 (dynamodb.go): Updated function signature to include `verificationID` parameter
+  - Line 293 (dynamodb.go): Changed key mapping from `conversationTracker.ConversationId` to `verificationID`
+  - Line 666 (dynamodb.go): Updated caller in `updateConversationTurnInternal`
+  - Line 260 (dynamodb.go): Updated caller in `RecordConversationHistory`
+  - Line 69 (types.go): Added `dynamodbav:"verificationId"` tag to ConversationId field
+  - Lines 70-78 (types.go): Added proper DynamoDB attribute tags to all ConversationTracker fields
+
+### Impact
+- ✅ Fixes DynamoDB conversation history updates for existing records
+- ✅ Ensures verificationId key is never empty in DynamoDB operations
+- ✅ Maintains data integrity by using verified verificationID parameter
+- ✅ Prevents ValidationException errors during conversation turn updates
+
+## [2.2.30] - 2025-06-28 - Aligned VerificationID Resolution with ExecuteTurn1Combined
+
+### Changed
+- **Refactored Verification ID Resolution**: Aligned the `verificationId` resolution logic in `event_transformer.go` with the robust implementation in `ExecuteTurn1Combined`.
+
+### Enhanced
+- **Clarity and Explicitness**: Replaced the previous implementation with a more explicit three-tier fallback system for resolving the `verificationId`.
+  - **Primary**: `initialization.json` (`initData.VerificationContext.VerificationId`)
+  - **Secondary**: Step Function event (`event.VerificationID`)
+  - **Tertiary**: Extracted from S3 key path.
+- **Observability**: Added a new log entry (`verification_id_resolved`) that explicitly states which source was used to resolve the `verificationId`, improving traceability.
+
+### Technical Details
+- **File Modified**: `internal/handler/event_transformer.go`
+- **Logic**: The new logic is more structured and easier to follow, reducing ambiguity and improving maintainability.
+  ```go
+  // STRATEGIC VERIFICATION ID RESOLUTION
+  // 1. Primary Source: Use VerificationId from the loaded initialization.json
+  verificationID := initData.VerificationContext.VerificationId
+  idSource := "initialization_data"
+
+  // 2. Secondary Source: Fallback to the Step Function event's verificationId
+  if verificationID == "" {
+      if event.VerificationID != "" {
+          verificationID = event.VerificationID
+          idSource = "step_function_event"
+          // ... logging ...
+      }
+  }
+
+  // 3. Tertiary Source: As a last resort, extract from the S3 key path
+  if verificationID == "" {
+      if extractedID := extractVerificationIDFromKey(initRef.Key); extractedID != "" {
+          verificationID = extractedID
+          idSource = "extracted_from_s3_key"
+          // ... logging ...
+      }
+  }
+  ```
+
+### Impact
+- ✅ Aligns `ExecuteTurn2Combined` with the proven, robust `verificationId` handling of `ExecuteTurn1Combined`.
+- ✅ Improves code clarity and maintainability.
+- ✅ Enhances debugging and traceability through more explicit logging.
+
+
+
 ## [2.2.29] - 2025-06-28 - Fix Empty VerificationID from Step Function Event
 
 ### Fixed

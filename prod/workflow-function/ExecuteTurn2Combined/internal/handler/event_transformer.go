@@ -339,39 +339,38 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		"raw_size":       turn1RawRef.Size,
 	})
 
-	// Debug logging to track verificationID
-	transformLogger.Debug("constructing_turn2_request", map[string]interface{}{
-		"event_verification_id":        event.VerificationID,
-		"event_verification_id_empty":  event.VerificationID == "",
-		"event_verification_id_length": len(event.VerificationID),
-		"init_verification_id":         initData.VerificationContext.VerificationId,
-		"init_verification_id_empty":   initData.VerificationContext.VerificationId == "",
-		"init_verification_id_length":  len(initData.VerificationContext.VerificationId),
-	})
-
-	// Determine the verification ID with fallback logic
+	// STRATEGIC VERIFICATION ID RESOLUTION
+	// 1. Primary Source: Use VerificationId from the loaded initialization.json
 	verificationID := initData.VerificationContext.VerificationId
-	if verificationID == "" && event.VerificationID != "" {
-		verificationID = event.VerificationID
-		transformLogger.Warn("using_event_verification_id_as_fallback", map[string]interface{}{
-			"event_verification_id": event.VerificationID,
-		})
-	}
-	
+	idSource := "initialization_data"
+
+	// 2. Secondary Source: Fallback to the Step Function event's verificationId
 	if verificationID == "" {
-		// Try to extract from S3 key as last resort
-		if initRef, ok := event.S3References["processing_initialization"].(map[string]interface{}); ok {
-			if key, ok := initRef["key"].(string); ok {
-				if extracted := extractVerificationIDFromKey(key); extracted != "" {
-					verificationID = extracted
-					transformLogger.Warn("extracted_verification_id_from_s3_key", map[string]interface{}{
-						"extracted_id": extracted,
-						"s3_key":       key,
-					})
-				}
-			}
+		if event.VerificationID != "" {
+			verificationID = event.VerificationID
+			idSource = "step_function_event"
+			transformLogger.Warn("using_event_verification_id_as_fallback", map[string]interface{}{
+				"verification_id": verificationID,
+			})
 		}
 	}
+
+	// 3. Tertiary Source: As a last resort, extract from the S3 key path
+	if verificationID == "" {
+		if extractedID := extractVerificationIDFromKey(initRef.Key); extractedID != "" {
+			verificationID = extractedID
+			idSource = "extracted_from_s3_key"
+			transformLogger.Warn("extracted_verification_id_from_s3_key_as_last_resort", map[string]interface{}{
+				"s3_key":          initRef.Key,
+				"verification_id": verificationID,
+			})
+		}
+	}
+
+	transformLogger.Info("verification_id_resolved", map[string]interface{}{
+		"final_verification_id": verificationID,
+		"source":                idSource,
+	})
 
 	// STRATEGIC STAGE 6: Turn2Request construction with schema conversion
 	req := &models.Turn2Request{
