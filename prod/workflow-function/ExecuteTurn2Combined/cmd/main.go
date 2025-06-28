@@ -456,7 +456,10 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 	var stepEvent handler.StepFunctionEvent
 	if err := json.Unmarshal(event, &stepEvent); err == nil && stepEvent.SchemaVersion != "" {
 		contextLogger.Info("step_function_event_format_detected", map[string]interface{}{
-			"schema_version": stepEvent.SchemaVersion,
+			"schema_version":              stepEvent.SchemaVersion,
+			"step_event_verification_id":  stepEvent.VerificationID,
+			"step_event_status":           stepEvent.Status,
+			"s3_references_count":         len(stepEvent.S3References),
 		})
 
 		transformer := handler.NewEventTransformer(applicationContainer.s3Service, contextLogger)
@@ -465,6 +468,11 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 			contextLogger.Error("step_function_event_transformation_failed", map[string]interface{}{"error": transformErr.Error()})
 			finalErr = transformErr
 		} else {
+			contextLogger.Info("step_function_event_transformed", map[string]interface{}{
+				"verification_id":        transformedReq.VerificationID,
+				"verification_id_empty":  transformedReq.VerificationID == "",
+				"verification_id_length": len(transformedReq.VerificationID),
+			})
 			finalResponse, finalErr = applicationContainer.handler.HandleForStepFunction(enrichedCtx, transformedReq)
 		}
 	} else {
@@ -498,7 +506,11 @@ func HandleRequest(ctx context.Context, event json.RawMessage) (interface{}, err
 			})
 			finalErr = wrapped
 		} else {
-			contextLogger.Info("turn2_request_format_detected", nil)
+			contextLogger.Info("turn2_request_format_detected", map[string]interface{}{
+				"verification_id":        directReq.VerificationID,
+				"verification_id_empty":  directReq.VerificationID == "",
+				"verification_id_length": len(directReq.VerificationID),
+			})
 			var turn2Resp *models.Turn2Response
 			turn2Resp, _, _, finalErr = applicationContainer.handler.ProcessTurn2Request(enrichedCtx, &directReq)
 			finalResponse = turn2Resp

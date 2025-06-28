@@ -85,6 +85,16 @@ func (d *DynamoManager) UpdateTurn1Completion(
 func (d *DynamoManager) UpdateTurn2Completion(ctx context.Context, res Turn2Result) bool {
 	dynamoOK := true
 
+	// Debug logging to track verificationID flow
+	d.log.Debug("UpdateTurn2Completion_called", map[string]interface{}{
+		"verification_id":        res.VerificationID,
+		"verification_id_empty":  res.VerificationID == "",
+		"verification_id_length": len(res.VerificationID),
+		"verification_at":        res.VerificationAt,
+		"turn_id":               res.TurnEntry.TurnId,
+		"turn_stage":            res.TurnEntry.Stage,
+	})
+
 	if err := d.dynamo.UpdateVerificationStatusEnhanced(ctx, res.VerificationID, res.VerificationAt, res.StatusEntry); err != nil {
 		d.logEnhancedDynamoDBError(err, "UpdateVerificationStatusEnhanced", res.VerificationID, map[string]interface{}{
 			"verificationAt": res.VerificationAt,
@@ -93,6 +103,13 @@ func (d *DynamoManager) UpdateTurn2Completion(ctx context.Context, res Turn2Resu
 		})
 		dynamoOK = false
 	}
+
+	// Additional debug logging before UpdateConversationTurn
+	d.log.Debug("before_UpdateConversationTurn", map[string]interface{}{
+		"verification_id":        res.VerificationID,
+		"verification_id_empty":  res.VerificationID == "",
+		"turn_entry_not_nil":     res.TurnEntry != nil,
+	})
 
 	if err := d.dynamo.UpdateConversationTurn(ctx, res.VerificationID, res.TurnEntry); err != nil {
 		d.logEnhancedDynamoDBError(err, "UpdateConversationTurn", res.VerificationID, map[string]interface{}{

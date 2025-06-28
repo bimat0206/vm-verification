@@ -2,6 +2,42 @@
 
 All notable changes to the ExecuteTurn2Combined function will be documented in this file.
 
+## [2.2.29] - 2025-06-28 - Fix Empty VerificationID from Step Function Event
+
+### Fixed
+- **CRITICAL**: Fixed empty verificationID issue causing DynamoDB ValidationException
+  - **Root Cause**: Step Function was passing empty `verificationId` field to ExecuteTurn2Combined
+  - **Error**: `ValidationException: One or more parameter values are not valid. The AttributeValue for a key attribute cannot contain an empty string value. Key: verificationId`
+  - **Impact**: Turn2 processing completed but failed to update conversation history
+  - **Solution**: Changed to use verificationID from initialization data instead of Step Function event
+
+### Enhanced
+- **Verification ID Resolution**: Implemented three-tier fallback mechanism
+  - Primary: Use `initData.VerificationContext.VerificationId` from initialization.json
+  - Secondary: Fall back to `event.VerificationID` if initialization data is empty
+  - Tertiary: Extract from S3 key path (e.g., from `2025/06/28/verif-20250628042453-70c1/...`)
+  - Added logging to track which source was used for verification ID
+
+### Technical Details
+- **Files Modified**:
+  - `internal/handler/event_transformer.go` - Changed verification ID source (line 354)
+  - Added fallback logic (lines 352-374)
+  - Enhanced debug logging (lines 424-445)
+- **Key Change**: 
+  ```go
+  // Before:
+  VerificationID: event.VerificationID,  // Was empty from Step Function
+  
+  // After:
+  VerificationID: verificationID,  // Uses initData.VerificationContext.VerificationId with fallbacks
+  ```
+
+### Impact
+- ✅ Fixes DynamoDB conversation history updates
+- ✅ Provides resilient verification ID resolution
+- ✅ Maintains backward compatibility with multiple fallback options
+- ✅ Improves observability with detailed source tracking
+
 ## [2.2.28] - 2025-06-20 - DynamoDB Validation Error Fix
 
 ### Fixed

@@ -735,6 +735,17 @@ func (h *Turn2Handler) ProcessTurn2Request(ctx context.Context, req *models.Turn
 		},
 		Stage: "CHECKING_ANALYSIS",
 	}
+	
+	// Debug logging before calling UpdateTurn2Completion
+	h.log.Debug("before_UpdateTurn2Completion", map[string]interface{}{
+		"req_verification_id":        req.VerificationID,
+		"req_verification_id_empty":  req.VerificationID == "",
+		"req_verification_id_length": len(req.VerificationID),
+		"verification_at":            req.VerificationContext.VerificationAt,
+		"turn_entry_turn_id":         turnEntry.TurnId,
+		"turn_entry_stage":           turnEntry.Stage,
+	})
+	
 	dynamoOK := h.dynamoManager.UpdateTurn2Completion(ctx, Turn2Result{
 		VerificationID:       req.VerificationID,
 		VerificationAt:       req.VerificationContext.VerificationAt,

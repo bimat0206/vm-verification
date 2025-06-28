@@ -339,9 +339,43 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 		"raw_size":       turn1RawRef.Size,
 	})
 
+	// Debug logging to track verificationID
+	transformLogger.Debug("constructing_turn2_request", map[string]interface{}{
+		"event_verification_id":        event.VerificationID,
+		"event_verification_id_empty":  event.VerificationID == "",
+		"event_verification_id_length": len(event.VerificationID),
+		"init_verification_id":         initData.VerificationContext.VerificationId,
+		"init_verification_id_empty":   initData.VerificationContext.VerificationId == "",
+		"init_verification_id_length":  len(initData.VerificationContext.VerificationId),
+	})
+
+	// Determine the verification ID with fallback logic
+	verificationID := initData.VerificationContext.VerificationId
+	if verificationID == "" && event.VerificationID != "" {
+		verificationID = event.VerificationID
+		transformLogger.Warn("using_event_verification_id_as_fallback", map[string]interface{}{
+			"event_verification_id": event.VerificationID,
+		})
+	}
+	
+	if verificationID == "" {
+		// Try to extract from S3 key as last resort
+		if initRef, ok := event.S3References["processing_initialization"].(map[string]interface{}); ok {
+			if key, ok := initRef["key"].(string); ok {
+				if extracted := extractVerificationIDFromKey(key); extracted != "" {
+					verificationID = extracted
+					transformLogger.Warn("extracted_verification_id_from_s3_key", map[string]interface{}{
+						"extracted_id": extracted,
+						"s3_key":       key,
+					})
+				}
+			}
+		}
+	}
+
 	// STRATEGIC STAGE 6: Turn2Request construction with schema conversion
 	req := &models.Turn2Request{
-		VerificationID:      event.VerificationID,
+		VerificationID:      verificationID,
 		VerificationContext: convertSchemaToLocalVerificationContext(initData.VerificationContext, initData.LayoutMetadata),
 		S3Refs: models.Turn2RequestS3Refs{
 			Prompts: models.PromptRefs{
@@ -384,6 +418,30 @@ func (e *EventTransformer) TransformStepFunctionEvent(ctx context.Context, event
 				"verification_id": event.VerificationID,
 			})
 		}
+	}
+
+	// Additional debug check for verificationID after construction
+	if req.VerificationID == "" {
+		transformLogger.Error("CRITICAL_verification_id_empty_after_construction", map[string]interface{}{
+			"event_verification_id":       event.VerificationID,
+			"init_verification_id":        initData.VerificationContext.VerificationId,
+			"final_verification_id":       verificationID,
+			"req_verification_id":         req.VerificationID,
+			"req_verification_id_pointer": &req.VerificationID,
+		})
+	} else {
+		transformLogger.Info("verification_id_successfully_set", map[string]interface{}{
+			"source": func() string {
+				if verificationID == initData.VerificationContext.VerificationId {
+					return "initialization_data"
+				} else if verificationID == event.VerificationID {
+					return "step_function_event"
+				} else {
+					return "extracted_from_s3_key"
+				}
+			}(),
+			"verification_id": req.VerificationID,
+		})
 	}
 
 	// STRATEGIC STAGE 6: Comprehensive transformation completion with schema validation

@@ -528,6 +528,10 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
 func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationID string, turnData *schema.TurnResponse) error {
+	// Enhanced logging for debugging
+	log.Printf("UpdateConversationTurn called - verificationID: '%s', empty: %v, length: %d, table: %s",
+		verificationID, verificationID == "", len(verificationID), d.conversationTable)
+	
 	// Validate verificationID before proceeding
 	if verificationID == "" {
 		return errors.NewValidationError("verificationID cannot be empty", map[string]interface{}{
@@ -544,6 +548,10 @@ func (d *dynamoClient) UpdateConversationTurn(ctx context.Context, verificationI
 			"verificationID":  verificationID,
 		})
 	}
+	
+	// Log turn data details
+	log.Printf("UpdateConversationTurn - turnId: %d, stage: %s, timestamp: %s",
+		turnData.TurnId, turnData.Stage, turnData.Timestamp)
 	
 	return d.retryWithBackoff(ctx, func() error {
 		return d.updateConversationTurnInternal(ctx, verificationID, turnData)
@@ -570,6 +578,9 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 		ScanIndexForward: aws.Bool(false), // Get most recent first
 		Limit:            aws.Int32(1),
 	}
+
+	// Log the query parameters
+	log.Printf("DynamoDB Query - table: %s, verificationId: '%s'", d.conversationTable, verificationID)
 
 	queryResult, err := d.client.Query(ctx, queryInput)
 	if err != nil {
