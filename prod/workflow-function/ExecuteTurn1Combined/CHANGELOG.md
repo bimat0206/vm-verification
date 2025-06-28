@@ -2,6 +2,36 @@
 
 All notable changes to the ExecuteTurn1Combined function will be documented in this file.
 
+## [2.9.3] - 2025-06-28 - Remove Redundant ConversationId Field
+
+### Changed
+- **BREAKING**: Updated DynamoDB functions to use explicit `verificationID` parameter instead of `ConversationId` struct field
+  - **Rationale**: Aligns with shared schema changes removing redundant `ConversationId` field from `ConversationTracker`
+  - **Impact**: Eliminates potential for empty verification ID errors in DynamoDB operations
+  - **Migration**: All DynamoDB conversation methods now require explicit `verificationID` parameter
+
+### Enhanced
+- **Function Signatures Updated**: Modified conversation history functions to accept `verificationID` parameter
+  - `RecordConversationHistory(ctx, verificationID, conversationTracker)`
+  - `updateExistingConversationHistory(ctx, verificationID, conversationTracker)`
+  - Updated interface definitions and all callers
+- **Error Context Improved**: Replaced `conversation_id` with `verification_id` in error contexts for consistency
+- **DynamoDB Key Mapping**: Now uses explicit `verificationID` parameter for all DynamoDB key operations
+
+### Technical Details
+- **Files Modified**:
+  - `internal/services/dynamodb.go` - Updated function signatures and DynamoDB key mappings
+  - `internal/models/shared_types.go` - Updated CreateConversationTracker function
+- **Interface Changes**:
+  - Updated `RecordConversationHistory` interface method signature
+  - All DynamoDB operations now use verified `verificationID` parameter instead of struct field
+
+### Impact
+- ✅ Eliminates DynamoDB ValidationException errors for empty key attributes
+- ✅ Ensures consistent verification ID handling across all conversation operations
+- ✅ Aligns with ExecuteTurn2Combined implementation for consistency
+- ✅ Improves error traceability with explicit verification ID context
+
 ## [2.9.2] - 2025-01-10 - Validation and Conversation History Fixes
 
 ### Fixed

@@ -35,7 +35,7 @@ type DynamoDBService interface {
 
 	// Enhanced methods for comprehensive design integration
 	UpdateVerificationStatusEnhanced(ctx context.Context, verificationID string, initialVerificationAt string, statusEntry schema.StatusHistoryEntry) error
-	RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error
+	RecordConversationHistory(ctx context.Context, verificationID string, conversationTracker *schema.ConversationTracker) error
 	UpdateProcessingMetrics(ctx context.Context, verificationID string, metrics *schema.ProcessingMetrics) error
 	UpdateStatusHistory(ctx context.Context, verificationID string, statusHistory []schema.StatusHistoryEntry) error
 	UpdateErrorTracking(ctx context.Context, verificationID string, errorTracking *schema.ErrorTracking) error
@@ -208,14 +208,14 @@ func (d *dynamoClient) RecordConversationTurn(ctx context.Context, turn *models.
 }
 
 // Enhanced method: RecordConversationHistory manages comprehensive conversation tracking.
-func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error {
+func (d *dynamoClient) RecordConversationHistory(ctx context.Context, verificationID string, conversationTracker *schema.ConversationTracker) error {
 	historyItems := make([]types.AttributeValue, len(conversationTracker.History))
 	for i, h := range conversationTracker.History {
 		av, err := attributevalue.Marshal(h)
 		if err != nil {
 			return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 				fmt.Sprintf("failed to marshal history item at index %d", i), true).
-				WithContext("conversation_id", conversationTracker.ConversationId)
+				WithContext("verification_id", verificationID)
 		}
 		historyItems[i] = av
 	}
@@ -224,11 +224,11 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 	if err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to marshal conversation metadata", true).
-			WithContext("conversation_id", conversationTracker.ConversationId)
+			WithContext("verification_id", verificationID)
 	}
 
 	item := map[string]types.AttributeValue{
-		"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
+		"verificationId": &types.AttributeValueMemberS{Value: verificationID},
 		"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
 		"currentTurn":    &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.CurrentTurn)},
 		"maxTurns":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", conversationTracker.MaxTurns)},
@@ -252,11 +252,11 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 		var conditionalCheckErr *types.ConditionalCheckFailedException
 		if goerrors.As(err, &conditionalCheckErr) {
 			// Update existing record instead
-			return d.updateExistingConversationHistory(ctx, conversationTracker)
+			return d.updateExistingConversationHistory(ctx, verificationID, conversationTracker)
 		}
 
 		enhancedErr := errors.AnalyzeDynamoDBError("PutItemWithCondition", d.conversationTable, err)
-		enhancedErr.WithContext("conversation_id", conversationTracker.ConversationId).
+		enhancedErr.WithContext("verification_id", verificationID).
 			WithContext("operation", "RecordConversationHistory")
 		return enhancedErr
 	}
@@ -264,7 +264,7 @@ func (d *dynamoClient) RecordConversationHistory(ctx context.Context, conversati
 }
 
 // Helper method to update existing conversation history
-func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, conversationTracker *schema.ConversationTracker) error {
+func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, verificationID string, conversationTracker *schema.ConversationTracker) error {
 	// Marshal history and metadata
 	avHistory, err := attributevalue.MarshalList(conversationTracker.History)
 	if err != nil {
@@ -281,7 +281,7 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	input := &dynamodb.UpdateItemInput{
 		TableName: &d.conversationTable,
 		Key: map[string]types.AttributeValue{
-			"verificationId": &types.AttributeValueMemberS{Value: conversationTracker.ConversationId},
+			"verificationId": &types.AttributeValueMemberS{Value: verificationID},
 			"conversationAt": &types.AttributeValueMemberS{Value: conversationTracker.ConversationAt},
 		},
 		UpdateExpression: aws.String("SET currentTurn = :turn, turnStatus = :status, history = :history, metadata = :metadata"),
@@ -296,7 +296,7 @@ func (d *dynamoClient) updateExistingConversationHistory(ctx context.Context, co
 	if _, err := d.client.UpdateItem(ctx, input); err != nil {
 		return errors.WrapError(err, errors.ErrorTypeDynamoDB,
 			"failed to update conversation history", true).
-			WithContext("conversation_id", conversationTracker.ConversationId)
+			WithContext("verification_id", verificationID)
 	}
 	return nil
 }
@@ -499,7 +499,6 @@ func (d *dynamoClient) GetVerificationStatus(ctx context.Context, verificationID
 // Conversation management: InitializeConversationHistory creates initial conversation record.
 func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verificationID string, maxTurns int, metadata map[string]interface{}) error {
 	conversationTracker := &schema.ConversationTracker{
-		ConversationId:     verificationID,
 		CurrentTurn:        0,
 		MaxTurns:           maxTurns,
 		TurnStatus:         "INITIALIZED",
@@ -510,7 +509,7 @@ func (d *dynamoClient) InitializeConversationHistory(ctx context.Context, verifi
 		Metadata:           metadata,
 	}
 
-	return d.RecordConversationHistory(ctx, conversationTracker)
+	return d.RecordConversationHistory(ctx, verificationID, conversationTracker)
 }
 
 // Conversation management: UpdateConversationTurn adds a new turn to the conversation.
@@ -568,7 +567,6 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 	} else {
 		// Initialize if not exists
 		conversationTracker = schema.ConversationTracker{
-			ConversationId: verificationID,
 			CurrentTurn:    0,
 			MaxTurns:       2,
 			TurnStatus:     "ACTIVE",
@@ -611,9 +609,9 @@ func (d *dynamoClient) updateConversationTurnInternal(ctx context.Context, verif
 
 	// Use updateExistingConversationHistory directly if record exists
 	if len(queryResult.Items) > 0 {
-		return d.updateExistingConversationHistory(ctx, &conversationTracker)
+		return d.updateExistingConversationHistory(ctx, verificationID, &conversationTracker)
 	}
-	return d.RecordConversationHistory(ctx, &conversationTracker)
+	return d.RecordConversationHistory(ctx, verificationID, &conversationTracker)
 }
 
 // Conversation management: CompleteConversation marks conversation as completed.

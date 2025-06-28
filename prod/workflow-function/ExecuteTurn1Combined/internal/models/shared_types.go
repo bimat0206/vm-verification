@@ -206,7 +206,6 @@ func CreateVerificationContext(verificationID, verificationType string) *SchemaV
 // CreateConversationTracker creates a basic conversation tracker
 func CreateConversationTracker(verificationID string, maxTurns int) *SchemaConversationTracker {
 	return &SchemaConversationTracker{
-		ConversationId:     verificationID,
 		CurrentTurn:        0,
 		MaxTurns:           maxTurns,
 		TurnStatus:         "INITIALIZED",
