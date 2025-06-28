@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.3.1] - 2025-06-28
+
+### Added
+- Added `StatusHistoricalContextNotFound` constant to handle cases where no historical verification data exists
+- This new status is used when FetchHistoricalVerification function creates a fallback context for fresh verifications
+
+### Fixed
+- Fixed logical contradiction where `StatusHistoricalContextLoaded` was set even when `historicalDataFound` was false
+- Improved workflow state consistency between FetchHistoricalVerification and FetchImages functions
+
 ## [2.3.0] - 2025-01-03
 
 ### Added

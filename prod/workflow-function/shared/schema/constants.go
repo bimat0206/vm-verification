@@ -30,6 +30,7 @@ const (
 	StatusImagesFetched           = "IMAGES_FETCHED"
 	StatusPromptPrepared          = "PROMPT_PREPARED"
 	StatusHistoricalContextLoaded = "HISTORICAL_CONTEXT_LOADED"
+	StatusHistoricalContextNotFound = "HISTORICAL_CONTEXT_NOT_FOUND"
 	StatusTurn1PromptReady        = "TURN1_PROMPT_READY"
 	StatusTurn1Completed          = "TURN1_COMPLETED"
 	StatusTurn1Processed          = "TURN1_PROCESSED"
