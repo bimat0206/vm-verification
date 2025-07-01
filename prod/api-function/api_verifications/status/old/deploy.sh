@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# API Verifications Status Lambda Function Deployment Script (Python)
-# This script builds, packages, and deploys the Python-based Lambda function for verification status checking
+# API Verifications Status Lambda Function Deployment Script
+# This script builds, packages, and deploys the Go-based Lambda function for verification status checking
 
 set -e
 
@@ -39,8 +39,8 @@ log_error() {
 check_dependencies() {
     log_info "Checking dependencies..."
     
-    if ! command -v python3 &> /dev/null; then
-        log_error "Python 3 is not installed. Please install Python 3.9 or later."
+    if ! command -v go &> /dev/null; then
+        log_error "Go is not installed. Please install Go 1.20 or later."
         exit 1
     fi
     
@@ -91,28 +91,20 @@ ecr_login() {
     log_success "Successfully logged in to ECR"
 }
 
-# Test Python code locally
-test_python_code() {
-    log_info "Testing Python code..."
+# Build and test Go application
+build_and_test() {
+    log_info "Building and testing Go application..."
     
-    # Check Python syntax
-    python3 -m py_compile lambda_function.py
+    # Download dependencies
+    go mod tidy
     
-    if [ $? -eq 0 ]; then
-        log_success "Python syntax is valid"
-    else
-        log_error "Python syntax errors found"
-        exit 1
-    fi
-    
-    # Run local tests
-    log_info "Running local tests..."
-    python3 test_local.py
+    # Build the application
+    GOWORK=off go build -o api-verifications-status *.go
     
     if [ $? -eq 0 ]; then
-        log_success "Local tests passed"
+        log_success "Go application built successfully"
     else
-        log_error "Local tests failed"
+        log_error "Failed to build Go application"
         exit 1
     fi
 }
@@ -122,8 +114,7 @@ build_docker_image() {
     log_info "Building Docker image..."
     
     FULL_IMAGE_TAG="${ECR_REPO}:${IMAGE_TAG}"
-    # Force rebuild without cache to ensure we get the latest changes
-    docker build --no-cache -t $FULL_IMAGE_TAG .
+    docker build -t $FULL_IMAGE_TAG .
     
     log_success "Docker image built: $FULL_IMAGE_TAG"
 }
@@ -165,9 +156,9 @@ test_function() {
     cat > test_payload.json << 'EOF'
 {
   "httpMethod": "GET",
-  "path": "/api/verifications/status/verif-20250616041257-8834",
+  "path": "/api/verifications/status/test-verification-id",
   "pathParameters": {
-    "verificationId": "verif-20250616041257-8834"
+    "verificationId": "test-verification-id"
   },
   "headers": {
     "Content-Type": "application/json"
@@ -185,7 +176,7 @@ EOF
     if [ $? -eq 0 ]; then
         log_success "Function invocation successful"
         log_info "Response:"
-        cat response.json | python3 -m json.tool 2>/dev/null || cat response.json
+        cat response.json | jq '.' 2>/dev/null || cat response.json
         rm -f response.json test_payload.json
     else
         log_error "Function invocation failed"
@@ -196,13 +187,13 @@ EOF
 
 # Main deployment function
 deploy() {
-    log_info "Starting deployment of API Verifications Status Lambda Function (Python)..."
+    log_info "Starting deployment of API Verifications Status Lambda Function..."
 
     check_dependencies
     check_env_vars
     get_ecr_repository
     ecr_login
-    test_python_code
+    build_and_test
     build_docker_image
     push_to_ecr
     update_lambda
@@ -213,29 +204,16 @@ deploy() {
     log_info "Endpoint: GET /api/verifications/status/{verificationId}"
 }
 
-# Local testing
-test_local() {
-    log_info "Testing Lambda function locally..."
-    
-    # Install dependencies locally if needed
-    pip3 install -r requirements.txt --target ./package
-    
-    # Run Python test
-    python3 -c "
-import sys
-sys.path.insert(0, './package')
-import lambda_function
-print('Lambda function imported successfully')
-"
-    
-    log_success "Local test completed"
+# Basic Go operations
+go_build() {
+    log_info "Building Go binary..."
+    GOWORK=off go build -o api-verifications-status *.go
+    log_success "Binary built: api-verifications-status"
 }
 
-# Clean function
-clean() {
+go_clean() {
     log_info "Cleaning up..."
-    rm -rf package/
-    rm -f test_payload.json response.json
+    rm -f api-verifications-status
     log_success "Cleanup completed"
 }
 
@@ -245,14 +223,14 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  deploy    Deploy the Lambda function (default)"
-    echo "  test      Test the Lambda function locally"
+    echo "  build     Build the Go binary only"
     echo "  clean     Clean up build artifacts"
     echo "  help      Show this help message"
     echo ""
     echo "Environment Variables:"
     echo "  AWS_REGION              AWS region (default: us-east-1)"
-    echo "  LAMBDA_FUNCTION_NAME    Lambda function name"
-    echo "  ECR_REPO_NAME          ECR repository name"
+    echo "  LAMBDA_FUNCTION_NAME    Lambda function name (default: api-verifications-status)"
+    echo "  ECR_REPO_NAME          ECR repository name (default: api-verifications-status)"
     echo ""
 }
 
@@ -261,11 +239,11 @@ case "${1:-deploy}" in
     "deploy")
         deploy
         ;;
-    "test")
-        test_local
+    "build")
+        go_build
         ;;
     "clean")
-        clean
+        go_clean
         ;;
     "help"|"-h"|"--help")
         show_help

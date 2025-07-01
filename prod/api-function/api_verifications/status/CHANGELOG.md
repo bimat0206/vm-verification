@@ -5,77 +5,47 @@ All notable changes to the API Verifications Status Lambda Function will be docu
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-01-XX
+## [2.0.1] - 2025-01-30
+
+### Fixed
+- Fixed "Object of type Decimal is not JSON serializable" error
+- Added custom JSON encoder to handle DynamoDB Decimal types
+- Added convert_decimals helper function for nested structures
+- Updated all JSON serialization to use DecimalEncoder
 
 ### Added
-- Initial implementation of verification status API endpoint
-- GET `/api/verifications/status/{verificationId}` endpoint for polling verification status
-- Support for status checking: RUNNING, COMPLETED, FAILED
-- Automatic retrieval of LLM responses from S3 when verification is completed
-- Integration with DynamoDB for verification record lookup
-- Integration with S3 for processed content retrieval
-- Comprehensive error handling for missing verifications and S3 access issues
-- CORS support for web applications
-- Structured JSON logging with contextual information
-- Docker-based deployment with ECR integration
-- Automated deployment script with dependency checking
-- Test payload files for development and testing
-- Comprehensive documentation and README
+- Unit test for Decimal type conversion
 
-### Features
-- **Status Polling**: Real-time verification status checking
-- **Result Retrieval**: Automatic fetching of verification results when complete
-- **S3 Integration**: Seamless retrieval of processed markdown content
-- **Error Handling**: Robust error handling with appropriate HTTP status codes
-- **Logging**: Structured logging for monitoring and debugging
-- **Security**: IAM-based access control and input validation
+## [2.0.0] - 2025-01-30
+
+### Changed
+- **BREAKING**: Completely refactored from Go to Python to resolve persistent AWS SDK v2 endpoint resolution issues
+- Replaced AWS SDK Go v2 with boto3 for more reliable DynamoDB operations
+- Simplified codebase while maintaining the same API interface
+- Improved error handling with Python's exception model
+
+### Added
+- Unit tests for Lambda function
+- Python-specific deployment script
+- Comprehensive documentation for Python implementation
+
+### Fixed
+- Eliminated "ResolveEndpointV2" errors that plagued the Go implementation
+- Resolved AWS SDK module version incompatibility issues
+- Fixed endpoint resolution problems in Lambda environment
 
 ### Technical Details
-- Built with Go 1.20+ for optimal performance
-- Uses AWS SDK for Go v2 for modern AWS service integration
-- Implements AWS Lambda runtime for serverless execution
-- Supports container-based deployment via ECR
-- Includes comprehensive test scenarios and documentation
+- Runtime: Python 3.11
+- SDK: boto3 1.34.0
+- Deployment: Docker container on AWS Lambda
+- No external dependencies beyond boto3
 
-### Environment Variables
-- `DYNAMODB_VERIFICATION_TABLE`: DynamoDB table for verification records (required)
-- `DYNAMODB_CONVERSATION_TABLE`: DynamoDB table for conversation metadata (required)
-- `STATE_BUCKET`: S3 bucket for state files (optional)
-- `STEP_FUNCTIONS_STATE_MACHINE_ARN`: Step Functions state machine ARN (optional)
-- `LOG_LEVEL`: Configurable logging level (debug, info, warn, error)
+### Migration Notes
+- The API interface remains unchanged - no client modifications needed
+- Environment variables remain the same
+- Response format is identical to the Go implementation
+- Go implementation preserved in `old/` directory for reference
 
-### API Response Format
-```json
-{
-  "verificationId": "string",
-  "status": "RUNNING|COMPLETED|FAILED",
-  "currentStatus": "string",
-  "verificationStatus": "CORRECT|INCORRECT|PENDING",
-  "s3References": {
-    "turn1Processed": "string",
-    "turn2Processed": "string"
-  },
-  "summary": {
-    "message": "string",
-    "verificationAt": "string",
-    "verificationStatus": "string",
-    "overallAccuracy": "number",
-    "correctPositions": "number",
-    "discrepantPositions": "number"
-  },
-  "llmResponse": "string",
-  "verificationSummary": "object"
-}
-```
+## Previous Go Implementation
 
-### Deployment
-- Automated deployment via `deploy.sh` script
-- Docker containerization for consistent deployment
-- ECR integration for image storage
-- AWS Lambda function updates with zero downtime
-
-### Testing
-- Comprehensive test event collection
-- Local testing support
-- API integration testing examples
-- Error scenario coverage
+See `old/CHANGELOG.md` for the history of the Go implementation (versions 1.0.0 - 1.1.0).

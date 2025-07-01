@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -16,20 +18,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-
-	// "github.com/aws/aws-sdk-go-v2/service/sfn" // TODO: Add when Step Functions integration is needed
+	"github.com/aws/smithy-go/logging"
 	"github.com/sirupsen/logrus"
 )
 
+// Global variables for AWS clients and configuration
 var (
-	log                     *logrus.Logger
-	dynamoClient           *dynamodb.Client
-	s3Client               *s3.Client
-	// sfnClient              *sfn.Client // TODO: Add when Step Functions integration is needed
-	verificationTableName  string
-	conversationTableName  string
-	stateBucket            string
+	log                          *logrus.Logger
+	dynamoClient                 *dynamodb.Client
+	s3Client                     *s3.Client
+	verificationTableName        string
+	conversationTableName        string
+	stateBucket                  string
 	stepFunctionsStateMachineArn string
+	awsRegion                    string
 )
 
 // VerificationRecord represents a verification record from DynamoDB verification table
@@ -50,9 +52,7 @@ type VerificationRecord struct {
 	VerificationSummary  map[string]interface{} `json:"verificationSummary,omitempty" dynamodbav:"verificationSummary,omitempty"`
 	CreatedAt            string                 `json:"createdAt,omitempty" dynamodbav:"createdAt,omitempty"`
 	UpdatedAt            string                 `json:"updatedAt,omitempty" dynamodbav:"updatedAt,omitempty"`
-	// Current processing status
 	CurrentStatus        string                 `json:"currentStatus,omitempty" dynamodbav:"currentStatus,omitempty"`
-	// Processed paths from verification metadata
 	Turn1ProcessedPath   string                 `json:"turn1ProcessedPath,omitempty" dynamodbav:"turn1ProcessedPath,omitempty"`
 	Turn2ProcessedPath   string                 `json:"turn2ProcessedPath,omitempty" dynamodbav:"turn2ProcessedPath,omitempty"`
 }
@@ -93,26 +93,51 @@ type ErrorResponse struct {
 	Code    string `json:"code,omitempty"`
 }
 
-func init() {
-	// Initialize logger
-	log = logrus.New()
-	logLevel := os.Getenv("LOG_LEVEL")
-	if level, err := logrus.ParseLevel(logLevel); err == nil {
-		log.SetLevel(level)
-	} else {
-		log.SetLevel(logrus.InfoLevel)
-	}
-	log.SetFormatter(&logrus.JSONFormatter{})
+// Custom logger adapter for AWS SDK
+type awsLogAdapter struct {
+	logger *logrus.Logger
+}
 
-	// Load environment variables
+func (a *awsLogAdapter) Logf(classification logging.Classification, format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	switch classification {
+	case logging.Debug:
+		a.logger.Debug(msg)
+	case logging.Warn:
+		a.logger.Warn(msg)
+	default:
+		a.logger.Info(msg)
+	}
+}
+
+// Initialize logger with proper configuration
+func initLogger() {
+	log = logrus.New()
+	log.SetFormatter(&logrus.JSONFormatter{})
+	
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		log.WithError(err).Warn("Invalid log level, defaulting to INFO")
+		level = logrus.InfoLevel
+	}
+	log.SetLevel(level)
+}
+
+// Load and validate environment variables
+func loadEnvironmentVariables() error {
 	verificationTableName = os.Getenv("DYNAMODB_VERIFICATION_TABLE")
 	if verificationTableName == "" {
-		log.Fatal("DYNAMODB_VERIFICATION_TABLE environment variable is required")
+		return fmt.Errorf("DYNAMODB_VERIFICATION_TABLE environment variable is required")
 	}
 
 	conversationTableName = os.Getenv("DYNAMODB_CONVERSATION_TABLE")
 	if conversationTableName == "" {
-		log.Fatal("DYNAMODB_CONVERSATION_TABLE environment variable is required")
+		return fmt.Errorf("DYNAMODB_CONVERSATION_TABLE environment variable is required")
 	}
 
 	stateBucket = os.Getenv("STATE_BUCKET")
@@ -125,29 +150,122 @@ func init() {
 		log.Warn("STEP_FUNCTIONS_STATE_MACHINE_ARN environment variable is not set")
 	}
 
-	log.WithFields(logrus.Fields{
-		"verificationTable":        verificationTableName,
-		"conversationTable":        conversationTableName,
-		"stateBucket":             stateBucket,
-		"stepFunctionsStateMachine": stepFunctionsStateMachineArn,
-	}).Info("Environment variables loaded")
-
-	// Initialize AWS clients with explicit region
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"))
-	if err != nil {
-		log.WithError(err).Fatal("unable to load AWS SDK config")
+	// Use AWS_REGION as primary, fall back to REGION if not set
+	awsRegion = os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = os.Getenv("REGION")
+	}
+	if awsRegion == "" {
+		awsRegion = os.Getenv("AWS_DEFAULT_REGION")
+	}
+	if awsRegion == "" {
+		// Default to us-east-1 if no region is specified
+		awsRegion = "us-east-1"
+		log.Warn("No AWS region specified, defaulting to us-east-1")
 	}
 
+	log.WithFields(logrus.Fields{
+		"verificationTable":         verificationTableName,
+		"conversationTable":         conversationTableName,
+		"stateBucket":               stateBucket,
+		"stepFunctionsStateMachine": stepFunctionsStateMachineArn,
+		"awsRegion":                 awsRegion,
+	}).Info("Environment variables loaded")
+
+	return nil
+}
+
+// Initialize AWS clients with proper error handling
+func initAWSClients(ctx context.Context) error {
+	// Create custom HTTP client with timeout
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Create a custom endpoint resolver that properly handles DynamoDB endpoints
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		// Force explicit endpoints for services to avoid resolution issues
+		switch service {
+		case dynamodb.ServiceID:
+			return aws.Endpoint{
+				URL:           fmt.Sprintf("https://dynamodb.%s.amazonaws.com", region),
+				SigningRegion: region,
+				PartitionID:   "aws",
+				HostnameImmutable: true,
+			}, nil
+		case s3.ServiceID:
+			return aws.Endpoint{
+				URL:           fmt.Sprintf("https://s3.%s.amazonaws.com", region),
+				SigningRegion: region,
+				PartitionID:   "aws",
+				HostnameImmutable: true,
+			}, nil
+		default:
+			// Fallback to default endpoint resolution
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+		}
+	})
+
+	// Load AWS configuration with custom resolver and minimal options
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(awsRegion),
+		config.WithHTTPClient(httpClient),
+		config.WithEndpointResolverWithOptions(customResolver),
+		config.WithRetryMaxAttempts(3),
+		config.WithLogger(&awsLogAdapter{logger: log}),
+		config.WithClientLogMode(aws.LogRetries|aws.LogRequestWithBody|aws.LogResponseWithBody),
+	)
+	if err != nil {
+		return fmt.Errorf("unable to load AWS SDK config: %w", err)
+	}
+
+	// Initialize DynamoDB client
 	dynamoClient = dynamodb.NewFromConfig(cfg)
+
+	// Initialize S3 client
 	s3Client = s3.NewFromConfig(cfg)
-	// sfnClient = sfn.NewFromConfig(cfg) // TODO: Add when Step Functions integration is needed
+
+	// Test DynamoDB connectivity
+	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	
+	_, err = dynamoClient.DescribeTable(testCtx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(verificationTableName),
+	})
+	if err != nil {
+		log.WithError(err).Warn("Failed to describe DynamoDB table - endpoint may not be properly configured")
+	} else {
+		log.Info("Successfully connected to DynamoDB")
+	}
+
+	log.Info("AWS clients initialized successfully")
+	return nil
+}
+
+func init() {
+	// Initialize logger first
+	initLogger()
+
+	// Load environment variables
+	if err := loadEnvironmentVariables(); err != nil {
+		log.WithError(err).Fatal("Failed to load environment variables")
+	}
+
+	// Initialize AWS clients
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	if err := initAWSClients(ctx); err != nil {
+		log.WithError(err).Fatal("Failed to initialize AWS clients")
+	}
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.WithFields(logrus.Fields{
-		"method": request.HTTPMethod,
-		"path":   request.Path,
-		"params": request.PathParameters,
+		"method":    request.HTTPMethod,
+		"path":      request.Path,
+		"params":    request.PathParameters,
+		"requestId": request.RequestContext.RequestID,
 	}).Info("Get verification status request received")
 
 	// Set CORS headers
@@ -176,7 +294,6 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Extract verificationId from path parameters or query parameters
 	verificationId := request.PathParameters["verificationId"]
 	if verificationId == "" {
-		// Fallback to query parameters if path parameter is not available
 		verificationId = request.QueryStringParameters["verificationId"]
 	}
 	if verificationId == "" {
@@ -187,10 +304,16 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		"verificationId": verificationId,
 	}).Info("Processing get verification status request")
 
-	// Query DynamoDB verification table
-	verificationRecord, err := getVerificationRecord(ctx, verificationId)
+	// Query DynamoDB verification table with timeout
+	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	
+	verificationRecord, err := getVerificationRecord(queryCtx, verificationId)
 	if err != nil {
 		log.WithError(err).Error("Failed to get verification record")
+		if strings.Contains(err.Error(), "context deadline exceeded") {
+			return createErrorResponse(504, "Gateway timeout", "Request timed out while querying database", headers)
+		}
 		return createErrorResponse(500, "Failed to get verification record", err.Error(), headers)
 	}
 
@@ -246,24 +369,49 @@ func getVerificationRecord(ctx context.Context, verificationId string) (*Verific
 	log.WithFields(logrus.Fields{
 		"verificationId": verificationId,
 		"tableName":      verificationTableName,
+		"region":         awsRegion,
 	}).Debug("Querying DynamoDB for verification record")
 
-	// Query DynamoDB using verificationId as the hash key (will return all items with this verificationId)
-	// Since the table has a composite key (verificationId + verificationAt), we query by verificationId
-	// and get the most recent record
+	// Query DynamoDB using verificationId as the hash key
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(verificationTableName),
 		KeyConditionExpression: aws.String("verificationId = :verificationId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":verificationId": &types.AttributeValueMemberS{Value: verificationId},
 		},
-		ScanIndexForward: aws.Bool(false), // Sort by verificationAt in descending order (most recent first)
-		Limit:           aws.Int32(1),     // Only get the most recent record
+		ScanIndexForward: aws.Bool(false), // Sort by verificationAt in descending order
+		Limit:            aws.Int32(1),     // Only get the most recent record
 	}
 
-	result, err := dynamoClient.Query(ctx, input)
+	// Execute query with retry logic
+	var result *dynamodb.QueryOutput
+	var err error
+	
+	for i := 0; i < 3; i++ {
+		result, err = dynamoClient.Query(ctx, input)
+		if err == nil {
+			break
+		}
+		
+		// Log the error and retry if it's a retryable error
+		log.WithError(err).WithField("attempt", i+1).Warn("DynamoDB query failed, retrying...")
+		
+		// Check if error is retryable
+		if !isRetryableError(err) {
+			break
+		}
+		
+		// Wait before retry with exponential backoff
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(i+1) * time.Second):
+			continue
+		}
+	}
+	
 	if err != nil {
-		return nil, fmt.Errorf("failed to query verification table: %w", err)
+		return nil, fmt.Errorf("failed to query verification table after retries: %w", err)
 	}
 
 	if len(result.Items) == 0 {
@@ -290,6 +438,35 @@ func getVerificationRecord(ctx context.Context, verificationId string) (*Verific
 	}).Debug("Successfully retrieved verification record")
 
 	return &record, nil
+}
+
+// Helper function to check if an error is retryable
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	
+	// Check for common retryable error patterns
+	errStr := err.Error()
+	retryablePatterns := []string{
+		"ResolveEndpointV2",
+		"connection refused",
+		"timeout",
+		"TooManyRequestsException",
+		"ServiceUnavailable",
+		"RequestLimitExceeded",
+		"ThrottlingException",
+		"ProvisionedThroughputExceededException",
+		"InternalServerError",
+	}
+	
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func buildStatusResponse(ctx context.Context, record *VerificationRecord) (*StatusResponse, error) {
@@ -341,7 +518,10 @@ func buildStatusResponse(ctx context.Context, record *VerificationRecord) (*Stat
 
 	// If verification is completed, retrieve LLM response from S3
 	if status == "COMPLETED" && record.Turn2ProcessedPath != "" {
-		llmResponse, err := getS3Content(ctx, record.Turn2ProcessedPath)
+		s3Ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		
+		llmResponse, err := getS3Content(s3Ctx, record.Turn2ProcessedPath)
 		if err != nil {
 			log.WithError(err).Warn("Failed to retrieve LLM response from S3")
 		} else {
@@ -380,7 +560,6 @@ func getS3Content(ctx context.Context, s3Path string) (string, error) {
 
 	// Parse S3 path to extract bucket and key
 	if strings.HasPrefix(s3Path, "s3://") {
-		// Extract bucket and key from full S3 URI: s3://bucket/key
 		parts := strings.SplitN(strings.TrimPrefix(s3Path, "s3://"), "/", 2)
 		if len(parts) != 2 {
 			return "", fmt.Errorf("invalid S3 path format: %s", s3Path)
