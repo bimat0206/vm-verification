@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.2.1] - 2025-06-29 - Remove ExecutionID Support
+
+### Reverted
+- **BREAKING**: Removed ExecutionID support from Step Functions state machine definition
+  - **Removed from**: All Lambda function invocation parameters in state machine template
+  - **Removed**: `executionId.$` and `executionName.$` parameters from all task states
+  - **Rationale**: ExecutionID feature was not needed and added unnecessary complexity
+
+### Technical Details
+- **Files Modified**:
+  - `templates/state_machine_definition.tftpl` - Removed execution context parameters from all Lambda invocations
+- **States Updated**:
+  - Initialize, FetchHistoricalVerification, FetchImages, PrepareSystemPrompt
+  - ExecuteTurn1Combined, ExecuteTurn2Combined, FinalizeAndStoreResults, FinalizeWithError
+- **Backward Compatibility**: No impact - ExecutionID was never deployed to production
+
+### Impact
+- ✅ Simplified state machine definition
+- ✅ Reduced parameter passing complexity
+- ✅ Eliminated unused execution context tracking
+- ✅ Improved maintainability
+
 ## [2.2.0] - 2025-06-02
 
 ### Removed

@@ -123,6 +123,23 @@ resource "aws_api_gateway_integration_response" "verifications_status_get" {
   depends_on = [aws_api_gateway_integration.verifications_status_get]
 }
 
+# 8.1. Verification Status by ID - GET /api/verifications/status/{verificationId}
+resource "aws_api_gateway_integration_response" "verifications_status_id_get" {
+  count = var.cors_enabled ? 1 : 0
+
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications_status_id.id
+  http_method = aws_api_gateway_method.verifications_status_id_get.http_method
+  status_code = aws_api_gateway_method_response.verifications_status_id_get.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'",
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
+  }
+
+  depends_on = [aws_api_gateway_integration.verifications_status_id_get]
+}
+
 # 9. Health Check - GET /api/health
 resource "aws_api_gateway_integration_response" "health_get" {
   count = var.cors_enabled ? 1 : 0

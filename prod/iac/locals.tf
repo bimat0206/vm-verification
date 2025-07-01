@@ -387,6 +387,7 @@ locals {
         LOG_LEVEL                        = "INFO"
         STATE_BUCKET                     = local.s3_buckets.state
         STEP_FUNCTIONS_STATE_MACHINE_ARN = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.step_function_name}"
+        REGION              = "${var.aws_region}"
       }
     },
 

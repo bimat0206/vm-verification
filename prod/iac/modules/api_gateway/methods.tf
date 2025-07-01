@@ -684,6 +684,94 @@ resource "aws_api_gateway_integration" "verifications_status_get" {
   uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_verifications_status"]}/invocations"
 }
 
+# 8. Get Verification Status by ID - GET /api/verifications/status/{verificationId}
+resource "aws_api_gateway_method" "verifications_status_id_get" {
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.verifications_status_id.id
+  http_method      = "GET"
+  authorization    = var.use_api_key ? "NONE" : "NONE"
+  api_key_required = var.use_api_key
+
+  # Add request parameter validation for path parameter
+  request_validator_id = aws_api_gateway_request_validator.params_only_validator.id
+  request_parameters = {
+    "method.request.path.verificationId" = true
+  }
+}
+
+resource "aws_api_gateway_method_response" "verifications_status_id_get" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications_status_id.id
+  http_method = aws_api_gateway_method.verifications_status_id_get.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+# OPTIONS method for verifications_status_id
+resource "aws_api_gateway_method" "verifications_status_id_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.verifications_status_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "verifications_status_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications_status_id.id
+  http_method = aws_api_gateway_method.verifications_status_id_options.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{ \"statusCode\": 200 }"
+  }
+}
+
+resource "aws_api_gateway_method_response" "verifications_status_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications_status_id.id
+  http_method = aws_api_gateway_method.verifications_status_id_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "verifications_status_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.verifications_status_id.id
+  http_method = aws_api_gateway_method.verifications_status_id_options.http_method
+  status_code = aws_api_gateway_method_response.verifications_status_id_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'*'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_origin}'"
+  }
+}
+
+resource "aws_api_gateway_integration" "verifications_status_id_get" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.verifications_status_id.id
+  http_method             = aws_api_gateway_method.verifications_status_id_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${var.lambda_function_arns["api_verifications_status"]}/invocations"
+}
+
 # 8. Get Image View - GET /api/images/{key}/view
 resource "aws_api_gateway_method" "image_view_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
